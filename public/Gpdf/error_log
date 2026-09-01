@@ -1,0 +1,10 @@
+[27-Jul-2021 10:32:15 America/Bogota] PHP Warning:  getimagesize(../public/img/logo_acta.jpg): failed to open stream: No such file or directory in /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/public/Gpdf/fpdf.php on line 1240
+[27-Jul-2021 10:32:15 America/Bogota] PHP Fatal error:  Uncaught Exception: FPDF error: Missing or incorrect image file: ../public/img/logo_acta.jpg in /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/public/Gpdf/fpdf.php:271
+Stack trace:
+#0 /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/public/Gpdf/fpdf.php(1242): FPDF->Error('Missing or inco...')
+#1 /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/public/Gpdf/fpdf.php(885): FPDF->_parsejpg('../public/img/l...')
+#2 /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/Control/resultadosencuesta.php(155): FPDF->Image('../public/img/l...', 18, 10, 27)
+#3 /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/public/Gpdf/fpdf.php(334): PDF->Header()
+#4 /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/Control/resultadosencuesta.php(226): FPDF->AddPage()
+#5 {main}
+  thrown in /home/j4p6lypi5vlf/public_html/gruporegency.com.co/encuesta_colaboradores/public/Gpdf/fpdf.php on line 271

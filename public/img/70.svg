@@ -1,0 +1,13 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<!-- Created using Krita: https://krita.org -->
+<svg xmlns="http://www.w3.org/2000/svg" 
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:krita="http://krita.org/namespaces/svg/krita"
+    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+    width="200pt"
+    height="200pt"
+    viewBox="0 0 200 200">
+<defs/>
+<path id="shape0" transform="translate(18.3847767429401, 10.1305551937649)" fill="#99ff06" fill-rule="evenodd" d="M81.6152 0.122493C101.359 -0.911682 116.357 4.70189 129.401 13.204C148.378 27.8595 155.49 37.7585 162.988 54.2162C166.174 65.5894 174.519 79.4414 164.756 117.502C154.981 134.881 155.291 139.535 131.115 160.369C114.379 168.514 109.785 174.79 81.6152 173.869C68.1675 172.909 61.5501 175.14 32.8805 159.222C22.374 151.737 6.30046 134.256 0 114.674C45.6719 97.9197 34.9906 109.58 41.3657 89.8694C67.5399 98.7967 25.8328 63.0001 45.9619 67.2976C53.3547 61.7545 70.2715 72.1735 81.6152 85.3289C82.2968 65.2502 79.6481 17.1126 81.6152 0.122493Z" sodipodi:nodetypes="cccccccccccc"/><ellipse id="shape1" transform="translate(32, 28)" rx="69.5" ry="70" cx="69.5" cy="70" fill="#525c50" fill-rule="evenodd"/><text id="shape2" krita:useRichText="true" krita:textVersion="2" transform="translate(41.5, 117)" fill="#ffffff" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" font-family="Arial" font-size="48" font-size-adjust="0.222222" font-stretch="normal" font-weight="700" letter-spacing="0" text-anchor="middle" word-spacing="0"><tspan x="54.75">70 %</tspan></text>
+</svg>
