@@ -43,7 +43,10 @@ include('head.php');
                     </div>
                     <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                       <label for="">Email del colaborador:</label>
-                      <input type="email" class="form-control" name="email" id="email"  pattern="[a-z0-9._%+-]+@[regency,protinco, gruporegency]+\.[net,com\.co]{3,}$"  required>
+                      <!-- Se quito el atributo pattern: estaba mal escrito y bloqueaba el guardado
+                           en silencio (rechazaba mayusculas, @regencysa.net y dominios externos).
+                           La validacion de correo la hace type="email". -->
+                      <input type="email" class="form-control" name="email" id="email" required>
                     </div>
                       <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                         <label for="selectCargo">Cargo:</label>
@@ -127,13 +130,13 @@ include('head.php');
   include('footer.php');
 
   ?>
-  <script type="text/javascript" src="../Ajax/ColaboradoresAjax.js"></script>
+  <script type="text/javascript" src="../Ajax/ColaboradoresAjax.js?v=2"></script>
 <?php
 
 } else {
   echo "<script> 
   window.history.go(-1)
-  </script>";
+  </script>"; 
     
 }
 }else{    

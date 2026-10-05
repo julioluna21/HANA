@@ -3,82 +3,74 @@ var tabla;//variable global
 function guardar(e)
 {
     e.preventDefault(); //No se activará la acción predeterminada del evento
-    $("#btnGuardar").prop("disabled",true);
+    hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
-            url: "../Control/cargosControl.php?op=guardar",
+        url: "../Control/cargosControl.php?op=guardar",
         type: "POST",
         data: formData,
         contentType: false,
         processData: false,
+        //Si el servidor responde con error se muestra el motivo real.
+        //El formulario NO se borra, para que el usuario pueda corregir y reintentar
+        error: function(xhr)
+        {
+            hanaErrorAjax(xhr, "No se pudo guardar el registro.");
+        },
         success: function(datos)
-        {            
+        {
+            limpiar(); //se limpia solo cuando el registro de verdad quedó guardado
             mostrarform(false);
-            //$('#myModal').modal('hide');
             tabla.ajax.reload();
-            //$(location).attr('href','../Vista/index.html');   
-            setTimeout(() => {
-                alert("Registro realizado con exito")
-            }, 200);             
+            alert("Registro guardado con éxito");
+        },  
+        complete: function()
+        {
+            hanaBoton("#btnGuardar", false); //pase lo que pase, el botón vuelve a quedar disponible
         }
     });
-    limpiar();
 }
 function mostrar(idCargo)
 {
+    hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
     $.post("../Control/cargosControl.php?op=mostrar",{idCargo : idCargo}, function(data)
     {
-    data = JSON.parse(data);
-    mostrarform(true);
-    $("#idCargo").val(data.ID_CARGO_COLABORADORES);
-    $("#nombre").val(data.NOM_CARGO_COLABORADORES);
-    $("#permisoNovedad").val(data.PERMISO_ASIGNAR_NOVEDAD);    
+        hanaCargando(false);
+        data = JSON.parse(data);
+        mostrarform(true);
+        $("#idCargo").val(data.ID_CARGO_COLABORADORES);
+        $("#nombre").val(data.NOM_CARGO_COLABORADORES);
+        $("#permisoNovedad").val(data.PERMISO_ASIGNAR_NOVEDAD);
+    })
+    .fail(function(xhr){
+        hanaCargando(false);
+        hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
 function anular(idCargo){
-    
-     if(confirm("Desea anular este registro?")){
+    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
+    hanaConfirmar("¿Desea anular este registro?", function(){
         $.post("../Control/cargosControl.php?op=anular",{idCargo : idCargo}, function(data){
             tabla.ajax.reload();
-            setTimeout(() => {
-                alert("Registro anulado con exito")
-            }, 200); 
+            alert("Registro anulado con éxito");
+        })
+        .fail(function(xhr){
+            hanaErrorAjax(xhr, "No se pudo anular el registro.");
         });
-     }
-        
+    });
 }
 function activar(idCargo){
-     bootbox.confirm({
-            message: "Desea activar este registro?",
-            buttons: {
-                confirm: {
-                    label: 'SI'
-                },
-                cancel: {
-                    label: 'NO'
-                }
-            },
-            callback: function (result) {
-                if (result) {
-                  $.post("../Control/cargosControl.php?op=activar",{idCargo : idCargo}, function(data)
-            {
-      bootbox.alert({
-                        title: 'Activado!',
-                        message: data,
-                        size: 'small',
-                        closeButton: false
-                    });      
-                      
-        setTimeout(() => {
-                        bootbox.hideAll()
-        }, 1500);              
-         tabla.ajax.reload();
-        
-    });
-                }
-            }
+    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
+    //Nota: hoy ninguna pantalla muestra el botón Activar y el controlador no tiene la opción "activar"
+    hanaConfirmar("¿Desea activar este registro?", function(){
+        $.post("../Control/cargosControl.php?op=activar",{idCargo : idCargo}, function(data){
+            tabla.ajax.reload();
+            alert("Registro activado con éxito");
+        })
+        .fail(function(xhr){
+            hanaErrorAjax(xhr, "No se pudo activar el registro.");
         });
-    
+    });
 }
 function cancelarform()
 {

@@ -24,7 +24,13 @@ class colaborador
         //Implementar un método para mostrar los datos de un registro a modificar
         public function mostrar($id)
         {
-                $sql = "SELECT * FROM colaboradores WHERE ID_COLABORADOR='$id'";
+                //Se trae tambien el nombre del cargo: el select2 carga sus opciones
+                //por AJAX, asi que al editar hay que reconstruir la opcion actual
+                $sql = "SELECT colaboradores.*, cargos_colaboladores.NOM_CARGO_COLABORADORES
+                        FROM colaboradores
+                        LEFT JOIN cargos_colaboladores
+                          ON cargos_colaboladores.ID_CARGO_COLABORADORES = colaboradores.ID_CARGO_COLABORADORES_COLABORADORES
+                        WHERE colaboradores.ID_COLABORADOR='$id'";
                 return ejecutarConsultaSimpleFila($sql);
         }
         //Implementar un método para listar los registros

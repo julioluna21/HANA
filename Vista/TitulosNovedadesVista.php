@@ -21,7 +21,7 @@ include('head.php');
 
         <div class="x_panel">
           <div class="x_title">
-            <h2>Crear titulo de novedades<small>Formulario</small></h2>
+            <h2>Crear título de novedad<small>Formulario</small></h2>
             
             <div class="clearfix"></div>
           </div>
@@ -34,19 +34,19 @@ include('head.php');
                       <div class="row">
                               <div class="form-group col-lg-12 col-md-12 col-sm-12 col-xs-12">
                                 <input type="hidden" name="idtitulo" id="idtitulo">  
-                                <label>Nombre Titulo:</label>
+                                <label>Nombre del título:</label>
                                 <input type="text" class="form-control" name="nombre" id="nombre" required="" autofocus>
                               </div>
                           
                         </div> 
                
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                              <SPAN title="Guardar Registro">
+                              <SPAN title="Guardar">
                                 <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar
                                 </button>
                               </SPAN>       
 <!--ejecuta cancelar formulario-->
-                              <SPAN title="Cancelar Registro">
+                              <SPAN title="Cancelar">
                                 <button class="btn btn-primary" onclick="cancelarform()"  type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
                                 </button>
                               </SPAN>
@@ -62,14 +62,14 @@ include('head.php');
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
-                  <h2>Listado de titulos de novedades</h2>
-                  <SPAN title="Agregar Registro" style="float:right">
+                  <h2>Listado de títulos de novedades</h2>
+                  <SPAN title="Agregar título" style="float:right">
               <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
                   <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
-                </i> Nuevo Registro
+                </i> Nuevo título
               </button>
             </SPAN>
                     <div class="clearfix"></div>
@@ -80,7 +80,7 @@ include('head.php');
 
                     <table id="tbllistado" class="table table-striped table-bordered" style="width:100%; text-align: center">
                     <thead>
-                  <th>Nombre Titulo</th>       
+                  <th>Nombre del título</th>       
                   <th>Estado</th>
                   <th>Opción</th>
                     </thead>

@@ -1,0 +1,135 @@
+/* Alertas personalizadas de HANA. Las crea Ajax/AlertasAjax.js */
+
+/* Fondo oscuro que cubre toda la pantalla mientras la ventana esta abierta */
+.hana-alerta-fondo{
+    display: none;
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    z-index: 100000;                    /* por encima de menus, select2 y ventanas de bootstrap */
+    background: rgba(110, 26, 30, .55);  /* el azul del menu lateral, semitransparente */
+    padding: 16px;
+    align-items: center;
+    justify-content: center;
+}
+.hana-alerta-fondo.hana-alerta-visible{ display: flex; }
+
+/* Recuadro blanco central */
+.hana-alerta-caja{
+    background: #ffffff;
+    width: 100%;
+    max-width: 420px;
+    border-top: 5px solid var(--hana-verde-osc);      /* el color cambia segun el tipo, mas abajo */
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+    padding: 26px 24px 20px;
+    text-align: center;
+    animation: hanaAlertaEntrada .18s ease-out;
+}
+
+.hana-alerta-icono{
+    font-size: 46px;
+    line-height: 1;
+    margin-bottom: 10px;
+    color: var(--hana-verde-osc);
+}
+
+.hana-alerta-titulo{
+    font-size: 19px;
+    font-weight: bold;
+    color: var(--hana-vino);
+    margin-bottom: 8px;
+}
+
+/* Texto del mensaje: respeta los saltos de linea del mensaje original */
+.hana-alerta-mensaje{
+    font-size: 15px;
+    color: #555555;
+    white-space: pre-line;
+    word-wrap: break-word;
+    max-height: 50vh;                   /* si es muy largo, aparece barra de desplazamiento */
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+.hana-alerta-mensaje.hana-alerta-multilinea{ text-align: left; }
+
+/* Botones */
+.hana-alerta-botones{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.hana-alerta-boton{
+    min-width: 120px;
+    padding: 10px 22px;
+    font-size: 15px;
+    color: #ffffff;
+    background: var(--hana-verde-osc);
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.hana-alerta-boton:hover{ opacity: .9; }
+.hana-alerta-boton:focus{ outline: 3px solid rgba(110, 26, 30, .35); outline-offset: 2px; }
+
+/* Boton "No" de las preguntas: gris y con borde, para que no compita con el "Si" */
+.hana-alerta-boton.hana-alerta-cancelar{
+    color: var(--hana-vino);
+    background: #ffffff;
+    border: 1px solid #c5ccd3;
+}
+
+/* Colores por tipo */
+.hana-alerta-exito .hana-alerta-caja{ border-top-color: var(--hana-verde); }
+.hana-alerta-exito .hana-alerta-icono{ color: var(--hana-verde); }
+.hana-alerta-exito .hana-alerta-aceptar{ background: var(--hana-verde); }
+
+.hana-alerta-error .hana-alerta-caja{ border-top-color: var(--hana-vino); }
+.hana-alerta-error .hana-alerta-icono{ color: var(--hana-vino); }
+.hana-alerta-error .hana-alerta-aceptar{ background: var(--hana-vino); }
+
+.hana-alerta-aviso .hana-alerta-caja{ border-top-color: var(--hana-ambar); }
+.hana-alerta-aviso .hana-alerta-icono{ color: var(--hana-ambar); }
+.hana-alerta-aviso .hana-alerta-aceptar{ background: var(--hana-ambar); }
+
+.hana-alerta-info .hana-alerta-caja{ border-top-color: var(--hana-verde-osc); }
+.hana-alerta-info .hana-alerta-icono{ color: var(--hana-verde-osc); }
+.hana-alerta-info .hana-alerta-aceptar{ background: var(--hana-verde-osc); }
+
+/* Preguntas (confirmar): azul del menu lateral */
+.hana-alerta-confirmar .hana-alerta-caja{ border-top-color: var(--hana-vino); }
+.hana-alerta-confirmar .hana-alerta-icono{ color: var(--hana-vino); }
+.hana-alerta-confirmar .hana-alerta-aceptar{ background: var(--hana-vino); }
+
+/* Ventana de "Cargando..." */
+.hana-cargando-fondo{
+    display: none;
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    z-index: 99990;                     /* debajo de las alertas, para que un error se vea encima */
+    background: rgba(255, 255, 255, .55);
+    align-items: center;
+    justify-content: center;
+}
+.hana-cargando-fondo.hana-cargando-visible{ display: flex; }
+.hana-cargando-caja{  
+    background: var(--hana-vino);
+    color: #ffffff;
+    font-size: 15px;
+    padding: 14px 22px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .2);
+}
+.hana-cargando-caja .fa{ margin-right: 6px; }
+
+/* En celular los botones ocupan todo el ancho, mas facil de tocar */
+@media (max-width: 480px){
+    .hana-alerta-caja{ padding: 22px 18px 18px; }
+    .hana-alerta-botones{ flex-direction: column-reverse; } /* el "Si" queda arriba */
+    .hana-alerta-boton{ width: 100%; }
+}
+
+/* Pequena animacion al aparecer */
+@keyframes hanaAlertaEntrada{
+    from{ transform: scale(.92); opacity: 0; }
+    to{ transform: scale(1); opacity: 1; }
+}

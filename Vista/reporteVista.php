@@ -30,14 +30,25 @@ include('head.php');
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
-                  <h2>Dashboard Reporte</h2>
+                  <h2>Dashboard Reporte Ausentismo</h2>
                  
                     <div class="clearfix"></div>
                   </div>
                   
-                    <iframe title="Dashboard_Novedades" width="100%" height="800px" src="
-https://app.powerbi.com/view?r=eyJrIjoiY2YzNjJkOGUtNTk4OC00YWJlLWIxYTQtZDA5OTUyZjVmNzBhIiwidCI6IjYwMjkyY2RlLTIxYTQtNDQ1NS04ZjlmLTY1NTQ0YzI4NzMzMSJ9"
-frameborder="0" allowFullScreen="true"></iframe>
+                    <?php
+                    //Enlace del informe publicado de Power BI (el tuyo, sin cambios)
+                    $urlInforme = 'https://app.powerbi.com/view?r=eyJrIjoiNTJkZmRiNzAtMWQxMC00YjUzLWEwZTItNjdhMTQ2ZmMzOThjIiwidCI6IjYwMjkyY2RlLTIxYTQtNDQ1NS04ZjlmLTY1NTQ0YzI4NzMzMSJ9';
+
+                    //Página con la que abre: la primera, "Consolidado". Sin esto, Power
+                    //BI abre en la página que estaba activa al publicar (la última).
+                    //Si algún día se republica con otro nombre interno de página, Power
+                    //BI ignora este dato y abre como antes: no se rompe nada
+                    $paginaInicial = 'p0_consol';
+                    $urlFinal = $urlInforme . ($paginaInicial !== '' ? '&pageName=' . rawurlencode($paginaInicial) : '');
+                    ?>
+                    <iframe title="Dashboard_Novedades" width="100%" height="800px"
+                            src="<?php echo htmlspecialchars($urlFinal, ENT_QUOTES); ?>"
+                            frameborder="0" allowFullScreen="true"></iframe>
                     
                     
                 </div>

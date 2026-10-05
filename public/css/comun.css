@@ -1,0 +1,286 @@
+/* Estilos comunes de todas las pantallas. Acompana a Ajax/ComunAjax.js */
+
+/* Aviso de "Cargando..." de las tablas, centrado encima de la tabla */
+.dataTables_wrapper{ position: relative; }
+
+/* El pie de la tabla lleva dos elementos flotados: "Mostrando 1 a 10 de N" a la
+   izquierda y la paginacion a la derecha. Como nadie limpiaba esos flotantes, la
+   caja siguiente (por ejemplo el aviso de Notificaciones) se montaba encima.
+   Este es el patron con el que Bootstrap limpia flotantes */
+.dataTables_wrapper:before,
+.dataTables_wrapper:after{
+    content: " ";
+    display: table;
+}
+.dataTables_wrapper:after{ clear: both; }
+.dataTables_processing{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 10;
+    transform: translate(-50%, -50%);
+    background: var(--hana-vino);
+    color: #ffffff;
+    padding: 10px 18px;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .2);
+}
+
+/* Barra de progreso superior con el verde del sistema */
+#nprogress .bar{ background: var(--hana-verde); height: 3px; }
+#nprogress .peg{ box-shadow: 0 0 10px var(--hana-verde), 0 0 5px var(--hana-verde); }
+
+/* Tablas en celular: el "+" que despliega las columnas escondidas usa el color del sistema */
+table.dataTable.dtr-inline.collapsed > tbody > tr > td:first-child:before,
+table.dataTable.dtr-inline.collapsed > tbody > tr > th:first-child:before{
+    background-color: var(--hana-verde);
+}
+table.dataTable.dtr-inline.collapsed > tbody > tr.parent > td:first-child:before,
+table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before{
+    background-color: var(--hana-vino);
+}
+
+/* En pantallas pequenas la tabla no debe salirse del recuadro */
+@media (max-width: 767px){
+    .dataTables_wrapper .dataTables_filter{ text-align: left; }
+    .dataTables_wrapper .dataTables_filter input{ width: 100%; margin-left: 0; }
+    .dataTables_wrapper .dataTables_paginate{ float: none; text-align: center; margin-top: 8px; }
+    .dataTables_wrapper .dataTables_info{ float: none; text-align: center; }
+}
+
+/* Tabla de novedades: tiene muchas columnas y necesita anchos minimos para leerse
+   en el computador. Antes estaban escritos dentro del HTML y se aplicaban tambien
+   en el celular, donde la tabla llegaba a 2.400px y tocaba desplazarse de lado.
+   Ahora suman unos 1.150px: en computador caben todas y se leen bien, y en celular
+   DataTables Responsive esconde las que sobran detras del boton "+" de cada fila */
+#tbllistado.tabla-novedades th:nth-child(2){ min-width: 200px; } /* Titulo de la novedad */
+#tbllistado.tabla-novedades th:nth-child(3){ min-width: 105px; } /* Fecha registro */
+#tbllistado.tabla-novedades th:nth-child(4){ min-width: 135px; } /* Colaborador registro */
+#tbllistado.tabla-novedades th:nth-child(5){ min-width: 135px; } /* Colaborador asignado */
+#tbllistado.tabla-novedades th:nth-child(6){ min-width: 100px; } /* Proyecto */
+#tbllistado.tabla-novedades th:nth-child(7){ min-width: 100px; } /* Centro de operacion */
+#tbllistado.tabla-novedades th:nth-child(8){ min-width: 85px; }  /* Prioridad */
+#tbllistado.tabla-novedades th:nth-child(9){ min-width: 105px; } /* Fecha limite */
+#tbllistado.tabla-novedades th:nth-child(10){ min-width: 90px; } /* Estado respuesta */
+#tbllistado.tabla-novedades th:nth-child(11){ min-width: 90px; } /* Estado novedad */
+
+/* --------------------------------------------------------------------------
+   Correccion del diseno en celular
+   public/css/chat.css trae la regla ".row { display: -webkit-box }", que viene
+   de la plantilla de chat. Con eso las columnas de una fila quedan siempre una
+   al lado de la otra y NO bajan en pantallas pequenas: por ejemplo, los filtros
+   de Novedades llegaban a ocupar 1.572px de ancho en un celular de 390px.
+   Aqui se devuelve el comportamiento normal de Bootstrap (bloque con columnas
+   flotadas), sin modificar chat.css ni ninguna libreria.
+   -------------------------------------------------------------------------- */
+.row{
+    display: block;
+}
+/* Bootstrap limpia los flotantes de las columnas con este patron */
+.row:before,
+.row:after{
+    content: " ";
+    display: table;
+}
+.row:after{ clear: both; }
+
+/* En celular, cada columna de formulario ocupa el ancho completo y deja
+   un respiro entre una y otra */
+@media (max-width: 767px){
+    .row > [class*="col-"]{ float: none; width: auto; }
+    .form-group[class*="col-"]{ margin-bottom: 12px; }
+}
+
+/* Los paneles de la plantilla (.x_panel y .x_content) usan float, asi que su
+   ancho lo define el contenido y no la pantalla. Con una tabla ancha, como la de
+   Novedades, el panel crecia hasta 850px dentro de un celular de 390px y arrastraba
+   toda la pagina. Al quitarles el float en pantallas pequenas, el panel se ajusta
+   al ancho real del telefono y DataTables Responsive puede esconder las columnas
+   que no caben detras del boton "+" de cada fila. En computador no cambia nada */
+@media (max-width: 767px){
+    .x_panel,
+    .x_content{
+        float: none;
+        width: 100%;
+    }
+    /* La tabla de Novedades tiene 12 columnas y aun asi no cabe en un celular.
+       Se le deja su propia barra de desplazamiento horizontal dentro del panel,
+       en vez de que arrastre toda la pagina de lado */
+    .panel-body.table-responsive,
+    .dataTables_wrapper{
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .table-responsive{ border: 0; }
+}
+
+/* ==========================================================================
+   Dos barras de desplazamiento separadas
+   --------------------------------------------------------------------------
+   Antes toda la pagina se desplazaba junta: al bajar por un listado largo el
+   menu lateral se iba con ella y tocaba volver hasta arriba para cambiar de
+   modulo. Ahora el menu se queda fijo con su propio desplazamiento, y el
+   contenido tiene el suyo.
+   Solo aplica de tableta hacia arriba: en celular el menu se abre y se cierra,
+   y ahi lo natural es que la pagina se desplace completa.
+   ========================================================================== */
+@media (min-width: 768px){
+
+    /* Antes aquí html y body tenían height: 100% y overflow: hidden, y el
+       contenido tenía height: 100vh con su propio desplazamiento. Eso cortaba
+       la parte de abajo de las pantallas largas y el pie: el contenido empieza
+       debajo de la barra superior, así que nunca cabía en 100vh, y la página
+       entera no se podía bajar. Ahora la página se desplaza normal; el menú
+       sigue quieto porque es position: fixed, y la barra de arriba es sticky */
+
+    /* --- Menu lateral: fijo, con su propia barra --- */
+    .nav-md .container.body .col-md-3.left_col,
+    .nav-sm .container.body .col-md-3.left_col{
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        height: 100%;
+        overflow-y: auto;            /* su propio desplazamiento */
+        overflow-x: hidden;
+        display: block;              /* sin flex, que estorbaba al desplazar */
+    }
+
+    /* --- Contenido: crece con lo que tenga y se baja con la página --- */
+    .nav-md .container.body .right_col,
+    .nav-sm .container.body .right_col{
+        height: auto;
+        overflow-y: visible;
+        padding-bottom: 30px;
+    }
+
+    /* La barra de arriba se queda a la vista mientras se baja por el contenido */
+    .main_container .top_nav{
+        position: sticky;
+        top: 0;
+        z-index: 30;
+    }
+
+    /* El pie va dentro del contenido, no pegado a la ventana */
+    .nav-md footer,
+    .nav-sm footer{
+        margin-left: 0;
+        position: static;
+    }
+
+    /* Barras delgadas y con el color del sistema, para que no pesen visualmente */
+    .left_col::-webkit-scrollbar,
+    .right_col::-webkit-scrollbar{ width: 8px; }
+
+    .left_col::-webkit-scrollbar-track{ background: transparent; }
+    .left_col::-webkit-scrollbar-thumb{
+        background: rgba(255, 255, 255, .25);
+        border-radius: 4px;
+    }
+    .left_col::-webkit-scrollbar-thumb:hover{ background: rgba(255, 255, 255, .4); }
+
+    .right_col::-webkit-scrollbar-track{ background: transparent; }
+    .right_col::-webkit-scrollbar-thumb{
+        background: #C9CFD5;
+        border-radius: 4px;
+    }
+    .right_col::-webkit-scrollbar-thumb:hover{ background: #6B7076; }
+
+    /* Firefox usa esta propiedad en vez de las anteriores */
+    .left_col{ scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.3) transparent; }
+    .right_col{ scrollbar-width: thin; scrollbar-color: #C9CFD5 transparent; }
+}
+
+/* --------------------------------------------------------------------------
+   Botón del menú en celular
+   La regla de arriba que quita el float a las columnas en celular hacía que,
+   en las páginas cuyo primer bloque es una columna (Listas, RQ, Mis
+   notificaciones), ese bloque subiera y quedara ENCIMA de la barra superior.
+   El botón se veía, pero el toque lo recibía el contenido que estaba encima.
+   Se corrige de dos formas: el contenido empieza debajo de la barra, y la
+   barra queda siempre por encima, por si alguna página vuelve a solaparse
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px){
+    .right_col{ clear: both; }
+    .main_container .top_nav{
+        position: relative;
+        z-index: 50;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Control de vista: "Mis registros" / "Todos los que puedo ver"
+   Un solo componente, igual en Novedades y en RQ
+   -------------------------------------------------------------------------- */
+.hana-vista{
+    display: inline-flex;
+    border: 1px solid #E3E6EA;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: #FFFFFF;
+}
+.hana-vista-btn{
+    border: 0;
+    background: #FFFFFF;
+    color: #1A1A1A;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.hana-vista-btn + .hana-vista-btn{ border-left: 1px solid #E3E6EA; }
+.hana-vista-btn:hover{ background: #F7F8F9; }
+.hana-vista-btn.activo{ background: #6E1A1E; color: #FFFFFF; }
+.hana-vista-btn .fa{ margin-right: 5px; }
+@media (max-width: 480px){
+    .hana-vista{ display: flex; }
+    .hana-vista-btn{ flex: 1 1 50%; }
+}
+
+/* --------------------------------------------------------------------------
+   Lo que no tiene sentido copiar ni arrastrar
+   El logo, los títulos, el menú, los botones y los encabezados de tabla no se
+   pueden seleccionar ni arrastrar. Así, al tocar o hacer doble clic, no se
+   marcan en azul ni se "levanta" el logo.
+   Es solo visual: no protege nada. Los datos (tablas, descripciones, lo que
+   se escribe en los formularios) se siguen pudiendo copiar normal
+   -------------------------------------------------------------------------- */
+.left_col, .nav_title, .site_title, .profile, .profile_pic, .menu_section,
+.nav.side-menu, .top_nav .nav_menu, .navbar-right > li > a,
+.x_title, .x_title h2, .page-title, .rq-subtitulo, .rq-det-sub,
+.hana-vista, .hana-campana, .hana-puntos, .hana-punto,
+.btn, label, th, .editor-head, .badge, .badge-orden,
+.dataTables_length, .dataTables_info, .dataTables_paginate,
+.rq-contador, .rq-badge, .hana-alerta-titulo, .modal-title{
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none; /* en iPhone, que no salga el menú de copiar al mantener presionado */
+}
+
+/* Lo que se escribe siempre se puede seleccionar, aunque esté dentro de algo bloqueado */
+input, textarea, select, [contenteditable="true"]{
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+/* Las imágenes de marca no se arrastran ni se guardan con el clic derecho.
+   pointer-events: none deja pasar el clic al enlace que las contiene */
+.profile_pic img, .site_title img, .nav_title img, .login_content img{
+    -webkit-user-drag: none;
+    user-drag: none;
+    pointer-events: none;
+}
+
+/* Algunas pantallas (Novedades) tienen filas de Bootstrap con márgenes de
+   -12px dentro de un contenido con 10px de relleno: sobresalen 2px y aparecía
+   desplazamiento hacia los lados. "clip" recorta ese sobrante sin crear otra
+   barra de desplazamiento, así que no afecta la barra superior fija */
+.nav-md .container.body .right_col,
+.nav-sm .container.body .right_col{
+    overflow-x: clip;
+}

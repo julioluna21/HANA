@@ -1,5 +1,7 @@
 <?php
 session_start();
+require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+hanaGuardia(array('4M'), array('select')); //Cargos: 4M. El selector lo usa Colaboradores
 require_once "../Modelo/cargosModelo.php";//Utilizará este archivo
 $cargos=new Cargos();//crea un nuevo articulo
 //carga las variables con los valores recibidos y limpia los que no se usaran
@@ -27,7 +29,7 @@ switch ($_GET["op"])
             try {
                 $rspta=$cargos->mostrar($IdCargos);
                 $rspta? http_response_code(200):http_response_code(400);
-                echo json_encode($rspta);
+                echo json_encode($rspta);   
             } catch (\Throwable $th) {
                 http_response_code(404);
                 echo json_encode($th);

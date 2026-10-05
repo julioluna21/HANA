@@ -6,15 +6,42 @@ $Centro = new Centro(); //crea un nuevo articulo
 $idcentro = isset($_POST["idcentro"]) ? limpiarCadena($_POST["idcentro"]) : "";
 $nombrecentro = isset($_POST["nombre"]) ? limpiarCadena($_POST["nombre"]) : "";
 $proyecto = isset($_POST["selectProyecto"]) ? limpiarCadena($_POST["selectProyecto"]) : "";
+$tipo = isset($_POST["tipo"]) ? strtoupper(trim($_POST["tipo"])) : "PEAJE";
+$jefe = isset($_POST["jefe"]) ? intval($_POST["jefe"]) : 0;
+
+/*
+  Quién puede usar cada operación (Fase 2).
+    - Sin sesión, nada.
+    - Crear, editar, anular, ver y listar centros: permiso 5M.
+    - La lista de centros (select) la usan otras pantallas: basta con la sesión.
+*/
+$op = isset($_GET["op"]) ? $_GET["op"] : "";
+if (!isset($_SESSION['IdUsuarios'])) { http_response_code(401); echo "Tu sesión terminó. Vuelve a iniciar sesión."; exit(); }
+$modulosCentro = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
+if (in_array($op, array('guardar', 'mostrar', 'anular', 'listar'), true) && !in_array('5M', $modulosCentro)) {
+        http_response_code(403); echo "No permitido: tu rol no administra centros de operación."; exit();
+}
+if ($op === 'guardar' && $jefe > 0) {
+        $existe = ejecutarConsultaSimpleFila("SELECT 1 AS ok FROM colaboradores WHERE ID_COLABORADOR = $jefe AND ESTADO = 1");
+        if (!$existe) { http_response_code(400); echo "El jefe elegido no existe o está inactivo."; exit(); }
+}
+
 //opciones
-switch ($_GET["op"]) {
+switch ($op) {
         case 'guardar': //primer caso
                 try {
+                        //El proyecto es obligatorio en la base (int NOT NULL).
+                        //Si llega vacio se avisa, en vez de fallar callado.
+                        if (empty($proyecto)) {
+                                http_response_code(400);
+                                echo "Debes seleccionar un proyecto.";
+                                exit();
+                        }
                         if (empty($idcentro)) {
-                                $rspta = $Centro->insertar($nombrecentro, $proyecto);
+                                $rspta = $Centro->insertar($nombrecentro, $proyecto, $tipo, $jefe);
                                 echo $rspta ? http_response_code(200) : http_response_code(400);
                         } else {
-                                $rspta = $Centro->editar($idcentro, $nombrecentro, $proyecto);
+                                $rspta = $Centro->editar($idcentro, $nombrecentro, $proyecto, $tipo, $jefe);
                                 echo $rspta ? http_response_code(200) : http_response_code(400);
                         }
                 } catch (\Throwable $th) {
@@ -77,8 +104,10 @@ switch ($_GET["op"]) {
                                 "0" => $reg->ID_CENTRO_OP,
                                 "1" => $reg->NOM_CENTRO_OP,
                                 "2" => $reg->NOM_PROYECTO,
-                                "3" => $estado,
-                                "4" => $bot
+                                "3" => isset(Centro::$TIPOS[$reg->TIPO_CENTRO]) ? Centro::$TIPOS[$reg->TIPO_CENTRO] : $reg->TIPO_CENTRO,
+                                "4" => $reg->JEFE ? $reg->JEFE : '<span style="color:#8A5B0B;">Sin asignar</span>',
+                                "5" => $estado,
+                                "6" => $bot
                         );
                 }
                 $results = array( //variable con el resultado del arreglo

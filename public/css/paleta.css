@@ -1,0 +1,319 @@
+/* ==========================================================================
+   HANA — Paleta de colores del sistema
+   --------------------------------------------------------------------------
+   Este archivo define TODOS los colores del sistema en un solo lugar y
+   reemplaza los de la plantilla Gentelella.
+
+   Va cargado de ULTIMO en head.php, despues de custom.min.css: por eso
+   sus reglas mandan sobre las de la plantilla sin tener que editarla.
+   Si algun dia se recompila la plantilla, este archivo sigue funcionando.
+
+   Son cinco colores, contando blanco y negro. Los grises son el negro
+   rebajado, no cuentan como color aparte.
+   ========================================================================== */
+
+:root{
+    /* --- Los tres colores del sistema --- */
+    --hana-vino:        #6E1A1E;  /* marca, sidebar, encabezados. Tambien "No", anular, vencido */
+    --hana-vino-claro:  #8C2126;  /* solo para el hover del vino */
+    --hana-vino-suave:  #F5E4E5;  /* fondo muy claro para avisos de error */
+
+    --hana-verde:       #1ABB9C;  /* exito, item activo del menu, "Si", guardado */
+    --hana-verde-osc:   #158F77;  /* el mismo verde, mas oscuro: se usa cuando lleva texto blanco */
+    --hana-verde-suave: #E4F6F2;  /* fondo muy claro para avisos de exito */
+
+    --hana-ambar:       #D99C2B;  /* pendiente, por vencer, campos que faltan */
+    --hana-ambar-osc:   #B07A15;  /* el mismo ambar, mas oscuro */
+    --hana-ambar-suave: #FDF3E0;  /* fondo muy claro para avisos de atencion */
+
+    /* --- Blanco, negro y sus grises --- */
+    --hana-blanco:      #FFFFFF;
+    --hana-negro:       #1A1A1A;  /* texto principal */
+    --hana-gris-texto:  #6B7076;  /* texto secundario */
+    --hana-gris-borde:  #E3E6EA;  /* bordes y separadores */
+    --hana-gris-fondo:  #F7F8F9;  /* fondo de la pagina */
+}
+
+/* ==========================================================================
+   1. Menu lateral y encabezado
+   El gris azulado #2A3F54 de la plantilla pasa a ser el vino
+   ========================================================================== */
+
+body{
+    color: var(--hana-negro);            /* antes #73879C */
+    background: var(--hana-vino);
+}
+.left_col,
+.nav_title,
+.sidebar-footer{
+    background: var(--hana-vino);        /* antes #2A3F54 */
+}
+.nav-md .container.body .right_col,
+.nav-sm .container.body .right_col{
+    background: var(--hana-gris-fondo);
+}
+
+/* Item del menu: el activo se marca con verde, igual que antes */
+.nav.side-menu > li.active,
+.nav.side-menu > li.current-page{
+    border-right: 5px solid var(--hana-verde);
+}
+.nav.side-menu > li.active > a,
+.nav-sm > .nav.side-menu > li.active-sm > a{
+    color: var(--hana-blanco) !important;
+    background: var(--hana-vino-claro);
+}
+.nav.side-menu li.active-sm,
+.nav-sm .nav.side-menu li.active-sm{
+    border-right: 5px solid var(--hana-verde);
+}
+.nav.side-menu > li > a:hover{
+    background: var(--hana-vino-claro);
+    color: var(--hana-blanco);
+}
+.nav.child_menu li.active,
+.nav.child_menu li a:hover{
+    background: var(--hana-vino-claro);
+}
+.profile_info h2,
+.nav.side-menu > li > a{
+    color: #E8C9CA;                      /* el vino aclarado, para el texto del menu */
+}
+.site_title,
+.site_title:hover,
+.site_title:focus{
+    color: var(--hana-blanco) !important;
+}
+
+/* Barra superior */
+.top_nav .nav_menu{
+    background: var(--hana-blanco);
+    border-bottom: 1px solid var(--hana-gris-borde);
+}
+
+/* ==========================================================================
+   2. Botones
+   El azul #3498DB de la plantilla pasa a ser verde
+   ========================================================================== */
+
+/* Accion principal: verde oscuro, porque lleva texto blanco encima */
+.btn-primary,
+.btn-success{
+    background: var(--hana-verde-osc);
+    border: 1px solid var(--hana-verde-osc);
+    color: var(--hana-blanco);
+}
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active,
+.btn-success:hover, .btn-success:focus, .btn-success:active{
+    background: #0F7A64;
+    border-color: #0F7A64;
+    color: var(--hana-blanco);
+}
+
+/* Accion destructiva (anular): vino */
+.btn-danger{
+    background: var(--hana-vino);
+    border: 1px solid var(--hana-vino);
+    color: var(--hana-blanco);
+}
+.btn-danger:hover, .btn-danger:focus, .btn-danger:active{
+    background: var(--hana-vino-claro);
+    border-color: var(--hana-vino-claro);
+}
+
+/* Aviso: ambar con texto NEGRO. Con texto blanco no se lee */
+.btn-warning{
+    background: var(--hana-ambar);
+    border: 1px solid var(--hana-ambar);
+    color: var(--hana-negro);
+}
+.btn-warning:hover, .btn-warning:focus, .btn-warning:active{
+    background: var(--hana-ambar-osc);
+    border-color: var(--hana-ambar-osc);
+    color: var(--hana-negro);
+}
+
+/* Botones secundarios: blancos con borde. Antes eran de varios grises distintos */
+.btn-default,
+.btn-info{
+    background: var(--hana-blanco);
+    border: 1px solid var(--hana-gris-borde);
+    color: var(--hana-negro);
+}
+.btn-default:hover, .btn-default:focus,
+.btn-info:hover, .btn-info:focus{
+    background: var(--hana-gris-fondo);
+    border-color: var(--hana-gris-texto);
+    color: var(--hana-negro);
+}
+
+/* ==========================================================================
+   3. Clases de color sueltas de la plantilla
+   Se reapuntan para que no quede ningun azul ni gris perdido
+   ========================================================================== */
+
+.blue, .text-info{ color: var(--hana-verde-osc); }
+.bg-blue, .bg-info{
+    background: var(--hana-verde-osc) !important;
+    border: 1px solid var(--hana-verde-osc) !important;
+    color: var(--hana-blanco);
+}
+.border-blue{ border-color: var(--hana-verde-osc) !important; }
+
+.green, .text-success{ color: var(--hana-verde-osc); }
+.bg-green, .bg-success{
+    background: var(--hana-verde) !important;
+    border: 1px solid var(--hana-verde) !important;
+    color: var(--hana-negro);
+}
+.border-green{ border-color: var(--hana-verde) !important; }
+
+.red, .text-danger{ color: var(--hana-vino); }
+.bg-red, .bg-danger{
+    background: var(--hana-vino) !important;
+    border: 1px solid var(--hana-vino) !important;
+    color: var(--hana-blanco);
+}
+.border-red{ border-color: var(--hana-vino) !important; }
+
+.orange, .text-warning{ color: var(--hana-ambar-osc); }
+.bg-orange, .bg-warning{
+    background: var(--hana-ambar) !important;
+    border: 1px solid var(--hana-ambar) !important;
+    color: var(--hana-negro);
+}
+
+/* Los morados, celestes y rosados de la plantilla se pasan a neutro:
+   no hacen parte de la paleta */
+.purple, .aero, .pink, .text-muted{ color: var(--hana-gris-texto); }
+.bg-purple, .bg-aero, .bg-pink{
+    background: var(--hana-gris-borde) !important;
+    border: 1px solid var(--hana-gris-borde) !important;
+    color: var(--hana-negro);
+}
+
+/* Barras de progreso */
+.progress-bar-success{ background-color: var(--hana-verde); }
+.progress-bar-info{ background-color: var(--hana-verde-osc); }
+.progress-bar-danger{ background-color: var(--hana-vino); }
+.progress-bar-warning{ background-color: var(--hana-ambar); }
+
+/* ==========================================================================
+   4. Paneles, tablas y formularios
+   ========================================================================== */
+
+.x_title{ border-bottom: 2px solid var(--hana-gris-borde); }
+.x_title h2{ color: var(--hana-negro); }
+.x_panel{ border: 1px solid var(--hana-gris-borde); }
+
+table.dataTable thead th,
+table.dataTable thead td{
+    background: var(--hana-gris-fondo);
+    color: var(--hana-negro);
+    border-bottom: 2px solid var(--hana-gris-borde);
+}
+.table-striped > tbody > tr:nth-of-type(odd){ background-color: var(--hana-gris-fondo); }
+
+/* Paginacion de las tablas */
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button.current:hover{
+    background: var(--hana-vino) !important;
+    border-color: var(--hana-vino) !important;
+    color: var(--hana-blanco) !important;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover{
+    background: var(--hana-vino-claro) !important;
+    border-color: var(--hana-vino-claro) !important;
+    color: var(--hana-blanco) !important;
+}
+
+/* Campo con el foco puesto */
+.form-control:focus{
+    border-color: var(--hana-verde-osc);
+    box-shadow: 0 0 0 2px rgba(26, 187, 156, .25);
+}
+
+/* Enlaces */
+a{ color: var(--hana-verde-osc); }
+a:hover, a:focus{ color: #0F7A64; }
+
+/* Select2, para que combine con los campos normales */
+.select2-container--default .select2-results__option--highlighted[aria-selected]{
+    background-color: var(--hana-verde-osc);
+}
+.select2-container--default .select2-selection--single:focus,
+.select2-container--default.select2-container--focus .select2-selection--multiple{
+    border-color: var(--hana-verde-osc);
+}
+
+/* Barra de carga superior (NProgress) */
+#nprogress .bar{ background: var(--hana-verde) !important; }
+#nprogress .peg{ box-shadow: 0 0 10px var(--hana-verde), 0 0 5px var(--hana-verde) !important; }
+
+/* ==========================================================================
+   5. Pantalla de inicio de sesion
+   ========================================================================== */
+
+body.login{ background: var(--hana-vino); }
+.login_wrapper .animate.form .login_form h1{ color: var(--hana-negro); }
+.btn-dark{
+    background: var(--hana-vino);
+    border: 1px solid var(--hana-vino);
+    color: var(--hana-blanco);
+}
+.btn-dark:hover, .btn-dark:focus{
+    background: var(--hana-vino-claro);
+    border-color: var(--hana-vino-claro);
+    color: var(--hana-blanco);
+}
+
+/* ==========================================================================
+   6. Restos de public/css/chat.css
+   Ese archivo viene de la plantilla de chat y trae su propio azul (#4582EC)
+   para enlaces, paginacion y botones. Aqui se reapunta a la paleta, sin
+   modificar chat.css
+   ========================================================================== */
+
+a,
+.btn-link,
+.page-link{
+    color: var(--hana-verde-osc);
+}
+a:hover, a:focus,
+.btn-link:hover, .btn-link:focus{
+    color: #0F7A64;
+}
+
+/* Paginacion de las tablas y de Bootstrap */
+.page-item.active .page-link,
+.pagination > .active > a,
+.pagination > .active > a:hover,
+.pagination > .active > span{
+    background-color: var(--hana-vino);
+    border-color: var(--hana-vino);
+    color: var(--hana-blanco);
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled{
+    color: var(--hana-gris-texto) !important;
+}
+
+/* Botones y tarjetas de la plantilla de chat */
+.btn-outline-primary,
+.btn-outline-primary:hover,
+.btn-outline-primary:focus{
+    color: var(--hana-blanco);
+    background-color: var(--hana-verde-osc);
+    border-color: var(--hana-verde-osc);
+}
+.bg-primary{
+    background-color: var(--hana-vino) !important;
+    color: var(--hana-blanco);
+}
+
+/* El boton de abrir y cerrar el menu lateral */
+.toggle a,
+.toggle a i,
+.nav.top_menu > li > a{
+    color: var(--hana-negro) !important;
+}

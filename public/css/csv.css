@@ -1,0 +1,124 @@
+/* Carga masiva de preguntas desde CSV.
+   Acompana al bloque #modal-excel de Vista/GruposListasVista.php */
+
+.hana-csv{ font-size: 13px; color: #1A1A1A; }
+
+/* Cada uno de los tres pasos, con su numero al lado */
+.hana-csv-paso{
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #E3E6EA;
+}
+.hana-csv-paso:last-child{ border-bottom: 0; }
+.hana-csv-paso > div{ flex: 1; min-width: 0; }
+.hana-csv-paso strong{ display: block; font-size: 14px; margin-bottom: 2px; }
+.hana-csv-paso p{ color: #6B7076; margin: 0 0 8px; }
+
+.hana-csv-num{
+    flex: 0 0 26px;
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+    text-align: center;
+    border-radius: 50%;
+    background: #6E1A1E;
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+/* Ejemplo de como debe verse el archivo */
+.hana-csv-tabla{
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+}
+.hana-csv-tabla th,
+.hana-csv-tabla td{
+    border: 1px solid #E3E6EA;
+    padding: 6px 9px;
+    text-align: left;
+}
+.hana-csv-tabla th{
+    background: #F7F8F9;
+    font-size: 12px;
+    letter-spacing: .3px;
+}
+
+.hana-csv-tipos{ line-height: 1.9; }
+.hana-csv code{
+    background: #F5E4E5;
+    color: #6E1A1E;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+/* Boton para elegir el archivo: el input real va escondido */
+#fileInput{
+    position: absolute;
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    overflow: hidden;
+    z-index: -1;
+}
+.hana-csv-boton{
+    display: inline-block;
+    cursor: pointer;
+    background: #FFFFFF;
+    border: 1px dashed #6E1A1E;
+    color: #6E1A1E;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    margin: 0 10px 0 0;
+}
+.hana-csv-boton:hover{ background: #F5E4E5; }
+.hana-csv-nombre{ color: #6B7076; font-size: 12px; }
+
+/* Vista previa de lo que se va a importar */
+.hana-csv-previa{
+    margin-top: 12px;
+    border: 1px solid #E3E6EA;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.hana-csv-previa-cab{
+    padding: 8px 12px;
+    font-size: 13px;
+    background: #F7F8F9;
+    border-bottom: 1px solid #E3E6EA;
+}
+.hana-csv-previa-cab.ok{ background: #E4F6F2; color: #0F7A64; }
+.hana-csv-previa-cab.error{ background: #F5E4E5; color: #6E1A1E; }
+
+.hana-csv-previa-cuerpo{
+    max-height: 210px;
+    overflow-y: auto;
+}
+.hana-csv-previa table{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.hana-csv-previa td{
+    border-bottom: 1px solid #F0F2F4;
+    padding: 6px 10px;
+    vertical-align: top;
+}
+.hana-csv-previa tr:last-child td{ border-bottom: 0; }
+.hana-csv-previa .fila-num{ color: #6B7076; width: 38px; }
+.hana-csv-previa .fila-tipo{ width: 100px; }
+
+/* Filas con problema: se marcan para poder corregirlas en el archivo */
+.hana-csv-previa tr.mala td{ background: #FDF3E0; }
+.hana-csv-previa tr.mala .fila-tipo{ color: #6E1A1E; font-weight: bold; }
+
+/* En celular los pasos ocupan todo el ancho */
+@media (max-width: 480px){
+    .hana-csv-paso{ flex-direction: column; gap: 6px; }
+    .hana-csv-boton{ display: block; text-align: center; margin: 0 0 8px; }
+}

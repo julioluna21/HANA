@@ -1,0 +1,234 @@
+/* ==========================================================================
+   HANA — Campana de notificaciones
+   Acompaña a Ajax/CampanaAjax.js
+
+   Los círculos indican cuántas novedades sin abrir hay de cada prioridad:
+     rojo     → alta
+     amarillo → media
+     blanco   → baja
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Los tres círculos, con el número adentro
+   -------------------------------------------------------------------------- */
+.hana-puntos{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    vertical-align: middle;
+}
+.hana-punto{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;             /* redondo con un número, píldora con dos */
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1;
+    box-sizing: border-box;
+}
+
+/* Sobre fondo vino (el menú lateral) el rojo y el amarillo necesitan borde
+   blanco, si no el rojo se pierde contra el fondo. El blanco va puro */
+.hana-punto-alta{
+    background: #D32F2F;
+    border: 2px solid #FFFFFF;
+    color: #FFFFFF;
+}
+.hana-punto-media{
+    background: #F2C230;
+    border: 2px solid #FFFFFF;
+    color: #1A1A1A;                  /* el amarillo con texto blanco no se lee */
+}
+.hana-punto-baja{
+    background: #FFFFFF;
+    border: 2px solid #FFFFFF;
+    color: #6E1A1E;
+}
+
+/* --------------------------------------------------------------------------
+   La campana en la barra superior, al lado del nombre
+   La barra es blanca: ahí el círculo blanco necesita un borde gris para verse
+   -------------------------------------------------------------------------- */
+.hana-campana > a{
+    position: relative;
+    padding: 18px 14px 12px !important;
+    color: #6E1A1E !important;
+    font-size: 19px;
+    cursor: pointer;
+}
+.hana-campana > a:hover{ background: #F5E4E5 !important; }
+
+/* Si hay algo nuevo, la campana se mueve una vez para llamar la atención */
+.hana-campana.tiene-nuevas > a > .fa-bell{
+    animation: hanaTimbre 1.2s ease-in-out 1;
+}
+@keyframes hanaTimbre{
+    0%, 100%{ transform: rotate(0); }
+    15%{ transform: rotate(14deg); }
+    30%{ transform: rotate(-12deg); }
+    45%{ transform: rotate(8deg); }
+    60%{ transform: rotate(-5deg); }
+}
+
+/* Los círculos van al lado de la campana, dentro del mismo botón. Antes iban
+   flotando encima y con tres a la vez se montaban sobre el nombre del usuario */
+.hana-campana > a{
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+}
+.hana-campana .hana-puntos{
+    position: static;
+    gap: 3px;
+}
+.hana-campana .hana-punto{
+    min-width: 18px;
+    height: 18px;
+    font-size: 10px;
+    padding: 0 4px;
+}
+.hana-campana .hana-punto-baja{
+    border-color: #C9CFD5;           /* sobre blanco, el blanco necesita contorno */
+}
+
+/* --------------------------------------------------------------------------
+   El menú que se despliega
+   -------------------------------------------------------------------------- */
+.hana-campana-menu{
+    width: 360px;
+    max-width: 92vw;
+    padding: 0 !important;
+    border: 1px solid #E3E6EA !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .14) !important;
+    overflow: hidden;
+}
+.hana-campana-cab{
+    display: flex !important;        /* la plantilla ponía los li como bloque */
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: #6E1A1E;
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: 14px;
+}
+.hana-campana-cab button{
+    background: none;
+    border: 0;
+    color: #FFFFFF;
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+}
+.hana-campana-lista{
+    max-height: 380px;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.hana-campana-item{
+    display: flex !important;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 11px 14px !important;
+    border-bottom: 1px solid #F0F2F4;
+    cursor: pointer;
+    white-space: normal !important;
+    color: #1A1A1A !important;
+}
+.hana-campana-item:hover{ background: #F7F8F9 !important; }
+
+/* La marca de color a la izquierda de cada novedad */
+.hana-campana-item .marca{
+    flex: 0 0 10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 5px;
+}
+.hana-campana-item .marca.alta{ background: #D32F2F; }
+.hana-campana-item .marca.media{ background: #F2C230; }
+.hana-campana-item .marca.baja{ background: #FFFFFF; border: 1px solid #C9CFD5; }
+
+.hana-campana-item .texto{ flex: 1; min-width: 0; }
+.hana-campana-item .titulo{ font-size: 13px; font-weight: bold; line-height: 1.3; }
+.hana-campana-item .detalle{ font-size: 12px; color: #6B7076; margin-top: 2px; }
+
+.hana-campana-vacia{
+    padding: 26px 14px;
+    text-align: center;
+    color: #6B7076;
+    font-size: 13px;
+}
+.hana-campana-vacia .fa{ display: block; font-size: 28px; color: #1ABB9C; margin-bottom: 8px; }
+
+.hana-campana-pie{
+    display: block !important;
+    text-align: center;
+    padding: 10px !important;
+    background: #F7F8F9;
+    color: #6E1A1E !important;
+    font-size: 13px;
+    font-weight: bold;
+}
+.hana-campana-pie:hover{ background: #F5E4E5 !important; }
+
+/* --------------------------------------------------------------------------
+   El botón del menú lateral (fondo vino)
+   -------------------------------------------------------------------------- */
+.hana-menu-notif .hana-puntos{ float: right; margin-top: -1px; }
+
+/* --------------------------------------------------------------------------
+   La pantalla completa de notificaciones
+   -------------------------------------------------------------------------- */
+.hana-notif-fila{
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border-bottom: 1px solid #F0F2F4;
+    cursor: pointer;
+}
+.hana-notif-fila:hover{ background: #F7F8F9; }
+.hana-notif-fila.leida{ opacity: .6; }
+.hana-notif-fila .marca{
+    flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%; margin-top: 4px;
+}
+.hana-notif-fila .marca.alta{ background: #D32F2F; }
+.hana-notif-fila .marca.media{ background: #F2C230; }
+.hana-notif-fila .marca.baja{ background: #FFFFFF; border: 1px solid #C9CFD5; }
+.hana-notif-fila .texto{ flex: 1; }
+.hana-notif-fila .titulo{ font-weight: bold; font-size: 14px; }
+.hana-notif-fila .detalle{ color: #6B7076; font-size: 13px; margin-top: 2px; }
+.hana-notif-fila .nueva{
+    background: #6E1A1E; color: #FFFFFF; font-size: 10px; font-weight: bold;
+    padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle;
+}
+
+/* La plantilla fija todos los desplegables de la barra en 220px con la regla
+   ".navbar-nav .open .dropdown-menu". Para ganarle hace falta un selector igual
+   de específico más la clase propia; si no, el menú queda angosto */
+.navbar-nav .open .dropdown-menu.hana-campana-menu{
+    width: 360px;
+    max-width: 92vw;
+}
+
+/* En celular el menú ocupa casi todo el ancho, justo debajo de la barra.
+   Sin el "top", al ser fijo quedaba en el borde inferior, fuera de la pantalla */
+@media (max-width: 480px){
+    .navbar-nav .open .dropdown-menu.hana-campana-menu{
+        position: fixed !important;
+        top: 58px !important;
+        left: 4vw !important;
+        right: 4vw !important;
+        width: auto !important;
+        max-width: none;
+    }
+}

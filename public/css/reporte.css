@@ -1,0 +1,463 @@
+/* ==========================================================================
+   HANA — Reporte diario (Fase 2)
+   Paleta del sistema: vino #6E1A1E, verde #1ABB9C, ámbar #D99C2B, negro #1A1A1A
+   ========================================================================== */
+
+.rd-intro{ color: #6B7076; margin: 0 0 16px; }
+.rd-subtitulo{
+    color: #6E1A1E; font-size: 15px; font-weight: bold;
+    margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #E3E6EA;
+}
+.rd-req{ color: #6E1A1E; }
+.rd-ayuda{ display: block; color: #6B7076; font-size: 12px; margin-top: 3px; }
+.rd-acciones{ display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.rd-vacio{ text-align: center; color: #6B7076; padding: 18px !important; }
+
+/* Migas: "Reporte diario › Hoy en qué estás" */
+.rd-migas{ margin: 6px 0 10px; font-size: 13px; color: #6B7076; }
+.rd-migas a{ color: #6E1A1E; font-weight: bold; }
+.rd-migas span{ margin: 0 6px; }
+
+/* Etiquetas de estado */
+.rd-tag{
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: bold; white-space: nowrap;
+    background: #EEF0F2; color: #6B7076;
+}
+.rd-tag-ok  { background: #E4F6F2; color: #0F7A64; }
+.rd-tag-pend{ background: #FDF3E0; color: #8A5B0B; }
+
+/* --------------------------------------------------------------------------
+   Mosaicos de la pantalla principal (mismo estilo que los de Inicio)
+   -------------------------------------------------------------------------- */
+.rd-mosaicos{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 15px;
+}
+.rd-mosaico{
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 8px;
+    padding: 20px 15px; color: #1A1A1A; text-decoration: none !important;
+    transition: all .2s ease;
+}
+a.rd-mosaico:hover{ border-color: #6E1A1E; box-shadow: 0 4px 12px rgba(110,26,30,.15); transform: translateY(-2px); }
+.rd-mosaico-icono{
+    width: 56px; height: 56px; border-radius: 50%; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: #F5E4E5; color: #6E1A1E; font-size: 24px;
+}
+.rd-mosaico-titulo{ font-weight: bold; font-size: 15px; margin-bottom: 4px; }
+.rd-mosaico-texto{ font-size: 12px; color: #6B7076; }
+.rd-mosaico-estado{ margin-top: 10px; }
+.rd-mosaico-pronto{ opacity: .55; cursor: default; }
+.rd-mosaico-pronto .rd-mosaico-icono{ background: #EEF0F2; color: #6B7076; }
+
+/* --------------------------------------------------------------------------
+   Hoy en qué estás
+   -------------------------------------------------------------------------- */
+.hoy-dia{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.hoy-dia input[type=date]{ width: auto; min-width: 170px; }
+.hoy-estado{ margin-left: 4px; }
+.hoy-aviso-consulta{
+    background: #F7F8F9; border: 1px solid #E3E6EA; border-radius: 6px;
+    padding: 9px 12px; color: #6B7076; font-size: 13px;
+}
+
+/* Situación: botones grandes, fáciles de tocar en el celular */
+.hoy-situaciones{ display: flex; flex-wrap: wrap; gap: 8px; }
+.hoy-sit{
+    display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;
+    border: 2px solid #E3E6EA; border-radius: 20px; padding: 7px 14px;
+    font-weight: normal; background: #FFFFFF;
+}
+.hoy-sit input{ margin: 0; cursor: pointer; }
+.hoy-sit:has(input:checked){ border-color: #6E1A1E; background: #F5E4E5; font-weight: bold; }
+
+/* Centros: una casilla por peaje, agrupadas por proyecto */
+.hoy-grupo{ margin-bottom: 10px; }
+.hoy-grupo-nom{ display: block; font-size: 12px; color: #6B7076; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 5px; }
+.hoy-chip{
+    display: inline-flex; align-items: center; gap: 6px; margin: 0 6px 6px 0; cursor: pointer;
+    border: 1px solid #E3E6EA; border-radius: 6px; padding: 7px 12px; font-weight: normal; background: #FFFFFF;
+}
+.hoy-chip input{ margin: 0; cursor: pointer; }
+.hoy-chip:has(input:checked){ border-color: #1ABB9C; background: #E4F6F2; font-weight: bold; }
+
+/* Bloques por hora */
+.hoy-horas{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.hoy-hora label{ font-size: 13px; color: #6E1A1E; margin-bottom: 3px; }
+.hoy-hora textarea{ resize: vertical; }
+
+/* Mi mes */
+.hoy-resumen-mes{ padding-top: 28px; display: flex; gap: 6px; flex-wrap: wrap; }
+.hoy-tabla-mes td{ vertical-align: middle !important; }
+.hoy-fila-mes{ cursor: pointer; }
+.hoy-fila-mes:hover td{ background: #F7F8F9; }
+.hoy-fila-mes.activa td{ background: #F5E4E5; }
+.hoy-sit-tag{ display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; background: #EEF0F2; color: #1A1A1A; }
+.hoy-sit-tag.hoy-sit-laboral{ background: #E4F6F2; color: #0F7A64; }
+.hoy-sit-tag.hoy-sit-incapacidad{ background: #F5E4E5; color: #6E1A1E; }
+.hoy-sit-tag.hoy-sit-vacaciones,
+.hoy-sit-tag.hoy-sit-permiso{ background: #FDF3E0; color: #8A5B0B; }
+
+@media (max-width: 767px){
+    .hoy-horas{ grid-template-columns: 1fr; }
+    .hoy-resumen-mes{ padding-top: 0; margin-bottom: 10px; }
+    .rd-acciones .btn{ flex: 1 1 auto; }
+}
+
+/* ==========================================================================
+   Entrega B — piezas comunes, arqueos y cronograma
+   ========================================================================== */
+.rd-botones-titulo{ display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.rd-tag-mal{ background: #F5E4E5; color: #6E1A1E; }
+.rd-num-col{ text-align: right; white-space: nowrap; }
+.rd-tabla td{ vertical-align: middle !important; }
+.rd-anulado td{ color: #9AA0A6; text-decoration: line-through; }
+.rd-anulado td:last-child, .rd-anulado td:nth-last-child(2){ text-decoration: none; }
+.rd-aviso-mal{ background: #F5E4E5; color: #6E1A1E; border-radius: 6px; padding: 8px 12px; }
+.rd-motivo{ max-width: 280px; }
+
+/* Contadores */
+.rd-contadores{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.rd-contador{ background: #F7F8F9; border: 1px solid #E3E6EA; border-left: 4px solid #6B7076; border-radius: 8px; padding: 10px 14px; }
+.rd-num{ display: block; font-size: 24px; font-weight: bold; color: #1A1A1A; line-height: 1.2; }
+.rd-lbl{ font-size: 12px; color: #6B7076; }
+.rd-cnt-ok{ border-left-color: #1ABB9C; }  .rd-cnt-ok .rd-num{ color: #158F77; }
+.rd-cnt-mal{ border-left-color: #6E1A1E; } .rd-cnt-mal .rd-num{ color: #6E1A1E; }
+
+/* Opciones grandes tipo radio (tipo de arqueo) */
+.rd-opciones{ display: flex; flex-wrap: wrap; gap: 8px; }
+.rd-opcion{
+    display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; font-weight: normal;
+    border: 2px solid #E3E6EA; border-radius: 20px; padding: 8px 16px; background: #FFFFFF;
+}
+.rd-opcion input{ margin: 0; }
+.rd-opcion:has(input:checked){ border-color: #6E1A1E; background: #F5E4E5; font-weight: bold; }
+
+/* Arqueo: documentos y totales */
+.rd-tabla-docs td{ padding: 4px !important; }
+.rd-tabla-docs input[type=date]{ min-width: 140px; }
+.rd-tabla-docs select{ min-width: 150px; }
+.rd-totales{
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;
+    background: #F7F8F9; border: 1px solid #E3E6EA; border-radius: 8px; padding: 12px 14px; margin-top: 16px;
+}
+.rd-totales div > span:first-child{ display: block; font-size: 11px; color: #6B7076; text-transform: uppercase; letter-spacing: .3px; }
+.rd-totales div strong{ font-size: 17px; }
+
+/* Ventanas (detalle de arqueo, día del cronograma) */
+.rd-modal-cab{ background: #6E1A1E; color: #FFFFFF; }
+.rd-modal-cab .modal-title{ color: #FFFFFF; font-weight: bold; }
+.rd-modal-cab .close{ color: #FFFFFF; opacity: .85; text-shadow: none; }
+.rd-det-cab{
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;
+    background: #F7F8F9; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;
+}
+.rd-det-lbl{ display: block; font-size: 11px; color: #6B7076; text-transform: uppercase; letter-spacing: .3px; }
+
+/* --------------------------------------------------------------------------
+   Cronograma: calendario del mes
+   -------------------------------------------------------------------------- */
+.crono-leyenda{ display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.crono-calendario{ display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.crono-cab{ text-align: center; font-size: 12px; font-weight: bold; color: #6B7076; padding: 4px 0; }
+.crono-dia{
+    position: relative; min-height: 96px; background: #FFFFFF; border: 1px solid #E3E6EA; border-radius: 6px;
+    padding: 5px 5px 14px; cursor: pointer; overflow: hidden;
+}
+.crono-dia:hover{ border-color: #6E1A1E; }
+.crono-vacio{ background: transparent; border: 0; cursor: default; }
+.crono-pasado{ background: #FAFBFB; }
+.crono-hoy{ border: 2px solid #6E1A1E; }
+.crono-num{ font-weight: bold; font-size: 13px; margin-bottom: 3px; }
+.crono-sit{ font-weight: normal; font-size: 10px; color: #6B7076; }
+.crono-mas{ font-size: 10px; color: #6B7076; }
+
+/* Una actividad: el color dice su estado */
+.crono-item{
+    display: block; font-size: 11px; line-height: 1.3; border-radius: 4px; padding: 2px 5px; margin-bottom: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background: #EEF0F2; color: #1A1A1A; border-left: 3px solid #6B7076;
+}
+.crono-leyenda .crono-item{ display: inline-block; }
+.crono-PROGRAMADA  { background: #FDF3E0; border-left-color: #D99C2B; }
+.crono-REALIZADA   { background: #E4F6F2; border-left-color: #1ABB9C; }
+.crono-NO_REALIZADA{ background: #F5E4E5; border-left-color: #6E1A1E; }
+.crono-CANCELADA   { background: #F3F4F5; border-left-color: #C9CFD5; color: #9AA0A6; text-decoration: line-through; }
+.crono-AUSENCIA    { background: #EEF0F2; border-left-color: #6B7076; }
+
+/* Vehículo: una franja al pie del día */
+.crono-dia .crono-vh{ position: absolute; left: 0; right: 0; bottom: 0; height: 6px; }
+.crono-vh{ display: inline-block; border-radius: 3px; }
+.crono-leyenda .crono-vh, .modal .crono-vh{ font-size: 11px; padding: 2px 8px; color: #FFFFFF; }
+.crono-vh-OPERATIVO  { background: #1ABB9C; }
+.crono-vh-INOPERATIVO{ background: #6E1A1E; }
+.crono-vh-FALLA_FLOTA{ background: #D99C2B; }
+
+.crono-fila{ display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid #F0F1F3; }
+.crono-fila .crono-item{ display: inline-block; white-space: normal; }
+.crono-acciones{ display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.crono-nuevo{ background: #F7F8F9; border: 1px solid #E3E6EA; border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+
+@media (max-width: 767px){
+    .rd-contadores{ grid-template-columns: 1fr 1fr 1fr; }
+    .rd-num{ font-size: 20px; }
+    .crono-calendario{ gap: 2px; }
+    .crono-dia{ min-height: 58px; padding: 3px 3px 10px; }
+    .crono-dia .crono-item{ font-size: 0; height: 6px; padding: 0; margin-bottom: 2px; } /* en el celular: solo la raya de color */
+    .crono-sit, .crono-mas{ display: none; }
+}
+.rd-nowrap{ white-space: nowrap; }
+
+/* ==========================================================================
+   Entrega C — vacantes, comunicaciones y tablero
+   ========================================================================== */
+.rd-contadores-4{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.rd-cnt-pend{ border-left-color: #D99C2B; } .rd-cnt-pend .rd-num{ color: #8A5B0B; }
+.rd-tabla-compacta{ font-size: 12px; }
+.rd-tabla-compacta td, .rd-tabla-compacta th{ padding: 6px 7px !important; }
+@media (max-width: 767px){ .rd-contadores-4{ grid-template-columns: 1fr 1fr; } }
+
+/* Tablero */
+.tb-proyectos{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 12px; }
+.tb-proyecto{
+    background: #FFFFFF; border: 1px solid #E0E0E0; border-top: 4px solid #6E1A1E; border-radius: 8px;
+    padding: 16px; cursor: pointer; transition: all .2s ease;
+}
+.tb-proyecto:hover{ box-shadow: 0 4px 12px rgba(110,26,30,.15); transform: translateY(-2px); }
+.tb-proy-nombre{ font-size: 20px; font-weight: bold; color: #6E1A1E; margin-bottom: 6px; }
+.tb-proy-coord{ font-size: 13px; margin-bottom: 12px; }
+.tb-avance-txt{ font-size: 12px; color: #6B7076; margin-bottom: 4px; }
+.tb-barra{ height: 8px; background: #EEF0F2; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+.tb-barra div{ height: 100%; background: #1ABB9C; }
+.tb-chips{ display: flex; flex-wrap: wrap; gap: 5px; }
+.tb-chip{ font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #EEF0F2; color: #1A1A1A; white-space: nowrap; }
+.tb-chip-cero{ color: #9AA0A6; }
+.tb-chip-pend{ background: #FDF3E0; color: #8A5B0B; }
+.tb-chip-ok{ background: #E4F6F2; color: #0F7A64; }
+.tb-chip-mal{ background: #F5E4E5; color: #6E1A1E; }
+
+.tb-persona{
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px; cursor: pointer;
+    background: #F7F8F9; border: 1px solid #E3E6EA; border-radius: 8px; padding: 12px 14px; margin: 8px 0;
+}
+.tb-persona:hover{ border-color: #6E1A1E; }
+.tb-persona-sm{ display: block; padding: 8px 10px; font-size: 13px; }
+.tb-persona-sm .rd-tag{ margin-top: 4px; }
+.tb-rol{ display: block; width: 100%; font-size: 11px; color: #6B7076; text-transform: uppercase; letter-spacing: .3px; }
+.tb-ver{ margin-left: auto; font-size: 12px; color: #6E1A1E; font-weight: bold; }
+.tb-centros{ display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.tb-centro{ background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 8px; padding: 12px; }
+.tb-centro-cab{ font-size: 15px; }
+.tb-tipo{ font-size: 11px; color: #6B7076; background: #EEF0F2; border-radius: 8px; padding: 1px 7px; margin-left: 4px; }
+.tb-lista{ padding-left: 18px; margin-bottom: 6px; }
+.tb-lista li{ margin-bottom: 4px; }
+.tb-sin-acceso{ cursor: default; } .tb-sin-acceso:hover{ border-color: #E3E6EA; }
+
+/* ==========================================================================
+   Reporte general del día
+   ========================================================================== */
+.cd-filtros{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 4px; }
+.cd-filtros .hoy-dia{ margin-bottom: 0; }
+.cd-filtros select{ width: auto; min-width: 220px; }
+.cd-titulo-imprimir, .cd-sub-imprimir{ display: none; }
+
+.cd-resumen{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 12px 0 18px; }
+.cd-tarjeta{
+    background: #FFFFFF; border: 1px solid #E3E6EA; border-left: 4px solid #C9CFD5; border-radius: 8px;
+    padding: 10px 12px; cursor: pointer; transition: box-shadow .15s ease;
+}
+.cd-tarjeta:hover{ box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+.cd-t-cab{ font-size: 12px; color: #6B7076; font-weight: bold; }
+.cd-t-num{ font-size: 24px; font-weight: bold; line-height: 1.2; margin-top: 2px; }
+.cd-t-txt{ font-size: 12px; color: #6B7076; }
+.cd-t-alerta{ font-size: 12px; font-weight: bold; margin-top: 4px; }
+.cd-ok  { border-left-color: #1ABB9C; } .cd-ok .cd-t-num{ color: #158F77; }
+.cd-pend{ border-left-color: #D99C2B; } .cd-pend .cd-t-num, .cd-pend .cd-t-alerta{ color: #8A5B0B; }
+.cd-mal { border-left-color: #6E1A1E; } .cd-mal .cd-t-num, .cd-mal .cd-t-alerta{ color: #6E1A1E; }
+
+.cd-pestanas{ margin-bottom: 0; }
+.cd-pestanas > li > a{ color: #1A1A1A; padding: 8px 12px; }
+.cd-pestanas > li.active > a{ color: #6E1A1E; font-weight: bold; border-top: 3px solid #6E1A1E; }
+.cd-pestanas .badge{ background: #6E1A1E; font-size: 11px; }
+.cd-contenido{ border: 1px solid #DDD; border-top: 0; padding: 12px; background: #FFFFFF; }
+.cd-filtro-hoy{ margin-bottom: 10px; }
+.cd-falta td{ background: #FFFBF2; }
+.cd-rq{ display: inline-block; font-weight: bold; font-size: 12px; padding: 1px 7px; border-radius: 5px; background: #FFF6D6; color: #5C4500; border: 1px solid #F2C230; }
+.cd-rq-u{ background: #D32F2F; color: #FFFFFF; border-color: #D32F2F; }
+
+@media (max-width: 991px){ .cd-resumen{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px){
+    .cd-pestanas{ display: flex; overflow-x: auto; flex-wrap: nowrap; }
+    .cd-pestanas > li{ float: none; flex: 0 0 auto; }
+    .cd-filtros select{ width: 100%; }
+}
+
+/* Al imprimir: sin menú ni botones, y todas las pestañas una debajo de otra */
+@media print{
+    .left_col, .top_nav, footer, .rd-migas, .rd-no-imprimir, .nav_menu{ display: none !important; }
+    .right_col{ margin-left: 0 !important; padding: 0 !important; }
+    .cd-titulo-imprimir{ display: block; font-size: 16px; font-weight: bold; color: #6E1A1E; }
+    .cd-sub-imprimir{ display: block; color: #6E1A1E; margin-top: 14px; }
+    .tab-content > .tab-pane{ display: block !important; }
+    .cd-contenido{ border: 0; padding: 0; }
+    .cd-resumen{ grid-template-columns: repeat(4, 1fr); }
+    .cd-tarjeta{ break-inside: avoid; }
+    .table-responsive{ overflow: visible !important; }
+}
+
+/* Ayer / Hoy / Mañana: el margen de un día para registrar */
+.rd-dia-rapido{ display: inline-flex; gap: 4px; margin-top: 6px; }
+.rd-dia-rapido .btn.active{ background: #6E1A1E; border-color: #6E1A1E; color: #FFFFFF; box-shadow: none; }
+
+/* Alerta del día */
+.rd-alerta-dia{ border-radius: 8px; padding: 9px 12px; margin: 0 0 12px; font-size: 13px; }
+.rd-alerta-dia i{ margin-right: 4px; }
+.rd-alerta-ok  { background: #E4F6F2; color: #0F7A64; border: 1px solid #BFE9DF; }
+.rd-alerta-pend{ background: #FDF3E0; color: #8A5B0B; border: 1px solid #F3DDB0; }
+
+/* Avisos pequeños (abajo a la derecha; en el celular, abajo en todo el ancho) */
+.rd-avisos{ position: fixed; right: 16px; bottom: 16px; z-index: 3000; display: flex; flex-direction: column; gap: 8px; max-width: 360px; }
+.rd-aviso{
+    background: #1A1A1A; color: #FFFFFF; border-radius: 8px; padding: 10px 14px; font-size: 13px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.2); transition: opacity .35s ease, transform .35s ease;
+}
+.rd-aviso i{ color: #1ABB9C; margin-right: 4px; }
+.rd-aviso-error i{ color: #F2C230; }
+.rd-aviso-sale{ opacity: 0; transform: translateY(8px); }
+@media (max-width: 767px){ .rd-avisos{ left: 12px; right: 12px; max-width: none; } }
+
+/* Campo de hora con botón "Ahora" */
+.rd-hora-grupo{ display: flex; gap: 6px; }
+.rd-hora-grupo input{ flex: 1 1 auto; min-width: 0; }
+.rd-btn-ahora{ flex: 0 0 auto; }
+
+/* Barra de guardar pegada abajo en formularios largos, para no bajar hasta el final */
+@media (max-width: 767px){
+    .rd-acciones-fijas{
+        position: sticky; bottom: 0; z-index: 20; background: #FFFFFF;
+        margin: 0 -10px; padding: 10px; border-top: 1px solid #E3E6EA;
+        box-shadow: 0 -4px 10px rgba(0,0,0,.05);
+    }
+}
+
+/* Cronograma: selector de vista y vista de lista */
+.crono-vistas{ display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 4px 0 12px; }
+.crono-vistas .btn.active{ background: #6E1A1E; border-color: #6E1A1E; color: #FFFFFF; box-shadow: none; }
+.crono-desde-hoy{ font-weight: normal; margin: 0; cursor: pointer; }
+.crono-lista{ display: flex; flex-direction: column; gap: 8px; }
+.crono-l-dia{ border: 1px solid #E3E6EA; border-radius: 8px; background: #FFFFFF; overflow: hidden; }
+.crono-l-hoy{ border: 2px solid #6E1A1E; }
+.crono-l-pasado{ background: #FAFBFB; }
+.crono-l-cab{ display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; background: #F7F8F9; cursor: pointer; }
+.crono-l-cab:hover{ background: #F1ECEC; }
+.crono-l-abrir{ margin-left: auto; font-size: 12px; color: #6E1A1E; font-weight: bold; }
+.crono-l-item{ padding: 6px 12px; border-top: 1px solid #F0F1F3; }
+.crono-l-item .crono-item{ display: inline-block; white-space: normal; font-size: 12px; }
+.crono-l-vacio{ padding: 6px 12px; color: #9AA0A6; font-size: 12px; }
+.crono-l-vh{ font-size: 11px; padding: 2px 8px; color: #FFFFFF; }
+.cd-revision{ background: #F7F8F9; border: 1px solid #E3E6EA; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; } .cd-revision div{ margin-top: 5px; }
+a.rd-mosaico:hover{ color: #1A1A1A; } a.rd-mosaico:hover .rd-mosaico-titulo{ color: #6E1A1E; }
+
+/* Administración del reporte diario */
+.adm-sello{ font-size: 11px; color: #6E1A1E; background: #F5E4E5; border-radius: 10px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
+.adm-resumen{ display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.tb-partes{ display: flex; flex-wrap: wrap; gap: 4px; margin: -6px 0 12px; }
+.tb-parte{ font-size: 11px; color: #8A5B0B; background: #FDF3E0; border-radius: 10px; padding: 2px 7px; }
+.tb-parte-ok{ color: #0F7A64; background: #E4F6F2; }
+
+/* Cronograma: en cada día, dónde estuvo y el vehículo (placa y estado) */
+.crono-lugar{ font-size: 11px; color: #6E1A1E; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crono-vhtxt{ font-size: 11px; border-radius: 4px; padding: 1px 5px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crono-vhtxt-OPERATIVO  { background: #E4F6F2; color: #0F7A64; }
+.crono-vhtxt-INOPERATIVO{ background: #F5E4E5; color: #6E1A1E; }
+.crono-vhtxt-FALLA_FLOTA{ background: #FDF3E0; color: #8A5B0B; }
+.crono-vhtxt-SIN        { background: #F3F4F5; color: #9AA0A6; }
+.crono-dia{ min-height: 118px; }
+.crono-l-fijas{ display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.crono-l-fijas .crono-lugar, .crono-l-fijas .crono-vhtxt{ margin-top: 0; font-size: 12px; white-space: normal; }
+.crono-vh-obs{ font-weight: normal; }
+@media (max-width: 767px){
+    .crono-dia{ min-height: 58px; }
+    /* En el celular el calendario solo muestra colores: la lista trae todo el detalle */
+    .crono-dia .crono-lugar{ display: none; }
+    .crono-dia .crono-vhtxt{ font-size: 0; height: 6px; padding: 0; margin-top: 2px; }
+}
+
+/* Respuestas de una lista de chequeo */
+.rd-fila-no td{ background: #FBF1F1; }
+.rd-firma{ max-width: 260px; max-height: 110px; border: 1px solid #E3E6EA; border-radius: 6px; background: #FFFFFF; }
+/* Una ventana abierta encima de otra (por ejemplo, desde el tablero) */
+.rd-modal-encima{ z-index: 1060; }
+/* En el calendario, el peaje y el vehículo pasan a otra línea en vez de cortarse */
+@media (min-width: 768px){
+    .crono-dia .crono-lugar, .crono-dia .crono-vhtxt{ white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.3; }
+}
+
+/* Cronograma por proyecto */
+.crono-quien{ font-size: 13px; margin: -4px 0 10px; }
+.crono-atenuado{ opacity: .35; }
+.crono-transporte{ font-size: 11px; color: #1A1A1A; margin-top: 3px; }
+.crono-l-fijas .crono-transporte{ margin-top: 0; font-size: 12px; }
+@media (max-width: 767px){ .crono-dia .crono-transporte{ display: none; } }
+
+/* Parámetros del sistema */
+.par-grupo{ border: 1px solid #E3E6EA; border-radius: 8px; margin-bottom: 14px; }
+.par-fila{ display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 12px 14px; border-top: 1px solid #F0F1F3; }
+.par-fila:first-child{ border-top: 0; }
+.par-texto{ flex: 1 1 auto; }
+.par-texto .rd-ayuda{ margin: 2px 0 0; }
+.par-quien{ font-size: 11px; color: #9AA0A6; margin-top: 3px; }
+.par-campo{ flex: 0 0 130px; text-align: right; }
+.par-campo .par-num{ width: 90px; display: inline-block; text-align: right; }
+.par-interruptor{ display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: bold; margin: 0; }
+.par-interruptor input{ position: absolute; opacity: 0; }
+.par-riel{ width: 42px; height: 24px; border-radius: 12px; background: #C9CFD5; position: relative; transition: background .2s; }
+.par-riel::after{ content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; transition: left .2s; }
+.par-interruptor input:checked + .par-riel{ background: #1ABB9C; }
+.par-interruptor input:checked + .par-riel::after{ left: 21px; }
+.par-interruptor input:focus + .par-riel{ box-shadow: 0 0 0 3px rgba(26,187,156,.3); }
+@media (max-width: 767px){ .par-fila{ flex-direction: column; align-items: flex-start; } .par-campo{ flex: none; text-align: left; } }
+
+/* ==========================================================================
+   Ausentismo: la matriz novedades × días
+   ========================================================================== */
+.aus-centros{ display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.aus-centro-chip{ font-size: 12px; padding: 4px 10px; border-radius: 14px; background: #F3F4F5; color: #6B7076; cursor: pointer; border: 1px solid transparent; }
+.aus-centro-chip.con{ background: #E4F6F2; color: #0F7A64; }
+.aus-centro-chip.activo{ border-color: #6E1A1E; color: #6E1A1E; font-weight: bold; }
+.aus-bloque{ margin-bottom: 14px; }
+.aus-scroll{ border: 1px solid #E3E6EA; border-radius: 8px; }
+.aus-tabla{ border-collapse: separate; border-spacing: 0; font-size: 12px; width: max-content; min-width: 100%; }
+.aus-tabla th, .aus-tabla td{ border-bottom: 1px solid #F0F1F3; border-right: 1px solid #F0F1F3; padding: 0; text-align: center; height: 30px; }
+.aus-tabla thead th{ background: #6E1A1E; color: #FFFFFF; font-weight: bold; min-width: 34px; padding: 3px 2px; line-height: 1.1; }
+.aus-tabla thead th small{ display: block; font-weight: normal; opacity: .8; font-size: 10px; }
+.aus-tabla thead th.aus-finde{ background: #8C3A3E; }
+.aus-tabla thead th.aus-hoy{ background: #1ABB9C; }
+/* La primera columna queda fija al desplazarse hacia los lados */
+.aus-tabla .aus-fija{ position: sticky; left: 0; z-index: 2; text-align: left; padding: 0 10px; min-width: 200px; max-width: 220px; background: #FFFFFF; white-space: normal; font-size: 12px; }
+.aus-tabla thead .aus-fija{ background: #5A1417; z-index: 3; }
+.aus-tabla tfoot th, .aus-tabla tfoot td{ background: #F7F8F9; font-weight: bold; }
+.aus-tabla .aus-tot{ background: #F7F8F9; font-weight: bold; min-width: 52px; padding: 0 6px; }
+.aus-tabla thead .aus-tot{ background: #5A1417; }
+.aus-no-cuenta th, .aus-no-cuenta td{ font-style: italic; color: #6B7076; background: #FAFBFB; }
+.aus-celda{ width: 32px; height: 28px; border: 0; text-align: center; background: transparent; font-size: 12px; padding: 0; }
+.aus-celda:focus{ outline: 2px solid #1ABB9C; background: #FFFFFF; }
+.aus-celda.aus-cambio{ background: #FDF3E0; font-weight: bold; }
+.aus-hay{ color: #6E1A1E; font-weight: bold; }
+.aus-resumen .aus-tabla tbody th, .aus-resumen .aus-tabla tbody td{ background: #F5E4E5; font-weight: bold; }
+.aus-total{ max-width: 560px; }
+#ausAcciones{ display: flex; align-items: center; gap: 10px; }
+/* Mismo ancho de primera columna en todos los bloques: los días quedan alineados */
+.aus-tabla .aus-fija{ width: 210px; min-width: 210px; max-width: 210px; }
+
+/* Parámetros → Correo */
+.par-prueba{ display: flex; gap: 8px; max-width: 520px; margin-bottom: 12px; }
+.par-revision{ list-style: none; padding: 0; margin: 0 0 10px; }
+.par-revision li{ padding: 5px 0; border-bottom: 1px dashed #EEE; font-size: 13px; }
+.par-revision .bien i{ color: #1ABB9C; } .par-revision .mal i{ color: #6E1A1E; }
+.par-intento{ border-left: 4px solid #C9CFD5; background: #FAFBFB; padding: 8px 12px; margin-bottom: 8px; border-radius: 0 8px 8px 0; font-size: 13px; }
+.par-intento.bien{ border-left-color: #1ABB9C; } .par-intento.mal{ border-left-color: #6E1A1E; }
+.par-intento pre{ max-height: 260px; overflow: auto; font-size: 11px; margin-top: 6px; white-space: pre-wrap; }

@@ -1,0 +1,244 @@
+/* ==========================================================================
+   HANA — Módulo de Requisiciones (RQ)
+   Usa la paleta del sistema: vino, verde y ámbar
+   ========================================================================== */
+
+.rq-oculto{ position: absolute; width: .1px; height: .1px; opacity: 0; overflow: hidden; z-index: -1; }
+.rq-req{ color: #6E1A1E; }
+.rq-ayuda{ display: block; color: #6B7076; font-size: 12px; margin-top: 3px; }
+.rq-subtitulo{
+    color: #6E1A1E; font-size: 15px; font-weight: bold;
+    margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #E3E6EA;
+}
+.rq-acciones{ display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+/* --------------------------------------------------------------------------
+   Contadores del listado
+   -------------------------------------------------------------------------- */
+.rq-contadores{
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.rq-contador{
+    background: #F7F8F9;
+    border: 1px solid #E3E6EA;
+    border-left: 4px solid #6B7076;
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+.rq-num{ display: block; font-size: 24px; font-weight: bold; color: #1A1A1A; line-height: 1.2; }
+.rq-lbl{ font-size: 12px; color: #6B7076; }
+.rq-cnt-vencida{ border-left-color: #6E1A1E; }
+.rq-cnt-vencida .rq-num{ color: #6E1A1E; }
+.rq-cnt-riesgo{ border-left-color: #D99C2B; }
+.rq-cnt-riesgo .rq-num{ color: #B07A15; }
+.rq-cnt-ok{ border-left-color: #1ABB9C; }
+.rq-cnt-ok .rq-num{ color: #158F77; }
+
+.rq-filtros{ margin-bottom: 6px; }
+
+/* Aviso que no interrumpe (RQ vencidas detectadas) */
+.rq-aviso{
+    display: flex; align-items: center; gap: 10px;
+    background: #FDF3E0; border: 1px solid #D99C2B; border-left-width: 5px;
+    border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: #1A1A1A;
+}
+.rq-aviso button{
+    margin-left: auto; background: none; border: 0; font-size: 20px; line-height: 1;
+    color: #6B7076; cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Tabla
+   -------------------------------------------------------------------------- */
+.rq-badge{
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: bold; white-space: nowrap;
+}
+.rq-badge-ambar{ background: #FDF3E0; color: #8A5B0B; }
+.rq-badge-verde{ background: #E4F6F2; color: #0F7A64; }
+.rq-badge-vino { background: #F5E4E5; color: #6E1A1E; }
+.rq-badge-gris { background: #EEF0F2; color: #6B7076; }
+
+.rq-vencida{ color: #6E1A1E; font-weight: bold; }
+.rq-dias-fin{ color: #6B7076; }
+.rq-icono-riesgo{ color: #D99C2B; }
+.rq-resumen{
+    display: inline-block; max-width: 320px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+}
+.rq-cant-items{
+    background: #EEF0F2; color: #6B7076; font-size: 11px;
+    padding: 1px 7px; border-radius: 10px; white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   Formulario: ítems
+   -------------------------------------------------------------------------- */
+.rq-item{
+    background: #F7F8F9;
+    border: 1px solid #E3E6EA;
+    border-radius: 8px;
+    padding: 12px 14px 2px;
+    margin-bottom: 12px;
+}
+.rq-item-cab{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.rq-item-num{ font-weight: bold; color: #6E1A1E; }
+.rq-item-quitar{
+    background: none; border: 0; color: #6E1A1E; font-size: 12px;
+    text-decoration: underline; cursor: pointer; padding: 0;
+}
+
+/* La casilla de riesgo: grande y clara, porque genera una novedad */
+.rq-riesgo{
+    display: flex; gap: 12px; align-items: flex-start; cursor: pointer;
+    background: #FDF3E0; border: 1px solid #D99C2B; border-radius: 8px;
+    padding: 12px 14px; margin: 4px 0 0; font-weight: normal;
+}
+.rq-riesgo input{ width: 20px; height: 20px; margin: 2px 0 0; flex: 0 0 20px; cursor: pointer; }
+.rq-riesgo strong{ display: block; color: #1A1A1A; }
+.rq-riesgo small{ display: block; color: #6B7076; margin-top: 2px; }
+
+/* --------------------------------------------------------------------------
+   Formulario: archivos
+   -------------------------------------------------------------------------- */
+.rq-botones-archivo{ display: flex; flex-wrap: wrap; gap: 8px; }
+.rq-previas{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.rq-previa{
+    position: relative; width: 130px;
+    border: 1px solid #E3E6EA; border-radius: 8px; overflow: hidden; background: #FFFFFF;
+}
+.rq-previa img{ display: block; width: 100%; height: 90px; object-fit: cover; }
+.rq-previa-pdf{ height: 90px; display: flex; align-items: center; justify-content: center; font-size: 38px; color: #6E1A1E; background: #F5E4E5; }
+.rq-previa-nombre{ font-size: 11px; padding: 5px 7px; color: #1A1A1A; word-break: break-all; line-height: 1.3; }
+.rq-previa-nombre small{ color: #6B7076; }
+.rq-previa-quitar{
+    position: absolute; top: 4px; right: 4px; width: 24px; height: 24px;
+    border-radius: 50%; border: 0; background: rgba(26,26,26,.7); color: #FFFFFF;
+    font-size: 16px; line-height: 22px; cursor: pointer; padding: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Detalle
+   -------------------------------------------------------------------------- */
+.rq-modal-cab{ background: #6E1A1E; color: #FFFFFF; }
+.rq-modal-cab .modal-title{ color: #FFFFFF; font-weight: bold; }
+.rq-modal-cab .close{ color: #FFFFFF; opacity: .85; text-shadow: none; }
+
+.rq-det-cab{
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
+    background: #F7F8F9; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;
+}
+.rq-det-lbl{ display: block; font-size: 11px; color: #6B7076; text-transform: uppercase; letter-spacing: .3px; }
+.rq-det-riesgo, .rq-det-novedad{ border-radius: 6px; padding: 9px 12px; margin-bottom: 10px; font-size: 13px; }
+.rq-det-riesgo{ background: #FDF3E0; color: #8A5B0B; }
+.rq-det-novedad{ background: #F5E4E5; color: #6E1A1E; }
+.rq-det-novedad a{ color: #6E1A1E; font-weight: bold; text-decoration: underline; }
+.rq-det-sub{ color: #6E1A1E; font-weight: bold; font-size: 14px; margin: 18px 0 8px; }
+
+.rq-det-item{ border: 1px solid #E3E6EA; border-radius: 6px; padding: 9px 12px; margin-bottom: 8px; }
+.rq-det-item-cab{ display: flex; justify-content: space-between; gap: 10px; }
+.rq-det-item-cab span{ color: #6B7076; white-space: nowrap; }
+.rq-det-item-just{ color: #1A1A1A; margin-top: 4px; font-size: 13px; }
+.rq-det-item-sop{ color: #6B7076; margin-top: 4px; font-size: 12px; }
+
+.rq-det-archivos{ display: flex; flex-wrap: wrap; gap: 10px; }
+.rq-det-archivo{ display: block; width: 120px; height: 90px; border-radius: 6px; overflow: hidden; border: 1px solid #E3E6EA; }
+.rq-det-archivo img{ width: 100%; height: 100%; object-fit: cover; }
+.rq-det-pdf{
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #F5E4E5; color: #6E1A1E; font-size: 11px; padding: 6px; text-align: center; gap: 4px;
+}
+.rq-det-pdf .fa{ font-size: 28px; }
+.rq-det-pdf span{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+.rq-det-accion{
+    background: #F7F8F9; border: 1px solid #E3E6EA; border-radius: 8px;
+    padding: 12px 14px; margin-top: 18px;
+}
+
+.rq-historial{ list-style: none; padding: 0; margin: 0; border-left: 2px solid #E3E6EA; }
+.rq-historial li{ position: relative; padding: 0 0 12px 16px; }
+.rq-historial li:before{
+    content: ""; position: absolute; left: -6px; top: 4px;
+    width: 10px; height: 10px; border-radius: 50%; background: #6E1A1E;
+}
+.rq-hist-fecha{ font-size: 11px; color: #6B7076; }
+.rq-hist-texto{ font-size: 13px; }
+.rq-hist-obs{ color: #6B7076; margin-top: 2px; }
+
+/* --------------------------------------------------------------------------
+   Celular
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px){
+    .rq-contadores{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rq-det-cab{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rq-resumen{ max-width: 160px; }
+    .rq-acciones .btn{ flex: 1 1 auto; }
+}
+
+/* Botones de tomar foto / elegir archivos. Son los mismos de Novedades, pero esa
+   hoja de estilos no se carga en esta pantalla, así que se repiten aquí */
+.rq-botones-archivo .hana-foto-boton{
+    display: inline-block; cursor: pointer; background: #FFFFFF;
+    border: 1px dashed #6E1A1E; color: #6E1A1E; border-radius: 8px;
+    padding: 10px 16px; font-size: 14px; font-weight: 500; margin: 0;
+}
+.rq-botones-archivo .hana-foto-boton:hover{ background: #F5E4E5; }
+.rq-botones-archivo .hana-foto-boton-alt{ border-style: solid; border-color: #E3E6EA; color: #1A1A1A; }
+.rq-botones-archivo .hana-foto-boton-alt:hover{ background: #F7F8F9; }
+.rq-botones-archivo .fa{ margin-right: 6px; }
+@media (max-width: 480px){ .rq-botones-archivo .hana-foto-boton{ flex: 1 1 100%; text-align: center; } }
+
+/* Cabecera del detalle: con el rol destino son cinco datos; se acomodan solos */
+.rq-det-cab{ grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+
+/* Bloque de editar / retroceder dentro del detalle */
+.rq-det-editar{
+    border: 1px dashed #D99C2B; border-radius: 8px; background: #FFFBF3;
+    padding: 12px 14px; margin-top: 16px;
+}
+.rq-det-editar p{ margin: 0 0 10px; font-size: 13px; color: #1A1A1A; }
+.rq-det-editar .fa-undo{ color: #B07A15; }
+#rqEdItems .rq-item{ background: #FFFFFF; }
+
+/* ==========================================================================
+   Fase 1 — Tipos de RQ y aprobación
+   Rojo y amarillo son los mismos de la campana (prioridad alta y media):
+   la RQ U llega en rojo y la normal en amarillo, en la tabla y en la campana
+   ========================================================================== */
+
+/* Contadores */
+.rq-cnt-pend{ border-left-color: #F2C230; }
+.rq-cnt-pend .rq-num{ color: #7A5C00; }
+.rq-cnt-urg{ border-left-color: #D32F2F; }
+.rq-cnt-urg .rq-num{ color: #B71C1C; }
+.rq-cnt-rech{ border-left-color: #6E1A1E; }
+.rq-cnt-rech .rq-num{ color: #6E1A1E; }
+
+/* Etiqueta del número: "RQ-12" amarilla, "RQ U-12" roja */
+.rq-etq{
+    display: inline-block; padding: 2px 9px; border-radius: 6px;
+    font-weight: bold; font-size: 13px; white-space: nowrap; line-height: 1.5;
+}
+.rq-etq-n{ background: #FFF6D6; color: #5C4500; border: 1px solid #F2C230; }
+.rq-etq-u{ background: #D32F2F; color: #FFFFFF; border: 1px solid #D32F2F; }
+
+/* Fila de una urgente pendiente: una franja roja a la izquierda */
+#tblRQ tbody tr.rq-fila-urgente td:first-child{ box-shadow: inset 4px 0 0 #D32F2F; }
+
+/* Selector de tipo en el formulario: dos tarjetas grandes, fáciles en el celular */
+.rq-tipos{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 6px; }
+.rq-tipo-op{
+    display: flex; gap: 10px; align-items: flex-start; cursor: pointer; margin: 0;
+    border: 2px solid #E3E6EA; border-radius: 8px; padding: 12px 14px;
+    background: #FFFFFF; font-weight: normal;
+}
+.rq-tipo-op input{ width: 18px; height: 18px; margin: 2px 0 0; flex: 0 0 18px; cursor: pointer; }
+.rq-tipo-op strong{ display: block; color: #1A1A1A; }
+.rq-tipo-op small{ display: block; color: #6B7076; margin-top: 2px; }
+.rq-tipo-op-n:has(input:checked){ border-color: #F2C230; background: #FFFBEA; }
+.rq-tipo-op-u:has(input:checked){ border-color: #D32F2F; background: #FDECEA; }
+@media (max-width: 480px){ .rq-tipos{ grid-template-columns: 1fr; } }

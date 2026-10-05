@@ -1,0 +1,6 @@
+FPDF 1.9 (2026-05-31) - https://github.com/Setasign/FPDF (licencia libre, ver license.txt)
+
+La usa HANA para generar el PDF de los arqueos (Modelo/ArqueoPdf.php).
+Se agregó en esta carpeta porque las copias viejas del proyecto (public/Gpdf y
+public/Gpdf3, versión 1.81 de 2015) llaman a get_magic_quotes_runtime(), una
+función que PHP 8 eliminó: con PHP 8 fallan apenas se intenta crear un PDF.

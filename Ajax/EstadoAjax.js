@@ -73,116 +73,76 @@ function listar()
 function guardar(e)
 {
     e.preventDefault(); //No se activará la acción predeterminada del evento
-    $("#btnGuardar").prop("disabled",true);
+    hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
-            url: "../Control/EstadoControl.php?op=guardar",
+        url: "../Control/EstadoControl.php?op=guardar",
         type: "POST",
         data: formData,
         contentType: false,
         processData: false,
+        //Error de conexión o del servidor: se muestra el motivo y el formulario se conserva
+        error: function(xhr)
+        {
+            hanaErrorAjax(xhr, "No se pudo guardar el registro.");
+        },
         success: function(datos)
         {
-            alert(datos);
-            mostrarform(false);
-            tabla.ajax.reload();
-            //$(location).attr('href','../Vista/index.html');    
-            
-            
-            
+            alert(datos); //el servidor responde con el mensaje exacto: éxito o motivo del error
+            //Solo si NO fue un error se cierra el formulario; si falló, queda abierto para corregir
+            if (hanaTipoMensaje(datos) !== "error") {
+                mostrarform(false); //mostrarform también limpia el formulario
+                tabla.ajax.reload();
+            }
+        },
+        complete: function()
+        {
+            hanaBoton("#btnGuardar", false); //pase lo que pase, el botón vuelve a quedar disponible
         }
     });
-    limpiar();
 }
 function mostrar(idestado)
 {
+    hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
     $.post("../Control/EstadoControl.php?op=mostrar",{idestado : idestado}, function(data)
     {
-        
-    bootbox.dialog({
-        message: '<div class="text-center"><i class="fa fa-spin fa-spinner"></i> Consultando la base de datos...</div>',
-        closeButton: false
-        });
-         setTimeout(() => {
-    bootbox.hideAll()
-     data = JSON.parse(data);
-    mostrarform(true);
-    $("#idestado").val(data.ID_ESTADOS_RELEVANCIA );
-    $("#nombre").val(data.NOMBRE_ESTADOS_RELEVANCIA);
-    $("#dias").val(data.DIAS_ESTADOS_RELEVANCIAS);
-                 
-    }, 1000);      
-   
-     
+        hanaCargando(false);
+        //Antes aqui habia una espera fija de 1 segundo con "Consultando la base de datos...".
+        //Ahora el aviso de carga dura solo lo que tarda el servidor en responder
+        data = JSON.parse(data);
+        mostrarform(true);
+        $("#idestado").val(data.ID_ESTADOS_RELEVANCIA );
+        $("#nombre").val(data.NOMBRE_ESTADOS_RELEVANCIA);
+        $("#dias").val(data.DIAS_ESTADOS_RELEVANCIAS);
+    })
+    .fail(function(xhr){
+        hanaCargando(false);
+        hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
 function anular(idestado){
-    
-     bootbox.confirm({
-            message: "Desea anular este registro?",
-            buttons: {
-                confirm: {
-                    label: 'SI'
-                },
-                cancel: {
-                    label: 'NO'
-                }
-            },
-            callback: function (result) {
-                if (result) {
-                  $.post("../Control/EstadoControl.php?op=anular",{idestado : idestado}, function(data)
-            {
-      bootbox.alert({
-                        title: 'Desactivado!',
-                        message: data,
-                        size: 'small',
-                        closeButton: false
-         });              
-         setTimeout(() => {
-                        bootbox.hideAll()
-        }, 1500);              
-                      
-     tabla.ajax.reload();
-        
-    });
-                }
-            }
+    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
+    hanaConfirmar("¿Desea anular este registro?", function(){
+        $.post("../Control/EstadoControl.php?op=anular",{idestado : idestado}, function(data){
+            alert(data); //el servidor responde con el mensaje exacto: éxito o motivo del error
+            tabla.ajax.reload();
+        })
+        .fail(function(xhr){
+            hanaErrorAjax(xhr, "No se pudo anular el registro.");
         });
-    
+    });
 }
 function activar(idestado){
-    
-     bootbox.confirm({
-            message: "Desea activar este registro?",
-            buttons: {
-                confirm: {
-                    label: 'SI'
-                },
-                cancel: {
-                    label: 'NO'
-                }
-            },
-            callback: function (result) {
-                if (result) {
-                  $.post("../Control/EstadoControl.php?op=activar",{idestado : idestado}, function(data)
-            {
-      bootbox.alert({
-                        title: 'Activado!',
-                        message: data,
-                        size: 'small',
-                        closeButton: false
-                    });      
-                      
-        setTimeout(() => {
-                        bootbox.hideAll()
-        }, 1500);              
-         tabla.ajax.reload();
-        
-    });
-                }
-            }
+    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
+    hanaConfirmar("¿Desea activar este registro?", function(){
+        $.post("../Control/EstadoControl.php?op=activar",{idestado : idestado}, function(data){
+            alert(data); //el servidor responde con el mensaje exacto: éxito o motivo del error
+            tabla.ajax.reload();
+        })
+        .fail(function(xhr){
+            hanaErrorAjax(xhr, "No se pudo activar el registro.");
         });
-    
+    });
 }
 
 function puntosNumero() {
@@ -199,7 +159,7 @@ function puntosNumero() {
         $("#dias").val(num);
     }
     else {
-        bootbox.alert('Solo se permiten numeros');
+        alert('Solo se permiten números.');
     }
 }
 init();//ejecuta la función init

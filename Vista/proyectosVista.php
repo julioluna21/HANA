@@ -37,17 +37,25 @@ include('head.php');
                                 <input type="hidden" class="form-control" name="idProyecto" id="idProyecto">
                               <input type="text" class="form-control" name="nombre" id="nombre" required="" autofocus>
                               </div>
+                              <!-- Fase 2: quién coordina el proyecto. Es quien aparece en el
+                                   tablero del reporte diario, en el mosaico del proyecto -->
+                              <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                                <label for="coordinador">Coordinador del proyecto:</label>
+                                <select class="form-control" name="coordinador" id="coordinador">
+                                  <option value="">Sin asignar</option>
+                                </select>
+                              </div>
                           
                         </div> 
                
                                                    
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                              <SPAN title="Guardar Registro">
+                              <SPAN title="Guardar">
                                 <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar
                                 </button>
                               </SPAN>       
 <!--ejecuta cancelar formulario-->
-                              <SPAN title="Cancelar Registro">
+                              <SPAN title="Cancelar">
                                 <button class="btn btn-primary" onclick="cancelarform()"  type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
                                 </button>
                               </SPAN>
@@ -63,14 +71,14 @@ include('head.php');
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
-                  <h2>Listado Formulario</h2>
-                  <SPAN title="Agregar Registro" style="float:right">
+                  <h2>Listado de proyectos</h2>
+                  <SPAN title="Agregar proyecto" style="float:right">
               <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
                   <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
-                </i> Nuevo Registro
+                </i> Nuevo proyecto
               </button>
             </SPAN>
                     <div class="clearfix"></div>
@@ -83,6 +91,7 @@ include('head.php');
                       <thead>
                   <th>ID</th>
                   <th>NOMBRE</th>
+                  <th>COORDINADOR</th>
                   <th>ESTADO</th>
                   <th>OPCIÓN</th>
                       </thead>

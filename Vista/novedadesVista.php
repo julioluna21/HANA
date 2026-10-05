@@ -67,7 +67,7 @@ include('head.php');
                              
                           
                           <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                               <label>Titulo Novedad:</label>
+                               <label>Título de la novedad:</label>
                                 <select name="titulo" id="titulo" class="form-control"  required>     
                               </select> 
                             </div>
@@ -107,7 +107,7 @@ include('head.php');
                           <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                <label>Validez novedad:</label><br>
                                 <select name="validez" id="validez" class="form-control"  required>
-                                <option value="">Seleccione validez</option>      
+                                <option value="">Selecciona la validez</option>      
                                 <option value="Procedente">Procedente</option>  
                                 <option value="Improcedente">Improcedente</option>      
                               </select> 
@@ -120,6 +120,18 @@ include('head.php');
                               </div>
                           
                         </div> 
+
+                        <!-- A quién se le avisa: a todas las personas de este rol, no a una
+                             persona suelta ni a todo el mundo -->
+                        <div class="row">
+                            <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                                <label for="rolDestino">Rol a notificar: <span style="color:#6E1A1E;">*</span></label>
+                                <select name="rolDestino" id="rolDestino" class="form-control" required>
+                                    <option value="">Cargando roles...</option>
+                                </select>
+                                <small style="color:#6B7076;">Le llega a todas las personas que tengan este rol, en la campana y por correo.</small>
+                            </div>
+                        </div>
                
                          <div class="row">
                              
@@ -130,14 +142,32 @@ include('head.php');
                             </div>
                              
                              <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                             <br><SPAN class="miarchivo2" >  
-                                 
-                                 <input type="file" class="btn btn-secondary" name="miarchivo2" id="miarchivo2" required>
-                                 
+                             <!-- La foto es obligatoria, pero antes su campo estaba escondido
+                                  por CSS y solo se veia un iconito: si faltaba, parecia que el
+                                  boton Guardar no hacia nada. Ahora se ve que es obligatoria,
+                                  se puede tomar con la camara y queda una vista previa -->
+                             <label for="miarchivo2">Foto de evidencia: <span style="color:#6E1A1E;">*</span></label>
+                             <SPAN class="miarchivo2">
+                                 <!-- accept: solo imagenes. El atributo capture NO se pone aqui:
+                                      si estuviera, el celular abriria siempre la camara y no
+                                      dejaria elegir una foto ya tomada. Lo pone y lo quita el
+                                      JavaScript segun el boton que se oprima -->
+                                 <input type="file" name="miarchivo2" id="miarchivo2" accept="image/*" required>
                              </SPAN>
-                             <label for="miarchivo2" 
-                                    ><SPAN title="Cargar imagen" id="imagenbt"><i class="fa fa-picture-o" aria-hidden="true" style="font-size: 20px"></i></SPAN></label>                      
-                                 
+                             <div class="hana-foto">
+                                 <!-- Dos caminos: tomar la foto en el momento, o buscar una que
+                                      ya este en el telefono o en el computador -->
+                                 <button type="button" class="hana-foto-boton" id="imagenbt" data-campo="#miarchivo2" data-modo="camara">
+                                     <i class="fa fa-camera" aria-hidden="true"></i> Tomar foto
+                                 </button>
+                                 <button type="button" class="hana-foto-boton hana-foto-boton-alt" data-campo="#miarchivo2" data-modo="archivo">
+                                     <i class="fa fa-folder-open-o" aria-hidden="true"></i> Elegir de mis archivos
+                                 </button>
+                                 <div class="hana-foto-previa" id="fotoPrevia" style="display:none;">
+                                     <img id="fotoPreviaImg" alt="Vista previa de la foto">
+                                     <div class="hana-foto-datos"><span id="fotoNombre"></span><button type="button" class="hana-foto-quitar" id="fotoQuitar">Quitar</button></div>
+                                 </div>
+                             </div>
                             </div>      
                            
                              
@@ -146,12 +176,12 @@ include('head.php');
                
                
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                              <SPAN title="Guardar Registro">
+                              <SPAN title="Guardar">
                                 <button class="btn btn-primary" type="submit" id="btnGuardar"><i id="btnguard" class="fa fa-save"></i> Guardar
                                 </button>
                               </SPAN>       
 <!--ejecuta cancelar formulario-->
-                              <SPAN title="Cancelar Registro">
+                              <SPAN title="Cancelar">
                                 <button class="btn btn-primary" onclick="cancelarform()"  type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
                                 </button>
                               </SPAN>
@@ -168,19 +198,30 @@ include('head.php');
                 <div class="x_panel">
                   <div class="x_title">
                   <h2>Listado de novedades</h2>
-                  <SPAN title="Agregar Registro" style="float:right">
+                  <SPAN title="Registrar novedad" style="float:right">
               <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
                   <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
-                </i> Nuevo Registro
+                </i> Nueva novedad
               </button>
             </SPAN>
                     <div class="clearfix"></div>
                   </div>
                   <div class="x_content">
-                      
+
+                      <!-- Un solo control para elegir qué se ve. Reemplaza al antiguo filtro
+                           "Asignadas a mi usuario". El servidor decide qué entra en cada vista -->
+                      <div class="hana-vista" id="vistaNovedades" role="group" aria-label="Qué novedades ver">
+                          <button type="button" class="hana-vista-btn activo" data-vista="mias">
+                              <i class="fa fa-user"></i> Mis registros
+                          </button>
+                          <button type="button" class="hana-vista-btn" data-vista="todas">
+                              <i class="fa fa-users"></i> <span class="hana-vista-todas">Las de mi rol</span>
+                          </button>
+                      </div>
+
                       <div class="row">
                              
                           <div class="form-group col-lg-3 col-md-3 col-sm-3 col-xs-12">
@@ -232,20 +273,23 @@ include('head.php');
                       
                       <div class="panel-body table-responsive" >  
 
-                    <table id="tbllistado" class="table table-striped table-bordered" style="width:100%; text-align: center">
+                    <table id="tbllistado" class="table table-striped table-bordered tabla-novedades" style="width:100%; text-align: center">
                     <thead>
                   <th>ID</th>          
-                  <th style="min-width: 350px;">Titulo novedad</th>    
-                  <th style="min-width: 150px;">Fecha registro</th>            
-                  <th style="min-width: 300px;">Colaborador registro</th>
-                  <th style="min-width: 300px;">Colaborador asignado</th>
-                  <th style="min-width: 200px;">Proyecto</th>        
-                  <th style="min-width: 200px;">Centro operación</th>
-                  <th style="min-width: 150px;">Prioridad</th>         
-                  <th style="min-width: 150px;">Fecha limite</th>    
-                  <th style="min-width: 150px;">Estado respuesta</th>        
-                  <th style="min-width: 150px;">Estado novedad</th>                
-                  <th style="min-width: 100px;">Opción</th>
+                  <!-- Los anchos minimos se pasaron a la hoja de estilos (public/css/comun.css).
+                       Escritos aqui sumaban unos 2.400px y la tabla no cabia en el celular:
+                       ahora solo se aplican en pantallas grandes -->
+                  <th>Título de la novedad</th>
+                  <th>Fecha registro</th>
+                  <th>Colaborador registro</th>
+                  <th>Colaborador asignado</th>
+                  <th>Proyecto</th>
+                  <th>Centro operación</th>
+                  <th>Prioridad</th>
+                  <th>Fecha límite</th>
+                  <th>Estado respuesta</th>
+                  <th>Estado novedad</th>
+                  <th>Opción</th>
                     </thead>
                       <tbody>
                           
@@ -271,6 +315,13 @@ include('head.php');
             
               
              <link href="../public/css/chat.css" rel="stylesheet">
+             <!-- chat.css se carga aqui, DESPUES de head.php, asi que sus colores y su
+                  regla ".row{display:-webkit-box}" ganaban sobre los nuestros. Por eso
+                  se vuelven a cargar nuestras hojas justo despues: asi mandan las de HANA -->
+             <link href="../public/css/comun.css?v=1" rel="stylesheet">
+             <link href="../public/css/paleta.css?v=1" rel="stylesheet">
+             <!-- Estilos de la pantalla de novedades: foto con vista previa y estados visibles -->
+             <link href="../public/css/novedades.css?v=1" rel="stylesheet">
           <div class="col">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <div class="media align-items-center">
@@ -291,128 +342,79 @@ include('head.php');
                     </div>
                     <!--end card header-->
                     <div class="card-body overflow-auto" id="contenido">
-                        
-                        <div class="row justify-content-start">
-                            <div class="col-auto">
-                                <div class="card bg-secondary">
-                                    <div class="card-body p-2">
-                                        <p class="mb-0">
-                                        <span style=" font-weight: bold;">Observador novedad:</span> Interventoria<br>
-                                        <span style=" font-weight: bold;">Centro operativo:</span> Peaje niquia<br>    
-                                        <span style=" font-weight: bold;">Novedad asignada a:</span> JULIO MARTIN LUNA GALVIS<br>  
-                                        <span style=" font-weight: bold;">Validez novedad:</span> Procede<br>  
-                                        <span style=" font-weight: bold;">Prioridad:</span> Alta<br>       
-                                        </p><br>
-                                        <div>
-                                            <small class="opacity-60">JULIO MARTIN LUNA 2024/010/09 10:20:23</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                         <div class="row justify-content-start">
-                             <div class="col-auto">
-                                <div class="card bg-secondary">
-                                    <div class="card-body p-2">
-                                        <p class="mb-0">
-                                        <span style=" font-weight: bold;">Novedad:</span> el vidrio del peaje niquia se encuentraa roto, la intervemtoria realiza laa novedad para drle seguimiento, el vidrio del peaje niquia se encuentraa roto, la intervemtoria realiza laa novedad para drle seguimiento,     
-                                        </p><br>
-                                        <div>
-                                            <small class="opacity-60">JULIO MARTIN LUNA 2024/01/09 10:20:23</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row mb-4">
-                            <div class="col text-center">
-                                <span class="badge badge-secondary">FOTO EVIDENCIA NOVEDAD</span>
-                            </div>
-                            <!--end of col-->
-                        </div>
-                        
-                        
-                        <div class="row justify-content-start">
-                             <div class="col-auto">
-                                <div class="card bg-secondary">
-                                    <div class="card-body p-2">
-                                        <p class="mb-0">
-                                        <a href="../public/img/Logo1.png"><img src="../public/img/construccion.png" class="img-rounded" alt="Cinque Terre"style="width: 350px;"></a>   
-                                        </p><br>
-                                        <div>
-                                            <small class="opacity-60">JULIO MARTIN LUNA 2024/01/09 10:20:23</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row justify-content-end text-right">
-                            <div class="col-auto">
-                                <div class="card bg-primary text-white">
-                                    <div class="card-body p-2">
-                                        <p class="mb-0">
-                                        Se monta requisicion para la compra del vidrio en sisesa a la espera de respuesta<br><br>
-                                            
-                                        </p>
-                                        <div>
-                                            <span style=" font-weight: bold;" class="opacity-60">Estado:En proceso</span><br>    
-                                            <small class="opacity-60">BRYAN CAJIA OCAMPO 2024/01/12 10:20:23</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                      
-                        
+                        <!-- Este bloque lo llena el sistema con la novedad real.
+                             Antes traia una conversacion de ejemplo escrita a mano
+                             ("BRYAN CAJIA OCAMPO 2024/01/12"), que se alcanzaba a ver
+                             mientras cargaba y confundia -->
                     </div>
+
                     <div class="card-footer bg-secondary">
-                        <form class="d-flex align-items-center" enctype="multipart/form-data" name="respuesta" id="respuesta" method="post">
-                            <div class="input-group input-group-lg">
-                                <div class="input-group-prepend">
-                                    <button class="btn btn-secondary" type="submit" id="btnenvio">
-                                    <i class="fa fa-paper-plane"></i>
+                        <form enctype="multipart/form-data" name="respuesta" id="respuesta" method="post">
+
+                            <!-- El estado ya no se elige dentro de un menu escondido detras de un
+                                 reloj de arena: ahora se ve cual esta seleccionado, y el boton de
+                                 enviar quedo despues del texto, que es el orden natural -->
+                            <!-- El asterisco solo para quien SI esta obligado a elegir estado:
+                                 el servidor permite responder sin estado a quien tiene permiso
+                                 de auditoria, que a veces solo deja un comentario -->
+                            <label class="hana-resp-titulo">Estado de la respuesta:<?php if($_SESSION['Audititoria']!=1){ ?> <span style="color:#6E1A1E;">*</span><?php } ?></label>
+                            <div class="hana-resp-estados">
+                                <label class="hana-resp-estado hana-resp-proceso">
+                                    <input type="radio" name="estadoNovedad" id="estadoProceso" value="2">
+                                    <span><i class="fa fa-clock-o" aria-hidden="true"></i> En proceso</span>
+                                </label>
+                                <label class="hana-resp-estado hana-resp-final">
+                                    <input type="radio" name="estadoNovedad" id="estadoFinalizada" value="3">
+                                    <span><i class="fa fa-check" aria-hidden="true"></i> Finalizada</span>
+                                </label>
+<?php if($_SESSION['Audititoria']==1){ ?>
+                                <label class="hana-resp-estado hana-resp-cerrada">
+                                    <input type="radio" name="estadoNovedad" id="estadoCerrada" value="4">
+                                    <span><i class="fa fa-lock" aria-hidden="true"></i> Cerrada</span>
+                                </label>
+<?php } ?>
+                            </div>
+
+                            <!-- Al marcar "Finalizada" aparece este campo: antes el sistema abria
+                                 el selector de archivos sin decir para que -->
+                            <div class="hana-resp-foto" id="respFoto" style="display:none;">
+                                <label for="miarchivo">Foto de evidencia del cierre (opcional):</label>
+                                <input type="file" name="miarchivo" id="miarchivo" accept="image/*">
+                                <div class="hana-foto">
+                                    <button type="button" class="hana-foto-boton" id="imagenbt2" data-campo="#miarchivo" data-modo="camara">
+                                        <i class="fa fa-camera" aria-hidden="true"></i> Tomar foto
+                                    </button>
+                                    <button type="button" class="hana-foto-boton hana-foto-boton-alt" data-campo="#miarchivo" data-modo="archivo">
+                                        <i class="fa fa-folder-open-o" aria-hidden="true"></i> Elegir de mis archivos
                                     </button>
                                 </div>
-                                
-                                <div class=" input-group-prepend dropdown">
-                            <button class="btn btn-secondary dropdown-toggle dropdown-toggle-no-arrow"  data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" type="button">
-                            <i class="fa fa-hourglass-start"></i>
+                                <div class="hana-foto-previa" id="fotoPrevia2" style="display:none;">
+                                    <img id="fotoPreviaImg2" alt="Vista previa de la foto de cierre">
+                                    <div class="hana-foto-datos"><span id="fotoNombre2"></span><button type="button" class="hana-foto-quitar" id="fotoQuitar2">Quitar</button></div>
+                                </div>
+                            </div>
+
+                            <textarea class="form-control hana-resp-texto" placeholder="Escribe tu respuesta a la novedad" name="novedad" id="nrespuesta" rows="3" required></textarea>
+
+                            <input type="hidden" id="IDnovedad" name="IDnovedad">
+<?php echo $_SESSION['Audititoria']==1
+        ? '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="1">'
+        : '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="0">'; ?>
+
+                            <button class="btn btn-success hana-resp-enviar" type="submit" id="btnenvio">
+                                <i class="fa fa-paper-plane"></i> Enviar respuesta
                             </button>
-                            <div class="dropdown-menu dropdown-menu-right dropdown-menu-sm" aria-labelledby="Button" >
-                                <a class="dropdown-item" onclick="novedades(2)">En proceso</a>
-                                <label class="dropdown-item" for="miarchivo" onclick="novedades(3)" style="cursor: pointer;">Finalizada</label>
-                                <?php if($_SESSION['Audititoria']==1){?>
-                                <a class="dropdown-item" onclick="novedades(4)">Cerrada</a> 
-                                <?php } 
-                             echo $_SESSION['Audititoria']==1? '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="1">': '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="0">'; 
-                                ?>
-                                
-                            </div>
-                            </div>
-                                <input type="hidden" id="IDnovedad" name="IDnovedad">
-                                <input type="hidden" id="estadoNovedad" name="estadoNovedad">
-                                <textarea  class="form-control" type="text" placeholder="Escribir respuesta a novedad" name="novedad" id="nrespuesta" required></textarea>
-                                <input type="file" class="btn btn-secondary" name="miarchivo" id="miarchivo"  />
-                            </div>    
-                          
                         </form>
                     </div>
-                </div>  
-              
+                </div>
+
           </div>
-        </div>  
-          
-       
-    
+        </div>
+
       </div>
-        
-        
+
     </div>
-         
-          
+
   </div>
 </div>
 <!-- /page content -->

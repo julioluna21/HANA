@@ -1,6 +1,7 @@
 <footer>
         <div class="pull-right">
-          Derechos Grupo Regency 2024
+          <!-- El año se calcula solo, para no tener que actualizarlo a mano -->
+          © <?php echo date('Y'); ?> Grupo Regency
         </div>
         <div class="clearfix"></div>
       </footer>
@@ -8,6 +9,10 @@
     </div>
   </div>
 
+  <!-- Alertas personalizadas: va de primera para que todo alert() de la pagina ya use la ventana del sistema -->
+  <!-- Alertas personalizadas de HANA: va de primera para que todo alert() de la
+       pagina use la ventana del sistema en vez de la del navegador -->
+  <script src="../Ajax/AlertasAjax.js?v=5"></script>
   <!-- jQuery -->
   <script src="../vendors/jquery/dist/jquery.min.js"></script>
   <!-- Bootstrap -->
@@ -45,8 +50,6 @@
   <script src="../build/js/custom.min.js"></script>
 
     <!-- libreria alertas con estilo-->
-   
-  >
 
     <!-- DATATABLES -->
     <script src="../vendors/datatables.net/js/jquery.dataTables.min.js"></script>
@@ -57,6 +60,13 @@
     <script src="../vendors/datatables.net-buttons/js/buttons.print.min.js"></script>
     <script  src="../public/sbuscar/js/select2.js"></script>
     <script  src="../public/js/bootbox.min.js"></script>
+    <!-- Tablas adaptables al celular: la libreria ya venia en vendors, solo faltaba cargarla -->
+    <script src="../vendors/datatables.net-responsive/js/dataTables.responsive.min.js"></script>
+    <!-- Configuracion comun: tablas en espanol, adaptables e indicador de carga.
+         Debe ir DESPUES de DataTables -->
+    <script src="../Ajax/ComunAjax.js?v=1"></script>
+    <!-- Campana de notificaciones: se revisa sola una vez por minuto -->
+    <script src="../Ajax/CampanaAjax.js?v=1"></script>
 
     
     <!--cript src="../vendors/datatables.net-buttons-bs/js/buttons.bootstrap.min.js"></script>

@@ -1,6 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+hanaGuardia(array('11M', '12M')); //Diligenciar listas: 11M; administrarlas: 12M
 require_once "../Modelo/ListasModelo.php";
+require_once __DIR__ . "/../Modelo/HanaDB.php";     //consultas preparadas
+require_once __DIR__ . "/../Modelo/HanaFechas.php"; //margen de un día (ayer, hoy y mañana)
 $Listas = new listas();
 // Obtiene los datos del formulario de datos.
 setlocale(LC_ALL,'es-Es');// Activa la localización con el sistema para mostrar en español
@@ -9,14 +13,17 @@ $idLista = isset($_POST["idLista"]) ? limpiarCadena($_POST["idLista"]) : "";
 $idRespuesta = isset($_POST["idRespuesta"]) ? limpiarCadena($_POST["idRespuesta"]) : "";
 $idGrupo = isset($_POST["idGrupo"]) ? limpiarCadena($_POST["idGrupo"]) : "";
 $fechaEncuesta = isset($_POST["fechaEncuesta"]) ? $_POST["fechaEncuesta"] : '';
-$nombreColaborador = isset($_POST["nombreColaborador"]) ? $_POST["nombreColaborador"] : '';
+//Quien diligencia sale SIEMPRE de la sesión. Antes venía de un campo oculto de
+//la pantalla, que se puede cambiar: una lista podía quedar a nombre de otro
+$nombreColaborador = isset($_SESSION['Idcolaborador']) ? $_SESSION['Idcolaborador'] : '';
 
 $idCentro = isset($_POST["selectCentro"]) ? $_POST["selectCentro"] : '';
 
+$huboFallo = false; //queda en true si alguna respuesta no se pudo guardar
 $preguntas= array();
 $titulos= array();
 $descPregunta= array();
-$fechaNovedad=date("Y-m-d_H:i:s");
+$fechaNovedad=date("Y-m-d H:i:s");
 $fecha2=date("Y-m-j H:i:s");
 
 switch ($_GET["op"]) {
@@ -32,8 +39,29 @@ switch ($_GET["op"]) {
     break;  
   case 'guardar':
     //try {
+      //Por defecto las listas las llena el coordinador del proyecto (Parámetros del
+      //sistema: LISTAS_SOLO_COORDINADOR). Si se apaga, basta el permiso 11M del rol
+      require_once __DIR__ . '/../Modelo/HanaConfig.php';
+      if (HanaConfig::si('LISTAS_SOLO_COORDINADOR') && !HanaDB::esCoordinador((int)$_SESSION['Idcolaborador'])) {
+        http_response_code(403);
+        echo 'Las listas de chequeo las llena el coordinador del proyecto.';
+        break;
+      }
       
       if (empty($idLista)) {
+      //Margen de un día: la lista puede ser de ayer, hoy o mañana (lo elige la
+      //pantalla); cualquier otra fecha se rechaza aquí, no solo en la pantalla
+      if (HanaVal::fecha(substr((string)$fechaEncuesta, 0, 10)) === '' || !HanaFechas::enVentana($fechaEncuesta)) {
+        http_response_code(400);
+        echo 'La fecha de la lista no es válida: solo se diligencian listas de ' . HanaFechas::textoVentana() . '.';
+        break;
+      }
+      //El peaje tiene que ser de los suyos (de un proyecto que coordina o asignado en Usuarios)
+      if (!$Listas->centroAsignado($_SESSION['IdUsuarios'], intval($idCentro))) {
+        http_response_code(400);
+        echo 'Ese peaje no es de los proyectos que coordinas.';
+        break;
+      }
 		  
 		  $rspta = $Listas->preguntasnovedad($idGrupo);
 		   while ($row = $rspta->fetch_object()) {
@@ -45,11 +73,31 @@ switch ($_GET["op"]) {
         //var_dump($idLista);
       $idPregunta = '';
       //print_r($idCentro.",".$fechaEncuesta.",".$nombreColaborador.",".$idGrupo);
+      $tipos = array();
+      $rsptaTipos = $Listas->mostrarPreguntas($idGrupo);
+      if ($rsptaTipos) { while ($rowT = $rsptaTipos->fetch_object()) { $tipos[$rowT->ID_DETALLE_GRUPO_LISTA_CHEQUEO] = $rowT->TIPO_RESPUESTA; } }
+      $fechaBase = date('Y-m-d');
+      foreach ($_POST as $kf => $vf) { if (preg_match('/answer_(\d+)/', $kf, $mf) && isset($tipos[$mf[1]]) && $tipos[$mf[1]] === 'fecha' && $vf !== '') { $fechaBase = $vf; break; } }
       $rspta = $Listas->insertarLista($idCentro, $fechaEncuesta, $nombreColaborador, $idGrupo);
       //$rspta ? http_response_code(200) : http_response_code(400);
       //print_r($rspta);
       if ($rspta) {
        $idLista = $rspta; //muestra id de encabezado lista respuesta
+        foreach ($_FILES as $fkey => $farchivo) {
+          if (preg_match('/answer_(\d+)/', $fkey, $fmatches) && isset($farchivo['tmp_name']) && $farchivo['error'] === UPLOAD_ERR_OK) {
+            $idPreguntaF = $fmatches[1];
+            $mimeF = @mime_content_type($farchivo['tmp_name']);
+            if ($mimeF && strpos($mimeF, 'image/') === 0) {
+              $firmaB64 = 'data:' . $mimeF . ';base64,' . base64_encode(file_get_contents($farchivo['tmp_name']));
+              $rsptaF = $Listas->insertarRespuesta($idLista, $idPreguntaF, $firmaB64, $nombreColaborador);
+              if ($rsptaF) {
+                $cantF = $Listas->getCantRespuestas($idLista);
+                $setCantF = 1 + ($cantF ? $cantF['CANT_RESPUESTAS_LISTA'] : 0);
+                $Listas->insertarCantRespuestas($idLista, $setCantF);
+              }
+            }
+          }
+        }
         foreach ($_POST as $key => $value) {
           if (preg_match('/answer_(\d+)/', $key, $matches)) {
             $idPregunta = $matches[1];
@@ -72,11 +120,12 @@ switch ($_GET["op"]) {
 					$respuestaNo=$respuesta;
 				}
 				
-				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." repondiendo ".$respuestaNo; 
+				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." respondiendo ".$respuestaNo; 
 				
 				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idCentro,$_SESSION['Idcolaborador'],2,$titulos[$idPregunta],$descripcion,"Procedente",2,$date_past);
 				
 			}  
+            if (isset($tipos[$idPregunta]) && $tipos[$idPregunta] === 'datetime' && $respuesta !== '') { $respuesta = date("Y-m-d h:i:s A", strtotime($fechaBase . ' ' . $respuesta)); }
             $rspta1 = $Listas->insertarRespuesta($idLista, $idPregunta,  $respuesta, $nombreColaborador);
             //$rspta1 ? http_response_code(200) : http_response_code(400);
             if ($rspta1) {             
@@ -84,10 +133,34 @@ switch ($_GET["op"]) {
               $rspta2 ? $rspta2 : 0;
               $setCantRespuestas = 1 + $rspta2['CANT_RESPUESTAS_LISTA'];
               $rspta3 = $Listas->insertarCantRespuestas($idLista, $setCantRespuestas);
-              echo $rspta3 ? http_response_code(200) : http_response_code(400);
+              if (!$rspta3) { $huboFallo = true; } //se anota y se decide al final
+            } else {
+              $huboFallo = true; //una respuesta que no se guardo hace fallar toda la lista
             }
           }
         }
+
+        //Lista terminada: se avisa por correo a quien este configurado.
+        //Va dentro de try/catch en su propio archivo: si el correo falla,
+        //la lista igual queda guardada y el usuario no ve ningun error.
+        require_once __DIR__ . "/EnvioNotificacionesControl.php";
+        hanaNotificarInmediato($idLista);
+
+        //Una sola respuesta al navegador, ya con todas las preguntas procesadas.
+        //Antes se respondia dentro del ciclo y la ultima pregunta decidia el
+        //resultado: si fallaba una del medio, la pantalla igual decia "guardado"
+        if ($huboFallo) {
+          http_response_code(400);
+          echo "Algunas respuestas no se pudieron guardar. Revisa la lista antes de continuar.";
+        } else {
+          http_response_code(200);
+          //El número de la lista nueva: la pantalla lo usa para subir enseguida los archivos elegidos
+          echo json_encode(array('ok' => true, 'idLista' => (int)$idLista));
+        }
+      } else {
+        //Ni siquiera se creo el encabezado de la lista
+        http_response_code(400);
+        echo "No se pudo crear la lista.";
       }
       }else{         
         
@@ -115,9 +188,55 @@ switch ($_GET["op"]) {
     }*/
     break;
     case 'editarUnaRespuesta':
-      print_r($idRespuesta);
+      require_once __DIR__ . '/../Modelo/HanaConfig.php';
+      if (HanaConfig::si('LISTAS_SOLO_COORDINADOR') && !HanaDB::esCoordinador((int)$_SESSION['Idcolaborador'])) {
+        http_response_code(403);
+        echo 'Las listas de chequeo las corrige el coordinador del proyecto.';
+        break;
+      }
+      //Margen de un día: solo se corrigen listas de ayer, hoy o mañana.
+      //Y solo las corrige quien las llenó (DUENO), nadie más
+      $fechaDeLista = null;
+      if ($idLista !== '') {
+        $fechaDeLista = HanaDB::fila("SELECT FEC_REGISTRO_LISTA_CHEQUEO AS F, ID_COLABORADOR_LISTA_CHEQUEO AS DUENO FROM lista_chequeo WHERE ID_LISTA_CHEQUEO = ?", 'i', array((int)$idLista));
+      } elseif ($idRespuesta !== '') {
+        $fechaDeLista = HanaDB::fila("SELECT l.FEC_REGISTRO_LISTA_CHEQUEO AS F, l.ID_COLABORADOR_LISTA_CHEQUEO AS DUENO FROM detale_lista_chequeo d
+                                        INNER JOIN lista_chequeo l ON l.ID_LISTA_CHEQUEO = d.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO
+                                       WHERE d.ID_DETALE_LISTA_CHEQUEO = ?", 'i', array((int)$idRespuesta));
+      }
+      if ($fechaDeLista && (int)$fechaDeLista['DUENO'] !== (int)$_SESSION['Idcolaborador']) {
+        http_response_code(403);
+        echo 'Esta lista solo la puede corregir quien la llenó.';
+        break;
+      }
+      if (!$fechaDeLista || !HanaFechas::enVentana($fechaDeLista['F'])) {
+        http_response_code(400);
+        echo 'Esta lista ya no se puede corregir: solo se modifican listas de ' . HanaFechas::textoVentana() . '.';
+        break;
+      }
       if (!empty($idRespuesta)) {
         $nombreColaborador = $_SESSION['Idcolaborador'];
+
+        //Si al corregir la lista se cambió el centro operativo, se guarda PRIMERO.
+        //Así, si alguna respuesta corregida genera una novedad, esa novedad queda
+        //en el centro nuevo y no en el viejo
+        $nuevoCentro = isset($_POST['idCentro']) ? intval($_POST['idCentro']) : 0;
+        if ($nuevoCentro > 0 && $idLista !== '') {
+          $actual = $Listas->getCentro2(intval($idLista));
+          if ($actual && intval($actual['ID_CENTRO_OP_LISTA_CHEQUEO']) !== $nuevoCentro) {
+            if (!$Listas->centroAsignado($_SESSION['IdUsuarios'], $nuevoCentro)) {
+              http_response_code(400);
+              echo 'Ese centro operativo no está asignado a tu usuario.';
+              break;
+            }
+            if ($Listas->existeOtraLista(intval($idLista), $nuevoCentro)) {
+              http_response_code(400);
+              echo 'Ya existe una lista de este grupo para ese centro operativo en la misma fecha.';
+              break;
+            }
+            $Listas->cambiarCentro(intval($idLista), $nuevoCentro);
+          }
+        }
 		   
 		   $rspta = $Listas->getCentro($idRespuesta);
 		   $idGrupoget=$rspta['ID_GRUPO_LISTA_CHEQUEO'];
@@ -150,17 +269,28 @@ switch ($_GET["op"]) {
 					$respuestaNo=$respuesta;
 				}
 				
-				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." repondiendo ".$respuestaNo; 
+				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." respondiendo ".$respuestaNo; 
 				
 				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idcentroget,$_SESSION['Idcolaborador'],2,$titulos[$idPregunta],$descripcion,"Procedente",2,$date_past);
 				
 			}
 			
 			
-          //print_r($idRespuesta.",".$respuesta.",".$nombreColaborador.",".$key);
-          $rspta = $Listas->editarUnaRespuesta($respuesta, $nombreColaborador, $idRespuesta);
-          $rspta ? http_response_code(200) : http_response_code(400);
+          //Al editar toda la lista de una vez, cada respuesta llega con su propio
+          //identificador en resp_<idPregunta>. Si no viene, se usa el unico idRespuesta
+          //que manda la ventana de "editar una sola respuesta"
+          $idRespuestaActual = isset($_POST['resp_'.$idPregunta]) ? $_POST['resp_'.$idPregunta] : $idRespuesta;
+
+          $rspta = $Listas->editarUnaRespuesta($respuesta, $nombreColaborador, $idRespuestaActual);
+          if (!$rspta) { $huboFallo = true; } //se anota y se decide al final
         }
+      }
+      //Una sola respuesta al navegador, ya con todas las preguntas procesadas
+      if ($huboFallo) {
+        http_response_code(400);
+        echo "Algunas respuestas no se pudieron guardar.";
+      } else {
+        http_response_code(200);
       }
       //
       //echo $rspta ? http_response_code(200) : http_response_code(400);
@@ -198,7 +328,7 @@ switch ($_GET["op"]) {
 					$respuestaNo=$respuesta;
 				}
 				
-				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." repondiendo ".$respuestaNo; 
+				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." respondiendo ".$respuestaNo; 
 				
 				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idcentroget,$_SESSION['Idcolaborador'],2,$titulos[$idPregunta],$descripcion,"Procedente",2,$date_past);
 				
@@ -253,6 +383,7 @@ switch ($_GET["op"]) {
         foreach ($rspta as $key) {
           $fecha = '';
           $centro = '';
+          $idCentro = '';
           $respuestaMostrar = '';
           $idColaborador = '';
           $lista = '';
@@ -262,6 +393,7 @@ switch ($_GET["op"]) {
             
                 $fecha = $respuestaItem['FEC_REGISTRO_LISTA_CHEQUEO'];
                 $centro = $respuestaItem['NOM_CENTRO_OP'];
+                $idCentro = $respuestaItem['ID_CENTRO_OP_LISTA_CHEQUEO']; //para poder cambiarlo al editar
                 $respuestaMostrar = $respuestaItem['RESPUTA_DETALLE_LISTA_CHEQUEO'];
                 $idColaborador = $respuestaItem['ID_COLABORADOR_DETALE_LISTA_CHEQUEO'];
                 $lista = $respuestaItem['ID_LISTA_CHEQUEO'];
@@ -276,6 +408,7 @@ switch ($_GET["op"]) {
             'ID_LISTA'=> $lista,
             'FECHA'=> $fecha,
             'centro'=> $centro,
+            'idCentro'=> $idCentro,
             'ID_PREGUNTA' => $key['ID_DETALLE_GRUPO_LISTA_CHEQUEO'],
             'PREGUNTA' => $key['PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO'],
             'TIPO_RESPUESTA'=> $key['TIPO_RESPUESTA'],
@@ -367,7 +500,8 @@ switch ($_GET["op"]) {
   case 'selectCentro':
     $search_term = isset($_GET['search']) ? $_GET['search'] : 0;
     try {
-      $rspta = $Listas->selectCentro($search_term);
+      //Solo los centros asignados al usuario de la sesion, no todos los del sistema
+      $rspta = $Listas->selectCentroUsuario($search_term, $_SESSION['IdUsuarios']);
       $userData = array();
       if ($rspta->num_rows > 0) {
         while ($row = $rspta->fetch_assoc()) {
@@ -413,7 +547,7 @@ switch ($_GET["op"]) {
           "1" => $row->NOM_GRUPO_LISTA_CHEQUEO,
           "2" => $row->CANT_PREGUNTAS_GRUPO,//ESTADO == 1 ? "Activo" : "Inactivo",
           "3" => '<SPAN title="Responder"><button class="btn btn-success" onclick="mostrarPreguntas(' . $row->ID_GRUPO_LISTA_CHEQUEO . ')"><i class="fa fa-pencil"></i></button></SPAN>'.
-          '<SPAN title="Mostra Respuestas"><button class="btn btn-success" onclick="listarRespuestas(' . $row->ID_GRUPO_LISTA_CHEQUEO . ')"><i class="fa fa-eye"></i></button></SPAN>'
+          '<SPAN title="Mostrar respuestas"><button class="btn btn-success" onclick="listarRespuestas(' . $row->ID_GRUPO_LISTA_CHEQUEO . ')"><i class="fa fa-eye"></i></button></SPAN>'
           
         );
       }

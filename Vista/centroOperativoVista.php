@@ -21,7 +21,7 @@ include('head.php');
 
           <div class="x_panel">
             <div class="x_title">
-              <h2> Centros Operativos </h2>
+              <h2> Centros de operación </h2>
 
               <div class="clearfix"></div>
             </div>
@@ -33,25 +33,44 @@ include('head.php');
                   <h2>Crear o editar un registro</h2>
                   <div class="row">
                     <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                      <label for="nombre">Nombre del Centro Operativo:</label>
+                      <label for="nombre">Nombre del centro de operación:</label>
                       <input type="hidden" class="form-control" name="idcentro" id="idcentro">
                       <input type="text" class="form-control" name="nombre" id="nombre" required="" autofocus>
                     </div>
                       <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                         <label for="selectProyecto">Proyecto:</label>
                         <select class="form-control" style="width: 100%;" id="selectProyecto" name="selectProyecto">
-                          <option value=''>Seleccione Proyecto...</option>
+                          <option value=''>Selecciona un proyecto...</option>
+                        </select>
+                      </div>
+                  </div>
+                  <!-- Fase 2: tipo de centro y su jefe. El jefe es la persona cuyo
+                       reporte diario aparece en el tablero, dentro de su proyecto -->
+                  <div class="row">
+                      <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                        <label for="tipo">Tipo:</label>
+                        <select class="form-control" id="tipo" name="tipo">
+                          <option value="PEAJE">Peaje</option>
+                          <option value="BASCULA">Báscula</option>
+                          <option value="BASE">Base</option>
+                          <option value="OFICINA">Oficina</option>
+                        </select>
+                      </div>
+                      <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                        <label for="jefe">Jefe del centro:</label>
+                        <select class="form-control" id="jefe" name="jefe">
+                          <option value="">Sin asignar</option>
                         </select>
                       </div>
                   </div>
 
 
                   <div class=" orm-control form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                    <SPAN title="Guardar Registro">
+                    <SPAN title="Guardar">
                       <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar
                       </button>
                     </SPAN>
-                    <SPAN title="Cancelar Registro">
+                    <SPAN title="Cancelar">
                       <button class="btn btn-primary" onclick="cancelarform()" type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
                       </button>
                     </SPAN>
@@ -67,14 +86,14 @@ include('head.php');
               <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
-                    <h2>Listado Formulario</h2>
-                    <SPAN title="Agregar Registro" style="float:right">
+                    <h2>Listado de centros de operación</h2>
+                    <SPAN title="Agregar centro de operación" style="float:right">
                       <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
                       <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                         <!--Al hacer click, muestra el formulario-->
                         <i class="fa fa-plus-square">
                           <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
-                        </i> Nuevo Registro
+                        </i> Nuevo centro de operación
                       </button>
                     </SPAN>
                     <div class="clearfix"></div>
@@ -88,6 +107,8 @@ include('head.php');
                           <th>ID</th>
                           <th>NOMBRE</th>
                           <th>PROYECTO</th>
+                          <th>TIPO</th>
+                          <th>JEFE</th>
                           <th>ESTADO</th>
                           <th>OPCIÓN</th>
                         </thead>

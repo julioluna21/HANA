@@ -7,10 +7,12 @@ class Novedades
         {
         }
         //Implementamos un método para insertar registros 	
-        public function insertar($fechacreacion,$colaboraador,$centroopertivo,$asignado,$observador,$titulo,$descripcion,$imagen,$validez,$relevancia,$fechalimite)
+        //$rolDestino: el rol al que se le notifica la novedad (puede ir vacío en
+        //las que crea el sistema, como las de listas de chequeo)
+        public function insertar($fechacreacion,$colaboraador,$centroopertivo,$asignado,$observador,$titulo,$descripcion,$imagen,$validez,$relevancia,$fechalimite,$rolDestino = null)
         {
-                $sql = "INSERT INTO novedades_hallazgos(FEC_CREACION_NOVEDADES_HALLAZGOS,ID_COLABORADOR_NOVEDADES_HALLAZGOS,ID_CENTRO_OP_NOVEDADES_HALLAZGOS,ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS,ID_OBSERVADOR_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,ID_TITULO_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,DESCR_NOVEDADES_HALLAZGOS,NOM_FOTO_INI_NOVEDADES_HALLAZGOS,VALIDEZ_NOVEDADES_HALLAZGOS,ID_ESTADO_RELEVANCIA_NOVEDADES_HALLAZGOS,FECHA_LIMITE_NOVEDAD,ESTADO_NOVEDAD)
-                            VALUES ('$fechacreacion','$colaboraador','$centroopertivo','$asignado','$observador','$titulo','$descripcion','$imagen','$validez','$relevancia','$fechalimite',1)";
+                $sql = "INSERT INTO novedades_hallazgos(FEC_CREACION_NOVEDADES_HALLAZGOS,ID_COLABORADOR_NOVEDADES_HALLAZGOS,ID_CENTRO_OP_NOVEDADES_HALLAZGOS,ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS,ID_OBSERVADOR_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,ID_TITULO_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,DESCR_NOVEDADES_HALLAZGOS,NOM_FOTO_INI_NOVEDADES_HALLAZGOS,VALIDEZ_NOVEDADES_HALLAZGOS,ID_ESTADO_RELEVANCIA_NOVEDADES_HALLAZGOS,FECHA_LIMITE_NOVEDAD,ESTADO_NOVEDAD,ID_ROL_DESTINO)
+                            VALUES ('$fechacreacion','$colaboraador','$centroopertivo','$asignado','$observador','$titulo','$descripcion','$imagen','$validez','$relevancia','$fechalimite',1," . ($rolDestino ? intval($rolDestino) : 'NULL') . ")";
                 return ejecutarConsulta_retornarID($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
         }
         //Implementamos un método para editar registros
@@ -87,6 +89,22 @@ class Novedades
                 return ejecutarConsulta($sql);
         }
 	
+        //Correos de las personas activas que tienen este rol, sin incluir a quien
+        //registró la novedad (no tiene sentido avisarle de lo que él mismo hizo)
+        public function correosDeRol($idRol, $excluirColaborador)
+        {
+                $idRol = intval($idRol);
+                $excluir = intval($excluirColaborador);
+                $sql = "SELECT DISTINCT c.MAIL_COLABORADOR, c.NOM_COLABORADOR
+                          FROM usuarios_sistema u
+                          INNER JOIN colaboradores c ON c.ID_COLABORADOR = u.ID_COLABORADOR_USUARIOS_SISTEMA
+                         WHERE u.ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA = $idRol
+                           AND u.ESTADO = 1
+                           AND c.ID_COLABORADOR <> $excluir
+                           AND c.MAIL_COLABORADOR IS NOT NULL AND c.MAIL_COLABORADOR <> ''";
+                return ejecutarConsulta($sql);
+        }
+
 	       public function correo($id)
         {
                 $sql = "SELECT colaboradores.NOM_COLABORADOR,colaboradores.ID_COLABORADOR,colaboradores.MAIL_COLABORADOR, centros_operacion.NOM_CENTRO_OP, estados_relevancia.NOMBRE_ESTADOS_RELEVANCIA,titulo_novedades_hallazgos.NOM_TITULO_NOVEDADES_HALLAZGOS FROM novedades_hallazgos INNER JOIN colaboradores ON colaboradores.ID_COLABORADOR=novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS INNER JOIN centros_operacion on centros_operacion.ID_CENTRO_OP=novedades_hallazgos.ID_CENTRO_OP_NOVEDADES_HALLAZGOS INNER JOIN estados_relevancia ON estados_relevancia.ID_ESTADOS_RELEVANCIA=novedades_hallazgos.ID_ESTADO_RELEVANCIA_NOVEDADES_HALLAZGOS INNER JOIN titulo_novedades_hallazgos on titulo_novedades_hallazgos.ID_TITULO_NOVEDADES_HALLAZGOS=novedades_hallazgos.ID_TITULO_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS WHERE novedades_hallazgos.ID_NOVEDADES_HALLAZGOS=$id";

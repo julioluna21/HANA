@@ -2,9 +2,20 @@
 session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
-    if (in_array("11M", $modulosAcceso) or isset($_GET["op"])) {
+    //Si el administrador apagó este módulo (Parámetros del sistema), la pantalla no abre
+    require_once __DIR__ . '/../Modelo/HanaConfig.php';
+    if (!HanaConfig::modulo('LISTAS')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
+    //Las listas las diligencia el coordinador del proyecto (con 11M). También las
+    //ven quien las administra (12M) y la administración del reporte (21M).
+    //Los jefes de peaje solo hacen RQ
+    require_once __DIR__ . '/../Modelo/HanaDB.php';
+    $esCoordinador = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+    if ((($esCoordinador || !HanaConfig::si('LISTAS_SOLO_COORDINADOR')) && in_array("11M", $modulosAcceso)) or in_array("12M", $modulosAcceso) or in_array("21M", $modulosAcceso) or isset($_GET["op"])) {
         include('head.php');
-?>
+?>  
+        <!-- Estilos de la lista de chequeo: botones grandes, barra de avance y firma en pantalla -->
+        <link href="../public/css/listas.css?v=1" rel="stylesheet">
+        <link href="../public/css/reporte.css?v=13" rel="stylesheet">
         <!-- Contenido aqui va todo el DIV del contenido.. -->
 
         <!--script type="text/javascript">
@@ -40,10 +51,12 @@ if (isset($_SESSION['IdUsuarios'])) {
                     <div class="col-md-12 col-xs-12">
                         <div class="x_panel">
                             <div class="x_title">
-                                <h2>Listas de Chequeo</h2>
+                                <h2>Listas de chequeo</h2>
                                 <div class="clearfix"></div>
                             </div>
                             <div class="x_content">
+                                <!-- Alerta del día: ya registraste / todavía no registras una lista hoy -->
+                                <div id="alertaDia"></div>
                                 <!-- Inicio Formulario -->
                                 <div class="panel-body" style="align-content: center;" id="formularioregistros">
                                     <form name="demo-form2" id="demo-form2" method="POST">
@@ -54,6 +67,12 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                 <input type="hidden" class="form-control" name="idGrupo" id="idGrupo">
                                                 <input type="hidden" class="form-control" name="idLista" id="idLista">
                                                 <input class="form-control" name="fechaEncuesta" id="fechaEncuesta" value="" readonly>
+                                                <!-- Margen de un día: la lista puede ser de ayer, hoy o mañana -->
+                                                <div class="rd-dia-rapido" id="diaLista" role="group" aria-label="Día de la lista">
+                                                    <button type="button" class="btn btn-default btn-sm" data-dia="-1">Ayer</button>
+                                                    <button type="button" class="btn btn-default btn-sm active" data-dia="0">Hoy</button>
+                                                    <button type="button" class="btn btn-default btn-sm" data-dia="1">Mañana</button>
+                                                </div>
                                                 <input type="hidden" class="form-control" name="nombreColaborador" id="nombreColaborador" value="<?php echo $_SESSION['Idcolaborador'] ?>">
 
                                             </div>
@@ -75,19 +94,21 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                 </select>
                                             </div>
                                         </div>
-                                        <!-- Inicio Formulario dinámico background-color: #bcd4db80 //background-color: #f6d61099; border-radius: 19px;-->
-                                        <div class="row" id="formDinamico" style="background-color: #bcd4db80; border-radius: 5px;">
+                                        <!-- Inicio Formulario dinámico background-color: #FFFFFF80 //background-color: #f6d61099; border-radius: 19px;-->
+                                        <div class="row" id="formDinamico" style="background-color: #FFFFFF80; border-radius: 5px;">
 
                                         </div>
                                         <!-- Fin Formulario dinámico -->
+                                        <!-- Archivos de la lista (fotos de evidencia, soportes): al corregir una lista ya guardada -->
+                                        <div id="listaAdjuntos" style="margin: 10px 0;"></div>
                                         <div class="row">
                                             <div class="form-group col-lg-12 col-md-12 col-sm-12 col-xs-12">
-                                                <SPAN title="Guardar Registro">
+                                                <SPAN title="Guardar">
                                                     <button class="btn btn-primary" type="submit" id="btnGuardar">
                                                         <i class="fa fa-save"></i> Guardar
                                                     </button>
                                                 </SPAN>
-                                                <SPAN title="Cancelar Registro">
+                                                <SPAN title="Cancelar">
                                                     <button class="btn btn-primary" onclick="cancelarform()" type="button">
                                                         <i class="fa fa-arrow-circle-left"></i> Cancelar
                                                     </button>
@@ -101,7 +122,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                         <div class="modal-dialog" role="document">
                                             <div class="modal-content">
                                                 <div class="modal-header">
-                                                    <h5 class="modal-title">Editar Respuesta</h5>
+                                                    <h5 class="modal-title">Editar respuesta</h5>
                                                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                                         <span aria-hidden="true">&times;</span>
                                                     </button>
@@ -109,18 +130,18 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                 <div class="modal-body">
                                                     <!-- Inicio Formulario dinámico -->
                                                     <form name="modal-form2" id="modal-form2" method="POST">
-                                                    <div class="row" id="formModalDinamico" style="background-color: #bcd4db80">
+                                                    <div class="row" id="formModalDinamico" style="background-color: #FFFFFF80">
                                                         
                                                 </div></form>
                                                     <!-- Fin Formulario dinámico -->
                                                 </div>
                                                 <div class="modal-footer">
-                                                    <SPAN title="Guardar Respuesta">
+                                                    <SPAN title="Guardar respuesta">
                                                         <button class="btn btn-primary" type="button" id="btnModalGuardar">
                                                             <i class="fa fa-save"></i> Guardar
                                                         </button>
                                                     </SPAN>
-                                                    <SPAN title="Cancelar Registro">
+                                                    <SPAN title="Cancelar">
                                                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                                                     </SPAN>
                                                 </div>
@@ -133,7 +154,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                 <div id="listadoregistros">
                                     <div class="x_panel">
                                         <div class="x_title">
-                                            <h2>Listas a responder</h2>
+                                            <h2>Listas por responder</h2>
 
                                             <div class="clearfix"></div>
                                         </div>
@@ -159,7 +180,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                     <div class="x_panel">
                                         <div class="x_title">
                                             <h2 style="margin-right: 60%;">Respuestas guardadas</h2>
-                                            <button type="button" class="btn btn-success"  id="btnAtras"><i class="fa fa-arrow-left" aria-hidden="true"></i> Atras</button>
+                                            <button type="button" class="btn btn-success"  id="btnAtras"><i class="fa fa-arrow-left" aria-hidden="true"></i> Atrás</button>
                                             <div class="clearfix"></div>
                                         </div>
                                         <div class="x_content">
@@ -192,7 +213,32 @@ if (isset($_SESSION['IdUsuarios'])) {
         <?php
         include('footer.php');
         ?>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js"></script>
+        <style>
+            /* Resalta en rojo las preguntas o campos que quedaron sin responder
+               al intentar guardar. La clase la pone/quita ListasAjax.js */
+            .campo-faltante{
+                border: 2px solid #6E1A1E !important;
+                border-radius: 10px;
+                background-color: #fff5f5 !important;
+                animation: parpadeoFaltante .6s ease-in-out 2; /* llama la atencion */
+            }
+            /* Etiqueta de la pregunta faltante, tambien en rojo */
+            .campo-faltante > div:first-child{ background-color: #6E1A1E !important; }
+
+            @keyframes parpadeoFaltante{
+                0%   { box-shadow: 0 0 0 0 rgba(217,83,79,.6); }
+                50%  { box-shadow: 0 0 0 8px rgba(217,83,79,0); }
+                100% { box-shadow: 0 0 0 0 rgba(217,83,79,0); }
+            }
+        </style>
+        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
+        <script>
+          //Archivos al llenar una lista nueva: si están permitidos y el tamaño máximo (Parámetros del sistema)
+          var HANA_ADJ_LISTAS = <?php echo HanaConfig::si('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
+          var HANA_ADJ_MAX_MB = <?php echo (int)max(1, HanaConfig::num('ADJUNTOS_MAX_MB', 10)); ?>;
+        </script>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=6"></script>
+        <script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script>
 <?php
     } else {
         echo "<script> 

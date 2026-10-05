@@ -51,48 +51,60 @@ include('head.php');
                           
                         </div> 
                
-                         <div class="row">
-                              <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                                <label>Modulos acceso:</label><br><br>
-                               
-                               <SPAN title="Usuarios" >
-                               <input type="checkbox" class="" name="permiso[]" id="r1" value="1M"  /></SPAN>  <label >Usuarios</label><br>
-                               <SPAN title="Roles" >
-                               <input type="checkbox" class="" name="permiso[]" id="r2" value="2M"  /></SPAN>  <label >Roles</label><br> 
-                                <SPAN title="Colaboradores" >
-                               <input type="checkbox" class="" name="permiso[]" id="r3" value="3M"  /></SPAN>  <label >Colaboradores</label><br> 
-                                  <SPAN title="Cargos" >
-                               <input type="checkbox" class="" name="permiso[]" id="r4" value="4M"  /></SPAN>  <label >Cargos</label><br> 
-                                  <SPAN title="Centro de operación" >
-                               <input type="checkbox" class="" name="permiso[]" id="r5" value="5M"  /></SPAN>  <label >Centro de operación</label><br> 
-                                  <SPAN title="Proyectos" >
-                               <input type="checkbox" class="" name="permiso[]" id="r6" value="6M"  /></SPAN>  <label >Proyectos</label><br> 
-                                <SPAN title="Titulo novedades" >
-                               <input type="checkbox" class="" name="permiso[]" id="r7" value="7M"  /></SPAN>  <label >Titulo novedades:</label><br>
-                               <SPAN title="Estados relevancía" >
-                               <input type="checkbox" class="" name="permiso[]" id="r8" value="8M"  /></SPAN>  <label>Estados relevancía:</label><br>   
-                               
-                              </div>
-                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                            
-                            <br><br>   
-                               <SPAN title="Observadores" >
-                               <input type="checkbox" class="" name="permiso[]" id="r9" value="9M"  /></SPAN>  <label >Observadores Novedades</label><br>
-                               <SPAN title="Novedades" >
-                               <input type="checkbox" class="" name="permiso[]" id="r10" value="10M"  /></SPAN>  <label >Novedades</label><br> 
-                                <SPAN title="lista chequeo" >
-                               <input type="checkbox" class="" name="permiso[]" id="r11" value="11M"  /></SPAN>  <label >Lista de chequeo</label><br> 
-                                  <SPAN title="Auditoria" >
-                               <input type="checkbox" class="" name="permiso[]" id="r12" value="12M"  /></SPAN>  <label >Grupos listas</label><br> 
-                                <SPAN title="usuarios" >
-                               <input type="checkbox" class="" name="permiso[]" id="r13" value="13M"  /></SPAN>  <label >Dashboard</label><br> 
-                                  <!--<SPAN title="usuarios" >
-                               <input type="checkbox" class="" name="permiso[]" id="r14" value="14M"  /></SPAN>  <label >Usuarios:</label><br>--> 
-                               
-                              </div>
-                           
-                          
-                        </div> 
+                                                  <div class="row">
+                           <div class="col-xs-12">
+                             <label>Qué puede hacer este rol:</label>
+                             <p class="rd-ayuda" style="margin:2px 0 10px;">El coordinador de cada proyecto (asignado en Proyectos) ya usa las pantallas de "llenar" de su proyecto sin marcar nada.
+                               Si marcas una casilla de "llenar", el rol la usa en todos los proyectos. El ADMIN TEC tiene todas.</p>
+                             <div class="roles-grupos">
+                               <fieldset class="roles-grupo"><legend>Configuración</legend>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r1" value="1M"> <span>Usuarios</span> <small>1M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r2" value="2M"> <span>Roles de usuario</span> <small>2M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r3" value="3M"> <span>Colaboradores</span> <small>3M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r4" value="4M"> <span>Cargos</span> <small>4M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r5" value="5M"> <span>Centros de operación (y fondos, vehículos y campos de casetas)</span> <small>5M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r6" value="6M"> <span>Proyectos</span> <small>6M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r24" value="24M"> <span>Parámetros del sistema</span> <small>24M</small></label>
+                               </fieldset>
+                               <fieldset class="roles-grupo"><legend>Novedades</legend>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r7" value="7M"> <span>Títulos de novedades</span> <small>7M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r8" value="8M"> <span>Estados de relevancia</span> <small>8M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r9" value="9M"> <span>Observadores</span> <small>9M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r10" value="10M"> <span>Novedades (registrar y responder)</span> <small>10M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r16" value="16M"> <span>Ver todas las novedades (no solo las propias)</span> <small>16M</small></label>
+                               </fieldset>
+                               <fieldset class="roles-grupo"><legend>Requisiciones (RQ)</legend>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r15" value="15M"> <span>Requisiciones (pedir RQ)</span> <small>15M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r18" value="18M"> <span>Aprobar o rechazar RQ</span> <small>18M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r17" value="17M"> <span>Ver todas las RQ (no solo las propias)</span> <small>17M</small></label>
+                               </fieldset>
+                               <fieldset class="roles-grupo"><legend>Reporte diario: llenar</legend>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r28" value="28M"> <span>Hoy en qué estás</span> <small>28M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r11" value="11M"> <span>Listas de chequeo (diligenciar)</span> <small>11M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r12" value="12M"> <span>Editar listas y correos de listas</span> <small>12M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r29" value="29M"> <span>Arqueos</span> <small>29M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r36" value="36M"> <span>Autorizar fondos de arqueos (el coordinador, solo en su proyecto)</span> <small>36M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r30" value="30M"> <span>Cronograma y vehículo (ver todos los proyectos)</span> <small>30M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r31" value="31M"> <span>Vacantes</span> <small>31M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r32" value="32M"> <span>Comunicaciones y oficios</span> <small>32M</small></label>
+                               </fieldset>
+                               <fieldset class="roles-grupo"><legend>Reporte diario: consultar</legend>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r19" value="19M"> <span>Reporte general y tablero</span> <small>19M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r20" value="20M"> <span>Tablero: ver todos los proyectos</span> <small>20M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r21" value="21M"> <span>Administración del reporte diario (lo que llenan todos)</span> <small>21M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r22" value="22M"> <span>Consultar todos los proyectos (cronograma, ausentismo, seguimientos)</span> <small>22M</small></label>
+                               </fieldset>
+                               <fieldset class="roles-grupo"><legend>Ausentismo</legend>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r25" value="25M"> <span>Registrar y corregir el ausentismo de todos los proyectos (aunque el mes esté cerrado)</span> <small>25M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r23" value="23M"> <span>Reabrir meses cerrados</span> <small>23M</small></label>
+                               </fieldset>
+                               <fieldset class="roles-grupo"><legend>Dashboard y Power BI</legend>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r13" value="13M"> <span>Dashboard (Power BI dentro de HANA)</span> <small>13M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r27" value="27M"> <span>Leer datos desde Power BI (usuario de conexión)</span> <small>27M</small></label>
+                               </fieldset>
+                             </div>
+                           </div>
+                         </div>
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
                               <SPAN title="Guardar Registro">
                                 <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar

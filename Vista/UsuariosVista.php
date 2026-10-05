@@ -2,7 +2,9 @@
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
-if(in_array("1M",$modulosAcceso) or isset($_GET["op"])){    
+//Sin el permiso 1M solo se entra a cambiar la clave propia (op=canvu)
+$modoClave = (isset($_GET["op"]) && $_GET["op"] === "canvu");
+if(in_array("1M",$modulosAcceso) or $modoClave){    
     
 include('head.php');    
 
@@ -23,7 +25,8 @@ include('head.php');
         <div class="x_panel">
           <div class="x_title">
             <h2>Crear usuarios<small>Formulario</small></h2>
-            <?php echo isset($_GET["op"])? '<input type="hidden" name="cambioclave" id="cambioclave" value="'.$_GET["op"].'" >' : '<input type="hidden" name="cambioclave" id="cambioclave" value="">'; ?>
+            <?php //Antes se imprimía lo que llegara en la dirección: permitía inyectar código en la página ?>
+            <input type="hidden" name="cambioclave" id="cambioclave" value="<?php echo $modoClave ? 'canvu' : ''; ?>">
             <div class="clearfix"></div>
           </div>
           <div class="x_content">
@@ -41,7 +44,7 @@ include('head.php');
                           
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                 <input type="hidden" name="idusuario" id="idusuario">  
-                                <label>Nombre Usuario:</label>
+                                <label>Nombre de usuario:</label>
                                 <input type="text" class="form-control" name="nombre" id="nombre" required="" autofocus>
                               </div>
                           
@@ -53,7 +56,7 @@ include('head.php');
                          <div class="row">
                              
                              <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" >
-                               <label>Rol Usuario:</label><br>
+                               <label>Rol del usuario:</label><br>
                                 <select name="rolColaborador" id="rolColaborador" class="form-control"  required>     
                               </select> 
                             </div>
@@ -66,17 +69,17 @@ include('head.php');
                                    
                         </div> 
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                              <SPAN title="Guardar Registro">
+                              <SPAN title="Guardar">
                                 <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar
                                 </button>
                               </SPAN>       
 <!--ejecuta cancelar formulario-->
-                             <SPAN title="Cancelar Registro">
+                             <SPAN title="Cancelar">
                                 <button class="btn btn-primary" onclick="mostrarformcalve(true)"  type="button" id="btnclave"><i class="fa fa-key "></i> Cambiar clave
                                 </button>
                               </SPAN>
                                 
-                              <SPAN title="Cancelar Registro">
+                              <SPAN title="Cancelar">
                                 <button class="btn btn-primary" onclick="cancelarform()"  type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
                                 </button>
                               </SPAN>
@@ -92,7 +95,7 @@ include('head.php');
            <form name="formularioclave" id="formularioclave" method="POST">
                       <div class="row">
                            <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                                <?php echo isset($_GET["op"])? '<input type="hidden" name="idusuario" id="idusuario2"  value="'.$_SESSION['IdUsuarios'].'">': '<input type="hidden" name="idusuario" id="idusuario2">'; ?>  
+                                <input type="hidden" name="idusuario" id="idusuario2" value="<?php echo $modoClave ? (int)$_SESSION['IdUsuarios'] : ''; ?>">  
                                <label>Contraseña:</label><br>
                                <input type="password" class="form-control" name="clave" id="clave" required="" autofocus>
                             </div>
@@ -109,12 +112,12 @@ include('head.php');
                
     
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                              <SPAN title="Guardar Registro">
+                              <SPAN title="Guardar">
                                 <button class="btn btn-primary" type="submit" ><i class="fa fa-save"></i> Guardar
                                 </button>
                               </SPAN>       
 <!--ejecuta cancelar formulario-->
-                              <SPAN title="Cancelar Registro">
+                              <SPAN title="Cancelar">
                                 <button class="btn btn-primary" onclick="<?php echo isset($_GET["op"])? "window.history.go(-1)": "mostrarformcalve(false)"; ?>"  type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
                                 </button>
                               </SPAN>
@@ -131,13 +134,13 @@ include('head.php');
                 <div class="x_panel">
                   <div class="x_title">
                   <h2>Listado de usuarios</h2>
-                  <SPAN title="Agregar Registro" style="float:right">
+                  <SPAN title="Agregar usuario" style="float:right">
               <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
                   <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
-                </i> Nuevo Registro
+                </i> Nuevo usuario
               </button>
             </SPAN>
                     <div class="clearfix"></div>
@@ -152,7 +155,7 @@ include('head.php');
                   <th style="min-width: 300px;">Colaborador</th>
                   <th style="min-width: 200px;">Usuario</th>
                   <th style="min-width: 200px;">Rol</th> 
-                  <th>Centros operación</th>        
+                  <th>Centros de operación</th>        
                   <th>Estado</th>
                   <th style="min-width: 150px;">Opción</th>
                     </thead>

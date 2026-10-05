@@ -1,9 +1,13 @@
 <?php
 session_start();//inicia la session, permite guardar variables de sesion
+require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+hanaGuardia(array('10M'), array('select', 'roles', 'mostrarnovedad')); //Novedades: 10M. Ver una novedad (desde la campana) solo pide sesión
 require_once "../Modelo/NovedadModelo.php";//Utilizará este archivo
+require_once "AccesoHelper.php"; //quién puede ver qué: la misma regla para novedades, RQ y campana
 require '../public/PHPMailer-master/src/Exception.php';
                 require '../public/PHPMailer-master/src/PHPMailer.php';
                 require '../public/PHPMailer-master/src/SMTP.php';
+require_once __DIR__ . '/CorreoConfig.php'; //cuenta de correo y plantilla de los correos
                 use PHPMailer\PHPMailer\PHPMailer;
                 use PHPMailer\PHPMailer\Exception;
 
@@ -20,6 +24,7 @@ $idobservador=isset($_POST["observador"])? limpiarCadena($_POST["observador"]):"
 $validez=isset($_POST["validez"])? limpiarCadena($_POST["validez"]):"";    
 $estadonovedad=isset($_POST["estadoNovedad"])? limpiarCadena($_POST["estadoNovedad"]):"";
 $novedad=isset($_POST["novedad"])? limpiarCadena($_POST["novedad"]):"";
+$rolDestino=isset($_POST["rolDestino"])? intval($_POST["rolDestino"]):0; //rol al que se notifica
 $fecha=date("Y-m-d_H:i:s");
 $fecha2=date("Y-m-j H:i:s");
 
@@ -34,50 +39,43 @@ function esImagen($path)
                 return (bool)(in_array($imageTypeArray , array(IMAGETYPE_GIF , IMAGETYPE_JPEG ,IMAGETYPE_PNG , IMAGETYPE_BMP)));
      }
 
-function correoenvio($correo,$mensaje,$asunto){
+//Envía un correo a una persona, en HTML y saludándola por su nombre
+//(la plantilla y la cuenta están en CorreoConfig.php)
+function correoenvio($correo,$mensaje,$asunto,$nombre='',$boton=null){
                          $mail = new PHPMailer();
-                         $mail->PluginDir = "phpMailer/";
-                         $mail->Mailer = "smtp";
-                         $mail->IsSMTP();
-                         $mail->SMTPAuth = true;
-                         $mail->Host = "regencysa.net";
-                         $mail->Port = 465;
-                         $mail->Username = "no-reply@regencysa.net";
-                         $mail->Password = "Pr0t1nc0315*";
-                         $mail->SMTPSecure = "ssl";
-                         $mail->From     = 'no-reply@regencysa.net';
-                         $mail->FromName = utf8_decode('NOHA LISTA DE CHEQUEO');
-                         $mail->AddAddress($correo);
-                         $mail->WordWrap = 200;
-                         $mail->IsHTML(true);
-                         $mail->Subject  =  utf8_decode($asunto);
-                         $mail->Body     =  utf8_decode(' <img src="" style=" width: 45%;
-        height: 35%; display: block;
-              margin-left: auto;
-             margin-right: auto;"><br><br>
-      
-      <div style=" width: 45%;
-         display: block;
-              margin-left: auto;
-             margin-right: auto;">
-       '.$mensaje.'<br><br>
-       
-      </div><br>');
-                            if($mail->send()){
-                             return true;   
-                            }else{
-                              return false;   
-                            }  
+                         hanaConfigurarSmtp($mail); //cuenta, servidor, UTF-8 y HTML
+                         $mail->FromName = 'HANA - Gestión de novedades';
+                         $mail->addAddress($correo, hanaNombreBonito($nombre));
+                         $mail->Subject  = $asunto;
+                         $mail->Body     = hanaCorreoHtml($nombre, $asunto, $mensaje, $boton);
+                         $mail->AltBody  = trim(strip_tags(str_replace(array('<br>', '</p>', '</tr>'), "\n", $mensaje)));
+                         return hanaEnviar($mail, 'NOVEDADES'); //con plan B y registro (ver CorreoConfig.php)
 }
 
-
+//Avisa a todas las personas de un rol: cada una recibe su propio correo, dirigido
+//a ella y con su nombre (antes era un solo correo en copia oculta).
+//$destinatarios = array(array('correo' => ..., 'nombre' => ...), ...)
+//Devuelve true si le llegó a todas (o si no había a quién avisar)
+function correoenvioRol($destinatarios,$mensaje,$asunto,$boton=null){
+                         $bien = true;
+                         foreach ($destinatarios as $d) {
+                             if (!correoenvio($d['correo'], $mensaje, $asunto, $d['nombre'], $boton)) { $bien = false; }
+                         }
+                         return $bien;
+}
 
 //opciones
 switch ($_GET["op"])
     {
             case 'guardar'://primer caso
                 if (empty($idnovedad)){
-                  
+
+                    //El rol a notificar es obligatorio al crear una novedad
+                    if (!hanaRolValido($rolDestino)) {
+                        echo 'Error: elige el rol al que se le va a notificar la novedad.';
+                        break;
+                    }
+
                     $rspta=$Novedades->diaslimites($idestado);
                     $dias=$rspta['DIAS_ESTADOS_RELEVANCIAS'];
                     $date_now = date('Y-m-j H:i:s', strtotime($fecha2));   
@@ -92,30 +90,44 @@ switch ($_GET["op"])
                         }
                         
                     }
-                    if($rspta=$Novedades->insertar($fecha,$_SESSION['Idcolaborador'],$idcentroOP,$idcolaborador,$idobservador,$idtitulo,$novedad,$imagen,$validez,$idestado,$date_past)){
+                    if($rspta=$Novedades->insertar($fecha,$_SESSION['Idcolaborador'],$idcentroOP,$idcolaborador,$idobservador,$idtitulo,$novedad,$imagen,$validez,$idestado,$date_past,$rolDestino)){
 						
-						if($idcolaborador!=$_SESSION['Idcolaborador']){
-						$rspta=$Novedades->correo($rspta);
-                        $correo=$rspta['MAIL_COLABORADOR'];
-                        $mensaje="Saludos ".$rspta['NOM_COLABORADOR'].", se informa que fue asignado a una novedad en el sistema NOHA para el centro de operación ".$rspta['NOM_CENTRO_OP'].",  con el titulo ".$rspta['NOM_TITULO_NOVEDADES_HALLAZGOS']." y de prioridad ".$rspta['NOMBRE_ESTADOS_RELEVANCIA'].".<br><br> Este es un sistema automático porfavor no responder este mensaje.";
-                        $asunto="ASIGNACIÓN DE NOVEDAD";
-                    if(correoenvio($correo,$mensaje,$asunto)){
-                        echo "Registro Exitoso"; 
-                    }else{
-                        echo "Error se registro la novedad, pero no fue posible enviar la notificación por medio de correo electrónico";
-                    }  
-							
-						}else{
-						echo "Registro Exitoso"; 	
-						}	
-						
+						//El aviso ya no va a una persona sino a todo el ROL elegido.
+						//Además, la novedad aparece en la campana de cada persona de ese rol
+						$idNueva = $rspta;
+						$datos = $Novedades->correo($idNueva);
+						//Las personas del rol, con su nombre, para escribirle a cada una
+						$destinatarios = array();
+						$lista = $Novedades->correosDeRol($rolDestino, $_SESSION['Idcolaborador']);
+						while ($lista && ($c = $lista->fetch_assoc())) { $destinatarios[] = array('correo' => $c['MAIL_COLABORADOR'], 'nombre' => $c['NOM_COLABORADOR']); }
+
+						//El correo: qué pasó, dónde, qué tan urgente y para cuándo
+						$fila = function ($etq, $valor) { return '<tr><td style="padding:6px 12px 6px 0;color:#7A716E;white-space:nowrap;vertical-align:top;">'.$etq.'</td><td style="padding:6px 0;font-weight:bold;">'.$valor.'</td></tr>'; };
+						$mensaje = '<p style="margin:0 0 12px;">Se registró una novedad para tu rol en <strong>HANA</strong>. Estos son los datos:</p>'
+						         . '<table cellpadding="0" cellspacing="0" style="margin:0 0 14px;font-size:14px;">'
+						         . ($datos ? $fila('Tipo', $datos['NOM_TITULO_NOVEDADES_HALLAZGOS']) . $fila('Centro', $datos['NOM_CENTRO_OP']) . $fila('Relevancia', $datos['NOMBRE_ESTADOS_RELEVANCIA']) : '')
+						         . $fila('Atender antes de', date('d/m/Y', strtotime($date_past)))
+						         . '</table>'
+						         . '<div style="background:#FBF8F6;border-left:4px solid #6E1A1E;border-radius:6px;padding:12px 14px;margin:0 0 6px;">'.nl2br($novedad).'</div>';
+
+						if (correoenvioRol($destinatarios, $mensaje, "Nueva novedad para tu rol", array('texto' => 'Ver la novedad', 'url' => hanaUrlSistema('novedadesVista.php')))) {
+							echo "Novedad registrada con éxito";
+						} else {
+							echo "La novedad se registró, pero no fue posible enviar la notificación por correo electrónico";
+						}
+
 					}else{
-						echo 'Error no se guardo la novedad';
+						echo 'Error: no se pudo guardar la novedad';
 					}
 					
 					  
                     
                 }else{
+                    //Responder también exige poder ver la novedad
+                    if (!hanaPuedeVerNovedad($idnovedad)) {
+                        echo 'Error: no tienes permiso sobre esta novedad.';
+                        break;
+                    }
                     
                     if($estadonovedad==3){
                     $imagen="";
@@ -136,13 +148,28 @@ switch ($_GET["op"])
                      $rspta=$Novedades->editarEstado($idnovedad,$estadonovedad);    
                     }
                     $rspta=$Novedades->insertarRespuesta($idnovedad,$_SESSION['Idcolaborador'],$fecha,$novedad,$estadonovedad);
-                    echo $rspta ? "Respuesta exitosa" : "No se pudo guardar la respuesta";
+                    echo $rspta ? "Respuesta guardada con éxito" : "No se pudo guardar la respuesta";
                 }
                             
             break;
         
+            //Los roles para el selector "Rol a notificar", y si puede ver todas
+            case 'roles':
+                    $roles = array();
+                    $r = hanaRolesActivos();
+                    while ($r && ($f = $r->fetch_assoc())) { $roles[] = array('id' => (int)$f['id'], 'nombre' => html_entity_decode($f['nombre'], ENT_QUOTES, 'UTF-8')); }
+                    echo json_encode(array('roles' => $roles, 'verTodas' => hanaTienePermiso(PERMISO_VER_TODAS_NOVEDADES)), JSON_UNESCAPED_UNICODE);
+                    break;
+
             case 'mostrarnovedad':
-       
+
+                    //Aunque alguien escriba el número de otra novedad a mano, el
+                    //servidor solo la entrega si su rol puede verla
+                    if (!hanaPuedeVerNovedad($idnovedad)) {
+                        http_response_code(403);
+                        echo json_encode(array('error' => 'No tienes permiso para ver esta novedad.'));
+                        break;
+                    }
                     $rspta=$Novedades->mostrar($idnovedad);
                     $arreglo= Array();
                     $arreglo['titulo']=$rspta['NOM_TITULO_NOVEDADES_HALLAZGOS'];
@@ -191,7 +218,7 @@ switch ($_GET["op"])
                         if($rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS']!=""){
                           $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
-                                <span class="badge badge-secondary">FOTO EVIDENCÍA NOVEDAD</span>
+                                <span class="badge badge-secondary">FOTO DE EVIDENCIA DE LA NOVEDAD</span>
                             </div>
                             <!--end of col-->
                         </div>
@@ -202,7 +229,7 @@ switch ($_GET["op"])
                                 <div class="card bg-primary text-white">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <a><img src="'.$rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'].'" class="img-rounded" alt="Cinque Terre"style="width: 350px;"></a>   
+                                        <a><img src="'.$rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'].'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
                                             <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
@@ -254,7 +281,7 @@ switch ($_GET["op"])
                         if($rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS']!=""){
                           $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
-                                <span class="badge badge-secondary">FOTO EVIDENCÍA NOVEDAD</span>
+                                <span class="badge badge-secondary">FOTO DE EVIDENCIA DE LA NOVEDAD</span>
                             </div>
                             <!--end of col-->
                         </div>
@@ -265,7 +292,7 @@ switch ($_GET["op"])
                                 <div class="card bg-secondary">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <a ><img src="'.$rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'].'" class="img-rounded" alt="Cinque Terre"style="width: 350px;"></a>   
+                                        <a ><img src="'.$rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'].'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
                                             <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
@@ -322,7 +349,7 @@ switch ($_GET["op"])
                             
                             $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
-                                <span class="badge badge-secondary">FOTO EVIDENCIA CIERRE NOVEDAD</span>
+                                <span class="badge badge-secondary">FOTO DE EVIDENCIA DEL CIERRE</span>
                             </div>
                             <!--end of col-->
                         </div>
@@ -333,7 +360,7 @@ switch ($_GET["op"])
                                 <div class="card bg-primary text-white">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <a ><img src="'.$imagencierre.'" class="img-rounded" alt="Cinque Terre"style="width: 350px;"></a>   
+                                        <a ><img src="'.$imagencierre.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
                                             <small class="opacity-60">'.$reg->NOM_COLABORADOR." ".$reg->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
@@ -368,7 +395,7 @@ switch ($_GET["op"])
                             
                             $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
-                                <span class="badge badge-secondary">FOTO EVIDENCÍA CIERRE NOVEDAD</span>
+                                <span class="badge badge-secondary">FOTO DE EVIDENCIA DEL CIERRE</span>
                             </div>
                             <!--end of col-->
                         </div>
@@ -378,7 +405,7 @@ switch ($_GET["op"])
                                 <div class="card bg-secondary">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <a><img src="'.$imagencierre.'" class="img-rounded" alt="Cinque Terre"style="width: 350px;"></a>   
+                                        <a><img src="'.$imagencierre.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
                                             <small class="opacity-60">'.$reg->NOM_COLABORADOR." ".$reg->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
@@ -416,42 +443,31 @@ switch ($_GET["op"])
                          
                      }
         
-                    if($_GET['validador']=='todo' and $_GET['validador2']==0 and $_GET['fechai']=='' and $_GET['fechaf']==''){
-                      
-                         $rspta=$Novedades->listar();//Carga la rspta con lista de articulos 
-                    }else{
-						$condicional="WHERE ";
-						
-						if($_GET['fechai']!='' and $_GET['fechaf']!=''){
-							$condicional=$condicional."(novedades_hallazgos.FEC_CREACION_NOVEDADES_HALLAZGOS BETWEEN '".$_GET['fechai']." 00:00:00'"."  and '".$_GET['fechaf']." 23:59:59')" ;
-							
-						}
-						
-						if($_GET['validador']!='todo' and $_GET['validador']!='usuario'){
-							 if($condicional=="WHERE "){
-							  $condicional=$condicional."proyectos.ID_PROYECTO=".$_GET['validador'];	 
-							 }else{
-								  $condicional=$condicional." and proyectos.ID_PROYECTO=".$_GET['validador'];	
-							 }
-						}else if($_GET['validador']=='usuario'){
-							if($condicional=="WHERE "){
-							  $condicional=$condicional." novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS=".$_SESSION['Idcolaborador'];	 
-							 }else{
-								  $condicional=$condicional." and novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS=".$_SESSION['Idcolaborador'];
-							 }
-						}
-						
-						if($_GET['validador2']!=0){
-							  if($condicional=="WHERE "){
-                                    $condicional=$condicional." novedades_hallazgos.ESTADO_NOVEDAD=".$_GET['validador2']; 
-                                }else{
-                                    $condicional=$condicional." AND novedades_hallazgos.ESTADO_NOVEDAD=".$_GET['validador2'];  
-                                }
-							
-						}
+                    //Las condiciones se juntan en una lista y se unen con AND.
+                    //La PRIMERA siempre es la regla de acceso: sin importar los demás
+                    //filtros, nadie recibe novedades que su rol no puede ver.
+                    //Antes los valores de la dirección iban directo a la consulta SQL;
+                    //ahora se validan uno por uno
+                    $vista = hanaVista(isset($_GET['vista']) ? $_GET['vista'] : 'mias');
+                    $cond = array(hanaCondNovedades($vista));
 
-                         $rspta=$Novedades->listarCondicional($condicional);//Carga la rspta con lista de articulos
+                    $fi = isset($_GET['fechai']) ? $_GET['fechai'] : '';
+                    $ff = isset($_GET['fechaf']) ? $_GET['fechaf'] : '';
+                    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fi) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $ff)) {
+                        $cond[] = "(novedades_hallazgos.FEC_CREACION_NOVEDADES_HALLAZGOS BETWEEN '$fi 00:00:00' AND '$ff 23:59:59')";
                     }
+
+                    $val = isset($_GET['validador']) ? $_GET['validador'] : 'todo';
+                    if ($val === 'usuario') {
+                        $cond[] = "novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS = " . intval($_SESSION['Idcolaborador']);
+                    } elseif ($val !== 'todo' && ctype_digit((string)$val)) {
+                        $cond[] = "proyectos.ID_PROYECTO = " . intval($val);
+                    }
+
+                    $est = isset($_GET['validador2']) ? intval($_GET['validador2']) : 0;
+                    if ($est > 0) { $cond[] = "novedades_hallazgos.ESTADO_NOVEDAD = $est"; }
+
+                    $rspta=$Novedades->listarCondicional("WHERE " . implode(" AND ", $cond));
                      
                     
                    

@@ -42,7 +42,7 @@ include('head.php');
                                <label>Permiso de asignar novedades:</label><br>
                                 <select name="permisoNovedad" id="permisoNovedad" class="form-control"  required>
                                 <option value="">Seleccione...</option>
-                                <option value="1">Si</option>
+                                <option value="1">Sí</option>
                                 <option value="0">No</option>       
                               </select> 
                             </div>
@@ -51,12 +51,12 @@ include('head.php');
                
                                                    
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                              <SPAN title="Guardar Registro">
+                              <SPAN title="Guardar">
                                 <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar
                                 </button>
                               </SPAN>       
 <!--ejecuta cancelar formulario-->
-                              <SPAN title="Cancelar Registro">
+                              <SPAN title="Cancelar">
                                 <button class="btn btn-primary" onclick="cancelarform()"  type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
                                 </button>
                               </SPAN>
@@ -72,14 +72,14 @@ include('head.php');
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
-                  <h2>Listado Formulario</h2>
-                  <SPAN title="Agregar Registro" style="float:right">
+                  <h2>Listado de cargos</h2>
+                  <SPAN title="Agregar cargo" style="float:right">
               <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
                   <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
-                </i> Nuevo Registro
+                </i> Nuevo cargo
               </button>
             </SPAN>
                     <div class="clearfix"></div>

@@ -5,6 +5,8 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("11M", $modulosAcceso) or isset($_GET["op"])) {
         include('head.php');
 ?>
+        <!-- Estilos de la lista de chequeo: botones grandes, barra de avance y firma en pantalla -->
+        <link href="../public/css/listas.css?v=1" rel="stylesheet">
         <!-- Contenido aqui va todo el DIV del contenido.. -->
 
         <!--script type="text/javascript">
@@ -40,7 +42,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                     <div class="col-md-12 col-xs-12">
                         <div class="x_panel">
                             <div class="x_title">
-                                <h2>Listas de Chequeo</h2>
+                                <h2>Listas de chequeo</h2>
                                 <div class="clearfix"></div>
                             </div>
                             <div class="x_content">
@@ -48,7 +50,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                 <div class="panel-body" style="align-content: center;" id="formularioregistros">
                                     <form name="demo-form2" id="demo-form2" method="POST">
 
-                                        <div class="row">
+                                     <div class="row">
                                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                                 <label for="fechaEncuesta">Fecha de diligenciamiento:</label>
                                                 <input type="hidden" class="form-control" name="idGrupo" id="idGrupo">
@@ -75,19 +77,19 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                 </select>
                                             </div>
                                         </div>
-                                        <!-- Inicio Formulario dinámico background-color: #bcd4db80 //background-color: #f6d61099; border-radius: 19px;-->
-                                        <div class="row" id="formDinamico" style="background-color: #bcd4db80; border-radius: 5px;">
+                                        <!-- Inicio Formulario dinámico background-color: #FFFFFF80 //background-color: #f6d61099; border-radius: 19px;-->
+                                        <div class="row" id="formDinamico" style="background-color: #FFFFFF80; border-radius: 5px;">
 
                                         </div>
                                         <!-- Fin Formulario dinámico -->
                                         <div class="row">
                                             <div class="form-group col-lg-12 col-md-12 col-sm-12 col-xs-12">
-                                                <SPAN title="Guardar Registro">
+                                                <SPAN title="Guardar">
                                                     <button class="btn btn-primary" type="submit" id="btnGuardar">
                                                         <i class="fa fa-save"></i> Guardar
                                                     </button>
                                                 </SPAN>
-                                                <SPAN title="Cancelar Registro">
+                                                <SPAN title="Cancelar">
                                                     <button class="btn btn-primary" onclick="cancelarform()" type="button">
                                                         <i class="fa fa-arrow-circle-left"></i> Cancelar
                                                     </button>
@@ -101,7 +103,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                         <div class="modal-dialog" role="document">
                                             <div class="modal-content">
                                                 <div class="modal-header">
-                                                    <h5 class="modal-title">Editar Respuesta</h5>
+                                                    <h5 class="modal-title">Editar respuesta</h5>
                                                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                                         <span aria-hidden="true">&times;</span>
                                                     </button>
@@ -109,18 +111,18 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                 <div class="modal-body">
                                                     <!-- Inicio Formulario dinámico -->
                                                     <form name="modal-form2" id="modal-form2" method="POST">
-                                                    <div class="row" id="formModalDinamico" style="background-color: #bcd4db80">
+                                                    <div class="row" id="formModalDinamico" style="background-color: #FFFFFF80">
                                                         
                                                 </div></form>
                                                     <!-- Fin Formulario dinámico -->
                                                 </div>
                                                 <div class="modal-footer">
-                                                    <SPAN title="Guardar Respuesta">
+                                                    <SPAN title="Guardar respuesta">
                                                         <button class="btn btn-primary" type="button" id="btnModalGuardar">
                                                             <i class="fa fa-save"></i> Guardar
                                                         </button>
                                                     </SPAN>
-                                                    <SPAN title="Cancelar Registro">
+                                                    <SPAN title="Cancelar">
                                                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                                                     </SPAN>
                                                 </div>
@@ -133,7 +135,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                 <div id="listadoregistros">
                                     <div class="x_panel">
                                         <div class="x_title">
-                                            <h2>Listas a responder</h2>
+                                            <h2>Listas por responder</h2>
 
                                             <div class="clearfix"></div>
                                         </div>
@@ -159,7 +161,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                     <div class="x_panel">
                                         <div class="x_title">
                                             <h2 style="margin-right: 60%;">Respuestas guardadas</h2>
-                                            <button type="button" class="btn btn-success"  id="btnAtras"><i class="fa fa-arrow-left" aria-hidden="true"></i> Atras</button>
+                                            <button type="button" class="btn btn-success"  id="btnAtras"><i class="fa fa-arrow-left" aria-hidden="true"></i> Atrás</button>
                                             <div class="clearfix"></div>
                                         </div>
                                         <div class="x_content">
@@ -192,7 +194,25 @@ if (isset($_SESSION['IdUsuarios'])) {
         <?php
         include('footer.php');
         ?>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js"></script>
+        <style>
+            /* Resalta en rojo las preguntas o campos que quedaron sin responder
+               al intentar guardar. La clase la pone/quita ListasAjax.js */
+            .campo-faltante{
+                border: 2px solid #6E1A1E !important;
+                border-radius: 10px;
+                background-color: #fff5f5 !important;
+                animation: parpadeoFaltante .6s ease-in-out 2; /* llama la atencion */
+            }
+            /* Etiqueta de la pregunta faltante, tambien en rojo */
+            .campo-faltante > div:first-child{ background-color: #6E1A1E !important; }
+
+            @keyframes parpadeoFaltante{
+                0%   { box-shadow: 0 0 0 0 rgba(217,83,79,.6); }
+                50%  { box-shadow: 0 0 0 8px rgba(217,83,79,0); }
+                100% { box-shadow: 0 0 0 0 rgba(217,83,79,0); }
+            }
+        </style>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=2"></script>
 <?php
     } else {
         echo "<script> 

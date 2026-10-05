@@ -11,7 +11,6 @@ function init()
     });
     
 $("#miarchivo2").on("change",function(){
- alert("entro");    
  $('#imagenbt').html('<i class="fa fa-picture-o" aria-hidden="true" style="font-size: 20px"></i>Imagen Cargada');
 });
 
@@ -78,115 +77,75 @@ function listar()
 function guardar(e)
 {
     e.preventDefault(); //No se activará la acción predeterminada del evento
-    $("#btnGuardar").prop("disabled",true);
+    hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
-            url: "../Control/ObservadorControl.php?op=guardar",
+        url: "../Control/ObservadorControl.php?op=guardar",
         type: "POST",
         data: formData,
         contentType: false,
         processData: false,
+        //Error de conexión o del servidor: se muestra el motivo y el formulario se conserva
+        error: function(xhr)
+        {
+            hanaErrorAjax(xhr, "No se pudo guardar el registro.");
+        },
         success: function(datos)
         {
-            alert(datos);
-            mostrarform(false);
-            tabla.ajax.reload();
-            //$(location).attr('href','../Vista/index.html');    
-            
-            
-            
+            alert(datos); //el servidor responde con el mensaje exacto: éxito o motivo del error
+            //Solo si NO fue un error se cierra el formulario; si falló, queda abierto para corregir
+            if (hanaTipoMensaje(datos) !== "error") {
+                mostrarform(false); //mostrarform también limpia el formulario
+                tabla.ajax.reload();
+            }
+        },
+        complete: function()
+        {
+            hanaBoton("#btnGuardar", false); //pase lo que pase, el botón vuelve a quedar disponible
         }
     });
-    limpiar();
 }
 function mostrar(idobservador)
 {
+    hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
     $.post("../Control/ObservadorControl.php?op=mostrar",{idobservador : idobservador}, function(data)
     {
-        
-    bootbox.dialog({
-        message: '<div class="text-center"><i class="fa fa-spin fa-spinner"></i> Consultando la base de datos...</div>',
-        closeButton: false
-        });
-         setTimeout(() => {
-    bootbox.hideAll()
-     data = JSON.parse(data);
-    mostrarform(true);
-    $("#idobservador").val(data.ID_OBSERVADOR_NOVEDADES_HALLAZGOS);
-    $("#nombre").val(data.NOM_OBSERVADOR_NOVEDADES_HALLAZGOS);
-                 
-    }, 1000);      
-   
-     
+        hanaCargando(false);
+        //Antes aqui habia una espera fija de 1 segundo con "Consultando la base de datos...".
+        //Ahora el aviso de carga dura solo lo que tarda el servidor en responder
+        data = JSON.parse(data);
+        mostrarform(true);
+        $("#idobservador").val(data.ID_OBSERVADOR_NOVEDADES_HALLAZGOS);
+        $("#nombre").val(data.NOM_OBSERVADOR_NOVEDADES_HALLAZGOS);
+    })
+    .fail(function(xhr){
+        hanaCargando(false);
+        hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
 function anular(idobservador){
-    
-     bootbox.confirm({
-            message: "Desea anular este registro?",
-            buttons: {
-                confirm: {
-                    label: 'SI'
-                },
-                cancel: {
-                    label: 'NO'
-                }
-            },
-            callback: function (result) {
-                if (result) {
-                  $.post("../Control/ObservadorControl.php?op=anular",{idobservador : idobservador}, function(data)
-            {
-      bootbox.alert({
-                        title: 'Desactivado!',
-                        message: data,
-                        size: 'small',
-                        closeButton: false
-         });              
-         setTimeout(() => {
-                        bootbox.hideAll()
-        }, 1500);              
-                      
-     tabla.ajax.reload();
-        
-    });
-                }
-            }
+    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
+    hanaConfirmar("¿Desea anular este registro?", function(){
+        $.post("../Control/ObservadorControl.php?op=anular",{idobservador : idobservador}, function(data){
+            alert(data); //el servidor responde con el mensaje exacto: éxito o motivo del error
+            tabla.ajax.reload();
+        })
+        .fail(function(xhr){
+            hanaErrorAjax(xhr, "No se pudo anular el registro.");
         });
-    
+    });
 }
 function activar(idobservador){
-    
-     bootbox.confirm({
-            message: "Desea activar este registro?",
-            buttons: {
-                confirm: {
-                    label: 'SI'
-                },
-                cancel: {
-                    label: 'NO'
-                }
-            },
-            callback: function (result) {
-                if (result) {
-                  $.post("../Control/ObservadorControl.php?op=activar",{idobservador : idobservador}, function(data)
-            {
-      bootbox.alert({
-                        title: 'Activado!',
-                        message: data,
-                        size: 'small',
-                        
-                    });      
-                      
-        setTimeout(() => {
-                        bootbox.hideAll()
-        }, 1500);              
-         tabla.ajax.reload();
-        
-    });
-                }
-            }
+    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
+    hanaConfirmar("¿Desea activar este registro?", function(){
+        $.post("../Control/ObservadorControl.php?op=activar",{idobservador : idobservador}, function(data){
+            alert(data); //el servidor responde con el mensaje exacto: éxito o motivo del error
+            tabla.ajax.reload();
+        })
+        .fail(function(xhr){
+            hanaErrorAjax(xhr, "No se pudo activar el registro.");
         });
-    
+    });
 }
 
 

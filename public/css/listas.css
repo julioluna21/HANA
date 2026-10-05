@@ -1,0 +1,172 @@
+/* Listas de chequeo — estilos de la pantalla de diligenciamiento.
+   Acompana a Ajax/ListasAjax.js. Pensado primero para el celular,
+   que es donde el personal diligencia en campo. */
+
+/* ---------------------------------------------------------------
+   Barra de avance: queda fija arriba mientras se diligencia
+   --------------------------------------------------------------- */
+.hana-progreso{
+    position: sticky;                /* se queda a la vista al bajar por las preguntas */
+    top: 0;
+    z-index: 20;
+    background: #ffffff;
+    border-bottom: 1px solid #e3e6ea;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+}
+.hana-progreso-texto{
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--hana-vino);
+    margin-bottom: 6px;
+}
+.hana-progreso-texto .hana-progreso-pendiente{
+    float: right;
+    font-weight: normal;
+    color: var(--hana-vino);
+}
+.hana-progreso-texto .hana-progreso-listo{
+    float: right;
+    font-weight: normal;
+    color: var(--hana-verde);
+}
+.hana-progreso-barra{
+    height: 10px;
+    background: #e3e6ea;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.hana-progreso-relleno{
+    height: 100%;
+    width: 0;
+    background: var(--hana-verde);
+    border-radius: 6px;
+    transition: width .25s ease;
+}
+
+/* ---------------------------------------------------------------
+   Botones Si / No / No aplica
+   Antes eran botones de radio pequenos, dificiles de tocar con el dedo.
+   El radio sigue existiendo (para que el formulario se envie igual),
+   pero se esconde y quien se ve es la etiqueta, del tamano de un dedo.
+   --------------------------------------------------------------- */
+.hana-opciones{
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+}
+.hana-opcion{
+    flex: 1;                         /* las tres del mismo ancho */
+    margin: 0;
+    position: relative;
+}
+.hana-opcion input[type="radio"]{
+    position: absolute;
+    opacity: 0;                      /* no se ve, pero sigue funcionando */
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+.hana-opcion span{
+    display: block;
+    text-align: center;
+    padding: 14px 6px;               /* alto comodo para tocar con el dedo */
+    font-size: 15px;
+    font-weight: bold;
+    color: var(--hana-vino);
+    background: #f4f6f8;
+    border: 2px solid #d6dbe0;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+.hana-opcion input:focus + span{ outline: 3px solid rgba(110,26,30,.3); }
+
+/* Colores al elegir: verde para Si, rojo para No, gris para No aplica */
+.hana-opcion input:checked + span{ color: #ffffff; }
+.hana-opcion-si    input:checked + span{ background: var(--hana-verde); border-color: var(--hana-verde); }
+.hana-opcion-no    input:checked + span{ background: var(--hana-vino); border-color: var(--hana-vino); }
+.hana-opcion-na    input:checked + span{ background: #7f8c8d; border-color: #7f8c8d; }
+
+/* ---------------------------------------------------------------
+   Firma en pantalla
+   --------------------------------------------------------------- */
+.hana-firma{ margin: 10px 0; }
+.hana-firma-lienzo{
+    width: 100%;
+    max-width: 420px;
+    height: 170px;
+    background: #ffffff;
+    border: 2px dashed #b9c2cb;
+    border-radius: 8px;
+    touch-action: none;              /* al firmar con el dedo la pagina no se mueve */
+    cursor: crosshair;
+    display: block;
+}
+.hana-firma-lienzo.hana-firma-hecha{ border-style: solid; border-color: var(--hana-verde); }
+.hana-firma-pie{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    max-width: 420px;
+}
+.hana-firma-ayuda{ font-size: 13px; color: #888888; flex: 1; }
+.hana-firma-borrar{
+    background: #ffffff;
+    border: 1px solid #c5ccd3;
+    color: var(--hana-vino);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.hana-firma-borrar:hover{ background: #f4f6f8; }
+
+/* ---------------------------------------------------------------
+   Aviso de borrador recuperado
+   --------------------------------------------------------------- */
+.hana-borrador{
+    background: #fff8e6;
+    border: 1px solid var(--hana-ambar);
+    border-left-width: 5px;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: #7a5b1e;
+}
+.hana-borrador button{
+    background: none;
+    border: 0;
+    color: #7a5b1e;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+/* ---------------------------------------------------------------
+   Preguntas y campos faltantes
+   --------------------------------------------------------------- */
+.campo-faltante{
+    border: 2px solid var(--hana-vino) !important;
+    border-radius: 10px;
+    animation: hanaParpadeo 1s ease-in-out 2;
+}
+@keyframes hanaParpadeo{
+    0%, 100%{ box-shadow: 0 0 0 0 rgba(110,26,30,0); }
+    50%{ box-shadow: 0 0 0 6px rgba(110,26,30,.35); }
+}
+
+/* En celular la pregunta ocupa todo el ancho: las clases col-* de la plantilla
+   la dejaban con margenes que desperdiciaban espacio */
+@media (max-width: 767px){
+    #formDinamico .form-group[class*="col-"]{
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-bottom: 14px;
+    }
+    .hana-firma-lienzo{ height: 200px; }
+}

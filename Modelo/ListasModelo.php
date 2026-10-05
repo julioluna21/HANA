@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/HanaDB.php"; //para saber si es el ADMIN TEC (ve todos los peajes)
 require "../Conexion/ConexionDB.php";
 class listas{
      //Implementamos el super constructor 
@@ -134,7 +135,7 @@ class listas{
      public function mostrarPreguntas($idGrupo)
 
      {
-        $sql = "SELECT detalle_grupo_lista_cheque.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_cheque` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO WHERE detalle_grupo_lista_cheque.ESTADO = 1 AND detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO='$idGrupo'";
+        $sql = "SELECT detalle_grupo_lista_cheque.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_cheque` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO WHERE detalle_grupo_lista_cheque.ESTADO = 1 AND detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO='$idGrupo' ORDER BY detalle_grupo_lista_cheque.ORDEN";
              return ejecutarConsulta($sql);
      }
      //metodo ok
@@ -182,6 +183,36 @@ class listas{
              return ejecutarConsulta($sql);
              
      }
+     //Trae SOLO los centros de operacion asignados al usuario que tiene la sesion abierta.
+     //Antes se ofrecian todos los centros activos: alguien podia diligenciar una lista en un
+     //centro que no le corresponde y despues no la veia en "Mostrar respuestas", porque ese
+     //listado si filtra por los centros asignados
+     public function selectCentroUsuario($search_term, $idUsuario)
+     {
+             $idUsuario = intval($idUsuario); //solo numero, nunca texto del usuario
+             $filtro = "";
+             if ($search_term !== 0 && $search_term !== '0' && $search_term !== '') {
+                     //Los parentesis son necesarios: sin ellos el OR se mezcla con el AND
+                     //del estado y aparecen centros inactivos al buscar por nombre
+                     $filtro = " AND (centros_operacion.NOM_CENTRO_OP LIKE '%".$search_term."%'
+                                   OR centros_operacion.ID_CENTRO_OP LIKE '%".$search_term."%') ";
+             }
+             //Los centros asignados al usuario y los de los proyectos que coordina
+             //(las listas de chequeo las llena el coordinador)
+             $sql = "SELECT centros_operacion.ID_CENTRO_OP, centros_operacion.NOM_CENTRO_OP
+                     FROM centros_operacion
+                     WHERE (centros_operacion.ID_CENTRO_OP IN (SELECT ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP FROM asoc_usuarios_sistemas_x_cop
+                                                     WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = $idUsuario)
+                          OR centros_operacion.ID_PROYECTO_CENTRO_OP IN (SELECT p.ID_PROYECTO FROM proyectos p
+                                 INNER JOIN usuarios_sistema u ON u.ID_COLABORADOR_USUARIOS_SISTEMA = p.ID_COLABORADOR_COORDINADOR
+                                 WHERE u.ID_USUARIO_SISTEMA = $idUsuario AND p.Estado = '1')
+                          OR " . (HanaDB::adminVeTodo(isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0) ? "1 = 1" : "1 = 0") . ")
+                       AND centros_operacion.Estado = '1'
+                       $filtro
+                     ORDER BY centros_operacion.NOM_CENTRO_OP ASC";
+             return ejecutarConsulta($sql);
+     }
+
         public function selectCentroId($search_term)
         {
                 $sql = "SELECT * FROM centros_operacion WHERE ID_CENTRO_OP = $search_term AND Estado= '1' ORDER BY NOM_CENTRO_OP ASC";
@@ -216,6 +247,49 @@ class listas{
                 return ejecutarConsultaSimpleFila($sql);
         }
 	
+        //¿Este centro está asignado a este usuario? Así nadie mueve una lista a
+        //un peaje ajeno modificando el formulario
+        public function centroAsignado($idUsuario, $idCentro)
+        {
+                $idUsuario = intval($idUsuario);
+                $idCentro  = intval($idCentro);
+                //Asignado en Usuarios, o de un proyecto que coordina
+                $sql = "SELECT 1 AS ok FROM centros_operacion
+                         WHERE centros_operacion.ID_CENTRO_OP = $idCentro
+                           AND (centros_operacion.ID_CENTRO_OP IN (SELECT ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP FROM asoc_usuarios_sistemas_x_cop
+                                                     WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = $idUsuario)
+                          OR centros_operacion.ID_PROYECTO_CENTRO_OP IN (SELECT p.ID_PROYECTO FROM proyectos p
+                                 INNER JOIN usuarios_sistema u ON u.ID_COLABORADOR_USUARIOS_SISTEMA = p.ID_COLABORADOR_COORDINADOR
+                                 WHERE u.ID_USUARIO_SISTEMA = $idUsuario AND p.Estado = '1')
+                          OR " . (HanaDB::adminVeTodo(isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0) ? "1 = 1" : "1 = 0") . ") LIMIT 1";
+                return (bool)ejecutarConsultaSimpleFila($sql);
+        }
+
+        //¿Hay OTRA lista del mismo grupo, en ese centro, el mismo día que esta?
+        //Es la misma regla de siempre (una lista por grupo, centro y día), pero
+        //sin contar la lista que se está corrigiendo
+        public function existeOtraLista($idLista, $idCentro)
+        {
+                $idLista  = intval($idLista);
+                $idCentro = intval($idCentro);
+                $sql = "SELECT 1 AS ok FROM lista_chequeo otra
+                         INNER JOIN lista_chequeo esta ON esta.ID_LISTA_CHEQUEO = $idLista
+                         WHERE otra.ID_LISTA_CHEQUEO <> $idLista
+                           AND otra.ID_GRUPO_LISTA_CHEQUEO = esta.ID_GRUPO_LISTA_CHEQUEO
+                           AND otra.ID_CENTRO_OP_LISTA_CHEQUEO = $idCentro
+                           AND DATE(otra.FEC_REGISTRO_LISTA_CHEQUEO) = DATE(esta.FEC_REGISTRO_LISTA_CHEQUEO)
+                         LIMIT 1";
+                return (bool)ejecutarConsultaSimpleFila($sql);
+        }
+
+        //Cambia el centro operativo de una lista ya diligenciada
+        public function cambiarCentro($idLista, $idCentro)
+        {
+                $sql = "UPDATE lista_chequeo SET ID_CENTRO_OP_LISTA_CHEQUEO = " . intval($idCentro) . "
+                         WHERE ID_LISTA_CHEQUEO = " . intval($idLista);
+                return ejecutarConsulta($sql);
+        }
+
 	       public function getCentro2($centro)
         {
                 $sql = "SELECT lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO, lista_chequeo.ID_GRUPO_LISTA_CHEQUEO from lista_chequeo WHERE lista_chequeo.ID_LISTA_CHEQUEO=$centro";

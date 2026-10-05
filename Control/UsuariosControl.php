@@ -4,6 +4,8 @@ require_once "../Modelo/UsuarioModelo.php";//Utilizará este archivo
 require '../public/PHPMailer-master/src/Exception.php';
                 require '../public/PHPMailer-master/src/PHPMailer.php';
                 require '../public/PHPMailer-master/src/SMTP.php';
+require_once __DIR__ . '/CorreoConfig.php'; //cuenta de correo y plantilla de los correos
+require_once __DIR__ . '/../Modelo/HanaDB.php';
                 use PHPMailer\PHPMailer\PHPMailer;
                 use PHPMailer\PHPMailer\Exception;
 
@@ -18,45 +20,49 @@ $clave=isset($_POST["clave"])? limpiarCadena($_POST["clave"]):"";
 
 $mod="";
 
+/*
+  Quién puede usar cada operación (Fase 0, 24 de septiembre).
+  Antes ninguna operación revisaba la sesión: sin haber entrado, cualquiera
+  podía crear usuarios o cambiarle la contraseña a otro.
+    - Sin sesión: solo entrar, recuperar la contraseña y salir.
+    - Administrar usuarios (crear, editar, ver, activar, anular): permiso 1M.
+    - Lo demás (listas de colaboradores de otras pantallas, cambiar la clave
+      propia): basta con haber iniciado sesión.
+*/
+$op        = isset($_GET["op"]) ? $_GET["op"] : "";
+$opsLibres = array('verificar', 'recuperar', 'salir');
+$opsAdmin  = array('guardar', 'mostrar', 'anular', 'activar', 'listar',
+                   'centros', 'MostrarCentros', 'centroslista', 'centroslistatodos');
+$haySesion = isset($_SESSION['IdUsuarios']);
+$esAdmin   = $haySesion && in_array('1M', explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : ''));
 
-
-function correoenvio($correo,$mensaje,$asunto){
-                         $mail = new PHPMailer();
-                         $mail->PluginDir = "phpMailer/";
-                         $mail->Mailer = "smtp";
-                         $mail->IsSMTP();
-                         $mail->SMTPAuth = true;
-                         $mail->Host = "regencysa.net";
-                         $mail->Port = 465;
-                         $mail->Username = "no-reply@regencysa.net";
-                         $mail->Password = "Pr0t1nc0315*";
-                         $mail->SMTPSecure = "ssl";
-                         $mail->From     = 'no-reply@regencysa.net';
-                         $mail->FromName = utf8_decode('HANA LISTA DE CHEQUEO');
-                         $mail->AddAddress($correo);
-                         $mail->WordWrap = 200;
-                         $mail->IsHTML(true);
-                         $mail->Subject  =  utf8_decode($asunto);
-                         $mail->Body     =  utf8_decode(' <img src="" style=" width: 45%;
-        height: 35%; display: block;
-              margin-left: auto;
-             margin-right: auto;"><br><br>
-      
-      <div style=" width: 45%;
-         display: block;
-              margin-left: auto;
-             margin-right: auto;">
-       '.$mensaje.'<br><br>
-       
-      </div><br>');
-                            if($mail->send()){
-                             return true;   
-                            }else{
-                              return false;   
-                            }  
+if (!in_array($op, $opsLibres, true)) {
+    if (!$haySesion) {
+        http_response_code(401);
+        echo "Tu sesión terminó. Vuelve a iniciar sesión.";
+        exit();
+    }
+    if (in_array($op, $opsAdmin, true) && !$esAdmin) {
+        http_response_code(403);
+        echo "No permitido: tu rol no administra usuarios.";
+        exit();
+    }
 }
 
 
+
+//Envía un correo a una persona, en HTML y saludándola por su nombre
+//(la plantilla y la cuenta están en CorreoConfig.php)
+function correoenvio($correo,$mensaje,$asunto,$nombre='',$boton=null){
+                         $mail = new PHPMailer();
+                         hanaConfigurarSmtp($mail); //cuenta, servidor, UTF-8 y HTML
+                         $mail->FromName = 'HANA - Grupo Regency';
+                         $mail->addAddress($correo, hanaNombreBonito($nombre));
+                         $mail->Subject  = $asunto;
+                         $mail->Body     = hanaCorreoHtml($nombre, $asunto, $mensaje, $boton);
+                         $mail->AltBody  = trim(strip_tags(str_replace(array('<br>', '</p>'), "\n", $mensaje))); //para lectores que no muestran HTML
+                         return hanaEnviar($mail, 'USUARIOS'); //con plan B y registro (ver CorreoConfig.php)
+}
 
 //opciones
 switch ($_GET["op"])
@@ -75,23 +81,20 @@ switch ($_GET["op"])
                                 $rspta=$Usuarios->insertarcentros($id,$idcentro);
                                }
                           } 
-                        $rspta=$Usuarios->correo($idcolaborador);
-                        $correo=$rspta['MAIL_COLABORADOR'];
-                        $mensaje="Saludos, se informa que ha sido registrado el sistema de Gestión de novedades con las siguientes credenciales de acceso:<br> Usuario: $nombreususrio<br>Clave ingreso: $contrasena<br> se recomienda por seguridad cambiar la calve de ingreso al iniciar sesión por primera vez en el sistema.<br> link de ingreso: https://hana.cloudregencyapps.com/Vista/login.php <br><br> Este es un sistema automático porfavor no responder este mensaje.";
-                        $asunto="REGISTRO DE USUARIO";
-                    if(correoenvio($correo,$mensaje,$asunto)){
-                        echo "Registro Exitoso"; 
-                    }else{
-                        echo "Error se registro el usuario, pero no fue posible enviar las credenciales por medio de correo electrónico";
-                    }    
+                        //Ya no se envía el correo "Tu usuario de HANA" (decisión de Jaime): los datos
+                        //se muestran aquí, una sola vez, para que quien lo crea se los pase a la persona.
+                        //El correo solo llega cuando la persona usa "Olvidé mi contraseña".
+                        echo "Usuario registrado con éxito.\n\nUsuario: ".$nombreususrio."\nContraseña temporal: ".$contrasena
+                            ."\n\nAnótala y pásasela a la persona: no se envía por correo y no se vuelve a mostrar."
+                            ."\nSi se le olvida, puede pedir una nueva con «Olvidé mi contraseña».";
                         
                         
                         }else{
-                        echo 'Error no se pudo registrar el usuario';
+                        echo 'Error: no se pudo registrar el usuario';
                     }
                         
                     }else{
-                        echo 'Error no se pudo registrar el usuario ya existe en el sistema';
+                        echo 'Error: ese nombre de usuario ya existe en el sistema';
                     }    
                         
                 }else{
@@ -103,16 +106,26 @@ switch ($_GET["op"])
                     } 
                     
                     $rspta=$Usuarios->editar($idusuario,$nombreususrio,$idcolaborador,$idrol);
-                    echo $rspta ? "Registro actualizado" : "No se pudo actualizar";
+                    echo $rspta ? "Registro actualizado con éxito" : "No se pudo actualizar";
                 }
                             
             break;
         
             case 'cambiarclave':
+                    //Cada quien cambia su propia contraseña. La de otro usuario, solo
+                    //con el permiso 1M. El id que llega de la pantalla no se usa si no
+                    //es administrador: se toma el de la sesión
+                    $idCambiar = (int)$_SESSION['IdUsuarios'];
+                    if ($esAdmin && $idusuario !== "") { $idCambiar = (int)$idusuario; }
+
+                    if ($clave === "") {
+                        echo "Error: escribe la nueva contraseña";
+                        break;
+                    }
                     $clavehash=hash("SHA256",$clave);
-                    $rspta=$Usuarios->cambiraclave($idusuario,$clavehash);
+                    $rspta=$Usuarios->cambiraclave($idCambiar,$clavehash);
                     //Codificar el resultado utilizando json
-                    echo $rspta? "Se cambio la clave exitosamente" : "Error no se pudo actulizar la clave";
+                    echo $rspta? "La contraseña se cambió con éxito" : "Error: no se pudo actualizar la contraseña";
             break;
         
             case 'mostrar':
@@ -126,14 +139,14 @@ switch ($_GET["op"])
         
             case 'anular':
                        $rspta=$Usuarios->desactivar($idusuario);
-                        echo $rspta ? "anulado exitoso" : "No se pudo anular el registro";         
+                        echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
              case 'activar':
                    
                         $rspta=$Usuarios->activar($idusuario);
-                        echo $rspta ? "activado exitoso" : "No se pudo activar el registro";        
+                        echo $rspta ? "Registro activado con éxito" : "No se pudo activar el registro";        
                             
             break;
         
@@ -306,13 +319,15 @@ switch ($_GET["op"])
          $clavehash=hash("SHA256",$contrasena);
          $rspta=$Usuarios->cambiraclave($id,$clavehash);
          if($rspta){
-              $mensajec="Saludos $nombre, su nueva contraseña para ingresar al sistema de Autgestíon novedades es la siguiente:<br><br>Contraseña:$contrasena<br><br> Cuando ingresé al sistema se recomienda cambiar esta contraseña por razones de seguridad.<br><br> Este es un sistema automático porfavor no responder este mensaje.";
-              $asunto="RESTABLECER CLAVE";
-                        if(correoenvio($correo,$mensajec,$asunto)){
+              $mensajec='<p style="margin:0 0 12px;">Pediste restablecer tu contraseña de <strong>HANA</strong>. Esta es la nueva:</p>'
+                       .'<table cellpadding="0" cellspacing="0" style="background:#F6ECEC;border-radius:8px;margin:0 0 12px;"><tr><td style="padding:12px 16px;font-family:Consolas,monospace;font-size:18px;font-weight:bold;letter-spacing:1px;">'.$contrasena.'</td></tr></table>'
+                       .'<p style="margin:0;">Cuando entres, cámbiala por una que recuerdes. Si no fuiste tú quien la pidió, avísale al administrador del sistema.</p>';
+              $asunto="Tu nueva contraseña de HANA";
+                        if(correoenvio($correo,$mensajec,$asunto,$nombre,array('texto'=>'Entrar a HANA','url'=>hanaUrlSistema('login.php')))){
                             echo json_encode(array('mensaje' =>"Se cambio tu contraseña exitosamente, las credenciales se enviaron a tu correo electrónico.")); 
                         
                         }else{
-                            echo json_encode(array('mensaje' =>"No se envio el correo de notificación.")); 
+                            echo json_encode(array('mensaje' =>"No fue posible enviar el correo con la nueva contraseña.")); 
                             
                         }
          }else{
@@ -320,7 +335,7 @@ switch ($_GET["op"])
                
          }    
         }else{
-            echo json_encode(array('mensaje' =>'El usurio ingresado no existe en el sistema.')); 
+            echo json_encode(array('mensaje' =>'El usuario ingresado no existe en el sistema.')); 
             
         }
         

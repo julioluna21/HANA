@@ -1,0 +1,213 @@
+/* Novedades — estilos de la pantalla.
+   Acompana a Ajax/novedadnuevoAjax.js. Usa la paleta de public/css/paleta.css */
+
+/* ---------------------------------------------------------------
+   Foto de evidencia
+   El input de archivo sigue existiendo pero oculto (asi lo tenia la
+   plantilla); lo que se ve es la etiqueta, que ahora dice claramente
+   que hay que hacer y muestra la foto elegida
+   --------------------------------------------------------------- */
+.hana-foto{
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+/* La vista previa va debajo de los dos botones, ocupando la fila completa */
+.hana-foto .hana-foto-previa{ flex-basis: 100%; }
+
+.hana-foto-boton{
+    display: inline-block;
+    cursor: pointer;
+    background: #FFFFFF;
+    border: 1px dashed #6E1A1E;
+    color: #6E1A1E;
+    border-radius: 8px;
+    padding: 11px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+}
+.hana-foto-boton:hover{ background: #F5E4E5; }
+
+/* El segundo boton, "Elegir de mis archivos", es igual de grande pero mas
+   discreto: los dos caminos valen, pero tomar la foto en el momento es lo
+   habitual en campo */
+.hana-foto-boton-alt{
+    border-style: solid;
+    border-color: #E3E6EA;
+    color: #1A1A1A;
+}
+.hana-foto-boton-alt:hover{ background: #F7F8F9; }
+.hana-foto-boton .fa{ margin-right: 6px; }
+
+/* Cuando ya hay foto, los botones pasan a ser discretos y manda la vista previa */
+.hana-foto.tiene-foto .hana-foto-boton{
+    border-style: solid;
+    border-color: #E3E6EA;
+    color: #6B7076;
+    padding: 7px 14px;
+    font-size: 13px;
+}
+
+.hana-foto-previa{ margin-top: 10px; }
+.hana-foto-previa img{
+    max-width: 220px;
+    max-height: 160px;
+    border-radius: 8px;
+    border: 1px solid #E3E6EA;
+    display: block;
+}
+.hana-foto-datos{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #6B7076;
+    max-width: 220px;
+}
+.hana-foto-datos span{
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.hana-foto-quitar{
+    background: none;
+    border: 0;
+    color: #6E1A1E;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    font-size: 12px;
+}
+
+/* Aviso mientras se reduce el peso de la foto */
+.hana-foto-espera{
+    font-size: 12px;
+    color: #6B7076;
+    margin-top: 6px;
+}
+
+/* ---------------------------------------------------------------
+   Responder una novedad
+   --------------------------------------------------------------- */
+.card-footer.bg-secondary{
+    background: #FFFFFF !important;
+    border-top: 1px solid #E3E6EA;
+    padding: 14px;
+}
+
+.hana-resp-titulo{
+    display: block;
+    font-size: 13px;
+    color: #1A1A1A;
+    margin-bottom: 6px;
+}
+
+/* Los tres estados, del tamano de un dedo. El radio sigue debajo, escondido,
+   asi el formulario se envia igual que antes */
+.hana-resp-estados{
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.hana-resp-estado{
+    flex: 1;
+    min-width: 120px;
+    margin: 0;
+    position: relative;
+}
+.hana-resp-estado input[type="radio"]{
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+.hana-resp-estado span{
+    display: block;
+    text-align: center;
+    padding: 12px 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1A1A1A;
+    background: #F7F8F9;
+    border: 2px solid #E3E6EA;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+.hana-resp-estado span .fa{ margin-right: 5px; }
+.hana-resp-estado input:focus + span{ outline: 3px solid rgba(110, 26, 30, .3); }
+
+/* Color al elegir: ambar en proceso, verde finalizada, vino cerrada */
+.hana-resp-proceso input:checked + span{
+    background: #D99C2B; border-color: #D99C2B; color: #1A1A1A;
+}
+.hana-resp-final input:checked + span{
+    background: #158F77; border-color: #158F77; color: #FFFFFF;
+}
+.hana-resp-cerrada input:checked + span{
+    background: #6E1A1E; border-color: #6E1A1E; color: #FFFFFF;
+}
+
+.hana-resp-foto{
+    background: #F7F8F9;
+    border: 1px solid #E3E6EA;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+.hana-resp-foto > label:first-child{
+    display: block;
+    font-size: 13px;
+    color: #1A1A1A;
+    margin-bottom: 6px;
+}
+/* El input de archivo se esconde: manda la etiqueta, mas facil de tocar */
+.hana-resp-foto input[type="file"],
+.miarchivo2 input[type="file"]{
+    position: absolute;
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    overflow: hidden;
+    z-index: -1;
+}
+
+.hana-resp-texto{
+    margin-bottom: 10px;
+    resize: vertical;
+}
+.hana-resp-enviar{
+    width: 100%;
+    padding: 11px;
+    font-size: 15px;
+}
+
+/* En computador el boton de enviar no necesita ocupar todo el ancho */
+/* En celular cada boton de foto ocupa toda la fila: mas facil de tocar */
+@media (max-width: 480px){
+    .hana-foto-boton{ flex: 1 1 100%; text-align: center; }
+}
+
+@media (min-width: 768px){
+    .hana-resp-enviar{ width: auto; min-width: 200px; float: right; }
+    .card-footer.bg-secondary:after{ content: ""; display: table; clear: both; }
+}
+
+/* Aviso de que el sistema cambio el filtro solo porque no habia nada asignado */
+.hana-aviso-filtro{
+    background: #FDF3E0;
+    border: 1px solid #D99C2B;
+    border-left-width: 5px;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #1A1A1A;
+}

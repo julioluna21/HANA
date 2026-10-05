@@ -1,0 +1,10 @@
+# HANA — Archivos adjuntos
+# Esta carpeta NO se abre por la dirección del navegador: los archivos solo se
+# entregan por Control/AdjuntoControl.php, que revisa quién los pide.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

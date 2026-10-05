@@ -1,12 +1,29 @@
 <?php
 session_start();//inicia la session, permite guardar variables de sesion
+require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+hanaGuardia(array('2M'), array('select')); //Roles: 2M. El selector lo usa Usuarios
 require_once "../Modelo/RolesModelo.php";//Utilizará este archivo
 $Roles=new Roles();//crea un nuevo articulo
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idroles=isset($_POST["idrol"])? limpiarCadena($_POST["idrol"]):"";
 $nombrerol=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
 $modulos=isset($_POST["permiso"])? $_POST["permiso"]:"";
-$auditoria=isset($_POST["auditoria"])? $_POST["auditoria"]:"";
+//"Permiso de cerrar novedades": 1 si viene marcado, 0 si no (antes llegaba vacío y MySQL rechazaba el guardado)
+$auditoria = (isset($_POST["auditoria"]) && $_POST["auditoria"] !== '' && $_POST["auditoria"] !== '0') ? 1 : 0;
+
+//Solo códigos de permiso válidos (número + M)
+$modulos = is_array($modulos) ? array_values(array_filter($modulos, function ($m) { return preg_match('/^\d{1,3}M$/', $m); })) : array();
+//Protección: quien edita SU PROPIO rol no puede quitarse "Roles de usuario" (2M),
+//porque se quedaría sin poder volver a entrar a esta pantalla para arreglarlo
+$avisoPropio = '';
+if (!empty($idroles) && isset($_SESSION['IdUsuarios'])) {
+    require_once __DIR__ . '/../Modelo/HanaDB.php';
+    $mio = HanaDB::fila("SELECT ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA AS R FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = ?", 'i', array((int)$_SESSION['IdUsuarios']));
+    if ($mio && (int)$mio['R'] === (int)$idroles && !in_array('2M', $modulos, true)) {
+        $modulos[] = '2M';
+        $avisoPropio = "\n\nSe conservó la casilla «Roles de usuario» (2M): es tu propio rol y sin ella no podrías volver a esta pantalla.";
+    }
+}
 
 $mod="";
  if($modulos){
@@ -28,12 +45,12 @@ switch ($_GET["op"])
                 if (empty($idroles)) {
                   
                     $rspta=$Roles->insertar(strtoupper($nombrerol),$mod,$auditoria);
-                    echo $rspta? "Registro Exisitoso": "Error no se pudo realizar el registro"; 
+                    echo $rspta? "Registro guardado con éxito": "Error no se pudo realizar el registro"; 
                     
                 }else{
                     
                     $rspta=$Roles->editar($idroles,strtoupper($nombrerol),$mod,$auditoria);
-                            echo $rspta ? "Registro actualizado" : "No se pudo actualizar";
+                            echo $rspta ? "Registro actualizado con éxito" . $avisoPropio : "No se pudo actualizar";
                 }
                             
             break;
@@ -45,14 +62,14 @@ switch ($_GET["op"])
             break;
             case 'anular':
                        $rspta=$Roles->desactivar($idroles);
-                        echo $rspta ? "anulado exitoso" : "No se pudo anular el registro";         
+                        echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
              case 'activar':
                    
                         $rspta=$Roles->activar($idroles);
-                        echo $rspta ? "activado exitoso" : "No se pudo activar el registro";        
+                        echo $rspta ? "Registro activado con éxito" : "No se pudo activar el registro";        
                             
             break;
         

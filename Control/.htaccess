@@ -1,0 +1,8 @@
+# HANA — Para que Power BI pueda enviar su usuario y contraseña (autenticación Básica)
+# a Control/PowerBiControl.php en hostings donde PHP corre como CGI/FPM (cPanel):
+# sin esto, el encabezado Authorization no le llega a PHP.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>

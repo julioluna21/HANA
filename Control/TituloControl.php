@@ -1,5 +1,7 @@
 <?php
 session_start();//inicia la session, permite guardar variables de sesion
+require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+hanaGuardia(array('7M'), array('select')); //Títulos: 7M. El selector lo usan novedades y listas
 require_once "../Modelo/TituloModelo.php";//Utilizará este archivo
 $Titulo=new Titulo();//crea un nuevo articulo
 //carga las variables con los valores recibidos y limpia los que no se usaran
@@ -15,12 +17,12 @@ switch ($_GET["op"])
                 if (empty($idestitulo)) {
                   
                     $rspta=$Titulo->insertar(strtoupper($nombreestado));
-                    echo $rspta? "Registro Exisitoso": "Error no se pudo realizar el registro"; 
+                    echo $rspta? "Registro guardado con éxito": "Error no se pudo realizar el registro"; 
                     
                 }else{
                     
                     $rspta=$Titulo->editar($idestitulo,strtoupper($nombreestado));
-                            echo $rspta ? "Registro actualizado" : "No se pudo actualizar";
+                            echo $rspta ? "Registro actualizado con éxito" : "No se pudo actualizar";
                 }
                             
             break;
@@ -32,14 +34,14 @@ switch ($_GET["op"])
             break;
             case 'anular':
                        $rspta=$Titulo->desactivar($idestitulo);
-                        echo $rspta ? "anulado exitoso" : "No se pudo anular el registro";         
+                        echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
              case 'activar':
                    
                         $rspta=$Titulo->activar($idestitulo);
-                        echo $rspta ? "activado exitoso" : "No se pudo activar el registro";        
+                        echo $rspta ? "Registro activado con éxito" : "No se pudo activar el registro";        
                             
             break;
         
