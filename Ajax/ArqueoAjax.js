@@ -8,8 +8,9 @@ var cfgArq = null;
 $(function () {
     rdAlertaDia('arqueos', '#alertaDia');
     rdVigilarCambios('#formArq');
-    $(document).on('click', '#arqRapido [data-dia]', function () {
-        $('#arqFecha').val(rdSumarDias(cfgArq.hoy, parseInt($(this).data('dia'), 10))).trigger('change');
+    //Botones del día: Hoy y los días que el administrador habilitó
+    $(document).on('click', '#arqRapido [data-fecha]', function () {
+        $('#arqFecha').val($(this).attr('data-fecha')).trigger('change');
     });
     $(document).on('change', '#arqFecha', marcarDiaArq);
 
@@ -120,7 +121,9 @@ function etiquetaDif(d) {
 //---------------------------------------------------------------------------
 function abrirFormulario() {
     $('#formArq')[0].reset();
-    $('#arqFecha').val(cfgArq.hoy).attr({ max: cfgArq.ultimoEditable, min: cfgArq.primerEditable });
+    $('#arqFecha').val(cfgArq.hoy);
+    rdLimitarFecha('#arqFecha', cfgArq.hoy, cfgArq.habilitados);            //solo hoy o un día habilitado
+    rdBotonesDia('#arqRapido', cfgArq.hoy, cfgArq.habilitados, 'btn-xs');
     var ahora = new Date();
     $('#arqHora').val(rdDos(ahora.getHours()) + ':' + rdDos(ahora.getMinutes()));
     $('input[name="tipo"]').first().prop('checked', true);
@@ -130,12 +133,9 @@ function abrirFormulario() {
     mostrarPanel('#panelFormArq');
 }
 
-//Ayer / Hoy / Mañana: marca el día elegido en la fecha del arqueo
+//Marca el botón del día elegido en la fecha del arqueo
 function marcarDiaArq() {
-    var f = $('#arqFecha').val();
-    $('#arqRapido [data-dia]').removeClass('active').each(function () {
-        if (rdSumarDias(cfgArq.hoy, parseInt($(this).data('dia'), 10)) === f) { $(this).addClass('active'); }
-    });
+    rdMarcarDia('#arqRapido', $('#arqFecha').val());
 }
 
 //Según el tipo: los centros que tienen ese fondo, las líneas de efectivo y los documentos

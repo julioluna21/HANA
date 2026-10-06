@@ -100,7 +100,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                        (SELECT GROUP_CONCAT(c.NOM_CENTRO_OP ORDER BY c.NOM_CENTRO_OP SEPARATOR ' - ')
                           FROM reporte_hoy_centro hc INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = hc.ID_CENTRO_OP
                          WHERE hc.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS LUGARES,
-                       (SELECT COUNT(*) FROM reporte_hoy_hora hh WHERE hh.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS BLOQUES
+                       h.ACTIVIDAD
                   FROM reporte_hoy h INNER JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
                  WHERE h.FECHA >= ? AND h.FECHA < ?";
         $tipos = 'ss'; $params = array($desde, $hasta);
@@ -110,7 +110,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode($f ? $f : array(), JSON_UNESCAPED_UNICODE);
         break;
 
-    //Un día completo de una persona, con la bitácora por horas
+    //Un día completo de una persona, con lo que hizo
     case 'hoyDetalle':
         $persona = isset($_GET['persona']) ? (int)$_GET['persona'] : 0;
         $fecha = HanaVal::fecha(isset($_GET['fecha']) ? $_GET['fecha'] : '');

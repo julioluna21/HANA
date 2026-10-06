@@ -98,10 +98,10 @@ if (isset($_SESSION['IdUsuarios'])) {
     //Las reglas especiales, iguales a las del menú lateral (head.php ya las calculó)
     $permitidos = $modulosAcceso;
     $permitidos[] = 'TODOS';
-    if (array_intersect(array('15M', '17M', '18M'), $modulosAcceso)) { $permitidos[] = 'RQ'; } //pedir, ver todas o aprobar
+    if (array_intersect(array('15M', '17M', '18M'), $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'RQ'; } //pedir (el coordinador), ver todas o aprobar
     $esCoordMenu = !empty($menuCoord);
     if (in_array('11M', $modulosAcceso) || in_array('12M', $modulosAcceso) || in_array('5M', $modulosAcceso)
-        || in_array('19M', $modulosAcceso) || in_array('21M', $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'REPORTE'; }
+        || in_array('19M', $modulosAcceso) || in_array('21M', $modulosAcceso) || in_array('37M', $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'REPORTE'; }
     if ((!isset($mOn) || $mOn('AUSENTISMO')) && ($esCoordMenu || !empty($menuJefe) || in_array('20M', $modulosAcceso)
         || in_array('21M', $modulosAcceso) || in_array('22M', $modulosAcceso) || in_array('25M', $modulosAcceso))) { $permitidos[] = 'AUSENTISMO'; }
 

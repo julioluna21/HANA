@@ -120,7 +120,8 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
     <?php if(in_array("10M",$modulosAcceso)){ ?><li><a href="novedadesVista.php"><i class="fa fa-comment "></i>Novedades</a> </li><?php } ?> 
 
     <!-- Requisiciones: módulo 15M -->
-    <?php if(in_array("15M",$modulosAcceso) or in_array("17M",$modulosAcceso) or in_array("18M",$modulosAcceso)){ ?><li><a href="RQVista.php"><i class="fa fa-wrench"></i>Requisiciones (RQ)</a></li><?php } ?>
+    <?php require_once __DIR__ . '/../Modelo/HanaDB.php'; $menuRqCoord = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']); //el coordinador pide RQ aunque su rol no tenga 15M ?>
+    <?php if(in_array("15M",$modulosAcceso) or in_array("17M",$modulosAcceso) or in_array("18M",$modulosAcceso) or $menuRqCoord){ ?><li><a href="RQVista.php"><i class="fa fa-wrench"></i>Requisiciones (RQ)</a></li><?php } ?>
     
       
     <?php
@@ -144,7 +145,7 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
       //¿Quién llena las listas? Por defecto el coordinador; si se apaga, cualquiera con 11M
       $menuListas = (($menuCoord || !HanaConfig::si('LISTAS_SOLO_COORDINADOR')) and in_array("11M",$modulosAcceso)) or in_array("12M",$modulosAcceso) or in_array("21M",$modulosAcceso);
     ?>
-    <?php if(in_array("11M",$modulosAcceso) or in_array("12M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("19M",$modulosAcceso) or in_array("21M",$modulosAcceso) or $menuCoord or $menuAlgunModulo){ ?>  
+    <?php if(in_array("11M",$modulosAcceso) or in_array("12M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("19M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("37M",$modulosAcceso) or $menuCoord or $menuAlgunModulo){ ?>  
     <!-- Fase 2: "Listas de chequeo" pasa a llamarse Reporte diario y reúne sus secciones -->
     <li><a><i class="fa fa-calendar-check-o"></i>Reporte diario<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
@@ -157,6 +158,7 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
         <?php if($menuOficios and $mOn('COMUNICACIONES')){ ?><li><a href="ComunicacionesVista.php">Comunicaciones y oficios</a></li><?php } ?>
         <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="ControlDiarioVista.php">Reporte general</a></li><?php } ?>
         <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="TableroVista.php">Tablero por proyectos</a></li><?php } ?>
+        <?php if(in_array("37M",$modulosAcceso)){ ?><li><a href="InformeMensualVista.php">Informe mensual</a></li><?php } ?>
         <?php if($menuListas and $mOn('LISTAS')){ ?><li><a href="ListasVista.php">Listas de chequeo</a></li><?php } ?>    
         <?php if(in_array("12M",$modulosAcceso)){ ?><li><a href="GruposListasVista.php">Editar listas</a></li><?php } ?> 
         <?php if(in_array("12M",$modulosAcceso)){ ?><li><a href="NotificacionesVista.php">Correos de listas</a></li><?php } ?>

@@ -96,7 +96,8 @@ class Comunicacion
     public static function diasRespuesta() { return max(0, HanaConfig::num('COMUNICACION_DIAS_RESPUESTA', 2)); }
 
     public static $TIPOS = array('POR_ATENDER' => 'Por atender', 'POR_ENVIAR' => 'Por enviar');
-    public static $MEDIOS = array('CORREO' => 'Correo electrónico', 'OFICIO' => 'Oficio físico', 'WHATSAPP' => 'WhatsApp',
+    //WhatsApp se quitó de la lista (los oficios que lo tenían pasaron a "Otro" con el script 15)
+    public static $MEDIOS = array('CORREO' => 'Correo electrónico', 'OFICIO' => 'Oficio físico',
                                   'LLAMADA' => 'Llamada', 'OTRO' => 'Otro');
     public static $PENDIENTE = array('COORDINADOR_OP' => 'Coordinador operativo', 'DIRECCION' => 'Dirección',
                                      'COMUNICACIONES' => 'Comunicaciones', 'GH' => 'Gestión Humana', 'CONTABLE' => 'Contable');
@@ -107,7 +108,12 @@ class Comunicacion
         $marcas = implode(',', array_fill(0, count($idsProyectos), '?'));
         $sql = "SELECT m.*, p.NOM_PROYECTO, c.NOM_CENTRO_OP,
                        (SELECT COUNT(*) FROM adjunto a WHERE a.MODULO = 'COMUNICACION' AND a.ID_REGISTRO = m.ID_COMUNICACION AND a.ESTADO = 1) AS ADJUNTOS,
-                       (SELECT COUNT(*) FROM comunicacion_respuesta r WHERE r.ID_COMUNICACION = m.ID_COMUNICACION AND r.TIPO = 'RESPUESTA') AS RESPUESTAS,
+                       (SELECT COUNT(*) FROM historial h WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.TIPO = 'RESPUESTA') AS RESPUESTAS,
+                       -- La última respuesta o gestión: se lee de la conversación (la tabla comunicacion ya no la repite)
+                       (SELECT h.TEXTO FROM historial h
+                         WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.TIPO IN ('RESPUESTA', 'RESUELTA')
+                           AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
+                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS RESPUESTA,
                        p.ID_COLABORADOR_COORDINADOR AS COORDINADOR_PROYECTO
                   FROM comunicacion m
                   INNER JOIN proyectos p ON p.ID_PROYECTO = m.ID_PROYECTO
@@ -140,7 +146,12 @@ class Comunicacion
 
     public function mostrar($id)
     {
-        return HanaDB::fila("SELECT * FROM comunicacion WHERE ID_COMUNICACION = ?", 'i', array((int)$id));
+        //RESPUESTA es lo último que se respondió en la conversación (no es una columna de comunicacion)
+        return HanaDB::fila("SELECT m.*, (SELECT h.TEXTO FROM historial h
+                         WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.TIPO IN ('RESPUESTA', 'RESUELTA')
+                           AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
+                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS RESPUESTA
+                               FROM comunicacion m WHERE m.ID_COMUNICACION = ?", 'i', array((int)$id));
     }
 
     public function guardar($id, $d, $idColaborador, $ahora)
@@ -148,42 +159,46 @@ class Comunicacion
         if ((int)$id > 0) {
             return HanaDB::q("UPDATE comunicacion SET ID_PROYECTO = ?, ID_CENTRO_OP = ?, TIPO = ?, RADICADO = ?, FECHA_RECEPCION = ?,
                                      MEDIO = ?, REMITENTE = ?, ASUNTO = ?, RESPONSABLE = ?, PENDIENTE_DE = ?, FECHA_ATENCION = ?,
-                                     RESPUESTA = ?, FEC_MODIFICACION = ?
-                               WHERE ID_COMUNICACION = ?", 'iisssssssssssi',
+                                     FEC_MODIFICACION = ?
+                               WHERE ID_COMUNICACION = ?", 'iissssssssssi',
                              array($d['proyecto'], $d['centro'], $d['tipo'], $d['radicado'], $d['fecha'], $d['medio'], $d['remitente'],
-                                   $d['asunto'], $d['responsable'], $d['pendiente'], $d['atencion'], $d['respuesta'], $ahora, (int)$id)) ? (int)$id : 0;
+                                   $d['asunto'], $d['responsable'], $d['pendiente'], $d['atencion'], $ahora, (int)$id)) ? (int)$id : 0;
         }
         $ok = HanaDB::q("INSERT INTO comunicacion (ID_PROYECTO, ID_CENTRO_OP, TIPO, RADICADO, FECHA_RECEPCION, MEDIO, REMITENTE, ASUNTO,
-                                                   RESPONSABLE, PENDIENTE_DE, FECHA_ATENCION, RESPUESTA, ESTADO, ID_COLABORADOR_REGISTRA, FEC_REGISTRO)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)", 'iissssssssssis',
+                                                   RESPONSABLE, PENDIENTE_DE, FECHA_ATENCION, ESTADO, ID_COLABORADOR_REGISTRA, FEC_REGISTRO)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)", 'iisssssssssis',
                         array($d['proyecto'], $d['centro'], $d['tipo'], $d['radicado'], $d['fecha'], $d['medio'], $d['remitente'],
-                              $d['asunto'], $d['responsable'], $d['pendiente'], $d['atencion'], $d['respuesta'], (int)$idColaborador, $ahora));
+                              $d['asunto'], $d['responsable'], $d['pendiente'], $d['atencion'], (int)$idColaborador, $ahora));
         return $ok ? HanaDB::id() : 0;
     }
 
     //-----------------------------------------------------------------------
-    // La conversación del oficio: respuestas y cuándo se resolvió o reabrió
+    // La conversación del oficio: respuestas y cuándo se resolvió o reabrió.
+    // Vive en historial (MODULO = 'COMUNICACION'); TIPO es RESPUESTA,
+    // RESUELTA o REABIERTA
     //-----------------------------------------------------------------------
     public function hilo($id)
     {
-        $f = HanaDB::q("SELECT r.ID_RESPUESTA, r.TIPO, r.TEXTO, r.FECHA, col.NOM_COLABORADOR AS QUIEN, r.ID_COLABORADOR
-                          FROM comunicacion_respuesta r LEFT JOIN colaboradores col ON col.ID_COLABORADOR = r.ID_COLABORADOR
-                         WHERE r.ID_COMUNICACION = ? ORDER BY r.FECHA, r.ID_RESPUESTA", 'i', array((int)$id));
+        $f = HanaDB::q("SELECT h.ID_HISTORIAL, h.TIPO, h.TEXTO, h.FECHA, col.NOM_COLABORADOR AS QUIEN, h.ID_COLABORADOR
+                          FROM historial h LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
+                         WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = ?
+                         ORDER BY h.FECHA, h.ID_HISTORIAL", 'i', array((int)$id));
         return $f ? $f : array();
     }
 
     public function agregarHilo($id, $idColaborador, $tipo, $texto, $ahora)
     {
-        return HanaDB::q("INSERT INTO comunicacion_respuesta (ID_COMUNICACION, ID_COLABORADOR, TIPO, TEXTO, FECHA) VALUES (?, ?, ?, ?, ?)",
-                         'iisss', array((int)$id, (int)$idColaborador, $tipo, $texto, $ahora));
+        return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA)
+                          VALUES ('COMUNICACION', ?, ?, ?, NULLIF(?, 0), ?)",
+                         'issis', array((int)$id, $tipo, $texto, (int)$idColaborador, $ahora));
     }
 
-    //Resuelta: queda atendida hoy, ya no está pendiente de nadie y la nota queda como respuesta
+    //Resuelta: queda atendida hoy y ya no está pendiente de nadie.
+    //La nota de cierre NO se guarda aquí: va a la conversación (agregarHilo con TIPO RESUELTA), una sola vez
     public function resolver($id, $nota, $hoy, $ahora)
     {
-        return HanaDB::q("UPDATE comunicacion SET FECHA_ATENCION = ?, PENDIENTE_DE = NULL,
-                                 RESPUESTA = COALESCE(?, RESPUESTA), FEC_MODIFICACION = ? WHERE ID_COMUNICACION = ?",
-                         'sssi', array($hoy, $nota, $ahora, (int)$id));
+        return HanaDB::q("UPDATE comunicacion SET FECHA_ATENCION = ?, PENDIENTE_DE = NULL, FEC_MODIFICACION = ? WHERE ID_COMUNICACION = ?",
+                         'ssi', array($hoy, $ahora, (int)$id));
     }
 
     public function reabrir($id, $ahora)

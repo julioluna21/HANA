@@ -108,9 +108,8 @@ function hanaCondRQ($vista, $alias = 'r')
     //Quien aprueba tiene que poder ver todas: no se aprueba lo que no se ve
     if (hanaTienePermiso(PERMISO_VER_TODAS_RQ) || hanaTienePermiso(PERMISO_APROBAR_RQ)) { return '1 = 1'; }
 
-    //Las RQ viejas pueden tener un rol destino; las nuevas ya no lo llevan
-    $rol = hanaIdRol();
-    return "($mias OR $alias.ID_ROL_DESTINO = $rol)";
+    //Sin esos permisos, cada quien ve las que pidió (el rol destino de las RQ viejas ya no existe)
+    return $mias;
 }
 
 //---------------------------------------------------------------------------

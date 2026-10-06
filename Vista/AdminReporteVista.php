@@ -26,7 +26,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         );
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">

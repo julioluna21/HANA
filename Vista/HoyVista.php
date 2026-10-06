@@ -1,7 +1,7 @@
 <?php
 //Reporte diario — "Hoy en qué estás"
-//La bitácora de cada persona: situación del día, dónde estuvo, horario y qué
-//hizo hora por hora. Reemplaza la hoja "Hoy en qué estás" del Excel
+//El día de cada persona: situación, dónde estuvo, horario y qué hizo (un solo
+//texto). Reemplaza la hoja "Hoy en qué estás" del Excel
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -18,7 +18,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if ($esCoordinador) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -41,15 +41,14 @@ if (isset($_SESSION['IdUsuarios'])) {
             <button type="button" class="btn btn-default" id="btnDiaAnterior" title="Día anterior"><i class="fa fa-chevron-left"></i></button>
             <input type="date" id="hoyFecha" class="form-control" aria-label="Día">
             <button type="button" class="btn btn-default" id="btnDiaSiguiente" title="Día siguiente"><i class="fa fa-chevron-right"></i></button>
+            <!-- Solo se registra hoy. Si el administrador habilitó otro día, aquí sale su botón (lo pinta HoyAjax.js) -->
             <div class="rd-dia-rapido" id="hoyRapido" role="group" aria-label="Ir a un día" style="margin-top:0;">
-              <button type="button" class="btn btn-default btn-sm" data-dia="-1">Ayer</button>
-              <button type="button" class="btn btn-default btn-sm" data-dia="0">Hoy</button>
-              <button type="button" class="btn btn-default btn-sm" data-dia="1">Mañana</button>
+              <button type="button" class="btn btn-default btn-sm" data-fecha="hoy">Hoy</button>
             </div>
             <span class="hoy-estado" id="hoyEstado"></span>
           </div>
           <p class="hoy-aviso-consulta" id="hoyConsulta" style="display:none;">
-            <i class="fa fa-lock"></i> Este día ya no se puede modificar: se registran ayer, hoy y mañana.
+            <i class="fa fa-lock"></i> Este día es solo de consulta: se registra únicamente el día de hoy. Si necesitas corregirlo, pídele al administrador que te lo habilite.
           </p>
 
           <form id="formHoy" autocomplete="off">
@@ -78,9 +77,12 @@ if (isset($_SESSION['IdUsuarios'])) {
                        placeholder="Ej: reunión con el cliente, capacitación, oficina regional">
               </div>
 
-              <h4 class="rd-subtitulo">Qué hiciste, hora por hora</h4>
-              <p class="rd-ayuda" style="margin-top:-4px;">Los bloques salen de tu hora de ingreso a tu hora de salida. Los que dejes vacíos no se guardan.</p>
-              <div id="hoyHoras" class="hoy-horas"></div>
+              <!-- Un solo texto para todo el día (antes era un bloque por cada hora) -->
+              <h4 class="rd-subtitulo">Qué hiciste hoy <span class="rd-req">*</span></h4>
+              <div class="form-group">
+                <textarea id="hoyActividad" name="actividad" class="form-control" rows="5" maxlength="3000"
+                          placeholder="Cuenta lo que hiciste en el día: visitas, reuniones, arqueos, pendientes que atendiste..."></textarea>
+              </div>
             </div>
 
             <h4 class="rd-subtitulo">Observación</h4>
@@ -124,7 +126,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           </div>
           <div class="table-responsive">
             <table class="table table-bordered hoy-tabla-mes">
-              <thead><tr><th>Día</th><th>Situación</th><th>Dónde</th><th>Horario</th><th>Bitácora</th></tr></thead>
+              <thead><tr><th>Día</th><th>Situación</th><th>Dónde</th><th>Horario</th><th>Qué hizo</th></tr></thead>
               <tbody id="mesFilas"><tr><td colspan="5" class="rd-vacio">Cargando...</td></tr></tbody>
             </table>
           </div>
@@ -136,8 +138,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
-<script type="text/javascript" src="../Ajax/HoyAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/HoyAjax.js?v=4"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

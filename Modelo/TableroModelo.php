@@ -11,6 +11,7 @@
 require_once __DIR__ . "/HanaDB.php";
 require_once __DIR__ . "/HoyModelo.php";
 require_once __DIR__ . "/CronogramaModelo.php";
+require_once __DIR__ . "/RQEstados.php";
 
 class Tablero
 {
@@ -59,7 +60,7 @@ class Tablero
                        (SELECT COUNT(*) FROM arqueo a WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP AND a.FECHA = ? AND a.ESTADO = 1 AND a.DIFERENCIA <> 0) AS ARQUEOS_DIF,
                        (SELECT COUNT(*) FROM lista_chequeo l WHERE l.ID_CENTRO_OP_LISTA_CHEQUEO = c.ID_CENTRO_OP
                                 AND l.FEC_REGISTRO_LISTA_CHEQUEO >= ? AND l.FEC_REGISTRO_LISTA_CHEQUEO < ?) AS LISTAS,
-                       (SELECT COUNT(*) FROM rq r WHERE r.ID_CENTRO_OP = c.ID_CENTRO_OP AND r.ESTADO = 1 AND r.ID_RQ_ESTADO = 1) AS RQ_PENDIENTES
+                       (SELECT COUNT(*) FROM rq r WHERE r.ID_CENTRO_OP = c.ID_CENTRO_OP AND r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . ") AS RQ_PENDIENTES
                   FROM centros_operacion c
                   LEFT JOIN colaboradores j ON j.ID_COLABORADOR = c.ID_COLABORADOR_JEFE
                   LEFT JOIN reporte_hoy h ON h.ID_COLABORADOR = c.ID_COLABORADOR_JEFE AND h.FECHA = ?
@@ -129,13 +130,13 @@ class Tablero
                                WHERE a.ID_COLABORADOR_ARQUEA = ? AND a.FECHA = ? AND a.ESTADO = 1
                                ORDER BY a.HORA", 'is', array((int)$idColaborador, $fecha));
         //RQ que pidió esta persona: las que esperan aprobación y las de ese día
-        $rq = HanaDB::q("SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, e.NOM_RQ_ESTADO, c.NOM_CENTRO_OP,
+        $rq = HanaDB::q("SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ,
+                                " . RqEstado::sqlCampo('r.ID_RQ_ESTADO', 'NOM_RQ_ESTADO') . " AS NOM_RQ_ESTADO, c.NOM_CENTRO_OP,
                                 (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ', ') FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS
                            FROM rq r
-                           INNER JOIN rq_estado e ON e.ID_RQ_ESTADO = r.ID_RQ_ESTADO
                            INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                          WHERE r.ESTADO = 1 AND r.ID_COLABORADOR_SOLICITA = ?
-                            AND (r.ID_RQ_ESTADO = 1 OR r.FECHA_RQ = ?)
+                          WHERE r.ID_RQ_ESTADO <> " . RqEstado::ANULADA . " AND r.ID_COLABORADOR_SOLICITA = ?
+                            AND (r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . " OR r.FECHA_RQ = ?)
                           ORDER BY r.FEC_CREACION DESC LIMIT 20", 'is', array((int)$idColaborador, $fecha));
         return array(
             'esCoordinador' => HanaDB::esCoordinador($idColaborador),

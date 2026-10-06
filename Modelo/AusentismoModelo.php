@@ -49,6 +49,14 @@ class Ausentismo
         return $res;
     }
 
+    //Cuántas personas hay registradas en una celda (centro, día, cargo y novedad). 0 si no hay nada
+    public function cantidad($idCentro, $fecha, $idCargo, $idNovedad)
+    {
+        $f = HanaDB::fila("SELECT CANTIDAD FROM aus_registro WHERE ID_CENTRO_OP = ? AND FECHA = ? AND ID_CARGO_AUS = ? AND ID_NOVEDAD_AUS = ?",
+                          'isii', array((int)$idCentro, $fecha, (int)$idCargo, (int)$idNovedad));
+        return $f ? (int)$f['CANTIDAD'] : 0;
+    }
+
     //Guarda las celdas que cambiaron: cantidad 0 = se borra la celda.
     //Cada cambio real queda en aus_cambio (de cuánto a cuánto, quién y cuándo)
     public function guardarCeldas($idCentro, $anio, $mes, $celdas, $idColaborador, $ahora)

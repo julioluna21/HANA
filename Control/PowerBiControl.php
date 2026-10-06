@@ -24,7 +24,7 @@
     novedades   las novedades registradas (vw_novedades_bi)
   Filtros opcionales: &desde=2026-08 &hasta=2026-09 (año-mes)
 
-  Seguridad extra: cada acceso queda en pbi_acceso; con 10 intentos fallidos
+  Seguridad extra: cada acceso queda en bitacora_sistema (TIPO = 'POWERBI'); con 10 intentos fallidos
   desde la misma dirección en 15 minutos, se bloquea esa dirección un rato.
 */
 require_once __DIR__ . '/../Modelo/HanaConfig.php'; //incluye HanaDB y la conexión (limpiarCadena)
@@ -43,9 +43,10 @@ function pbiFin($codigo, $mensaje)
 function pbiRegistrar($usuario, $ip, $datos, $ok, $filas = null)
 {
     try {
-        HanaDB::q("INSERT INTO pbi_acceso (FECHA, USUARIO, IP, DATOS, OK, FILAS) VALUES (NOW(), ?, ?, ?, ?, ?)",
-                  'sssii', array(substr($usuario, 0, 60), substr($ip, 0, 45), substr($datos, 0, 20), $ok ? 1 : 0, $filas));
-    } catch (\Throwable $e) { error_log('HANA - pbi_acceso: ' . $e->getMessage()); }
+        HanaDB::q("INSERT INTO bitacora_sistema (TIPO, FECHA, MODULO, QUIEN, DETALLE, OK, FILAS)
+                   VALUES ('POWERBI', NOW(), ?, ?, ?, ?, ?)",
+                  'sssii', array(substr($datos, 0, 30), substr($usuario, 0, 60), substr($ip, 0, 45), $ok ? 1 : 0, $filas));
+    } catch (\Throwable $e) { error_log('HANA - bitácora Power BI: ' . $e->getMessage()); }
 }
 
 $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
@@ -56,7 +57,8 @@ if (!in_array($datos, array('ausentismo', 'novedades'), true)) { pbiFin(400, 'da
 if (!HanaConfig::si('POWERBI_ACTIVO')) { pbiFin(403, 'El acceso de Power BI está apagado en Parámetros del sistema.'); }
 
 //2. Bloqueo por intentos fallidos (10 en 15 minutos desde la misma dirección)
-$fallos = HanaDB::fila("SELECT COUNT(*) AS n FROM pbi_acceso WHERE IP = ? AND OK = 0 AND FECHA > NOW() - INTERVAL 15 MINUTE", 's', array($ip));
+$fallos = HanaDB::fila("SELECT COUNT(*) AS n FROM bitacora_sistema
+                         WHERE TIPO = 'POWERBI' AND DETALLE = ? AND OK = 0 AND FECHA > NOW() - INTERVAL 15 MINUTE", 's', array($ip));
 if ($fallos && (int)$fallos['n'] >= 10) { pbiFin(429, 'Demasiados intentos fallidos. Espera 15 minutos.'); }
 
 //3. Usuario y contraseña (autenticación Básica). En algunos hostings el encabezado

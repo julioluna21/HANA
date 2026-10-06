@@ -8,9 +8,12 @@ session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
 
-    //Requisiciones: entran quien pide (15M), quien ve todas (17M) o quien aprueba (18M)
-    $puedePedirRq = in_array("15M", $modulosAcceso);
-    if ($puedePedirRq || in_array("17M", $modulosAcceso) || in_array("18M", $modulosAcceso)) {
+    //Requisiciones: entran quien las pide, quien ve todas (17M) o quien aprueba (18M).
+    //Las pide solo el coordinador del proyecto (parámetro RQ_SOLO_COORDINADOR); si se apaga, quien tenga 15M
+    require_once __DIR__ . '/../Modelo/HanaConfig.php';
+    $coordinaRq = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+    $puedePedirRq = HanaConfig::si('RQ_SOLO_COORDINADOR', true) ? $coordinaRq : in_array("15M", $modulosAcceso);
+    if ($puedePedirRq || in_array("15M", $modulosAcceso) || in_array("17M", $modulosAcceso) || in_array("18M", $modulosAcceso)) {
         include('head.php');
 ?>
 <!-- Estilos del módulo -->
@@ -25,7 +28,7 @@ if (isset($_SESSION['IdUsuarios'])) {
       <div class="x_panel" id="panelListado">
         <div class="x_title">
           <h2><i class="fa fa-wrench"></i> Requisiciones (RQ)</h2>
-          <button type="button" class="btn btn-success pull-right" id="btnNuevaRQ" style="<?php echo $puedePedirRq ? '' : 'display:none;'; ?>margin-top:4px;">
+          <button type="button" class="btn btn-success pull-right" id="btnNuevaRQ" data-puede="<?php echo $puedePedirRq ? '1' : '0'; ?>" style="<?php echo $puedePedirRq ? '' : 'display:none;'; ?>margin-top:4px;">
             <i class="fa fa-plus-square"></i> Nueva RQ
           </button>
           <div class="clearfix"></div>
@@ -196,7 +199,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/RQAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/RQAjax.js?v=4"></script>
 
 <?php
     } else {

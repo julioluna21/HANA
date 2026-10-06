@@ -96,7 +96,7 @@ $(function () {
     $('#rqCentro').on('change', function () {
         var c = $(this).val();
         $('#rqNumero').attr('placeholder', 'Automático');
-        if (!c) { return; }
+        if (!c || $('#btnNuevaRQ').attr('data-puede') === '0') { return; } //quien no puede pedir RQ no necesita el siguiente número
         $.getJSON(URL_RQ + '?op=siguienteNumero&centro=' + encodeURIComponent(c))
             .done(function (d) { $('#rqNumero').attr('placeholder', 'Automático: ' + d.numero); });
     });
@@ -170,8 +170,8 @@ function cargarCatalogos() {
     $.getJSON(URL_RQ + '?op=centros')
         .done(function (filas) {
             centrosRQ = filas;
-            if (!filas.length) {
-                avisoRQ('No tienes peajes asignados. Pide al administrador que te asigne al menos uno para registrar RQ.');
+            if (!filas.length && $('#btnNuevaRQ').attr('data-puede') !== '0') { //solo le importa a quien puede pedir
+                avisoRQ('No tienes peajes para pedir RQ. Las pide el coordinador del proyecto.');
                 $('#btnNuevaRQ').prop('disabled', true);
             }
 
@@ -537,18 +537,6 @@ function pintarDetalle(d) {
                 (vencida ? ' <span class="rq-vencida">Sin aprobar</span>' : '') + '</div>' +
             '</div>';
 
-    //Las RQ anteriores a la Fase 1 pueden tener rol destino: se sigue mostrando
-    if (r.ROL_DESTINO) {
-        h += '<p class="rq-ayuda" style="margin:-4px 0 10px;">Se notificó al rol ' + esc(r.ROL_DESTINO) + '.</p>';
-    }
-
-    if (parseInt(r.ES_RIESGO, 10) === 1) {
-        h += '<div class="rq-det-riesgo"><i class="fa fa-exclamation-triangle"></i> Reportada como riesgo para la operación o la seguridad.</div>';
-    }
-    if (r.ID_NOVEDAD_GENERADA) {
-        h += '<div class="rq-det-novedad"><i class="fa fa-bell"></i> Generó la <a href="novedadesVista.php?abrir=' +
-             parseInt(r.ID_NOVEDAD_GENERADA, 10) + '">novedad #' + parseInt(r.ID_NOVEDAD_GENERADA, 10) + '</a>.</div>';
-    }
 
     //Ítems
     h += '<h5 class="rq-det-sub">Qué se solicita</h5><div class="rq-det-items">';

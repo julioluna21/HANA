@@ -4,7 +4,7 @@ require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisab
 hanaGuardia(array('11M', '12M')); //Diligenciar listas: 11M; administrarlas: 12M
 require_once "../Modelo/ListasModelo.php";
 require_once __DIR__ . "/../Modelo/HanaDB.php";     //consultas preparadas
-require_once __DIR__ . "/../Modelo/HanaFechas.php"; //margen de un día (ayer, hoy y mañana)
+require_once __DIR__ . "/../Modelo/HanaFechas.php"; //solo hoy, o un día que el administrador habilitó
 $Listas = new listas();
 // Obtiene los datos del formulario de datos.
 setlocale(LC_ALL,'es-Es');// Activa la localización con el sistema para mostrar en español
@@ -27,6 +27,11 @@ $fechaNovedad=date("Y-m-d H:i:s");
 $fecha2=date("Y-m-j H:i:s");
 
 switch ($_GET["op"]) {
+  //Los días en que esta persona puede diligenciar una lista: hoy y los que le habilitó el administrador
+  case "dias":
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array('hoy' => HanaFechas::hoy(), 'habilitados' => HanaFechas::habilitados()));
+    break;
   case "validaListaIniciada":
     try {
       $rspta = $Listas->validaListaIniciada($idGrupo,$fechaEncuesta,$idCentro);
@@ -49,7 +54,7 @@ switch ($_GET["op"]) {
       }
       
       if (empty($idLista)) {
-      //Margen de un día: la lista puede ser de ayer, hoy o mañana (lo elige la
+      //La lista es de hoy, o de un día que el administrador le habilitó (lo elige la
       //pantalla); cualquier otra fecha se rechaza aquí, no solo en la pantalla
       if (HanaVal::fecha(substr((string)$fechaEncuesta, 0, 10)) === '' || !HanaFechas::enVentana($fechaEncuesta)) {
         http_response_code(400);
@@ -122,7 +127,7 @@ switch ($_GET["op"]) {
 				
 				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." respondiendo ".$respuestaNo; 
 				
-				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idCentro,$_SESSION['Idcolaborador'],2,$titulos[$idPregunta],$descripcion,"Procedente",2,$date_past);
+				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idCentro,$_SESSION['Idcolaborador'],$Listas->observadorAutomatico(),$titulos[$idPregunta],$descripcion,"Procedente",$Listas->prioridadAutomatica(),$date_past);
 				
 			}  
             if (isset($tipos[$idPregunta]) && $tipos[$idPregunta] === 'datetime' && $respuesta !== '') { $respuesta = date("Y-m-d h:i:s A", strtotime($fechaBase . ' ' . $respuesta)); }
@@ -194,7 +199,7 @@ switch ($_GET["op"]) {
         echo 'Las listas de chequeo las corrige el coordinador del proyecto.';
         break;
       }
-      //Margen de un día: solo se corrigen listas de ayer, hoy o mañana.
+      //Solo se corrigen listas de hoy, o de un día que el administrador habilitó.
       //Y solo las corrige quien las llenó (DUENO), nadie más
       $fechaDeLista = null;
       if ($idLista !== '') {
@@ -271,7 +276,7 @@ switch ($_GET["op"]) {
 				
 				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." respondiendo ".$respuestaNo; 
 				
-				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idcentroget,$_SESSION['Idcolaborador'],2,$titulos[$idPregunta],$descripcion,"Procedente",2,$date_past);
+				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idcentroget,$_SESSION['Idcolaborador'],$Listas->observadorAutomatico(),$titulos[$idPregunta],$descripcion,"Procedente",$Listas->prioridadAutomatica(),$date_past);
 				
 			}
 			
@@ -330,7 +335,7 @@ switch ($_GET["op"]) {
 				
 				$descripcion="Se registra novedad automatica por medio del diligenciamiento de la lista de chequeo, de la pregunta ".$descPregunta[$idPregunta]." respondiendo ".$respuestaNo; 
 				
-				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idcentroget,$_SESSION['Idcolaborador'],2,$titulos[$idPregunta],$descripcion,"Procedente",2,$date_past);
+				$rspta=$Listas->insertarNovedad($fechaNovedad,$_SESSION['Idcolaborador'],$idcentroget,$_SESSION['Idcolaborador'],$Listas->observadorAutomatico(),$titulos[$idPregunta],$descripcion,"Procedente",$Listas->prioridadAutomatica(),$date_past);
 				
 			}	
 			

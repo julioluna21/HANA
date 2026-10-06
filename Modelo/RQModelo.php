@@ -1,6 +1,7 @@
 <?php
 //Modelo del módulo de Requisiciones (RQ)
 require_once __DIR__ . "/../Conexion/ConexionDB.php";
+require_once __DIR__ . "/RQEstados.php"; //el flujo de estados de la RQ
 
 class Rq
 {
@@ -46,19 +47,29 @@ class Rq
 
     //Los peajes asignados al usuario, con su proyecto. Solo esos puede usar,
     //igual que en las listas de chequeo
-    //Los peajes donde el usuario puede pedir RQ: los asignados en Usuarios, los de los
-    //que es jefe y los del proyecto que coordina (los coordinadores también piden RQ)
-    public function centrosUsuario($idUsuario)
+    //De qué peajes es el usuario. Con $soloCoordinador, solo los de los proyectos que coordina
+    //(así se piden las RQ: parámetro RQ_SOLO_COORDINADOR). Sin eso, además los que tiene
+    //asignados en Usuarios y los peajes donde es jefe
+    private function condPeajes($idUsuario, $soloCoordinador)
+    {
+        $idUsuario = intval($idUsuario);
+        $persona = "(SELECT ID_COLABORADOR_USUARIOS_SISTEMA FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = $idUsuario)";
+        $coordina = "p.ID_COLABORADOR_COORDINADOR = $persona";
+        if ($soloCoordinador) { return "($coordina)"; }
+        return "(EXISTS (SELECT 1 FROM asoc_usuarios_sistemas_x_cop a
+                          WHERE a.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = c.ID_CENTRO_OP
+                            AND a.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = $idUsuario)
+                 OR c.ID_COLABORADOR_JEFE = $persona OR $coordina)";
+    }
+
+    //Los peajes del usuario, para el formulario y los filtros
+    public function centrosUsuario($idUsuario, $soloCoordinador = false)
     {
         $idUsuario = intval($idUsuario);
         $sql = "SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, p.ID_PROYECTO, p.NOM_PROYECTO
                   FROM centros_operacion c
                   INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
-                 WHERE (EXISTS (SELECT 1 FROM asoc_usuarios_sistemas_x_cop a
-                                WHERE a.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = c.ID_CENTRO_OP
-                                  AND a.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = $idUsuario)
-                        OR c.ID_COLABORADOR_JEFE = (SELECT ID_COLABORADOR_USUARIOS_SISTEMA FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = $idUsuario)
-                        OR p.ID_COLABORADOR_COORDINADOR = (SELECT ID_COLABORADOR_USUARIOS_SISTEMA FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = $idUsuario))
+                 WHERE " . $this->condPeajes($idUsuario, $soloCoordinador) . "
                    AND c.Estado = '1'
                  ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP";
         return $this->ejecutar($sql);
@@ -67,35 +78,19 @@ class Rq
     //Confirma que el peaje sea del usuario (asignado en Usuarios, jefe de ese peaje o
     //coordinador de su proyecto) y devuelve su proyecto.
     //Así nadie puede crear una RQ en un peaje ajeno modificando el formulario
-    public function proyectoDeCentro($idUsuario, $idCentro)
+    public function proyectoDeCentro($idUsuario, $idCentro, $soloCoordinador = false)
     {
         $idUsuario = intval($idUsuario);
         $idCentro  = intval($idCentro);
         $sql = "SELECT c.ID_PROYECTO_CENTRO_OP AS ID_PROYECTO
                   FROM centros_operacion c
                   INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
-                 WHERE (EXISTS (SELECT 1 FROM asoc_usuarios_sistemas_x_cop a
-                                WHERE a.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = c.ID_CENTRO_OP
-                                  AND a.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = $idUsuario)
-                        OR c.ID_COLABORADOR_JEFE = (SELECT ID_COLABORADOR_USUARIOS_SISTEMA FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = $idUsuario)
-                        OR p.ID_COLABORADOR_COORDINADOR = (SELECT ID_COLABORADOR_USUARIOS_SISTEMA FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = $idUsuario))
+                 WHERE " . $this->condPeajes($idUsuario, $soloCoordinador) . "
                    AND c.ID_CENTRO_OP = $idCentro
                  LIMIT 1";
         $r = $this->ejecutar($sql);
         $f = $r ? $r->fetch_assoc() : null;
         return $f ? (int)$f['ID_PROYECTO'] : 0;
-    }
-
-    public function estados()
-    {
-        return $this->ejecutar("SELECT * FROM rq_estado WHERE ESTADO = 1 ORDER BY ORDEN");
-    }
-
-    public function estado($idEstado)
-    {
-        $idEstado = intval($idEstado);
-        $r = $this->ejecutar("SELECT * FROM rq_estado WHERE ID_RQ_ESTADO = $idEstado");
-        return $r ? $r->fetch_assoc() : null;
     }
 
     //-----------------------------------------------------------------------
@@ -105,8 +100,10 @@ class Rq
     {
         $idProyecto = intval($idProyecto);
         //El número ahora puede tener letras ("230A"): el siguiente sale de los que son solo números
-        $r = $this->ejecutar("SELECT COALESCE(MAX(CAST(NUMERO_RQ AS UNSIGNED)), 0) + 1 AS n FROM rq
-                               WHERE ID_PROYECTO = $idProyecto AND NUMERO_RQ REGEXP '^[0-9]+$'");
+        //El proyecto de una RQ es el de su peaje (rq ya no guarda ID_PROYECTO: sería el mismo dato dos veces)
+        $r = $this->ejecutar("SELECT COALESCE(MAX(CAST(r.NUMERO_RQ AS UNSIGNED)), 0) + 1 AS n
+                                FROM rq r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
+                               WHERE c.ID_PROYECTO_CENTRO_OP = $idProyecto AND r.NUMERO_RQ REGEXP '^[0-9]+$'");
         $f = $r ? $r->fetch_assoc() : null;
         return $f ? (int)$f['n'] : 1;
     }
@@ -114,7 +111,9 @@ class Rq
     public function existeNumero($idProyecto, $numero)
     {
         $idProyecto = intval($idProyecto);
-        $r = $this->ejecutar("SELECT 1 FROM rq WHERE ID_PROYECTO = $idProyecto AND NUMERO_RQ = " . $this->txt((string)$numero) . " LIMIT 1");
+        //El número no se repite dentro del proyecto: antes lo cuidaba una llave única con ID_PROYECTO; ahora esta consulta
+        $r = $this->ejecutar("SELECT 1 FROM rq r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
+                               WHERE c.ID_PROYECTO_CENTRO_OP = $idProyecto AND r.NUMERO_RQ = " . $this->txt((string)$numero) . " LIMIT 1");
         return $r && $r->num_rows > 0;
     }
 
@@ -122,16 +121,17 @@ class Rq
     // Creación
     //-----------------------------------------------------------------------
     //Tipo: 'N' normal o 'U' urgente. Las RQ nuevas ya no llevan rol destino
-    //(les llega a quien tenga el permiso de aprobar) ni generan novedades
+    //(les llega a quien tenga el permiso de aprobar) ni generan novedades.
+    //Nacen en "Solicitada"
     public function insertar($numero, $idProyecto, $idCentro, $fecha, $idColaborador, $observacion, $tipo)
     {
         $tipo = ($tipo === 'U') ? 'U' : 'N';
-        $sql = "INSERT INTO rq (NUMERO_RQ, ID_PROYECTO, ID_CENTRO_OP, FECHA_RQ, ID_COLABORADOR_SOLICITA,
-                                ID_RQ_ESTADO, FEC_ESTADO, OBSERVACION_SST, ES_RIESGO, FEC_CREACION, ESTADO,
-                                ID_ROL_DESTINO, TIPO_RQ)
-                VALUES (" . $this->txt((string)$numero) . ", " . intval($idProyecto) . ", " . intval($idCentro) . ",
+        //$idProyecto ya no se guarda: el proyecto es el del peaje ($idCentro)
+        $sql = "INSERT INTO rq (NUMERO_RQ, ID_CENTRO_OP, FECHA_RQ, ID_COLABORADOR_SOLICITA,
+                                ID_RQ_ESTADO, FEC_ESTADO, OBSERVACION_SST, FEC_CREACION, TIPO_RQ)
+                VALUES (" . $this->txt((string)$numero) . ", " . intval($idCentro) . ",
                         " . $this->txt($fecha) . ", " . intval($idColaborador) . ",
-                        1, NOW(), " . $this->txt($observacion) . ", 0, NOW(), 1, NULL, '$tipo')";
+                        " . RqEstado::SOLICITADA . ", NOW(), " . $this->txt($observacion) . ", NOW(), '$tipo')";
         return $this->insertarId($sql);
     }
 
@@ -144,12 +144,13 @@ class Rq
         return $this->insertarId($sql);
     }
 
+    //Cada cambio de estado (y cada corrección) queda en el historial de la RQ
     public function insertarSeguimiento($idRq, $anterior, $nuevo, $idColaborador, $observacion)
     {
         $anterior = $anterior ? intval($anterior) : 'NULL';
-        $sql = "INSERT INTO rq_seguimiento (ID_RQ, ID_ESTADO_ANTERIOR, ID_ESTADO_NUEVO, ID_COLABORADOR, OBSERVACION, FECHA)
-                VALUES (" . intval($idRq) . ", $anterior, " . intval($nuevo) . ", " . intval($idColaborador) . ",
-                        " . $this->txt($observacion) . ", NOW())";
+        $sql = "INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, ESTADO_ANTERIOR, ESTADO_NUEVO, TEXTO, ID_COLABORADOR, FECHA)
+                VALUES ('RQ', " . intval($idRq) . ", 'ESTADO', $anterior, " . intval($nuevo) . ",
+                        " . $this->txt($observacion) . ", NULLIF(" . intval($idColaborador) . ", 0), NOW())";
         return $this->insertarId($sql);
     }
 
@@ -169,13 +170,14 @@ class Rq
     //-----------------------------------------------------------------------
 
     //El listado.
-    //"Vencida": lleva más días en "Solicitada" de los esperados sin que nadie la apruebe
+    //"Vencida": lleva más días en "Solicitada" de los esperados sin que nadie la apruebe.
+    //ESTADO: 0 si está anulada y 1 si no (así la lee la pantalla)
     //$condAcceso: la condición de AccesoHelper (qué RQ puede ver este usuario)
     //Periodo: $anio = 0 es "todos los años"; $mes = 0 es "todo el año"
     public function listar($condAcceso, $idProyecto, $idCentro, $anio, $mes)
     {
         $filtro = '';
-        if (intval($idProyecto) > 0) { $filtro .= " AND r.ID_PROYECTO = " . intval($idProyecto); }
+        if (intval($idProyecto) > 0) { $filtro .= " AND c.ID_PROYECTO_CENTRO_OP = " . intval($idProyecto); }
         if (intval($idCentro)   > 0) { $filtro .= " AND r.ID_CENTRO_OP = " . intval($idCentro); }
 
         //Se filtra por un rango de fechas y no con MONTH()/YEAR(): así la base
@@ -192,25 +194,22 @@ class Rq
             $filtro .= " AND r.FECHA_RQ >= '$desde' AND r.FECHA_RQ < '$hasta'";
         }
 
-        $sql = "SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, r.ES_RIESGO, r.ID_NOVEDAD_GENERADA, r.ESTADO,
+        $sql = "SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ,
+                       IF(r.ID_RQ_ESTADO = " . RqEstado::ANULADA . ", 0, 1) AS ESTADO,
                        p.NOM_PROYECTO, c.NOM_CENTRO_OP,
-                       e.ID_RQ_ESTADO, e.NOM_RQ_ESTADO, e.COLOR, e.ES_FINAL, e.DIAS_ESPERADOS,
+                       r.ID_RQ_ESTADO,
+                       " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO') . ",
                        col.NOM_COLABORADOR AS SOLICITA,
-                       rd.NOM_ROL_USUARIO_SISTEMA AS ROL_DESTINO,
                        DATEDIFF(NOW(), r.FEC_ESTADO)   AS DIAS_EN_ESTADO,
                        DATEDIFF(NOW(), r.FEC_CREACION) AS DIAS_TOTALES,
                        (SELECT COUNT(*) FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS,
                        (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ' · ')
                           FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS RESUMEN,
-                       CASE WHEN e.ES_FINAL = 0 AND e.DIAS_ESPERADOS > 0
-                                 AND DATEDIFF(NOW(), r.FEC_ESTADO) > e.DIAS_ESPERADOS
-                            THEN 1 ELSE 0 END AS VENCIDA
+                       " . RqEstado::sqlVencida('r.ID_RQ_ESTADO', 'r.FEC_ESTADO') . " AS VENCIDA
                   FROM rq r
-                  INNER JOIN proyectos p          ON p.ID_PROYECTO = r.ID_PROYECTO
                   INNER JOIN centros_operacion c  ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                  INNER JOIN rq_estado e          ON e.ID_RQ_ESTADO = r.ID_RQ_ESTADO
+                  INNER JOIN proyectos p          ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
                   LEFT  JOIN colaboradores col    ON col.ID_COLABORADOR = r.ID_COLABORADOR_SOLICITA
-                  LEFT  JOIN rol_usuarios_sistemas rd ON rd.ID_ROL_USUARIO_SISTEMA = r.ID_ROL_DESTINO
                  WHERE $condAcceso $filtro
                  ORDER BY r.FEC_CREACION DESC";
         return $this->ejecutar($sql);
@@ -226,17 +225,16 @@ class Rq
     public function mostrar($condAcceso, $idRq)
     {
         $idRq = intval($idRq);
-        $sql = "SELECT r.*, p.NOM_PROYECTO, c.NOM_CENTRO_OP,
-                       e.NOM_RQ_ESTADO, e.COLOR, e.ES_FINAL, e.ORDEN, e.DIAS_ESPERADOS,
+        //ID_PROYECTO sale del peaje, con el mismo nombre de antes para que la pantalla no cambie
+        $sql = "SELECT r.*, c.ID_PROYECTO_CENTRO_OP AS ID_PROYECTO, IF(r.ID_RQ_ESTADO = " . RqEstado::ANULADA . ", 0, 1) AS ESTADO,
+                       p.NOM_PROYECTO, c.NOM_CENTRO_OP,
+                       " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO', array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'ORDEN', 'DIAS_ESPERADOS')) . ",
                        col.NOM_COLABORADOR AS SOLICITA,
-                       rd.NOM_ROL_USUARIO_SISTEMA AS ROL_DESTINO,
                        DATEDIFF(NOW(), r.FEC_ESTADO) AS DIAS_EN_ESTADO
                   FROM rq r
-                  INNER JOIN proyectos p          ON p.ID_PROYECTO = r.ID_PROYECTO
                   INNER JOIN centros_operacion c  ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                  INNER JOIN rq_estado e          ON e.ID_RQ_ESTADO = r.ID_RQ_ESTADO
+                  INNER JOIN proyectos p          ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
                   LEFT  JOIN colaboradores col    ON col.ID_COLABORADOR = r.ID_COLABORADOR_SOLICITA
-                  LEFT  JOIN rol_usuarios_sistemas rd ON rd.ID_ROL_USUARIO_SISTEMA = r.ID_ROL_DESTINO
                  WHERE r.ID_RQ = $idRq AND $condAcceso
                  LIMIT 1";
         $r = $this->ejecutar($sql);
@@ -248,16 +246,17 @@ class Rq
         return $this->ejecutar("SELECT * FROM rq_detalle WHERE ID_RQ = " . intval($idRq) . " ORDER BY ID_RQ_DETALLE");
     }
 
+    //El historial de la RQ, del más reciente al más antiguo
     public function seguimiento($idRq)
     {
-        $sql = "SELECT s.FECHA, s.OBSERVACION, ea.NOM_RQ_ESTADO AS ANTERIOR, en.NOM_RQ_ESTADO AS NUEVO,
+        $sql = "SELECT h.FECHA, h.TEXTO AS OBSERVACION,
+                       IF(h.ESTADO_ANTERIOR IS NULL, NULL, " . RqEstado::sqlCampo('h.ESTADO_ANTERIOR', 'NOM_RQ_ESTADO') . ") AS ANTERIOR,
+                       " . RqEstado::sqlCampo('h.ESTADO_NUEVO', 'NOM_RQ_ESTADO') . " AS NUEVO,
                        col.NOM_COLABORADOR AS QUIEN
-                  FROM rq_seguimiento s
-                  LEFT  JOIN rq_estado ea ON ea.ID_RQ_ESTADO = s.ID_ESTADO_ANTERIOR
-                  INNER JOIN rq_estado en ON en.ID_RQ_ESTADO = s.ID_ESTADO_NUEVO
-                  LEFT  JOIN colaboradores col ON col.ID_COLABORADOR = s.ID_COLABORADOR
-                 WHERE s.ID_RQ = " . intval($idRq) . "
-                 ORDER BY s.FECHA DESC, s.ID_RQ_SEGUIMIENTO DESC";
+                  FROM historial h
+                  LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
+                 WHERE h.MODULO = 'RQ' AND h.ID_REGISTRO = " . intval($idRq) . "
+                 ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC";
         return $this->ejecutar($sql);
     }
 
@@ -273,24 +272,14 @@ class Rq
     // Cambio de estado
     //-----------------------------------------------------------------------
 
-    //Flujo de un solo paso (Fase 1):
+    //Flujo de un solo paso (ver RQEstados.php):
     //  Solicitada (1) -> Aprobada (3) o Rechazada (7)
     //Solo desde "Solicitada" y solo para quien tiene el permiso de aprobar.
-    //Aprobada y Rechazada son finales. Los estados de compra, instalación y
-    //SST quedaron desactivados en la base, pero siguen en el historial
-    const SOLICITADA = 1;
-    const APROBADA   = 3;
-    const RECHAZADA  = 7;
-
+    //Aprobada y Rechazada son finales
     public function estadosPermitidos($idEstadoActual, $puedeAprobar)
     {
-        if (!$puedeAprobar || intval($idEstadoActual) !== self::SOLICITADA) { return array(); }
-        $permitidos = array();
-        $r = $this->ejecutar("SELECT * FROM rq_estado
-                               WHERE ID_RQ_ESTADO IN (" . self::APROBADA . ", " . self::RECHAZADA . ")
-                               ORDER BY ORDEN");
-        while ($r && ($f = $r->fetch_assoc())) { $permitidos[] = $f; }
-        return $permitidos;
+        if (!$puedeAprobar || intval($idEstadoActual) !== RqEstado::SOLICITADA) { return array(); }
+        return array(RqEstado::datos(RqEstado::APROBADA), RqEstado::datos(RqEstado::RECHAZADA));
     }
 
     public function cambiarEstado($idRq, $nuevo)
@@ -326,7 +315,7 @@ class Rq
     //Vuelve la RQ a "Solicitada": tiene que aprobarse de nuevo
     public function reiniciarFlujo($idRq)
     {
-        return $this->ejecutar("UPDATE rq SET ID_RQ_ESTADO = 1, FEC_ESTADO = NOW() WHERE ID_RQ = " . intval($idRq));
+        return $this->ejecutar("UPDATE rq SET ID_RQ_ESTADO = " . RqEstado::SOLICITADA . ", FEC_ESTADO = NOW() WHERE ID_RQ = " . intval($idRq));
     }
 
     //Al volver a "Solicitada" la RQ es una solicitud nueva para su rol: se
@@ -339,7 +328,7 @@ class Rq
     //Anular no borra nada: la RQ queda en estado Anulada y fuera de circulación
     public function anular($idRq)
     {
-        $sql = "UPDATE rq SET ID_RQ_ESTADO = 8, FEC_ESTADO = NOW(), ESTADO = 0
+        $sql = "UPDATE rq SET ID_RQ_ESTADO = " . RqEstado::ANULADA . ", FEC_ESTADO = NOW()
                  WHERE ID_RQ = " . intval($idRq);
         return $this->ejecutar($sql);
     }

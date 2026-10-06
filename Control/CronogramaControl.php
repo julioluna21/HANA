@@ -15,8 +15,8 @@ require_once __DIR__ . "/AccesoHelper.php";
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
-//Lo pasado se marca hasta ayer (HanaFechas::MARGEN_DIAS). Planear sí se puede
-//con más anticipación: para eso es el cronograma
+//Lo pasado ya no se modifica, salvo un día que el administrador haya habilitado.
+//Planear sí se puede con anticipación: para eso es el cronograma
 define('CRONO_MESES_ADELANTE', 12); //se planea hasta un año adelante
 
 function cronoError($codigo, $mensaje)
@@ -62,7 +62,8 @@ function cronoItemPropio($C, $idItem, $idColaborador, $primerEditable)
 {
     $it = $C->item($idItem);
     if (!$it || (int)$it['ID_COLABORADOR'] !== $idColaborador) { cronoError(404, 'No se encontró esa actividad en tu cronograma.'); }
-    if ($it['FECHA'] < $primerEditable) { cronoError(400, 'Ese día ya no se puede modificar.'); }
+    //Un día pasado solo se toca si el administrador se lo habilitó a la persona
+    if ($it['FECHA'] < $primerEditable && !HanaFechas::habilitado($it['FECHA'], $idColaborador)) { cronoError(400, 'Ese día ya no se puede modificar.'); }
     return $it;
 }
 
@@ -99,6 +100,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!$inicial && count($proyectos)) { $inicial = (int)key($proyectos); }
         echo json_encode(array(
             'hoy' => $hoy, 'primerEditable' => $primerEditable, 'ultimoEditable' => $ultimoEditable, 'ultimoPlan' => $ultimoPlan,
+            'habilitados' => HanaFechas::habilitados($idColaborador), //los días pasados que el administrador le abrió
             'tipos' => Cronograma::$TIPOS, 'estadosVh' => Cronograma::$ESTADOS_VH, 'transportes' => Cronograma::$TRANSPORTES,
             'proyectos' => array_values($proyectos), 'proyectoInicial' => $inicial,
             'centros' => HanaDB::centrosCoordinador($idColaborador), //para planear visitas: los de sus proyectos
@@ -155,7 +157,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!$usaCrono) { cronoError(403, 'No tienes permiso para el cronograma.'); }
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         if ($fecha === '') { cronoError(400, 'La fecha no es válida.'); }
-        if ($fecha < $primerEditable) { cronoError(400, 'Ese día ya no se puede modificar.'); }
+        if ($fecha < $primerEditable && !HanaFechas::habilitado($fecha, $idColaborador)) { cronoError(400, 'Ese día ya no se puede modificar.'); }
         if ($fecha > $ultimoPlan) { cronoError(400, 'Solo se planea hasta ' . CRONO_MESES_ADELANTE . ' meses adelante.'); }
 
         $tipo = isset($_POST['tipo']) ? $_POST['tipo'] : '';
@@ -183,7 +185,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $it = cronoItemPropio($C, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable);
         $estado = isset($_POST['estado']) ? $_POST['estado'] : '';
         if (!in_array($estado, array('PROGRAMADA', 'REALIZADA', 'CANCELADA'), true)) { cronoError(400, 'Estado no válido.'); }
-        if ($estado === 'REALIZADA' && $it['FECHA'] > $ultimoEditable) { cronoError(400, 'Solo se marca como realizado lo de ' . HanaFechas::textoVentana() . '.'); }
+        if ($estado === 'REALIZADA' && $it['FECHA'] > $ultimoEditable) { cronoError(400, 'Ese día todavía no llega: no se puede marcar como realizado.'); }
         $obs = HanaVal::texto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 300);
         if ($estado === 'CANCELADA' && $obs === null) { cronoError(400, 'Explica por qué se cancela.'); }
         if (!$C->cambiarEstado($it['ID_CRONOGRAMA'], $estado, $obs)) { cronoError(500, 'No se pudo guardar. Intenta de nuevo.'); }

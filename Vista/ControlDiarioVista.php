@@ -9,7 +9,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("19M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -61,7 +61,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <label class="rd-opcion"><input type="radio" name="fHoy" value="reportaron"> <span>Ya reportaron</span></label>
               </div>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>Persona</th><th>Estado</th><th>Dónde</th><th>Horario</th><th class="rd-num-col">Bitácora</th><th>Registró</th><th class="rd-no-imprimir"></th></tr></thead>
+                <thead><tr><th>Persona</th><th>Estado</th><th>Dónde</th><th>Horario</th><th>Qué hizo</th><th>Registró</th><th class="rd-no-imprimir"></th></tr></thead>
                 <tbody id="tbHoy"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabListas">
@@ -133,8 +133,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
-<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=11"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=13"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

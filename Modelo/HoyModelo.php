@@ -2,9 +2,9 @@
 /*
   HANA — Modelo de "Hoy en qué estás" (Reporte diario, Fase 2)
   ---------------------------------------------------------------------------
-  La bitácora diaria de cada persona: dónde estuvo, a qué hora entró y salió,
-  y qué hizo en cada bloque de una hora. Reemplaza la hoja "Hoy en qué estás"
-  del Excel del reporte diario.
+  El día de cada persona: dónde estuvo, a qué hora entró y salió, y qué hizo,
+  en un solo texto (antes era un bloque por cada hora). Reemplaza la hoja
+  "Hoy en qué estás" del Excel del reporte diario.
 
   Todas las consultas son preparadas (los datos viajan aparte del SQL): no se
   usa limpiarCadena(), así que el texto se guarda tal cual lo escribió la
@@ -14,7 +14,7 @@ require_once __DIR__ . "/../Conexion/ConexionDB.php";
 
 class Hoy
 {
-    //Situaciones posibles del día. Solo LABORAL lleva lugares y horas
+    //Situaciones posibles del día. Solo LABORAL lleva lugares, horario y actividad
     public static $SITUACIONES = array(
         'LABORAL'     => 'Laboral',
         'DESCANSO'    => 'Descanso',
@@ -70,7 +70,7 @@ class Hoy
     }
 
     //-----------------------------------------------------------------------
-    // El registro de un día, con sus centros y sus horas. null si no existe
+    // El registro de un día, con sus centros. null si no existe
     //-----------------------------------------------------------------------
     public function obtener($idColaborador, $fecha)
     {
@@ -84,11 +84,7 @@ class Hoy
         foreach ((array)$this->q("SELECT ID_CENTRO_OP FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id)) as $c) {
             $reg['CENTROS'][] = (int)$c['ID_CENTRO_OP'];
         }
-        $reg['HORAS'] = array();
-        foreach ((array)$this->q("SELECT HORA, ACTIVIDAD FROM reporte_hoy_hora WHERE ID_REPORTE_HOY = ? ORDER BY HORA", 'i', array($id)) as $h) {
-            $reg['HORAS'][(int)$h['HORA']] = $h['ACTIVIDAD'];
-        }
-        return $reg;
+        return $reg; //ACTIVIDAD (qué hizo en el día) ya viene en la fila
     }
 
     //-----------------------------------------------------------------------
@@ -101,8 +97,7 @@ class Hoy
                                      FROM reporte_hoy_centro hc
                                      INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = hc.ID_CENTRO_OP
                                     WHERE hc.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS LUGARES,
-                                  (SELECT COUNT(*) FROM reporte_hoy_hora hh
-                                    WHERE hh.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS BLOQUES
+                                  h.ACTIVIDAD
                              FROM reporte_hoy h
                             WHERE h.ID_COLABORADOR = ? AND h.FECHA >= ? AND h.FECHA < ?
                             ORDER BY h.FECHA", 'iss', array((int)$idColaborador, $desde, $hasta));
@@ -112,7 +107,7 @@ class Hoy
     //-----------------------------------------------------------------------
     // Guarda el día completo. Si ya existía, lo reemplaza.
     // Se llama dentro de una transacción (ver HoyControl): todo o nada
-    //   $d: situacion, ingreso, salida, lugarOtro, observacion, centros[], horas[hora => texto]
+    //   $d: situacion, ingreso, salida, lugarOtro, actividad, observacion, centros[]
     //-----------------------------------------------------------------------
     public function guardar($idColaborador, $fecha, $d, $ahora)
     {
@@ -121,15 +116,15 @@ class Hoy
         //Crea el registro del día o actualiza el que ya estaba (la llave única
         //persona + día impide que queden dos)
         $ok = $this->q("INSERT INTO reporte_hoy
-                            (ID_COLABORADOR, FECHA, SITUACION, HORA_INGRESO, HORA_SALIDA, LUGAR_OTRO, OBSERVACION, FEC_REGISTRO)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            (ID_COLABORADOR, FECHA, SITUACION, HORA_INGRESO, HORA_SALIDA, LUGAR_OTRO, ACTIVIDAD, OBSERVACION, FEC_REGISTRO)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE
                             SITUACION = VALUES(SITUACION), HORA_INGRESO = VALUES(HORA_INGRESO),
                             HORA_SALIDA = VALUES(HORA_SALIDA), LUGAR_OTRO = VALUES(LUGAR_OTRO),
-                            OBSERVACION = VALUES(OBSERVACION), FEC_MODIFICACION = ?",
-                       'issssssss',
+                            ACTIVIDAD = VALUES(ACTIVIDAD), OBSERVACION = VALUES(OBSERVACION), FEC_MODIFICACION = ?",
+                       'isssssssss',
                        array($idColaborador, $fecha, $d['situacion'], $d['ingreso'], $d['salida'],
-                             $d['lugarOtro'], $d['observacion'], $ahora, $ahora));
+                             $d['lugarOtro'], $d['actividad'], $d['observacion'], $ahora, $ahora));
         if (!$ok) { return 0; }
 
         $f = $this->q("SELECT ID_REPORTE_HOY FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA = ?",
@@ -137,17 +132,12 @@ class Hoy
         if (!$f) { return 0; }
         $id = (int)$f[0]['ID_REPORTE_HOY'];
 
-        //Centros y horas se reemplazan completos
+        //Los centros visitados se reemplazan completos
         if (!$this->q("DELETE FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id))) { return 0; }
-        if (!$this->q("DELETE FROM reporte_hoy_hora   WHERE ID_REPORTE_HOY = ?", 'i', array($id))) { return 0; }
 
         foreach ($d['centros'] as $idCentro) {
             if (!$this->q("INSERT INTO reporte_hoy_centro (ID_REPORTE_HOY, ID_CENTRO_OP) VALUES (?, ?)",
                           'ii', array($id, (int)$idCentro))) { return 0; }
-        }
-        foreach ($d['horas'] as $hora => $texto) {
-            if (!$this->q("INSERT INTO reporte_hoy_hora (ID_REPORTE_HOY, HORA, ACTIVIDAD) VALUES (?, ?, ?)",
-                          'iis', array($id, (int)$hora, $texto))) { return 0; }
         }
         return $id;
     }

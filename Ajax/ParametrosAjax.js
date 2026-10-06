@@ -174,3 +174,64 @@ $(function () {
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo armar la vista previa.')); });
     });
 });
+
+//---------------------------------------------------------------------------
+// Pestaña Días habilitados: abrirle a una persona un día distinto de hoy
+// y cerrárselo después
+//---------------------------------------------------------------------------
+$(function () {
+    cargarDias();
+    $('#tabDiasLink').on('shown.bs.tab', cargarDias); //al volver a la pestaña se refresca
+    $('#formDia').on('submit', habilitarDia);
+    $(document).on('click', '.btn-deshabilitar-dia', function () { deshabilitarDia($(this).data('id'), $(this).data('texto')); });
+});
+
+function cargarDias() {
+    $.getJSON(URL_PAR + '?op=diasHabilitados')
+        .done(function (d) {
+            //El selector se llena una sola vez, para no perder lo que ya estaba elegido
+            if (!$('#diaPersona option').length) {
+                var hs = '<option value="">Elige una persona</option>', grupo = '';
+                d.personas.forEach(function (p) {
+                    var g = p.COORDINA ? 'Coordinadores' : 'Otras personas'; //los coordinadores salen primero
+                    if (g !== grupo) { hs += (grupo ? '</optgroup>' : '') + '<optgroup label="' + g + '">'; grupo = g; }
+                    hs += '<option value="' + parseInt(p.ID_COLABORADOR, 10) + '">' + rdEsc(p.NOM_COLABORADOR) +
+                          (p.COORDINA ? ' — ' + rdEsc(p.COORDINA) : '') + '</option>';
+                });
+                $('#diaPersona').html(hs + (grupo ? '</optgroup>' : ''));
+            }
+            var h = '';
+            d.dias.forEach(function (x) {
+                var abierto = +x.ESTADO === 1;
+                h += '<tr' + (abierto ? '' : ' class="rd-anulado"') + '><td>' + rdEsc(x.PERSONA) + '</td>' +
+                     '<td class="rd-nowrap">' + rdFecha(x.FECHA) + '</td><td>' + rdEsc(x.MOTIVO || '') + '</td>' +
+                     '<td>' + rdEsc(x.HABILITO || '') + ' · ' + rdFecha(x.FEC_HABILITA) + '</td>' +
+                     '<td>' + (abierto ? '<span class="rd-tag rd-tag-ok"><i class="fa fa-unlock"></i> Habilitado</span>'
+                                       : '<span class="rd-tag"><i class="fa fa-lock"></i> Cerrado' + (x.DESHABILITO ? ' por ' + rdEsc(x.DESHABILITO) : '') +
+                                         ' · ' + rdFecha(x.FEC_DESHABILITA) + '</span>') + '</td>' +
+                     '<td>' + (abierto ? '<button type="button" class="btn btn-default btn-xs btn-deshabilitar-dia" data-id="' + parseInt(x.ID_DIA_HABILITADO, 10) +
+                                         '" data-texto="' + rdEsc(x.PERSONA + ', ' + rdFecha(x.FECHA)).replace(/"/g, '&quot;') + '"><i class="fa fa-lock"></i> Deshabilitar</button>' : '') + '</td></tr>';
+            });
+            $('#tbDias').html(h || '<tr><td colspan="6" class="rd-vacio">No hay días habilitados. Todos registran solo el día de hoy.</td></tr>');
+        })
+        .fail(function (xhr) { $('#tbDias').html('<tr><td colspan="6" class="rd-vacio">' + rdEsc(rdError(xhr, 'No se pudieron cargar los días habilitados.')) + '</td></tr>'); });
+}
+
+function habilitarDia(e) {
+    e.preventDefault();
+    if (!$('#diaPersona').val()) { alert('Elige a quién se le habilita el día.'); return; }
+    if (!$('#diaFecha').val()) { alert('Elige el día que se va a habilitar.'); return; }
+    hanaBoton('#btnHabilitarDia', true);
+    $.post(URL_PAR + '?op=habilitarDia', $('#formDia').serialize(), null, 'json')
+        .done(function (r) { rdAviso(r.mensaje); $('#diaFecha, #diaMotivo').val(''); cargarDias(); })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudo habilitar el día.')); })
+        .always(function () { hanaBoton('#btnHabilitarDia', false); });
+}
+
+function deshabilitarDia(id, texto) {
+    hanaConfirmar('¿Deshabilitar el día de ' + texto + '? Volverá a quedar solo de consulta.', function () {
+        $.post(URL_PAR + '?op=deshabilitarDia', { id: id }, null, 'json')
+            .done(function (r) { rdAviso(r.mensaje); cargarDias(); })
+            .fail(function (xhr) { alert(rdError(xhr, 'No se pudo deshabilitar el día.')); });
+    });
+}

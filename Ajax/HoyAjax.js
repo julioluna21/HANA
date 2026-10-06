@@ -1,12 +1,13 @@
 //Reporte diario — "Hoy en qué estás"
-//Carga un día, arma los bloques por hora según el horario, guarda, y muestra
-//el mes con los días que faltan. Todo texto de la base se escapa al pintarlo
+//Carga un día, lo guarda y muestra el mes con los días que faltan.
+//Solo se registra HOY; otro día, únicamente si el administrador lo habilitó.
+//Todo texto de la base se escapa al pintarlo
 
 var URL_HOY = '../Control/HoyControl.php';
-var cfgHoy = { hoy: '', primerEditable: '', ultimoEditable: '', situaciones: {}, centros: [] };
+var cfgHoy = { hoy: '', primerEditable: '', ultimoEditable: '', habilitados: [], situaciones: {}, centros: [] };
 var diaHoy = '';          //el día que se está viendo (AAAA-MM-DD)
 var editableHoy = false;  //si ese día todavía se puede modificar
-var textosHoras = {};     //lo escrito en cada bloque, para no perderlo al cambiar el horario
+var ultimoDiaHoy = '';    //hasta qué día se puede avanzar: hoy, o un día habilitado que esté más adelante
 
 var NOMBRES_DIA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -30,6 +31,12 @@ function diaCorto(txt) {
     return NOMBRES_DIA[d.getDay()] + ' ' + dos(d.getDate()) + '/' + dos(d.getMonth() + 1);
 }
 
+//Un texto largo, recortado para que quepa en una celda de la tabla
+function recortar(t, max) {
+    t = String(t == null ? '' : t).replace(/\s+/g, ' ');
+    return t.length > max ? t.substring(0, max - 1) + '…' : t;
+}
+
 function mensajeError(xhr, base) {
     try { return JSON.parse(xhr.responseText).error || base; } catch (e) { return base; }
 }
@@ -49,8 +56,10 @@ function irADia(fecha) {
 $(function () {
     rdAlertaDia('hoy', '#alertaDia');
     rdVigilarCambios('#formHoy');
-    $(document).on('click', '#hoyRapido [data-dia]', function () {
-        irADia(sumarDias(cfgHoy.hoy, parseInt($(this).data('dia'), 10)));
+    //Botones rápidos: "Hoy" y uno por cada día que el administrador habilitó
+    $(document).on('click', '#hoyRapido [data-fecha]', function () {
+        var f = $(this).data('fecha');
+        irADia(f === 'hoy' ? cfgHoy.hoy : f);
     });
 
     $.getJSON(URL_HOY + '?op=config')
@@ -65,11 +74,16 @@ $(function () {
             $('#mesAnio').html(h).val(String(anioHoy));
             $('#mesMes').val(String(+c.hoy.substring(5, 7)));
 
-            $('#hoyFecha').attr('max', c.ultimoEditable);
+            //Lo normal es que el último día sea hoy; si hay un día habilitado más adelante, ese
+            c.habilitados = c.habilitados || [];
+            ultimoDiaHoy = c.hoy;
+            c.habilitados.forEach(function (f) { if (f > ultimoDiaHoy) { ultimoDiaHoy = f; } });
+            $('#hoyFecha').attr('max', ultimoDiaHoy);
+            pintarHabilitados();
 
             //Se puede llegar con ?fecha=AAAA-MM-DD (desde "Mi mes" o el tablero)
             var pedida = new URLSearchParams(window.location.search).get('fecha');
-            cargarDia(/^\d{4}-\d{2}-\d{2}$/.test(pedida || '') && pedida <= c.ultimoEditable ? pedida : c.hoy);
+            cargarDia(/^\d{4}-\d{2}-\d{2}$/.test(pedida || '') && pedida <= ultimoDiaHoy ? pedida : c.hoy);
             cargarMes();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir el reporte.'); });
@@ -77,16 +91,10 @@ $(function () {
     //Cambiar de día
     $('#hoyFecha').on('change', function () { if (this.value) { irADia(this.value); } });
     $('#btnDiaAnterior').on('click', function () { irADia(sumarDias(diaHoy, -1)); });
-    $('#btnDiaSiguiente').on('click', function () { if (diaHoy < cfgHoy.ultimoEditable) { irADia(sumarDias(diaHoy, 1)); } });
+    $('#btnDiaSiguiente').on('click', function () { if (diaHoy < ultimoDiaHoy) { irADia(sumarDias(diaHoy, 1)); } });
 
-    //Situación: laboral muestra lugares y horas
+    //Situación: laboral muestra lugares, horario y qué hizo
     $(document).on('change', 'input[name="situacion"]', mostrarLaboral);
-
-    //El horario define qué bloques de hora aparecen
-    $('#hoyIngreso, #hoySalida').on('change', function () { guardarTextosHoras(); pintarHoras(); });
-    $(document).on('input', '.hoy-hora textarea', function () {
-        textosHoras[$(this).data('hora')] = this.value;
-    });
 
     $('#formHoy').on('submit', guardarDia);
 
@@ -137,40 +145,16 @@ function mostrarLaboral() {
 }
 
 //---------------------------------------------------------------------------
-// Bloques por hora
+// Días habilitados: un botón por cada día que el administrador le abrió
 //---------------------------------------------------------------------------
-function guardarTextosHoras() {
-    $('#hoyHoras textarea').each(function () { textosHoras[$(this).data('hora')] = this.value; });
-}
-
-//De la hora de ingreso a la de salida. Sin salida: hasta la hora actual si es
-//hoy, o 10 bloques si es otro día. Siempre aparecen los bloques que ya tienen texto
-function pintarHoras() {
-    var ing = $('#hoyIngreso').val(), sal = $('#hoySalida').val();
-    var desde = ing ? parseInt(ing.substring(0, 2), 10) : 7;
-    var hasta;
-    if (sal) {
-        hasta = parseInt(sal.substring(0, 2), 10) - (sal.substring(3, 5) === '00' ? 1 : 0);
-    } else if (diaHoy === cfgHoy.hoy) {
-        hasta = Math.max(desde, new Date().getHours());
-    } else {
-        hasta = desde + 9;
-    }
-    hasta = Math.min(23, Math.max(desde, hasta));
-
-    var horas = {};
-    for (var x = desde; x <= hasta; x++) { horas[x] = true; }
-    $.each(textosHoras, function (hr, txt) { if ($.trim(txt) !== '') { horas[hr] = true; } });
-
-    var lista = Object.keys(horas).map(Number).sort(function (a, b) { return a - b; });
+function pintarHabilitados() {
+    $('#hoyRapido [data-habilitado]').remove(); //se vuelven a pintar desde cero
     var h = '';
-    for (var i = 0; i < lista.length; i++) {
-        var hr = lista[i];
-        h += '<div class="hoy-hora"><label for="hora' + hr + '">' + dos(hr) + ':00 – ' + dos(hr + 1) + ':00</label>' +
-             '<textarea id="hora' + hr + '" name="horas[' + hr + ']" data-hora="' + hr + '" class="form-control" rows="2" maxlength="1000"' +
-             (editableHoy ? '' : ' disabled') + '>' + esc(textosHoras[hr] || '') + '</textarea></div>';
-    }
-    $('#hoyHoras').html(h);
+    (cfgHoy.habilitados || []).forEach(function (f) {
+        h += '<button type="button" class="btn btn-default btn-sm" data-habilitado="1" data-fecha="' + esc(f) + '" title="El administrador te habilitó este día">' +
+             '<i class="fa fa-unlock"></i> ' + esc(diaCorto(f)) + '</button>';
+    });
+    $('#hoyRapido').append(h);
 }
 
 //---------------------------------------------------------------------------
@@ -184,7 +168,7 @@ function cargarDia(fecha) {
             var r = d.registro;
 
             $('#hoyFecha').val(diaHoy);
-            $('#btnDiaSiguiente').prop('disabled', diaHoy >= cfgHoy.ultimoEditable);
+            $('#btnDiaSiguiente').prop('disabled', diaHoy >= ultimoDiaHoy);
             $('#hoyEstado').html(r
                 ? '<span class="rd-tag rd-tag-ok"><i class="fa fa-check"></i> Registrado</span>'
                 : '<span class="rd-tag rd-tag-pend"><i class="fa fa-clock-o"></i> Sin registrar</span>');
@@ -196,6 +180,7 @@ function cargarDia(fecha) {
             $('#hoyIngreso').val(r ? hhmm(r.HORA_INGRESO) : '');
             $('#hoySalida').val(r ? hhmm(r.HORA_SALIDA) : '');
             $('#hoyLugarOtro').val(r && r.LUGAR_OTRO ? r.LUGAR_OTRO : '');
+            $('#hoyActividad').val(r && r.ACTIVIDAD ? r.ACTIVIDAD : ''); //qué hizo en el día
             $('#hoyObservacion').val(r && r.OBSERVACION ? r.OBSERVACION : '');
             $('input[name="centros[]"]').prop('checked', false);
             if (r) {
@@ -203,19 +188,16 @@ function cargarDia(fecha) {
                     $('input[name="centros[]"][value="' + parseInt(r.CENTROS[i], 10) + '"]').prop('checked', true);
                 }
             }
-            textosHoras = {};
-            if (r && r.HORAS) { $.each(r.HORAS, function (hr, txt) { textosHoras[hr] = txt; }); }
-
             //Solo consulta: todo queda bloqueado y sin botón de guardar
             $('#formHoy').find('input, textarea').prop('disabled', !editableHoy);
             $('#btnGuardarHoy').toggle(editableHoy);
 
             mostrarLaboral();
-            pintarHoras();
             $('.hoy-fila-mes').removeClass('activa').filter('[data-fecha="' + diaHoy + '"]').addClass('activa');
-            //Ayer / Hoy / Mañana: marca el que se está viendo
-            $('#hoyRapido [data-dia]').removeClass('active').each(function () {
-                if (sumarDias(cfgHoy.hoy, parseInt($(this).data('dia'), 10)) === diaHoy) { $(this).addClass('active'); }
+            //Hoy o un día habilitado: marca el botón del día que se está viendo
+            $('#hoyRapido [data-fecha]').removeClass('active').each(function () {
+                var f = $(this).data('fecha');
+                if ((f === 'hoy' ? cfgHoy.hoy : f) === diaHoy) { $(this).addClass('active'); }
             });
             rdCambiosGuardados(); //acaba de cargarse: todavía no hay cambios
         })
@@ -234,6 +216,7 @@ function guardarDia(e) {
         if (!$('input[name="centros[]"]:checked').length && !$.trim($('#hoyLugarOtro').val())) {
             alert('Marca al menos un peaje o escribe en qué otro lugar estuviste.'); return;
         }
+        if (!$.trim($('#hoyActividad').val())) { alert('Escribe qué hiciste hoy.'); $('#hoyActividad').focus(); return; }
     }
 
     var fd = new FormData($('#formHoy')[0]);
@@ -262,7 +245,7 @@ function cargarMes() {
 
             var primero = anio + '-' + dos(mes) + '-01';
             var ultimo = aTexto(new Date(anio, mes, 0));
-            if (ultimo > cfgHoy.ultimoEditable) { ultimo = cfgHoy.ultimoEditable; } //se muestra hasta mañana, que ya se puede adelantar
+            if (ultimo > ultimoDiaHoy) { ultimo = ultimoDiaHoy; } //se muestra hasta hoy (o hasta un día habilitado más adelante)
 
             var h = '', registrados = 0, faltan = 0;
             for (var dia = primero; dia <= ultimo; dia = sumarDias(dia, 1)) {
@@ -277,7 +260,7 @@ function cargarMes() {
                          '<td><span class="hoy-sit-tag hoy-sit-' + esc(f.SITUACION.toLowerCase()) + '">' + esc(sit) + '</span></td>' +
                          '<td>' + (lab ? esc(donde) : '') + '</td>' +
                          '<td>' + (lab ? esc(hhmm(f.HORA_INGRESO)) + (f.HORA_SALIDA ? ' – ' + esc(hhmm(f.HORA_SALIDA)) : ' – …') : '') + '</td>' +
-                         '<td>' + (lab ? parseInt(f.BLOQUES, 10) + ' h' : '') + '</td></tr>';
+                         '<td class="hoy-mes-actividad">' + (lab ? esc(recortar(f.ACTIVIDAD, 110)) : '') + '</td></tr>';
                 } else {
                     faltan++;
                     h += '<tr class="hoy-fila-mes hoy-falta" data-fecha="' + dia + '">' +

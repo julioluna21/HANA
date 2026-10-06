@@ -47,7 +47,7 @@ if ($puedeFondos && !hanaTienePermiso('24M')) {
 $puedeCampos   = $puedeFondos || hanaTienePermiso('24M');
 $A             = new Arqueo();
 $hoy           = date('Y-m-d');
-list($primerEditable, $ultimoEditable) = HanaFechas::ventana(); //ayer, hoy y mañana
+list($primerEditable, $ultimoEditable) = HanaFechas::ventana(); //solo hoy (los días habilitados van aparte)
 
 //Los centros de los proyectos que coordina, con su id como llave
 $centros = array();
@@ -112,6 +112,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         }
         echo json_encode(array(
             'hoy' => $hoy, 'primerEditable' => $primerEditable, 'ultimoEditable' => $ultimoEditable,
+            'habilitados' => HanaFechas::habilitados($idColaborador), //los días que el administrador le abrió
             'tipos' => Arqueo::$TIPOS, 'efectivo' => Arqueo::$EFECTIVO, 'documentos' => Arqueo::$DOCUMENTOS,
             'roles' => Arqueo::$ROLES, 'puedeCampos' => $puedeCampos,
             'centros' => $lista, 'puedeArquear' => $puedeArquear, 'puedeFondos' => $puedeFondos

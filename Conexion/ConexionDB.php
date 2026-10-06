@@ -44,6 +44,8 @@
     }
         
     mysqli_query( $conexion, 'SET NAMES "'.DB_ENCODE.'"');//Consulta a la base de datos insertar utf8
+    //Hora de Colombia también para la base: NOW() y CURDATE() dan la misma hora que date() en PHP
+    mysqli_query( $conexion, "SET time_zone = '-05:00'");
 
     if (!function_exists('ejecutarConsulta'))//Si la función no existe
     {

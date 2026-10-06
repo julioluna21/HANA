@@ -63,8 +63,19 @@ $(document).on('click', '.cd-proy', function () {
 
 function vacio(n, txt) { return '<tr><td colspan="' + n + '" class="rd-vacio">' + txt + '</td></tr>'; }
 
+//Qué pestaña abre cada valor de ?ver=
+var VER_TAB = { hoy: 'tabHoy', listas: 'tabListas', arqueos: 'tabArqueos', cronograma: 'tabCrono', vehiculos: 'tabVh', vacantes: 'tabVac', comunicaciones: 'tabCom', rq: 'tabRq' };
+
 $(function () {
-    cargar('', 0);
+    //Se puede llegar con ?fecha=AAAA-MM-DD&proyecto=ID&ver=rq (desde el tablero): abre ese día, ese proyecto y esa pestaña
+    var q = new URLSearchParams(window.location.search);
+    var fechaUrl = /^\d{4}-\d{2}-\d{2}$/.test(q.get('fecha') || '') ? q.get('fecha') : '';
+    var proyUrl = parseInt(q.get('proyecto'), 10) || 0;
+    cargar(fechaUrl, proyUrl);
+    if (VER_TAB[q.get('ver')]) {
+        $('#cdPestanas a[href="#' + VER_TAB[q.get('ver')] + '"]').tab('show');
+        setTimeout(function () { $('html, body').animate({ scrollTop: $('#cdPestanas').offset().top - 80 }, 200); }, 600); //cuando ya cargó
+    }
     $('#cdFecha').on('change', function () { if (this.value) { cargar(this.value); } });
     $('#btnDiaAnt').on('click', function () { cargar(rdSumarDias(datosCD.fecha, -1)); });
     $('#btnDiaSig').on('click', function () { if (datosCD.fecha < datosCD.ultimo) { cargar(rdSumarDias(datosCD.fecha, 1)); } });
@@ -178,7 +189,7 @@ function pintarHoy() {
              '<td>' + tag(rdEsc(SIT_CD[r.SITUACION] || r.SITUACION), lab ? 'rd-tag-ok' : '') + '</td>' +
              '<td>' + rdEsc(lab ? donde : '') + (r.OBSERVACION ? '<br><small>' + rdEsc(r.OBSERVACION) + '</small>' : '') + '</td>' +
              '<td class="rd-nowrap">' + (lab ? rdHora(r.HORA_INGRESO) + ' – ' + (r.HORA_SALIDA ? rdHora(r.HORA_SALIDA) : '…') : '') + '</td>' +
-             '<td class="rd-num-col">' + (lab ? parseInt(r.BLOQUES, 10) + ' h' : '') + '</td>' +
+             '<td><small>' + (lab ? rdRecortar(r.ACTIVIDAD, 90) : '') + '</small></td>' +
              '<td class="rd-nowrap"><small>' + rdHora(String(r.FEC_MODIFICACION || r.FEC_REGISTRO).substring(11)) + '</small></td>' +
              '<td class="rd-no-imprimir"><button type="button" class="btn btn-success btn-xs btn-persona-cd" data-id="' + parseInt(p.ID, 10) + '"><i class="fa fa-eye"></i> Ver</button></td></tr>';
     }
@@ -301,8 +312,9 @@ function pintarRq() {
     $('.cd-col-decidir').toggle(decide);
     for (var i = 0; i < f.length; i++) {
         var r = f[i], u = r.TIPO_RQ === 'U', id = parseInt(r.ID_RQ, 10);
-        h += '<tr data-proy="' + parseInt(r.ID_PROYECTO, 10) + '" data-rq="' + id + '"><td><a href="RQVista.php"><span class="cd-rq ' + (u ? 'cd-rq-u' : '') + '">' + (u ? 'RQ U-' : 'RQ-') + rdEsc(r.NUMERO_RQ) + '</span></a></td>' +
-             '<td>' + rdEsc(r.NOM_CENTRO_OP) + '<br><small>' + rdEsc(r.NOM_PROYECTO) + '</small></td><td>' + rdEsc(r.SOLICITA || '') + '</td><td>' + rdEsc(r.ITEMS || '') + '</td>' +
+        h += '<tr data-proy="' + parseInt(r.ID_PROYECTO, 10) + '" data-rq="' + id + '"><td><a href="RQVista.php?abrir=' + id + '" title="Abrir esta RQ en Requisiciones"><span class="cd-rq ' + (u ? 'cd-rq-u' : '') + '">' + (u ? 'RQ U-' : 'RQ-') + rdEsc(r.NUMERO_RQ) + '</span></a></td>' +
+             '<td>' + rdEsc(r.NOM_CENTRO_OP) + '<br><small>' + rdEsc(r.NOM_PROYECTO) + '</small></td><td>' + rdEsc(r.SOLICITA || '') + '</td><td>' + rdEsc(r.ITEMS || '') + rdRqMinisFila(id, r.ARCHIVOS) +
+             '<a href="#" class="btn-ver-rq cd-rq-ver rd-no-imprimir" data-id="' + id + '"><i class="fa fa-eye"></i> Ver detalle y fotos</a></td>' +
              '<td class="rd-num-col">' + parseInt(r.DIAS, 10) + '</td>' +
              (decide ? '<td class="rd-no-imprimir cd-decidir"><button type="button" class="btn btn-success btn-xs cd-aprobar" data-id="' + id + '"><i class="fa fa-check"></i> Aprobar</button> ' +
                        '<button type="button" class="btn btn-default btn-xs cd-rechazar" data-id="' + id + '"><i class="fa fa-times"></i> Rechazar</button>' +
@@ -323,31 +335,7 @@ function decidirRq(id, estado, obs, boton) {
 //El detalle de una RQ para la ventana de confirmación: número, peaje, quién la pidió,
 //los ítems con su cantidad y justificación, la observación y los soportes. Todo escapado
 function detalleRqHtml(d, fila) {
-    var q = d.rq || {}, u = (q.TIPO_RQ || fila.TIPO_RQ) === 'U';
-    var num = (u ? 'RQ U-' : 'RQ-') + rdEsc(q.NUMERO_RQ || fila.NUMERO_RQ);
-    var h = '<div class="dq-cab"><span class="cd-rq ' + (u ? 'cd-rq-u' : '') + '">' + num + '</span>' + (u ? ' <span class="rd-tag rd-tag-mal">Urgente</span>' : '') + '</div>' +
-            '<div class="dq-datos">' +
-            '<div><span>Peaje</span><b>' + rdEsc(q.NOM_CENTRO_OP || fila.NOM_CENTRO_OP) + '</b></div>' +
-            '<div><span>Proyecto</span><b>' + rdEsc(q.NOM_PROYECTO || fila.NOM_PROYECTO) + '</b></div>' +
-            '<div><span>La pidió</span><b>' + rdEsc(q.SOLICITA || q.NOM_COLABORADOR || fila.SOLICITA || '') + '</b></div>' +
-            '<div><span>Fecha</span><b>' + rdFecha(q.FECHA_RQ || fila.FECHA_RQ) + ' · ' + pl(parseInt(fila.DIAS, 10) || 0, 'día', 'días') + ' esperando</b></div></div>';
-    var it = d.items || [];
-    if (it.length) {
-        h += '<div class="dq-sub">Qué se pide (' + it.length + ')</div><ol class="dq-items">';
-        it.forEach(function (x) {
-            h += '<li><b>' + rdEsc(x.DESCRIPCION) + '</b> · ' + rdEsc(String(parseFloat(x.CANTIDAD))) + ' ' + rdEsc(x.UNIDAD || '') +
-                 (x.JUSTIFICACION ? '<div class="dq-just">' + rdEsc(x.JUSTIFICACION) + '</div>' : '') + '</li>';
-        });
-        h += '</ol>';
-    }
-    if (q.OBSERVACION) { h += '<div class="dq-sub">Observación</div><div class="dq-just">' + rdEsc(q.OBSERVACION) + '</div>'; }
-    var ar = d.archivos || [];
-    if (ar.length) {
-        h += '<div class="dq-sub">Soportes (' + ar.length + ')</div><div class="dq-arch">' + ar.map(function (a) {
-            return '<a href="' + rdEsc(a.URL) + '" target="_blank" rel="noopener"><i class="fa ' + (/\.pdf$/i.test(a.RUTA) ? 'fa-file-pdf-o' : 'fa-file-image-o') + '"></i> ' + rdEsc(a.NOMBRE_ORIGINAL) + '</a>';
-        }).join('') + '</div>';
-    }
-    return h;
+    return rdRqDetalleHtml(d, fila); //el mismo detalle con fotos que usa el tablero (ReporteComun.js)
 }
 $(document).on('click', '.cd-aprobar', function () {
     var b = this, id = $(b).data('id');
@@ -387,14 +375,7 @@ function verPersona(id) {
                      (r.HORA_INGRESO ? ' ' + rdHora(r.HORA_INGRESO) + ' – ' + (r.HORA_SALIDA ? rdHora(r.HORA_SALIDA) : '…') : '') + '</p>';
                 var donde = (r.LUGARES || []).concat(r.LUGAR_OTRO ? [r.LUGAR_OTRO] : []);
                 if (donde.length) { h += '<p><strong>Dónde:</strong> ' + rdEsc(donde.join(' · ')) + '</p>'; }
-                var horas = Object.keys(r.HORAS || {}).map(Number).sort(function (a, b) { return a - b; });
-                if (horas.length) {
-                    h += '<table class="table rd-tabla rd-tabla-compacta"><tbody>';
-                    for (var i = 0; i < horas.length; i++) {
-                        h += '<tr><td class="rd-nowrap" style="width:110px;"><strong>' + rdDos(horas[i]) + ':00 – ' + rdDos(horas[i] + 1) + ':00</strong></td><td>' + rdEsc(r.HORAS[horas[i]]) + '</td></tr>';
-                    }
-                    h += '</tbody></table>';
-                }
+                if (r.ACTIVIDAD) { h += '<p><strong>Qué hizo:</strong><br>' + rdParrafo(r.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
                 if (r.OBSERVACION) { h += '<p><strong>Observación:</strong> ' + rdEsc(r.OBSERVACION) + '</p>'; }
             }
             $('#modalPersonaCuerpo').html(h);

@@ -461,3 +461,51 @@ a.rd-mosaico:hover{ color: #1A1A1A; } a.rd-mosaico:hover .rd-mosaico-titulo{ col
 .par-intento{ border-left: 4px solid #C9CFD5; background: #FAFBFB; padding: 8px 12px; margin-bottom: 8px; border-radius: 0 8px 8px 0; font-size: 13px; }
 .par-intento.bien{ border-left-color: #1ABB9C; } .par-intento.mal{ border-left-color: #6E1A1E; }
 .par-intento pre{ max-height: 260px; overflow: auto; font-size: 11px; margin-top: 6px; white-space: pre-wrap; }
+
+/* Ausentismo: registro rápido (una ausencia a la vez) */
+.aus-rapido{ background: #FBF8F6; border: 1px solid #ECE6E1; border-radius: 12px; padding: 14px 16px 2px; margin: 10px 0 14px; }
+.aus-rapido label{ font-size: 13px; }
+.aus-lista-dia{ white-space: nowrap; font-weight: 700; color: #6E1A1E; }
+.aus-no-cuenta{ font-style: italic; color: #6B7076; }
+
+/* Hoy en qué estás: lo que hizo en el día, recortado en la tabla del mes */
+.hoy-mes-actividad{ color: #5B524D; font-size: 13px; max-width: 440px; }
+
+/* Informe mensual de gestión */
+.inf-generar{ background: #FBF8F6; border: 1px solid #ECE6E1; border-radius: 12px; padding: 14px 16px 6px; margin-bottom: 16px; }
+.inf-botones{ display: flex; gap: 8px; flex-wrap: wrap; }
+.inf-botones .btn{ margin: 0; }
+.inf-proyectos{ display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.inf-contenido{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.inf-contenido > div{ border: 1px solid #ECE6E1; border-radius: 12px; padding: 12px 14px; }
+.inf-contenido strong{ display: block; color: #6E1A1E; margin-bottom: 4px; }
+.inf-contenido span{ color: #6B7076; font-size: 13px; }
+@media (max-width: 767px){ .inf-contenido{ grid-template-columns: 1fr; } }
+
+/* Tablero: las cifras son enlaces y hay una franja para ir a los demás módulos */
+a.tb-enlace{ text-decoration: none; cursor: pointer; transition: box-shadow .12s; }
+a.tb-enlace:hover, a.tb-enlace:focus{ box-shadow: 0 0 0 2px #1ABB9C; text-decoration: none; }
+a.tb-chip.tb-enlace{ color: #1A1A1A; } a.tb-chip-pend.tb-enlace{ color: #8A5B0B; } a.tb-chip-cero.tb-enlace{ color: #9AA0A6; }
+.tb-ir{ display: flex; flex-wrap: wrap; align-items: center; gap: 6px; background: #FBF8F6; border: 1px solid #ECE6E1; border-radius: 12px; padding: 8px 12px; margin: 4px 0 12px; }
+.tb-ir .btn{ margin: 0; }
+.tb-ir-rotulo{ font-weight: 700; color: #6E1A1E; margin-right: 4px; }
+
+/* RQ: las fotos donde se aprueba */
+.rq-visor{ margin: 6px 0 10px; }
+.rq-visor-grande{ display: block; background: #1A1A1A; border-radius: 10px; overflow: hidden; text-align: center; }
+.rq-visor-grande img{ max-width: 100%; max-height: 380px; object-fit: contain; vertical-align: middle; }
+.rq-visor-minis{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rq-mini{ width: 70px; height: 54px; padding: 0; border: 2px solid #ECE6E1; border-radius: 8px; overflow: hidden; background: #fff; cursor: pointer; }
+.rq-mini.activa{ border-color: #1ABB9C; }
+.rq-mini img{ width: 100%; height: 100%; object-fit: cover; }
+.cd-rq-fotos{ display: flex; gap: 4px; margin-top: 5px; align-items: center; }
+.cd-rq-fotos img{ width: 54px; height: 42px; object-fit: cover; border-radius: 6px; border: 1px solid #ECE6E1; }
+.cd-rq-mas{ font-size: 12px; font-weight: 700; color: #6E1A1E; padding: 0 4px; }
+.cd-rq-ver{ display: inline-block; font-size: 12px; margin-top: 4px; }
+/* El detalle de la RQ dentro de su ventana (los mismos bloques que la confirmación de aprobar) */
+#rdModalRQ .dq-cab{ margin-bottom: 10px; }
+#rdModalRQ .dq-datos{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin-bottom: 10px; }
+#rdModalRQ .dq-datos span{ display: block; font-size: 11px; color: #6B7076; text-transform: uppercase; letter-spacing: .03em; }
+#rdModalRQ .dq-sub{ font-weight: 700; color: #6E1A1E; margin: 12px 0 4px; }
+#rdModalRQ .dq-items{ padding-left: 20px; margin-bottom: 6px; }
+#rdModalRQ .dq-just{ color: #5B524D; }

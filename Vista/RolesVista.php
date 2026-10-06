@@ -74,7 +74,7 @@ include('head.php');
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r16" value="16M"> <span>Ver todas las novedades (no solo las propias)</span> <small>16M</small></label>
                                </fieldset>
                                <fieldset class="roles-grupo"><legend>Requisiciones (RQ)</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r15" value="15M"> <span>Requisiciones (pedir RQ)</span> <small>15M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r15" value="15M"> <span>Requisiciones: entrar y ver las propias (pedirlas es del coordinador del proyecto)</span> <small>15M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r18" value="18M"> <span>Aprobar o rechazar RQ</span> <small>18M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r17" value="17M"> <span>Ver todas las RQ (no solo las propias)</span> <small>17M</small></label>
                                </fieldset>
@@ -93,6 +93,7 @@ include('head.php');
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r20" value="20M"> <span>Tablero: ver todos los proyectos</span> <small>20M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r21" value="21M"> <span>Administración del reporte diario (lo que llenan todos)</span> <small>21M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r22" value="22M"> <span>Consultar todos los proyectos (cronograma, ausentismo, seguimientos)</span> <small>22M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r37" value="37M"> <span>Informe mensual de gestión (PDF; con 20M, de todos los proyectos)</span> <small>37M</small></label>
                                </fieldset>
                                <fieldset class="roles-grupo"><legend>Ausentismo</legend>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r25" value="25M"> <span>Registrar y corregir el ausentismo de todos los proyectos (aunque el mes esté cerrado)</span> <small>25M</small></label>

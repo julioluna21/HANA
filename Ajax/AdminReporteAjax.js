@@ -90,7 +90,7 @@ function pintarHoyA(f) {
              '<td>' + tagA(rdEsc(cfgA.situaciones[r.SITUACION] || r.SITUACION), lab ? 'rd-tag-ok' : '') + '</td>' +
              '<td>' + rdEsc(lab ? donde : '') + (r.OBSERVACION ? '<br><small>' + rdEsc(r.OBSERVACION) + '</small>' : '') + '</td>' +
              '<td class="rd-nowrap">' + (lab && r.HORA_INGRESO ? rdHora(r.HORA_INGRESO) + ' – ' + (r.HORA_SALIDA ? rdHora(r.HORA_SALIDA) : '…') : '') + '</td>' +
-             '<td class="rd-num-col">' + (lab ? parseInt(r.BLOQUES, 10) + ' h' : '') + '</td>' +
+             '<td><small>' + (lab ? rdRecortar(r.ACTIVIDAD, 90) : '') + '</small></td>' +
              '<td class="rd-nowrap"><small>' + rdFecha(String(r.FEC_MODIFICACION || r.FEC_REGISTRO).substring(0, 10)) + ' ' +
                  rdHora(String(r.FEC_MODIFICACION || r.FEC_REGISTRO).substring(11)) + '</small></td>' +
              '<td><button type="button" class="btn btn-success btn-xs btn-adm-hoy" data-persona="' + parseInt(r.ID_COLABORADOR, 10) +
@@ -112,14 +112,7 @@ function verHoyA(persona, fecha) {
                     (lab && r.HORA_INGRESO ? ' ' + rdHora(r.HORA_INGRESO) + ' – ' + (r.HORA_SALIDA ? rdHora(r.HORA_SALIDA) : '…') : '') + '</p>';
             var donde = (r.LUGARES || []).concat(r.LUGAR_OTRO ? [r.LUGAR_OTRO] : []);
             if (donde.length) { h += '<p><strong>Dónde:</strong> ' + rdEsc(donde.join(' · ')) + '</p>'; }
-            var horas = Object.keys(r.HORAS || {}).map(Number).sort(function (a, b) { return a - b; });
-            if (horas.length) {
-                h += '<table class="table rd-tabla rd-tabla-compacta"><tbody>';
-                for (var i = 0; i < horas.length; i++) {
-                    h += '<tr><td class="rd-nowrap" style="width:110px;"><strong>' + rdDos(horas[i]) + ':00 – ' + rdDos(horas[i] + 1) + ':00</strong></td><td>' + rdEsc(r.HORAS[horas[i]]) + '</td></tr>';
-                }
-                h += '</tbody></table>';
-            }
+            if (r.ACTIVIDAD) { h += '<p><strong>Qué hizo:</strong><br>' + rdParrafo(r.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
             if (r.OBSERVACION) { h += '<p><strong>Observación:</strong> ' + rdEsc(r.OBSERVACION) + '</p>'; }
             $('#admModalCuerpo').html(h);
         })

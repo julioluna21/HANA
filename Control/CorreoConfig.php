@@ -59,7 +59,7 @@ function hanaConfigurarSmtp($mail)
     return true;
 }
 
-//"JAIME ANTONIO MARÍN" -> "Jaime Antonio Marín", para saludar a la persona por su nombre
+//"MARÍA JOSÉ PÉREZ" -> "María José Pérez", para saludar a la persona por su nombre
 function hanaNombreBonito($nombre)
 {
     $n = trim(html_entity_decode((string)$nombre, ENT_QUOTES, 'UTF-8'));
@@ -87,7 +87,7 @@ function hanaUrlSistema($vista = 'login.php')
 */
 function hanaCorreoHtml($nombre, $titulo, $contenido, $boton = null)
 {
-    //En el saludo, nombre y segundo nombre ("Jaime Antonio"); el nombre completo va en el campo Para
+    //En el saludo, nombre y segundo nombre ("María José"); el nombre completo va en el campo Para
     $n = implode(' ', array_slice(preg_split('/\s+/', hanaNombreBonito($nombre)), 0, 2));
     $saludo = $n !== '' ? 'Hola, ' . htmlspecialchars($n, ENT_QUOTES, 'UTF-8') . ':' : 'Hola:';
     $btn = '';
@@ -129,7 +129,7 @@ function hanaCorreoHtml($nombre, $titulo, $contenido, $boton = null)
        cPanel casi siempre lo deja salir, aunque puede caer en spam si el
        dominio del remitente no autoriza al servidor (registro SPF).
 
-  Cada intento queda en la tabla correo_log con su resultado. En
+  Cada intento queda en bitacora_sistema (TIPO = 'CORREO') con su resultado. En
   Parámetros → Correo hay un botón para enviar una prueba y ver qué pasó.
 
   $diagnostico (opcional): si se pasa un arreglo, se llena con cada intento y
@@ -241,15 +241,16 @@ function hanaEnviar($mail, $modulo = 'GENERAL', &$diagnostico = null)
     return false;
 }
 
-//Anota un intento de envío en correo_log (si la tabla no existe, no pasa nada)
+//Anota un intento de envío en la bitácora del sistema (si falla, el envío sigue igual)
 function hanaCorreoLog($mail, $modulo, $metodo, $ok, $error)
 {
     try {
         require_once __DIR__ . '/../Modelo/HanaDB.php';
         $para = implode(', ', array_map(function ($a) { return $a[0]; }, $mail->getToAddresses()));
-        HanaDB::q("INSERT INTO correo_log (FECHA, MODULO, PARA, ASUNTO, METODO, OK, ERROR) VALUES (NOW(), ?, ?, ?, ?, ?, ?)",
+        HanaDB::q("INSERT INTO bitacora_sistema (TIPO, FECHA, MODULO, QUIEN, ASUNTO, DETALLE, OK, ERROR)
+                   VALUES ('CORREO', NOW(), ?, ?, ?, ?, ?, ?)",
                   'ssssis', array(substr($modulo, 0, 30), substr($para, 0, 500), substr((string)$mail->Subject, 0, 250),
-                                  $metodo, $ok ? 1 : 0, $error === null ? null : substr((string)$error, 0, 500)));
+                                  substr((string)$metodo, 0, 60), $ok ? 1 : 0, $error === null ? null : substr((string)$error, 0, 500)));
     } catch (\Throwable $e) {
         error_log('HANA - no se pudo anotar el envío de correo: ' . $e->getMessage());
     }

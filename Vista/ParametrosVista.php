@@ -8,7 +8,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("24M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -24,6 +24,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
           <ul class="nav nav-tabs cd-pestanas" role="tablist">
             <li class="active"><a href="#tabPar" data-toggle="tab">Parámetros</a></li>
+            <li><a href="#tabDias" data-toggle="tab" id="tabDiasLink">Días habilitados</a></li>
             <li><a href="#tabCargos" data-toggle="tab">Ausentismo: cargos</a></li>
             <li><a href="#tabNovedades" data-toggle="tab">Ausentismo: novedades</a></li>
             <li><a href="#tabCorreo" data-toggle="tab" id="tabCorreoLink">Correo</a></li>
@@ -33,6 +34,34 @@ if (isset($_SESSION['IdUsuarios'])) {
               <form id="formPar"><div id="parGrupos"><p class="rd-vacio">Cargando...</p></div>
                 <div class="rd-acciones rd-acciones-fijas"><button type="submit" class="btn btn-success" id="btnGuardarPar"><i class="fa fa-save"></i> Guardar cambios</button></div>
               </form>
+            </div>
+            <!-- Días habilitados: el reporte diario solo se llena hoy; aquí se abre otro día a una persona -->
+            <div class="tab-pane" id="tabDias">
+              <p style="margin-top:0;">El reporte diario (Hoy en qué estás, listas de chequeo, arqueos, cronograma y vehículo) solo se llena <strong>el día de hoy</strong>.
+                Si alguien necesita registrar o corregir otro día, habilítaselo aquí. Cuando termine, deshabilítalo: ese día vuelve a quedar solo de consulta.</p>
+              <form id="formDia" autocomplete="off">
+                <div class="row">
+                  <div class="form-group col-md-4 col-sm-6 col-xs-12">
+                    <label for="diaPersona">Persona: <span class="rd-req">*</span></label>
+                    <select id="diaPersona" name="persona" class="form-control"></select>
+                  </div>
+                  <div class="form-group col-md-2 col-sm-6 col-xs-12">
+                    <label for="diaFecha">Día: <span class="rd-req">*</span></label>
+                    <input type="date" id="diaFecha" name="fecha" class="form-control">
+                  </div>
+                  <div class="form-group col-md-4 col-sm-8 col-xs-12">
+                    <label for="diaMotivo">Motivo:</label>
+                    <input type="text" id="diaMotivo" name="motivo" class="form-control" maxlength="200" placeholder="Ej: no tuvo señal en el peaje">
+                  </div>
+                  <div class="form-group col-md-2 col-sm-4 col-xs-12">
+                    <label class="hidden-xs">&nbsp;</label>
+                    <button type="submit" class="btn btn-success btn-block" id="btnHabilitarDia"><i class="fa fa-unlock"></i> Habilitar</button>
+                  </div>
+                </div>
+              </form>
+              <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
+                <thead><tr><th>Persona</th><th>Día</th><th>Motivo</th><th>Lo habilitó</th><th>Estado</th><th></th></tr></thead>
+                <tbody id="tbDias"><tr><td colspan="6" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabCargos">
               <p class="rd-ayuda" style="margin-top:0;">Los bloques de cada hoja del reporte de ausentismo. "Aplica" dice si el cargo sale en peajes, en básculas o en ambos.
@@ -78,8 +107,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
-<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=4"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

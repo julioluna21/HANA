@@ -27,7 +27,7 @@ $idColaborador = (int)$_SESSION['Idcolaborador'];
 $idUsuario     = (int)$_SESSION['IdUsuarios'];
 $M   = new Comunicacion();
 $hoy = date('Y-m-d');
-$ultimoEditable = HanaFechas::ventana()[1]; //las fechas se pueden adelantar hasta mañana
+$ultimoEditable = HanaFechas::ventana()[1]; //las fechas no pueden pasar de hoy
 
 /*
   Oficios como las RQ: cualquiera los crea y los responde, pero solo en SUS proyectos:
@@ -164,7 +164,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $d['medio'] = isset($_POST['medio']) ? $_POST['medio'] : '';
         if (!isset(Comunicacion::$MEDIOS[$d['medio']])) { comError(400, 'Elige el medio por el que llegó.'); }
         $d['fecha'] = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
-        if ($d['fecha'] === '' || $d['fecha'] > $ultimoEditable) { comError(400, 'La fecha de recepción no es válida o es posterior a mañana.'); }
+        if ($d['fecha'] === '' || $d['fecha'] > $ultimoEditable) { comError(400, 'La fecha de recepción no es válida o es posterior a hoy.'); }
         $d['remitente'] = HanaVal::texto(isset($_POST['remitente']) ? $_POST['remitente'] : '', 120);
         if ($d['remitente'] === null) { comError(400, 'Escribe el remitente o el área.'); }
         $d['asunto'] = HanaVal::texto(isset($_POST['asunto']) ? $_POST['asunto'] : '', 300);
@@ -178,7 +178,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (isset($_POST['atencion']) && trim($_POST['atencion']) !== '') {
             $d['atencion'] = HanaVal::fecha($_POST['atencion']);
             if ($d['atencion'] === '' || $d['atencion'] < $d['fecha'] || $d['atencion'] > $ultimoEditable) {
-                comError(400, 'La fecha de atención debe estar entre la fecha de recepción y mañana.');
+                comError(400, 'La fecha de atención debe estar entre la fecha de recepción y hoy.');
             }
         }
         //Ya atendida, no está pendiente de nadie
@@ -193,6 +193,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         $nuevo = $M->guardar($id, $d, $idColaborador, date('Y-m-d H:i:s'));
         if (!$nuevo) { comError(500, 'No se pudo guardar. Intenta de nuevo.'); }
+        //"Respuesta o gestión" se guarda como un mensaje más de la conversación, y solo si cambió:
+        //así el texto queda en un solo sitio (historial) y no repetido en la tabla del oficio
+        $respAntes = $antes && isset($antes['RESPUESTA']) ? (string)$antes['RESPUESTA'] : '';
+        if ($puedeResolver($d['proyecto']) && (string)$d['respuesta'] !== '' && (string)$d['respuesta'] !== $respAntes) {
+            $M->agregarHilo($nuevo, $idColaborador, $d['atencion'] !== null ? 'RESUELTA' : 'RESPUESTA', $d['respuesta'], date('Y-m-d H:i:s'));
+        }
         echo json_encode(array('ok' => true, 'id' => $nuevo, 'mensaje' => $id ? 'Comunicación actualizada.' : 'Comunicación registrada.'),
                          JSON_UNESCAPED_UNICODE);
         break;

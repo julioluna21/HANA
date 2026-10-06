@@ -14,10 +14,61 @@ function rdFecha(f) {
 //"08:00:00" -> "08:00"
 function rdHora(t) { return t ? String(t).substring(0, 5) : ''; }
 
+//Un texto largo recortado para que quepa en una celda (ya escapado): "Visita al peaje, arqueo de…"
+function rdRecortar(t, max) {
+    t = String(t == null ? '' : t).replace(/\s+/g, ' ');
+    return rdEsc(t.length > max ? t.substring(0, max - 1) + '…' : t);
+}
+//Un texto de varios renglones listo para pintar: escapado y con sus saltos de línea
+function rdParrafo(t) { return rdEsc(t).replace(/\n/g, '<br>'); }
+
 //Fechas sin el desfase de UTC
 function rdAFecha(txt) { var p = txt.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
 function rdATexto(d) { return d.getFullYear() + '-' + rdDos(d.getMonth() + 1) + '-' + rdDos(d.getDate()); }
 function rdSumarDias(txt, n) { var d = rdAFecha(txt); d.setDate(d.getDate() + n); return rdATexto(d); }
+
+//---------------------------------------------------------------------------
+// El día de un registro: solo HOY, más los días que el administrador le
+// habilitó a la persona (Parámetros del sistema → Días habilitados)
+//---------------------------------------------------------------------------
+var RD_DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+//¿Ese día se puede registrar? Hoy siempre; otro, solo si está habilitado
+function rdDiaPermitido(fecha, hoy, habilitados) {
+    return fecha === hoy || (habilitados || []).indexOf(fecha) !== -1;
+}
+
+//Pinta los botones del día: "Hoy" y uno por cada día habilitado ("Jue 01/10").
+//Cada botón lleva data-fecha con el día en AAAA-MM-DD. tam: 'btn-sm' o 'btn-xs'
+function rdBotonesDia(contenedor, hoy, habilitados, tam) {
+    var h = '<button type="button" class="btn btn-default ' + (tam || 'btn-sm') + '" data-fecha="' + rdEsc(hoy) + '">Hoy</button>';
+    (habilitados || []).forEach(function (f) {
+        var d = rdAFecha(f);
+        h += '<button type="button" class="btn btn-default ' + (tam || 'btn-sm') + '" data-fecha="' + rdEsc(f) + '" title="El administrador te habilitó este día">' +
+             '<i class="fa fa-unlock"></i> ' + RD_DIAS_SEMANA[d.getDay()] + ' ' + rdDos(d.getDate()) + '/' + rdDos(d.getMonth() + 1) + '</button>';
+    });
+    $(contenedor).html(h);
+}
+
+//Marca el botón del día que está elegido
+function rdMarcarDia(contenedor, fecha) {
+    $(contenedor).find('[data-fecha]').removeClass('active').filter('[data-fecha="' + fecha + '"]').addClass('active');
+}
+
+//Amarra un campo de fecha a los días permitidos: sin días habilitados queda fijo
+//en hoy; con ellos, deja escoger y si escriben otro día vuelve a hoy con un aviso
+function rdLimitarFecha(campo, hoy, habilitados) {
+    var dias = [hoy].concat(habilitados || []).sort();
+    $(campo).attr({ min: dias[0], max: dias[dias.length - 1] })
+            .prop('readonly', dias.length === 1) //un solo día posible: no hay nada que escoger
+            .off('change.rdDia').on('change.rdDia', function () {
+                if (!rdDiaPermitido(this.value, hoy, habilitados)) {
+                    this.value = hoy;
+                    rdAviso('Solo se registra hoy, o un día que el administrador te haya habilitado.', 'error');
+                    $(this).trigger('change'); //para que la pantalla se entere de que volvió a hoy
+                }
+            });
+}
 
 //Pesos colombianos, sin centavos: 1500000 -> "$ 1.500.000"
 function rdPesos(n) {
@@ -293,3 +344,105 @@ $(document).on('click', '.adj-borrar', function () {
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo quitar el archivo.')); });
     }, { aceptar: 'Sí, quitar', cancelar: 'No' });
 });
+
+//===========================================================================
+// Requisiciones: el detalle de una RQ con sus fotos, para verlo donde se
+// aprueba (Reporte general, Tablero) sin tener que ir a otra pantalla
+//===========================================================================
+var RD_RUTA_RQ = '../public/rq/'; //donde quedan los archivos de las RQ
+
+function rdEsFoto(nombre) { return /\.(jpe?g|png|gif|webp)$/i.test(nombre || ''); }
+
+//Las fotos y soportes de una RQ. Las fotos se ven ahí mismo: una grande y, debajo,
+//las miniaturas para cambiarla. Cada archivo es { URL, RUTA, NOMBRE_ORIGINAL }
+function rdRqArchivosHtml(archivos) {
+    archivos = archivos || [];
+    if (!archivos.length) { return '<p class="rd-ayuda">Esta RQ no tiene fotos ni soportes.</p>'; }
+    var fotos = archivos.filter(function (a) { return rdEsFoto(a.RUTA); });
+    var otros = archivos.filter(function (a) { return !rdEsFoto(a.RUTA); });
+    var h = '';
+    if (fotos.length) {
+        h += '<div class="rq-visor"><a class="rq-visor-grande" href="' + rdEsc(fotos[0].URL) + '" target="_blank" rel="noopener" title="Abrir en tamaño completo">' +
+             '<img src="' + rdEsc(fotos[0].URL) + '" alt="Foto de la RQ"></a>';
+        if (fotos.length > 1) {
+            h += '<div class="rq-visor-minis">' + fotos.map(function (a, i) {
+                return '<button type="button" class="rq-mini' + (i === 0 ? ' activa' : '') + '" data-url="' + rdEsc(a.URL) + '" title="' + rdEsc(a.NOMBRE_ORIGINAL || '').replace(/"/g, '&quot;') + '">' +
+                       '<img src="' + rdEsc(a.URL) + '" alt="Foto ' + (i + 1) + '"></button>';
+            }).join('') + '</div>';
+        }
+        h += '</div>';
+    }
+    if (otros.length) {
+        h += '<div class="dq-arch">' + otros.map(function (a) {
+            return '<a href="' + rdEsc(a.URL) + '" target="_blank" rel="noopener"><i class="fa fa-file-pdf-o"></i> ' + rdEsc(a.NOMBRE_ORIGINAL) + '</a>';
+        }).join('') + '</div>';
+    }
+    return h;
+}
+//Tocar una miniatura la pone en grande
+$(document).on('click', '.rq-mini', function () {
+    var visor = $(this).closest('.rq-visor'), url = $(this).attr('data-url');
+    visor.find('.rq-visor-grande').attr('href', url).find('img').attr('src', url);
+    visor.find('.rq-mini').removeClass('activa'); $(this).addClass('activa');
+});
+
+//El detalle de una RQ: número, peaje, quién la pidió, los ítems con su cantidad y justificación,
+//la observación y las fotos. d es lo que responde RQControl?op=mostrar; fila, lo que ya se tenía del listado
+function rdRqDetalleHtml(d, fila) {
+    fila = fila || {};
+    var q = d.rq || {}, u = (q.TIPO_RQ || fila.TIPO_RQ) === 'U';
+    var dias = parseInt(fila.DIAS != null ? fila.DIAS : q.DIAS_EN_ESTADO, 10) || 0;
+    var h = '<div class="dq-cab"><span class="cd-rq ' + (u ? 'cd-rq-u' : '') + '">' + (u ? 'RQ U-' : 'RQ-') + rdEsc(q.NUMERO_RQ || fila.NUMERO_RQ) + '</span>' +
+            (u ? ' <span class="rd-tag rd-tag-mal">Urgente</span>' : '') + (q.NOM_RQ_ESTADO ? ' <span class="rd-tag">' + rdEsc(q.NOM_RQ_ESTADO) + '</span>' : '') + '</div>' +
+            '<div class="dq-datos">' +
+            '<div><span>Peaje</span><b>' + rdEsc(q.NOM_CENTRO_OP || fila.NOM_CENTRO_OP) + '</b></div>' +
+            '<div><span>Proyecto</span><b>' + rdEsc(q.NOM_PROYECTO || fila.NOM_PROYECTO) + '</b></div>' +
+            '<div><span>La pidió</span><b>' + rdEsc(q.SOLICITA || fila.SOLICITA || '') + '</b></div>' +
+            '<div><span>Fecha</span><b>' + rdFecha(q.FECHA_RQ || fila.FECHA_RQ) + ' · ' + dias + (dias === 1 ? ' día' : ' días') + ' en este estado</b></div></div>';
+    var it = d.items || [];
+    if (it.length) {
+        h += '<div class="dq-sub">Qué se pide (' + it.length + ')</div><ol class="dq-items">';
+        it.forEach(function (x) {
+            h += '<li><b>' + rdEsc(x.DESCRIPCION) + '</b> · ' + rdEsc(String(parseFloat(x.CANTIDAD))) + ' ' + rdEsc(x.UNIDAD || '') +
+                 (x.JUSTIFICACION ? '<div class="dq-just">' + rdEsc(x.JUSTIFICACION) + '</div>' : '') + '</li>';
+        });
+        h += '</ol>';
+    }
+    if (q.OBSERVACION_SST) { h += '<div class="dq-sub">Observación</div><div class="dq-just">' + rdEsc(q.OBSERVACION_SST) + '</div>'; }
+    h += '<div class="dq-sub">Fotos y soportes (' + (d.archivos || []).length + ')</div>' + rdRqArchivosHtml(d.archivos);
+    return h;
+}
+
+//Abre una ventana con el detalle de una RQ y sus fotos. Si la persona tiene el módulo en su menú,
+//sale el enlace para abrirla allá (donde se aprueba, se rechaza o se corrige)
+function rdVerRQ(id) {
+    var m = $('#rdModalRQ');
+    if (!m.length) {
+        m = $('<div class="modal fade rd-modal-encima" id="rdModalRQ" tabindex="-1" role="dialog"><div class="modal-dialog modal-lg" role="document"><div class="modal-content">' +
+              '<div class="modal-header rd-modal-cab"><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>' +
+              '<h4 class="modal-title">Requisición</h4></div><div class="modal-body" id="rdModalRQCuerpo"></div></div></div></div>').appendTo('body');
+    }
+    $('#rdModalRQCuerpo').html('<p class="rd-vacio">Cargando...</p>');
+    m.modal('show');
+    $.getJSON('../Control/RQControl.php?op=mostrar&id=' + encodeURIComponent(id))
+        .done(function (d) {
+            var ir = $('.side-menu a[href="RQVista.php"]').length //solo si tiene el módulo de RQ
+                ? '<div class="rd-acciones"><a class="btn btn-default" href="RQVista.php?abrir=' + parseInt(id, 10) + '"><i class="fa fa-wrench"></i> Abrir en Requisiciones</a></div>' : '';
+            $('#rdModalRQCuerpo').html(rdRqDetalleHtml(d, {}) + ir);
+        })
+        .fail(function (xhr) { $('#rdModalRQCuerpo').html('<p class="rd-vacio">' + rdEsc(rdError(xhr, 'No se pudo abrir la RQ.')) + '</p>'); });
+}
+$(document).on('click', '.btn-ver-rq', function (e) { e.preventDefault(); rdVerRQ($(this).attr('data-id')); });
+
+//Las miniaturas de una RQ en una fila de tabla: hasta 3 fotos y cuántas más hay. Tocarlas abre el detalle
+function rdRqMinisFila(idRq, archivos) {
+    var lista = (archivos ? String(archivos).split('|') : []).filter(function (x) { return x; });
+    if (!lista.length) { return ''; }
+    var fotos = lista.filter(rdEsFoto), h = '<div class="cd-rq-fotos">';
+    fotos.slice(0, 3).forEach(function (f) {
+        h += '<a href="#" class="btn-ver-rq" data-id="' + parseInt(idRq, 10) + '" title="Ver las fotos de la RQ"><img src="' + RD_RUTA_RQ + rdEsc(f) + '" alt="Foto de la RQ" loading="lazy"></a>';
+    });
+    var mas = lista.length - Math.min(3, fotos.length);
+    if (mas > 0) { h += '<a href="#" class="btn-ver-rq cd-rq-mas" data-id="' + parseInt(idRq, 10) + '">+' + mas + '</a>'; }
+    return h + '</div>';
+}

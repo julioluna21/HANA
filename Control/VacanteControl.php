@@ -28,7 +28,7 @@ if (!HanaDB::esCoordinador((int)$_SESSION['Idcolaborador'])) { vacError(403, 'La
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $V   = new Vacante();
 $hoy = date('Y-m-d');
-$ultimoEditable = HanaFechas::ventana()[1]; //las fechas se pueden adelantar hasta mañana
+$ultimoEditable = HanaFechas::ventana()[1]; //las fechas no pueden pasar de hoy
 $centros = array();
 foreach (HanaDB::centrosCoordinador($idColaborador) as $c) { $centros[(int)$c['ID_CENTRO_OP']] = $c; } //los de sus proyectos
 
@@ -72,7 +72,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $d['motivo'] = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 150);
         if ($d['motivo'] === null) { vacError(400, 'Escribe el motivo de la vacante.'); }
         $d['fecha'] = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
-        if ($d['fecha'] === '' || $d['fecha'] > $ultimoEditable) { vacError(400, 'La fecha de la vacante no es válida o es posterior a mañana.'); }
+        if ($d['fecha'] === '' || $d['fecha'] > $ultimoEditable) { vacError(400, 'La fecha de la vacante no es válida o es posterior a hoy.'); }
 
         //El acuerdo de servicio: 5 días hábiles desde la vacante, sin festivos.
         //Al editar se conserva el que tenía, salvo que cambie la fecha de la vacante
@@ -85,7 +85,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (isset($_POST['cierre']) && trim($_POST['cierre']) !== '') {
             $d['cierre'] = HanaVal::fecha($_POST['cierre']);
             if ($d['cierre'] === '' || $d['cierre'] < $d['fecha'] || $d['cierre'] > $ultimoEditable) {
-                vacError(400, 'La fecha de cierre debe estar entre la fecha de la vacante y mañana.');
+                vacError(400, 'La fecha de cierre debe estar entre la fecha de la vacante y hoy.');
             }
         }
         //Coherencia: cubierta o cancelada lleva fecha de cierre; abierta no

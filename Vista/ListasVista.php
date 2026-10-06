@@ -15,7 +15,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 ?>  
         <!-- Estilos de la lista de chequeo: botones grandes, barra de avance y firma en pantalla -->
         <link href="../public/css/listas.css?v=1" rel="stylesheet">
-        <link href="../public/css/reporte.css?v=13" rel="stylesheet">
+        <link href="../public/css/reporte.css?v=15" rel="stylesheet">
         <!-- Contenido aqui va todo el DIV del contenido.. -->
 
         <!--script type="text/javascript">
@@ -67,12 +67,8 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                 <input type="hidden" class="form-control" name="idGrupo" id="idGrupo">
                                                 <input type="hidden" class="form-control" name="idLista" id="idLista">
                                                 <input class="form-control" name="fechaEncuesta" id="fechaEncuesta" value="" readonly>
-                                                <!-- Margen de un día: la lista puede ser de ayer, hoy o mañana -->
-                                                <div class="rd-dia-rapido" id="diaLista" role="group" aria-label="Día de la lista">
-                                                    <button type="button" class="btn btn-default btn-sm" data-dia="-1">Ayer</button>
-                                                    <button type="button" class="btn btn-default btn-sm active" data-dia="0">Hoy</button>
-                                                    <button type="button" class="btn btn-default btn-sm" data-dia="1">Mañana</button>
-                                                </div>
+                                                <!-- La lista es de hoy. Si el administrador habilitó otro día, su botón lo pinta ListasAjax.js -->
+                                                <div class="rd-dia-rapido" id="diaLista" role="group" aria-label="Día de la lista"></div>
                                                 <input type="hidden" class="form-control" name="nombreColaborador" id="nombreColaborador" value="<?php echo $_SESSION['Idcolaborador'] ?>">
 
                                             </div>
@@ -231,13 +227,13 @@ if (isset($_SESSION['IdUsuarios'])) {
                 100% { box-shadow: 0 0 0 0 rgba(217,83,79,0); }
             }
         </style>
-        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
+        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
         <script>
           //Archivos al llenar una lista nueva: si están permitidos y el tamaño máximo (Parámetros del sistema)
           var HANA_ADJ_LISTAS = <?php echo HanaConfig::si('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
           var HANA_ADJ_MAX_MB = <?php echo (int)max(1, HanaConfig::num('ADJUNTOS_MAX_MB', 10)); ?>;
         </script>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=6"></script>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=7"></script>
         <script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script>
 <?php
     } else {

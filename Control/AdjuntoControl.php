@@ -14,7 +14,7 @@
     COMUNICACION  subir, cambiar la descripción y borrar: el coordinador del
                   proyecto. Ver: además 20M, 21M y 22M.
     LISTA         subir, cambiar y borrar: solo quien llenó esa lista,
-                  mientras esté dentro del margen de días. Ver: además 12M,
+                  y solo el día de la lista (hoy o un día habilitado). Ver: además 12M,
                   20M, 21M y quien ve ese peaje en el tablero (19M).
   Y el administrador puede apagar los adjuntos de cada módulo en Parámetros.
 
@@ -87,7 +87,7 @@ function adjAcceso($modulo, $idRegistro, $idUsuario, $idColaborador)
                                          AND ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = ?", 'ii', array($idUsuario, (int)$r['CENTRO']));
         $diligencia = isset($coordina[(int)$r['PROYECTO']])
                    || (!HanaConfig::si('LISTAS_SOLO_COORDINADOR') && hanaTienePermiso('11M') && $asignado);
-        //Los archivos de una lista los cambia solo quien la llenó, dentro del margen de días
+        //Los archivos de una lista los cambia solo quien la llenó, y solo si la lista es de hoy o de un día habilitado
         $editar = HanaConfig::si('ADJUNTOS_LISTAS') && $diligencia && (int)$r['DUENO'] === (int)$idColaborador && HanaFechas::enVentana($r['FECHA']);
         $ver = $diligencia || $asignado || $verTodos || hanaTienePermiso('12M');
         //El tablero (19M): el jefe mayor ve todo; el coordinador su proyecto; el jefe su peaje
@@ -105,7 +105,7 @@ function adjCargar($modulo, $id, $idUsuario, $idColaborador, $paraEditar)
     if ($m === '') { adjError(400, 'Módulo no válido.'); }
     $a = adjAcceso($m, $id, $idUsuario, $idColaborador);
     if (!$a || !$a['ver']) { adjError(404, 'No se encontró el registro, o no tienes acceso a él.'); }
-    if ($paraEditar && !$a['editar']) { adjError(403, 'No puedes cambiar los archivos de este registro (o los adjuntos están desactivados, o ya pasó el margen de días).'); }
+    if ($paraEditar && !$a['editar']) { adjError(403, 'No puedes cambiar los archivos de este registro (o los adjuntos están desactivados, o la lista ya no es de hoy ni de un día habilitado).'); }
     return $a;
 }
 

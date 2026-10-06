@@ -6,6 +6,7 @@
 //    amarillo la normal, rojo la urgente (RQ U)
 //  - El resultado de sus propias RQ (aprobada o rechazada), a quien la pidió
 require_once __DIR__ . "/../Conexion/ConexionDB.php";
+require_once __DIR__ . "/RQEstados.php";
 
 class Campana
 {
@@ -73,28 +74,29 @@ class Campana
         //Quien aprueba ve las RQ de los demás: pendientes (sin leer) y, si ya se
         //decidieron, como leídas y marcadas "Resuelta", aunque no las haya abierto
         $pendientes = $aprueba ? "(q.ID_COLABORADOR_SOLICITA <> $c)" : "0 = 1";
+        $solicitada = RqEstado::SOLICITADA;
+        $decididas  = RqEstado::APROBADA . ", " . RqEstado::RECHAZADA;
         return "SELECT 'rq' AS tipo,
                        q.ID_RQ AS id,
-                       CONCAT(IF(q.TIPO_RQ = 'U', 'RQ U-', 'RQ-'), q.NUMERO_RQ, ' · ', e.NOM_RQ_ESTADO) AS titulo,
+                       CONCAT(IF(q.TIPO_RQ = 'U', 'RQ U-', 'RQ-'), q.NUMERO_RQ, ' · ', " . RqEstado::sqlCampo('q.ID_RQ_ESTADO', 'NOM_RQ_ESTADO') . ") AS titulo,
                        c.NOM_CENTRO_OP AS estacion,
                        q.FEC_ESTADO AS fecha,
-                       CASE WHEN q.ID_RQ_ESTADO <> 1 THEN 'baja'
+                       CASE WHEN q.ID_RQ_ESTADO <> $solicitada THEN 'baja'
                             WHEN q.TIPO_RQ = 'U'     THEN 'alta'
                             ELSE 'media' END AS prioridad,
-                       CASE WHEN q.ID_RQ_ESTADO <> 1 AND q.ID_COLABORADOR_SOLICITA = $c THEN 'Tu RQ'
-                            WHEN q.ID_RQ_ESTADO <> 1 THEN 'Resuelta'
+                       CASE WHEN q.ID_RQ_ESTADO <> $solicitada AND q.ID_COLABORADOR_SOLICITA = $c THEN 'Tu RQ'
+                            WHEN q.ID_RQ_ESTADO <> $solicitada THEN 'Resuelta'
                             WHEN q.TIPO_RQ = 'U'     THEN 'RQ urgente'
                             ELSE 'RQ normal' END AS relevancia,
                        -- Leída si la abrió, o si ya se decidió y no es suya (a quien la pidió sí le llega la respuesta)
-                       CASE WHEN l.ID_REGISTRO IS NOT NULL OR (q.ID_RQ_ESTADO <> 1 AND q.ID_COLABORADOR_SOLICITA <> $c) THEN 1 ELSE 0 END AS leida
+                       CASE WHEN l.ID_REGISTRO IS NOT NULL OR (q.ID_RQ_ESTADO <> $solicitada AND q.ID_COLABORADOR_SOLICITA <> $c) THEN 1 ELSE 0 END AS leida
                   FROM rq q
-                  INNER JOIN rq_estado e ON e.ID_RQ_ESTADO = q.ID_RQ_ESTADO
                   INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = q.ID_CENTRO_OP
                   LEFT  JOIN notificacion_leida l ON l.TIPO = 'RQ' AND l.ID_REGISTRO = q.ID_RQ AND l.ID_USUARIO = $u
-                 WHERE q.ESTADO = 1
+                 WHERE q.ID_RQ_ESTADO <> " . RqEstado::ANULADA . "
                    AND q.FEC_ESTADO >= DATE_SUB(NOW(), INTERVAL $dias DAY)
                    AND ($pendientes
-                        OR (q.ID_COLABORADOR_SOLICITA = $c AND q.ID_RQ_ESTADO IN (3, 7)))";
+                        OR (q.ID_COLABORADOR_SOLICITA = $c AND q.ID_RQ_ESTADO IN ($decididas)))";
     }
 
     //Las dos juntas

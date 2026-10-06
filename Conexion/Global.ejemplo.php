@@ -11,7 +11,7 @@
       Si el paquete trajera uno, al subirlo al hosting pisaría el de producción
       y el sistema dejaría de conectarse.
     - Las credenciales nunca deben compartirse en un archivo que se le pasa a
-      otra persona o a una IA.
+      otra persona.
 
   Los valores de abajo son los de XAMPP en un equipo de desarrollo.
 */

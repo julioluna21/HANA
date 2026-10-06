@@ -18,7 +18,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if ($esCoordinador || in_array("5M", $modulosAcceso) || in_array("36M", $modulosAcceso)) { //5M: campos y anular; 36M: autorizar fondos
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -87,11 +87,8 @@ if (isset($_SESSION['IdUsuarios'])) {
               <div class="form-group col-md-3 col-sm-6 col-xs-12">
                 <label for="arqFecha">Fecha: <span class="rd-req">*</span></label>
                 <input type="date" id="arqFecha" name="fecha" class="form-control">
-                <div class="rd-dia-rapido" id="arqRapido" role="group" aria-label="Día del arqueo">
-                  <button type="button" class="btn btn-default btn-xs" data-dia="-1">Ayer</button>
-                  <button type="button" class="btn btn-default btn-xs" data-dia="0">Hoy</button>
-                  <button type="button" class="btn btn-default btn-xs" data-dia="1">Mañana</button>
-                </div>
+                <!-- Solo hoy; si el administrador habilitó otro día, su botón lo pinta ArqueoAjax.js -->
+                <div class="rd-dia-rapido" id="arqRapido" role="group" aria-label="Día del arqueo"></div>
               </div>
               <div class="form-group col-md-2 col-sm-6 col-xs-6">
                 <label for="arqHora">Hora: <span class="rd-req">*</span></label>
@@ -224,8 +221,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
-<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=7"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

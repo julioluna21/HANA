@@ -11,6 +11,10 @@
     - Se corrige el mes actual y los anteriores que diga el parámetro
       AUS_MESES_CORREGIBLES, mientras el mes no esté cerrado.
     - El coordinador cierra el mes al entregarlo; lo reabre quien tenga 23M.
+    - Registro rápido (ausencia, ausenciaCambiar, ausenciaBorrar): una ausencia
+      a la vez, eligiendo día, cargo y motivo. Escribe en las mismas celdas de
+      la matriz y con las mismas reglas, así que el consolidado, el Excel,
+      Power BI y el historial no cambian.
 */
 session_start();
 require_once __DIR__ . "/../Modelo/AusentismoModelo.php";
@@ -113,6 +117,42 @@ function ausMotivo($proy, $centro, $cerrado, $anio, $mes, $editaTodo)
     return '';
 }
 
+//---------------------------------------------------------------------------
+// Registro rápido: lo que comparten registrar, cambiar y borrar una ausencia
+//---------------------------------------------------------------------------
+//Un día pedido (AAAA-MM-DD) que se pueda editar en ese centro: revisa el permiso,
+//el cierre del mes y los meses corregibles. Devuelve [fecha, año, mes, día]
+function ausDiaEditable($A, $proy, $centro, $valor, $editaTodo)
+{
+    $fecha = HanaVal::fecha($valor);
+    if ($fecha === '') { ausError(400, 'Elige el día de la ausencia.'); }
+    $anio = (int)substr($fecha, 0, 4); $mes = (int)substr($fecha, 5, 2);
+    $cierre = $A->cierre($proy['ID_PROYECTO'], $anio, $mes);
+    $motivo = ausMotivo($proy, $centro, $cierre && (int)$cierre['CERRADO'] === 1, $anio, $mes, $editaTodo);
+    if ($motivo !== '') { ausError(403, $motivo); } //mes cerrado, sin permiso o fuera de lo corregible
+    return array($fecha, $anio, $mes, (int)substr($fecha, 8, 2));
+}
+
+//El cargo y el motivo pedidos, que existan y apliquen a ese centro. Devuelve [idCargo, idNovedad]
+function ausCargoMotivo($A, $centro, $cargo, $novedad)
+{
+    $cargo = (int)$cargo; $novedad = (int)$novedad;
+    $cargos = array(); foreach ($A->cargos() as $c) { $cargos[(int)$c['ID_CARGO_AUS']] = $c; }
+    $novedades = array(); foreach ($A->novedades() as $n) { $novedades[(int)$n['ID_NOVEDAD_AUS']] = $n; }
+    if (!isset($cargos[$cargo]) || !Ausentismo::cargoAplica($cargos[$cargo], $centro['TIPO_CENTRO'])) { ausError(400, 'Elige un cargo de este centro.'); }
+    if (!isset($novedades[$novedad]) || ($novedades[$novedad]['ID_CARGO_AUS'] && (int)$novedades[$novedad]['ID_CARGO_AUS'] !== $cargo)) {
+        ausError(400, 'Elige un motivo que aplique a ese cargo.');
+    }
+    return array($cargo, $novedad);
+}
+
+//Cuántas personas: un entero de 1 a 999
+function ausPersonas($valor)
+{
+    if (!preg_match('/^\d{1,3}$/', (string)$valor) || (int)$valor < 1) { ausError(400, 'Escribe cuántas personas (de 1 a 999).'); }
+    return (int)$valor;
+}
+
 $proyectos = ausProyectos($idColaborador, $verTodos, $editaTodo, $jefeDe);
 function ausProyecto($proyectos)
 {
@@ -186,6 +226,60 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $n = $A->guardarCeldas($centro['ID_CENTRO_OP'], $anio, $mes, $celdas, $idColaborador, $ahora);
         echo json_encode(array('ok' => true, 'mensaje' => 'Ausentismo de ' . $centro['NOM_CENTRO_OP'] . ' guardado (' . $n . ($n === 1 ? ' celda).' : ' celdas).')),
                          JSON_UNESCAPED_UNICODE);
+        break;
+
+    //-----------------------------------------------------------------------
+    // Registro rápido: una ausencia a la vez
+    //-----------------------------------------------------------------------
+    //Registrar: suma las personas a lo que ya hubiera ese día con ese cargo y ese motivo
+    case 'ausencia':
+        $proy = ausProyecto($proyectos);
+        $centro = ausCentro($proy);
+        list($fecha, $anio, $mes, $dia) = ausDiaEditable($A, $proy, $centro, isset($_POST['fecha']) ? $_POST['fecha'] : '', $editaTodo);
+        list($cargo, $novedad) = ausCargoMotivo($A, $centro, isset($_POST['cargo']) ? $_POST['cargo'] : 0, isset($_POST['novedad']) ? $_POST['novedad'] : 0);
+        $personas = ausPersonas(isset($_POST['cantidad']) ? $_POST['cantidad'] : '');
+        $total = $A->cantidad($centro['ID_CENTRO_OP'], $fecha, $cargo, $novedad) + $personas; //lo que había más lo nuevo
+        if ($total > 999) { ausError(400, 'Con esas personas el día pasaría de 999. Revisa lo que ya está registrado.'); }
+        $A->guardarCeldas($centro['ID_CENTRO_OP'], $anio, $mes, array(array('cargo' => $cargo, 'novedad' => $novedad, 'dia' => $dia, 'cantidad' => $total)), $idColaborador, $ahora);
+        echo json_encode(array('ok' => true, 'mensaje' => 'Ausencia registrada en ' . $centro['NOM_CENTRO_OP'] . '.'), JSON_UNESCAPED_UNICODE);
+        break;
+
+    //Cambiar una ausencia ya registrada: el día, el cargo, el motivo o cuántas personas.
+    //Llega la celda original (fecha0, cargo0, novedad0) y cómo debe quedar
+    case 'ausenciaCambiar':
+        $proy = ausProyecto($proyectos);
+        $centro = ausCentro($proy);
+        list($fecha0, $anio0, $mes0, $dia0) = ausDiaEditable($A, $proy, $centro, isset($_POST['fecha0']) ? $_POST['fecha0'] : '', $editaTodo);
+        list($fecha, $anio, $mes, $dia)     = ausDiaEditable($A, $proy, $centro, isset($_POST['fecha']) ? $_POST['fecha'] : '', $editaTodo);
+        $cargo0 = isset($_POST['cargo0']) ? (int)$_POST['cargo0'] : 0;
+        $novedad0 = isset($_POST['novedad0']) ? (int)$_POST['novedad0'] : 0;
+        if ($A->cantidad($centro['ID_CENTRO_OP'], $fecha0, $cargo0, $novedad0) < 1) { ausError(404, 'Esa ausencia ya no está registrada. Actualiza la página.'); }
+        list($cargo, $novedad) = ausCargoMotivo($A, $centro, isset($_POST['cargo']) ? $_POST['cargo'] : 0, isset($_POST['novedad']) ? $_POST['novedad'] : 0);
+        $personas = ausPersonas(isset($_POST['cantidad']) ? $_POST['cantidad'] : '');
+        $misma = $fecha === $fecha0 && $cargo === $cargo0 && $novedad === $novedad0;
+        if ($misma) {
+            //Mismo día, cargo y motivo: solo cambió cuántas personas
+            $A->guardarCeldas($centro['ID_CENTRO_OP'], $anio, $mes, array(array('cargo' => $cargo, 'novedad' => $novedad, 'dia' => $dia, 'cantidad' => $personas)), $idColaborador, $ahora);
+        } else {
+            //Cambió de día, cargo o motivo: sale de donde estaba y se suma en el destino
+            $total = $A->cantidad($centro['ID_CENTRO_OP'], $fecha, $cargo, $novedad) + $personas;
+            if ($total > 999) { ausError(400, 'Con esas personas el día pasaría de 999. Revisa lo que ya está registrado.'); }
+            $A->guardarCeldas($centro['ID_CENTRO_OP'], $anio0, $mes0, array(array('cargo' => $cargo0, 'novedad' => $novedad0, 'dia' => $dia0, 'cantidad' => 0)), $idColaborador, $ahora);
+            $A->guardarCeldas($centro['ID_CENTRO_OP'], $anio, $mes, array(array('cargo' => $cargo, 'novedad' => $novedad, 'dia' => $dia, 'cantidad' => $total)), $idColaborador, $ahora);
+        }
+        echo json_encode(array('ok' => true, 'mensaje' => 'Ausencia actualizada.'), JSON_UNESCAPED_UNICODE);
+        break;
+
+    //Borrar una ausencia: la celda vuelve a cero (el cambio queda en el historial)
+    case 'ausenciaBorrar':
+        $proy = ausProyecto($proyectos);
+        $centro = ausCentro($proy);
+        list($fecha, $anio, $mes, $dia) = ausDiaEditable($A, $proy, $centro, isset($_POST['fecha']) ? $_POST['fecha'] : '', $editaTodo);
+        $cargo = isset($_POST['cargo']) ? (int)$_POST['cargo'] : 0;
+        $novedad = isset($_POST['novedad']) ? (int)$_POST['novedad'] : 0;
+        if ($A->cantidad($centro['ID_CENTRO_OP'], $fecha, $cargo, $novedad) < 1) { ausError(404, 'Esa ausencia ya no está registrada. Actualiza la página.'); }
+        $A->guardarCeldas($centro['ID_CENTRO_OP'], $anio, $mes, array(array('cargo' => $cargo, 'novedad' => $novedad, 'dia' => $dia, 'cantidad' => 0)), $idColaborador, $ahora);
+        echo json_encode(array('ok' => true, 'mensaje' => 'Ausencia borrada.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //El coordinador cierra el mes al entregar el reporte

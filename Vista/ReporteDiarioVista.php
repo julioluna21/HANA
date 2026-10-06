@@ -34,7 +34,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
     //Entra quien diligencia listas (11M), las edita (12M), administra centros (5M),
     //controla (19M) o coordina un proyecto
-    if (in_array("11M", $modulosAcceso) || in_array("12M", $modulosAcceso) || in_array("5M", $modulosAcceso) || in_array("19M", $modulosAcceso) || in_array("15M", $modulosAcceso) || in_array("21M", $modulosAcceso) || $esCoordinador
+    if (in_array("11M", $modulosAcceso) || in_array("12M", $modulosAcceso) || in_array("5M", $modulosAcceso) || in_array("19M", $modulosAcceso) || in_array("15M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("37M", $modulosAcceso) || $esCoordinador
         || count(preg_grep('/^P_/', $modulosAcceso)) > 0) { //o alguna casilla de las pantallas del coordinador
 
         //Alertas pequeñas del día en los mosaicos: ya registrado (verde) o falta (ámbar)
@@ -64,7 +64,7 @@ if (isset($_SESSION['IdUsuarios'])) {
            Los que no están listos se muestran como "Próximamente", sin enlace */
         $mosaicos = array(
             array(array('P_HOY'), 'HoyVista.php', 'fa-map-marker', 'Hoy en qué estás',
-                  'Dónde estás, tu horario y lo que haces hora por hora', true, $esCoordinador ? $alerta['hoy'] : ''),
+                  'Dónde estás, tu horario y lo que hiciste hoy', true, $esCoordinador ? $alerta['hoy'] : ''),
             array(array('15M'), 'RQVista.php', 'fa-wrench', 'Requisiciones (RQ)',
                   $esCoordinador ? 'Las RQ de tus peajes' : 'Pide lo que necesita tu peaje', true, ''),
             array(array('LISTAS'), 'ListasVista.php', 'fa-check-square-o', 'Listas de chequeo',
@@ -86,7 +86,9 @@ if (isset($_SESSION['IdUsuarios'])) {
             array(array('19M'), 'ControlDiarioVista.php', 'fa-list-alt', 'Reporte general',
                   'Todo lo que enviaron coordinadores y jefes, por módulo', true, ''),
             array(array('19M'), 'TableroVista.php', 'fa-th-large', 'Tablero por proyectos',
-                  'El reporte de cada coordinador y jefe de peaje', true, '')
+                  'El reporte de cada coordinador y jefe de peaje', true, ''),
+            array(array('37M'), 'InformeMensualVista.php', 'fa-file-pdf-o', 'Informe mensual',
+                  'Todo lo del mes en un PDF: general y por proyecto', true, '')
         );
 
         include('head.php');
@@ -107,7 +109,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             $resumen = 'Para hoy te falta ' . (count($faltan) ? implode(', ', $faltan) . ' y ' : '') . $ultimo . '.';
         }
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">

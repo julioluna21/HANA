@@ -9,7 +9,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("21M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -31,7 +31,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           </div>
           <div class="adm-resumen" id="admResumen"></div>
           <div class="table-responsive" id="admResultado"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-            <thead><tr><th>Fecha</th><th>Persona</th><th>Situación</th><th>Dónde</th><th>Horario</th><th class="rd-num-col">Bitácora</th><th>Registró</th><th></th></tr></thead><tbody id="admFilas"><tr><td colspan="8" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
+            <thead><tr><th>Fecha</th><th>Persona</th><th>Situación</th><th>Dónde</th><th>Horario</th><th>Qué hizo</th><th>Registró</th><th></th></tr></thead><tbody id="admFilas"><tr><td colspan="8" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
         </div>
       </div>
     </div>
@@ -51,8 +51,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
-<script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=5"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=6"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

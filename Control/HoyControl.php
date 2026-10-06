@@ -16,9 +16,9 @@ header('Content-Type: application/json; charset=utf-8');
 //las 7 de la noche "hoy" ya sería mañana
 date_default_timezone_set('America/Bogota');
 
-//Se registran y corrigen ayer, hoy y mañana (HanaFechas::MARGEN_DIAS).
-//Los días más viejos quedan solo de consulta
-define('HOY_MAX_TEXTO', 1000); //caracteres por bloque de una hora
+//Solo se registra y corrige HOY. Otro día, únicamente si el administrador se lo
+//habilitó a la persona (Parámetros del sistema → Días habilitados). Lo demás queda de consulta
+define('HOY_MAX_ACTIVIDAD', 3000); //caracteres del texto "qué hiciste hoy"
 
 function hoyError($codigo, $mensaje)
 {
@@ -84,6 +84,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'hoy'           => $hoy,
             'primerEditable'=> $primerEditable,
             'ultimoEditable'=> $ultimoEditable,
+            'habilitados'   => HanaFechas::habilitados($idColaborador), //los días que el administrador le abrió
             'situaciones'   => Hoy::$SITUACIONES,
             'centros'       => HanaDB::centrosCoordinador($idColaborador) //los peajes de sus proyectos
         ), JSON_UNESCAPED_UNICODE);
@@ -95,10 +96,11 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'obtener':
         $fecha = hoyFecha(isset($_GET['fecha']) ? $_GET['fecha'] : '');
         if ($fecha === '') { hoyError(400, 'La fecha no es válida.'); }
-        if ($fecha > $ultimoEditable) { hoyError(400, 'Solo se puede adelantar hasta mañana.'); }
+        //Un día que no ha llegado solo se abre si el administrador lo habilitó
+        if ($fecha > $hoy && !HanaFechas::habilitado($fecha, $idColaborador)) { hoyError(400, 'Ese día todavía no llega: solo se registra hoy.'); }
         echo json_encode(array(
             'fecha'    => $fecha,
-            'editable' => $fecha >= $primerEditable && $fecha <= $ultimoEditable,
+            'editable' => HanaFechas::enVentana($fecha, $idColaborador), //hoy, o un día habilitado
             'registro' => $Hoy->obtener($idColaborador, $fecha)
         ), JSON_UNESCAPED_UNICODE);
         break;
@@ -125,7 +127,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $fecha = hoyFecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         if ($fecha === '') { hoyError(400, 'La fecha no es válida.'); }
         if (!HanaFechas::enVentana($fecha)) {
-            hoyError(400, 'Ese día no se puede modificar: solo se registran ' . HanaFechas::textoVentana() . '.');
+            hoyError(400, 'Ese día no se puede modificar: solo se registra ' . HanaFechas::textoVentana() . '.');
         }
 
         $situacion = isset($_POST['situacion']) ? strtoupper(trim($_POST['situacion'])) : '';
@@ -136,13 +138,13 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'ingreso'     => null,
             'salida'      => null,
             'lugarOtro'   => null,
+            'actividad'   => null, //lo que hizo en el día: un solo texto (antes era un bloque por hora)
             'observacion' => hoyTexto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 2000),
-            'centros'     => array(),
-            'horas'       => array()
+            'centros'     => array()
         );
         if ($d['observacion'] === '') { $d['observacion'] = null; }
 
-        //Solo un día laboral lleva lugares, horario y bitácora. En descanso,
+        //Solo un día laboral lleva lugares, horario y actividad. En descanso,
         //incapacidad, vacaciones o permiso se guarda solo la situación
         if ($situacion === 'LABORAL') {
             $d['ingreso'] = hoyHora(isset($_POST['ingreso']) ? $_POST['ingreso'] : '');
@@ -169,13 +171,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                 hoyError(400, 'Marca al menos un peaje o escribe en qué otro lugar estuviste.');
             }
 
-            //Bitácora: llega como horas[7] = "texto". Los bloques vacíos no se guardan
-            foreach ((array)(isset($_POST['horas']) ? $_POST['horas'] : array()) as $hora => $texto) {
-                if (!ctype_digit((string)$hora) || (int)$hora > 23) { continue; }
-                $texto = hoyTexto($texto, HOY_MAX_TEXTO);
-                if ($texto !== '') { $d['horas'][(int)$hora] = $texto; }
-            }
-            ksort($d['horas']);
+            //Qué hizo en el día: un solo texto, obligatorio (es de lo que trata esta pantalla)
+            $d['actividad'] = hoyTexto(isset($_POST['actividad']) ? $_POST['actividad'] : '', HOY_MAX_ACTIVIDAD);
+            if ($d['actividad'] === '') { hoyError(400, 'Escribe qué hiciste hoy.'); }
         }
 
         //Todo o nada

@@ -1,4 +1,5 @@
-//Ausentismo (Fase 3): la matriz novedades × días de cada cargo, como en el Excel
+//Ausentismo (Fase 3): la matriz novedades × días de cada cargo, como en el Excel,
+//y el registro rápido: una ausencia a la vez (día, cargo, motivo y personas)
 var URL_AUS = '../Control/AusentismoControl.php';
 var cfgAus = null, proyAus = null, centroAus = null, datosAus = null;
 var cambiosAus = {};        //"cargo-novedad-dia" => cantidad (solo lo que cambió)
@@ -31,6 +32,14 @@ $(function () {
     $('#btnReabrir').on('click', function () { cierreAus('reabrir', '¿Reabrir este mes para que el coordinador lo pueda corregir?'); });
     $('#tabConsLink').on('shown.bs.tab', cargarConsolidado);
     $('#ausHistorial').on('toggle', function () { if (this.open) { cargarHistorial(); } });
+
+    //Registro rápido: registrar, cambiar y borrar una ausencia
+    $('#ausRapido').on('submit', registrarAusencia);
+    $('#rCargo').on('change', function () { llenarMotivos('#rNovedad', +this.value, 0); }); //los motivos dependen del cargo
+    $(document).on('change', '#cCargo', function () { llenarMotivos('#cNovedad', +this.value, 0); });
+    $(document).on('click', '.btn-aus-cambiar', function () { cambiarAusencia(+$(this).data('cargo'), +$(this).data('novedad'), +$(this).data('dia')); });
+    $(document).on('click', '.btn-aus-borrar', function () { borrarAusencia(+$(this).data('cargo'), +$(this).data('novedad'), +$(this).data('dia')); });
+    $(document).on('submit', '#formAusCambio', guardarCambioAusencia);
 });
 
 function confirmarSalida() {
@@ -71,7 +80,7 @@ function cargarAus() {
             //El jefe de peaje ve solo su peaje: sin consolidado ni Excel del proyecto
             $('#tabConsLink').parent().toggle(!!d.veProyecto);
             $('#btnExcel').toggle(!!d.veProyecto);
-            if (!d.veProyecto && $('#tabConsolidado').hasClass('active')) { $('a[href="#tabRegistrar"]').tab('show'); }
+            if (!d.veProyecto && $('#tabConsolidado').hasClass('active')) { $('a[href="#tabRapido"]').tab('show'); }
             $('#ausNota').html(d.editaTodo ? '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-unlock-alt"></i> Este mes está cerrado, pero tu permiso (25M) deja corregirlo. Cada cambio queda en el historial.</div>' : '');
             if ($('#ausHistorial').prop('open')) { cargarHistorial(); }
             $('#btnReabrir').toggle(!!(d.cerrado && cfgAus.puedeReabrir));
@@ -85,6 +94,7 @@ function cargarAus() {
             });
             $('#aCentros').html(h);
             pintarGrilla();
+            pintarRapido(); //el formulario de una ausencia y la lista de las registradas
             if ($('#tabConsolidado').hasClass('active')) { cargarConsolidado(); }
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el ausentismo.'); });
@@ -279,4 +289,155 @@ function cargarConsolidado() {
                 '<h4 class="rd-subtitulo">Por centro</h4>' + pc + '<h4 class="rd-subtitulo">Por cargo, día por día</h4>' + (h || '<p class="rd-vacio">Sin datos en este mes.</p>'));
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el consolidado.'); });
+}
+
+//===========================================================================
+// Registro rápido: una ausencia a la vez
+//   Se elige el día, el cargo, el motivo y cuántas personas. El servidor lo
+//   anota en la misma celda de la matriz (y en el historial), así que el
+//   consolidado, el Excel y Power BI no cambian.
+//===========================================================================
+function nombreCargoAus(id) {
+    var c = cfgAus.cargos.filter(function (x) { return +x.ID_CARGO_AUS === +id; })[0];
+    return c ? c.NOMBRE : 'Cargo ' + id; //un cargo desactivado ya no viene en la lista
+}
+function novedadAus(id) {
+    return cfgAus.novedades.filter(function (x) { return +x.ID_NOVEDAD_AUS === +id; })[0] || null;
+}
+//"2026-10" del mes que se está viendo
+function mesVistoAus() { return $('#aAnio').val() + '-' + rdDos(+$('#aMes').val()); }
+
+//Llena un selector de cargos con los que aplican al centro
+function llenarCargos(sel, elegido) {
+    var h = '<option value="">Elige el cargo</option>';
+    cargosDelCentro(centroAus.TIPO_CENTRO).forEach(function (c) {
+        h += '<option value="' + parseInt(c.ID_CARGO_AUS, 10) + '"' + (+c.ID_CARGO_AUS === +elegido ? ' selected' : '') + '>' + rdEsc(c.NOMBRE) + '</option>';
+    });
+    $(sel).html(h);
+}
+//Llena un selector de motivos con los que aplican a ese cargo
+function llenarMotivos(sel, idCargo, elegido) {
+    var h = '<option value="">' + (idCargo ? 'Elige el motivo' : 'Primero elige el cargo') + '</option>';
+    if (idCargo) {
+        novedadesDe(idCargo).forEach(function (n) {
+            h += '<option value="' + parseInt(n.ID_NOVEDAD_AUS, 10) + '"' + (+n.ID_NOVEDAD_AUS === +elegido ? ' selected' : '') + '>' +
+                 rdEsc(n.NOMBRE) + (+n.CUENTA_AUSENCIA ? '' : ' (no cuenta como ausencia)') + '</option>';
+        });
+    }
+    $(sel).html(h);
+}
+
+//Deja listo el formulario para el centro y el mes que se están viendo, y pinta la lista
+function pintarRapido() {
+    var mes = mesVistoAus();
+    var primero = mes + '-01', ultimo = mes + '-' + rdDos(datosAus.diasMes);
+    //El día arranca en hoy si hoy es de este mes; si no, en el primero del mes
+    $('#rFecha').attr({ min: primero, max: ultimo }).val(cfgAus.hoy.substring(0, 7) === mes ? cfgAus.hoy : primero);
+    llenarCargos('#rCargo', 0);
+    llenarMotivos('#rNovedad', 0, 0);
+    $('#rCantidad').val(1);
+    $('#ausRapido').toggle(!!datosAus.editable); //mes cerrado o solo consulta: no se registra
+    $('#ausNotaRapido').html(datosAus.editable ? '' : '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-lock"></i> ' + rdEsc(datosAus.motivo) + '</div>');
+    pintarAusencias();
+}
+
+//La lista de ausencias del mes: una fila por cada celda de la matriz que tiene personas
+function pintarAusencias() {
+    var filas = [];
+    $.each(datosAus.registros || {}, function (idCargo, porNovedad) {
+        $.each(porNovedad, function (idNovedad, porDia) {
+            $.each(porDia, function (dia, cantidad) {
+                if (+cantidad > 0) { filas.push({ cargo: +idCargo, novedad: +idNovedad, dia: +dia, cantidad: +cantidad }); }
+            });
+        });
+    });
+    filas.sort(function (a, b) { return b.dia - a.dia || a.cargo - b.cargo || a.novedad - b.novedad; }); //lo más reciente arriba
+
+    var mes = mesVistoAus(), h = '', total = 0;
+    filas.forEach(function (f) {
+        var n = novedadAus(f.novedad), fecha = rdAFecha(mes + '-' + rdDos(f.dia));
+        var cuenta = !n || +n.CUENTA_AUSENCIA === 1;
+        if (cuenta) { total += f.cantidad; }
+        var datos = ' data-cargo="' + f.cargo + '" data-novedad="' + f.novedad + '" data-dia="' + f.dia + '"';
+        h += '<tr><td class="aus-lista-dia">' + RD_DIAS_SEMANA[fecha.getDay()] + ' ' + rdDos(f.dia) + '/' + mes.substring(5) + '</td>' +
+             '<td>' + rdEsc(nombreCargoAus(f.cargo)) + '</td>' +
+             '<td' + (cuenta ? '' : ' class="aus-no-cuenta"') + '>' + rdEsc(n ? n.NOMBRE : 'Motivo ' + f.novedad) + (cuenta ? '' : ' (no cuenta como ausencia)') + '</td>' +
+             '<td class="rd-num-col"><strong>' + f.cantidad + '</strong></td>' +
+             '<td class="rd-nowrap">' + (datosAus.editable
+                 ? '<button type="button" class="btn btn-default btn-xs btn-aus-cambiar"' + datos + '><i class="fa fa-pencil"></i> Cambiar</button> ' +
+                   '<button type="button" class="btn btn-default btn-xs btn-aus-borrar"' + datos + '><i class="fa fa-trash"></i> Borrar</button>'
+                 : '') + '</td></tr>';
+    });
+    $('#ausLista').html(h || '<tr><td colspan="5" class="rd-vacio">Este peaje no tiene ausencias registradas en el mes.</td></tr>');
+    $('#ausTotalMes').html(filas.length ? '<span class="rd-tag rd-tag-pend">' + total + (total === 1 ? ' ausencia' : ' ausencias') + '</span>' : '');
+}
+
+//La matriz y el registro rápido escriben en las mismas celdas: no se mezclan cambios a medias
+function matrizSinGuardar() {
+    if (!Object.keys(cambiosAus).length) { return false; }
+    alert('Tienes cambios sin guardar en la matriz del mes. Guárdalos primero.');
+    return true;
+}
+
+function urlAusencia(op) { return URL_AUS + '?op=' + op + '&centro=' + centroAus.ID_CENTRO_OP + periodoAus(); }
+
+function registrarAusencia(e) {
+    e.preventDefault();
+    if (matrizSinGuardar()) { return; }
+    if (!$('#rFecha').val()) { alert('Elige el día de la ausencia.'); return; }
+    if (!$('#rCargo').val()) { alert('Elige el cargo.'); return; }
+    if (!$('#rNovedad').val()) { alert('Elige el motivo de la ausencia.'); return; }
+    hanaBoton('#btnRegistrarAus', true);
+    $.post(urlAusencia('ausencia'), $('#ausRapido').serialize(), null, 'json')
+        .done(function (r) { rdAviso(r.mensaje); cargarAus(); })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudo registrar la ausencia.')); })
+        .always(function () { hanaBoton('#btnRegistrarAus', false); });
+}
+
+//Ventana para cambiar una ausencia: el día, el cargo, el motivo o cuántas personas
+function cambiarAusencia(cargo, novedad, dia) {
+    if (matrizSinGuardar()) { return; }
+    var mes = mesVistoAus(), fecha = mes + '-' + rdDos(dia);
+    var cantidad = ((datosAus.registros[cargo] || {})[novedad] || {})[dia] || 1;
+    var h = '<form id="formAusCambio" autocomplete="off">' +
+            //La ausencia como está hoy, para que el servidor sepa cuál se cambia
+            '<input type="hidden" name="fecha0" value="' + fecha + '"><input type="hidden" name="cargo0" value="' + cargo + '"><input type="hidden" name="novedad0" value="' + novedad + '">' +
+            '<div class="row"><div class="form-group col-sm-6"><label for="cFecha">Día:</label>' +
+            '<input type="date" id="cFecha" name="fecha" class="form-control" min="' + mes + '-01" max="' + mes + '-' + rdDos(datosAus.diasMes) + '" value="' + fecha + '"></div>' +
+            '<div class="form-group col-sm-6"><label for="cCantidad">Personas:</label>' +
+            '<input type="number" id="cCantidad" name="cantidad" class="form-control" min="1" max="999" value="' + parseInt(cantidad, 10) + '"></div></div>' +
+            '<div class="form-group"><label for="cCargo">Cargo:</label><select id="cCargo" name="cargo" class="form-control"></select></div>' +
+            '<div class="form-group"><label for="cNovedad">Motivo de la ausencia:</label><select id="cNovedad" name="novedad" class="form-control"></select></div>' +
+            '<p class="rd-ayuda">El cambio queda en el historial, con tu nombre y la hora.</p>' +
+            '<div class="rd-acciones"><button type="submit" class="btn btn-success" id="btnGuardarCambioAus"><i class="fa fa-save"></i> Guardar cambio</button></div></form>';
+    var m = $('#modalAus');
+    if (!m.length) {
+        m = $('<div class="modal fade" id="modalAus" tabindex="-1" role="dialog"><div class="modal-dialog" role="document"><div class="modal-content">' +
+              '<div class="modal-header rd-modal-cab"><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>' +
+              '<h4 class="modal-title">Cambiar la ausencia</h4></div><div class="modal-body" id="modalAusCuerpo"></div></div></div></div>').appendTo('body');
+    }
+    $('#modalAusCuerpo').html(h);
+    llenarCargos('#cCargo', cargo);
+    llenarMotivos('#cNovedad', cargo, novedad);
+    m.modal('show');
+}
+
+function guardarCambioAusencia(e) {
+    e.preventDefault();
+    if (!$('#cCargo').val() || !$('#cNovedad').val()) { alert('Elige el cargo y el motivo.'); return; }
+    hanaBoton('#btnGuardarCambioAus', true);
+    $.post(urlAusencia('ausenciaCambiar'), $(this).serialize(), null, 'json')
+        .done(function (r) { $('#modalAus').modal('hide'); rdAviso(r.mensaje); cargarAus(); })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudo cambiar la ausencia.')); })
+        .always(function () { hanaBoton('#btnGuardarCambioAus', false); });
+}
+
+function borrarAusencia(cargo, novedad, dia) {
+    if (matrizSinGuardar()) { return; }
+    var n = novedadAus(novedad);
+    hanaConfirmar('¿Borrar la ausencia del día ' + dia + ' (' + nombreCargoAus(cargo) + ', ' + (n ? n.NOMBRE : 'motivo ' + novedad) + ')? Queda anotado en el historial.', function () {
+        $.post(urlAusencia('ausenciaBorrar'), { fecha: mesVistoAus() + '-' + rdDos(dia), cargo: cargo, novedad: novedad }, null, 'json')
+            .done(function (r) { rdAviso(r.mensaje); cargarAus(); })
+            .fail(function (xhr) { alert(rdError(xhr, 'No se pudo borrar la ausencia.')); });
+    }, { aceptar: 'Sí, borrar', cancelar: 'No' });
 }

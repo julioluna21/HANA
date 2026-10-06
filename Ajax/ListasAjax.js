@@ -1,6 +1,7 @@
 var tabla;//variable global
 var scriptActivo = true; //script para fecha y hora
-var diaListaOffset = 0;   //margen de un día: -1 ayer, 0 hoy, 1 mañana
+var diaListaFecha = '';   //día de la lista nueva: '' es hoy; si no, un día habilitado (AAAA-MM-DD)
+var diasLista = { hoy: '', habilitados: [] }; //lo que responde el servidor: hoy y los días que le habilitaron
 
 //Función para guardar o editar la lista de respuestas
 //Previsualiza la imagen de firma seleccionada
@@ -724,7 +725,7 @@ function controlarStartTime() {//agrega fecha hora en real time
     if (scriptActivo) {
         // Tu código original de startTime aquí
         today = new Date();
-        today.setDate(today.getDate() + diaListaOffset); //el día elegido en Ayer / Hoy / Mañana
+        if (diaListaFecha) { var pf = diaListaFecha.split('-'); today.setFullYear(+pf[0], +pf[1] - 1, +pf[2]); } //un día habilitado, con la hora de ahora
         Y = today.getFullYear();
         M = today.getMonth() + 1;
         M = checkTime(M);
@@ -739,12 +740,12 @@ function controlarStartTime() {//agrega fecha hora en real time
         t = setTimeout(controlarStartTime, 500);
     }
 }
-//Ayer / Hoy / Mañana: cambia el día de la lista nueva y vuelve a revisar si ya
+//Hoy o un día habilitado: cambia el día de la lista nueva y vuelve a revisar si ya
 //existe una lista de ese grupo para ese centro en ese día
-$(document).on('click', '#diaLista [data-dia]', function () {
-    diaListaOffset = parseInt($(this).data('dia'), 10) || 0;
-    $('#diaLista [data-dia]').removeClass('active');
-    $(this).addClass('active');
+$(document).on('click', '#diaLista [data-fecha]', function () {
+    var f = $(this).attr('data-fecha');
+    diaListaFecha = (f === diasLista.hoy) ? '' : f; //hoy no necesita fecha fija: usa el reloj
+    rdMarcarDia('#diaLista', f);
     if ($('#selectCentro').val()) { $('#selectCentro').trigger('change'); }
 });
 
@@ -872,9 +873,14 @@ function mostrarform(flag) {
         scriptActivo = true;
         //Lista nueva: los archivos se adjuntan después de guardarla (al corregirla)
         adjnPreparar(); //lista nueva: se pueden elegir archivos mientras se llena
-        //Lista nueva: arranca en hoy y se puede pasar a ayer o mañana
-        diaListaOffset = 0;
-        $('#diaLista').show().find('[data-dia]').removeClass('active').filter('[data-dia="0"]').addClass('active');
+        //Lista nueva: es de hoy; solo si el administrador habilitó otro día se puede escoger
+        diaListaFecha = '';
+        $.getJSON('../Control/ListasControl.php?op=dias', function (d) {
+            diasLista = d;
+            rdBotonesDia('#diaLista', d.hoy, d.habilitados, 'btn-sm');
+            rdMarcarDia('#diaLista', d.hoy);
+            $('#diaLista').toggle(d.habilitados.length > 0); //sin días habilitados no hay nada que escoger
+        });
         controlarStartTime();
         //selectColaborador();
         selectCentro();
@@ -1115,7 +1121,7 @@ function init() {
         var selectCentro = $(this).val();
         var idGrupo = $("#idGrupo").val();
         var date = new Date();
-        date.setDate(date.getDate() + diaListaOffset); //el día elegido
+        if (diaListaFecha) { var pf = diaListaFecha.split('-'); date.setFullYear(+pf[0], +pf[1] - 1, +pf[2]); } //el día elegido
         //Fecha local, no UTC: toISOString() adelantaba el dia despues de las 7 p.m.
         var fechaEncuesta = date.getFullYear() + '-' +
                             ('0' + (date.getMonth() + 1)).slice(-2) + '-' +

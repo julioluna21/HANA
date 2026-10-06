@@ -260,7 +260,7 @@ function dibujarLista(datos, desde, hasta) {
              '<div class="crono-l-cab" role="button" tabindex="0"><strong>' + NOMBRE_DIA[fecha.getDay()].charAt(0).toUpperCase() + NOMBRE_DIA[fecha.getDay()].slice(1) +
              ' ' + d + (d === 1 || f === desde ? ' de ' + NOMBRE_MES[fecha.getMonth() + 1] : '') + '</strong>' + (f === cfgC.hoy ? ' <span class="rd-tag rd-tag-ok">Hoy</span>' : '') +
              (sit ? ' <span class="rd-tag">' + rdEsc(NOMBRE_SIT[sit] || sit) + '</span>' : '') +
-             '<span class="crono-l-abrir">' + (proyEditable && f >= cfgC.primerEditable ? 'Editar' : 'Ver') + ' <i class="fa fa-chevron-right"></i></span></div>';
+             '<span class="crono-l-abrir">' + (proyEditable && diaEditableC(f) ? 'Editar' : 'Ver') + ' <i class="fa fa-chevron-right"></i></span></div>';
         //Las dos líneas fijas del día: dónde estuvo y el vehículo
         var lug = lineaLugar(f, datos), veh = lineaVh(f, datos, true);
         if (lug || veh) { h += '<div class="crono-l-item crono-l-fijas">' + lug + veh + '</div>'; }
@@ -289,11 +289,17 @@ function fuenteDe(fecha) {
     return datosMes;
 }
 
+//¿Ese día del cronograma se puede modificar? De hoy en adelante sí (se planea);
+//uno pasado, solo si el administrador lo habilitó
+function diaEditableC(f) {
+    return f >= cfgC.primerEditable || (cfgC.habilitados || []).indexOf(f) !== -1;
+}
+
 function abrirDia(fecha) {
     diaAbierto = fecha;
     var d = rdAFecha(fecha);
     $('#modalDiaTitulo').text(NOMBRE_DIA[d.getDay()] + ' ' + d.getDate() + ' de ' + NOMBRE_MES[d.getMonth() + 1]);
-    var editable = proyEditable && fecha >= cfgC.primerEditable && fecha <= cfgC.ultimoPlan;
+    var editable = proyEditable && diaEditableC(fecha) && fecha <= cfgC.ultimoPlan;
     var ds = fuenteDe(fecha);
     var its = ds.items.filter(function (x) { return x.FECHA === fecha; });
     var h = '';
@@ -343,12 +349,12 @@ function abrirDia(fecha) {
         }
     }
 
-    //Vehículo: ayer, hoy y mañana
+    //Vehículo: solo hoy, o un día que el administrador habilitó
     var idVh = +($('#cVehiculo').val() || 0);
     if (idVh > 0) {
         var vh = ds.vehiculo[fecha];
         h += '<h5 class="rd-subtitulo">Vehículo ' + rdEsc($('#cVehiculo option:selected').text()) + '</h5>';
-        if (proyEditable && fecha >= cfgC.primerEditable && fecha <= cfgC.ultimoEditable) {
+        if (proyEditable && rdDiaPermitido(fecha, cfgC.hoy, cfgC.habilitados)) {
             var opV = '', opTr = '<option value="">¿Cómo te transportaste?</option>';
             $.each(cfgC.transportes, function (cod, nom) {
                 opTr += '<option value="' + rdEsc(cod) + '"' + (vh && vh.TRANSPORTE === cod ? ' selected' : '') + '>' + rdEsc(nom) + '</option>';

@@ -16,45 +16,76 @@
 class HanaFechas
 {
     private static $cache = array();
+    private static $habilitados = array(); //días habilitados ya consultados, por persona
 
     //-----------------------------------------------------------------------
-    // Margen para registrar y corregir en el reporte diario: por defecto un
-    // día atrás y uno adelante (ayer, hoy y mañana). Lo usan Hoy en qué
-    // estás, listas, arqueos, cronograma, vehículo, vacantes y comunicaciones.
-    // Lo cambia el administrador en Parámetros del sistema
-    // (REPORTE_MARGEN_DIAS), sin tocar el código
+    // Qué días se pueden registrar o corregir en el reporte diario.
+    // La regla es una sola: HOY. Lo usan Hoy en qué estás, listas, arqueos,
+    // cronograma y vehículo.
+    // La excepción la pone el ADMIN TEC: en Parámetros del sistema → Días
+    // habilitados le abre un día específico a una persona y después se lo
+    // cierra (tabla dia_habilitado). No hay margen de días que configurar
     //-----------------------------------------------------------------------
-    public static function margen()
-    {
-        require_once __DIR__ . '/HanaConfig.php';
-        return max(0, min(7, HanaConfig::num('REPORTE_MARGEN_DIAS', 1)));
-    }
 
-    //[primer día editable, último día editable], en la hora de Colombia
-    public static function ventana()
+    //El día de hoy en la hora de Colombia, como 'AAAA-MM-DD'
+    public static function hoy()
     {
         $zona = date_default_timezone_get();
         date_default_timezone_set('America/Bogota');
-        $m = self::margen();
-        $v = array(date('Y-m-d', strtotime('-' . $m . ' days')),
-                   date('Y-m-d', strtotime('+' . $m . ' days')));
-        date_default_timezone_set($zona);
-        return $v;
+        $h = date('Y-m-d');
+        date_default_timezone_set($zona); //se deja la zona como estaba
+        return $h;
     }
 
-    public static function enVentana($fecha)
+    //Se conserva para lo que todavía la consulta: ya no hay días de margen
+    public static function margen()
     {
-        $v = self::ventana();
-        $f = substr((string)$fecha, 0, 10);
-        return $f >= $v[0] && $f <= $v[1];
+        return 0;
     }
 
-    //"ayer, hoy y mañana": para los mensajes de error
+    //[primer día editable, último día editable]: hoy y nada más.
+    //Los días habilitados van aparte (ver habilitados y enVentana)
+    public static function ventana()
+    {
+        $h = self::hoy();
+        return array($h, $h);
+    }
+
+    //Los días que la persona tiene habilitados en este momento, de más viejo a más nuevo.
+    //Sin $idColaborador se toma la persona que tiene la sesión
+    public static function habilitados($idColaborador = null)
+    {
+        if ($idColaborador === null) { $idColaborador = isset($_SESSION['Idcolaborador']) ? $_SESSION['Idcolaborador'] : 0; }
+        $id = (int)$idColaborador;
+        if ($id <= 0) { return array(); }
+        if (isset(self::$habilitados[$id])) { return self::$habilitados[$id]; } //ya se consultó en esta petición
+        require_once __DIR__ . '/HanaDB.php';
+        $dias = array();
+        //Si la tabla todavía no existe (falta correr el script 15), q() devuelve false: no hay días habilitados
+        $f = HanaDB::q("SELECT FECHA FROM dia_habilitado WHERE ID_COLABORADOR = ? AND ESTADO = 1 ORDER BY FECHA", 'i', array($id));
+        if (is_array($f)) { foreach ($f as $x) { $dias[] = $x['FECHA']; } }
+        self::$habilitados[$id] = $dias;
+        return $dias;
+    }
+
+    //¿La persona tiene habilitado ese día?
+    public static function habilitado($fecha, $idColaborador = null)
+    {
+        return in_array(substr((string)$fecha, 0, 10), self::habilitados($idColaborador), true);
+    }
+
+    //¿Ese día se puede registrar o corregir? Hoy siempre; otro día, solo si
+    //el administrador se lo habilitó a la persona
+    public static function enVentana($fecha, $idColaborador = null)
+    {
+        $f = substr((string)$fecha, 0, 10);
+        return $f === self::hoy() || self::habilitado($f, $idColaborador);
+    }
+
+    //Para los mensajes de error: "solo se registran arqueos de hoy (o un día que...)"
     public static function textoVentana()
     {
-        $m = self::margen();
-        if ($m === 0) { return 'hoy'; }
-        return $m === 1 ? 'ayer, hoy y mañana' : 'desde ' . $m . ' días atrás hasta ' . $m . ' días adelante';
+        return 'hoy (o un día que el administrador te haya habilitado)';
     }
 
     //Domingo de Pascua (algoritmo gregoriano anónimo), como 'AAAA-MM-DD'

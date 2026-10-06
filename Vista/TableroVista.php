@@ -9,7 +9,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("19M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -34,6 +34,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 
           <!-- Nivel 2: los centros de un proyecto -->
           <div id="nivelCentros" style="display:none;">
+            <!-- Enlaces a los demás módulos (los arma TableroAjax.js con lo que la persona tiene en su menú) -->
+            <div id="tbIrA" class="tb-ir rd-no-imprimir"></div>
             <div id="tbCoordinador"></div>
             <h4 class="rd-subtitulo">Peajes, básculas y bases</h4>
             <div id="tbCentros" class="tb-centros"></div>
@@ -58,8 +60,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
-<script type="text/javascript" src="../Ajax/TableroAjax.js?v=8"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/TableroAjax.js?v=10"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/HanaDB.php"; //para saber si es el ADMIN TEC (ve todos los peajes)
+require_once __DIR__ . "/HanaConfig.php"; //prioridad y observador de las novedades automáticas
 require "../Conexion/ConexionDB.php";
 class listas{
      //Implementamos el super constructor 
@@ -234,9 +235,27 @@ class listas{
                 return ejecutarConsulta_retornarID($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
         }
 	
+        //Las novedades que abre una lista de chequeo salen con la prioridad y el
+        //observador de Parámetros del sistema (NOV_AUTO_PRIORIDAD y NOV_AUTO_OBSERVADOR).
+        //Si el número configurado no existe en su catálogo, se usa el 2
+        public function prioridadAutomatica()
+        {
+                $id = HanaConfig::num('NOV_AUTO_PRIORIDAD', 2);
+                $f = ejecutarConsultaSimpleFila("SELECT 1 AS ok FROM estados_relevancia WHERE ID_ESTADOS_RELEVANCIA = $id");
+                return $f ? $id : 2;
+        }
+
+        public function observadorAutomatico()
+        {
+                $id = HanaConfig::num('NOV_AUTO_OBSERVADOR', 2);
+                $f = ejecutarConsultaSimpleFila("SELECT 1 AS ok FROM observador_novedades_hallazgos WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS = $id");
+                return $f ? $id : 2;
+        }
+
+        //Días para cerrar una novedad automática: los de su prioridad
 	       public function diaslimites()
         {
-                $sql = "SELECT estados_relevancia.DIAS_ESTADOS_RELEVANCIAS FROM estados_relevancia WHERE estados_relevancia.ID_ESTADOS_RELEVANCIA=2";
+                $sql = "SELECT estados_relevancia.DIAS_ESTADOS_RELEVANCIAS FROM estados_relevancia WHERE estados_relevancia.ID_ESTADOS_RELEVANCIA=" . $this->prioridadAutomatica();
                 return ejecutarConsultaSimpleFila($sql);
         }
 	

@@ -81,7 +81,7 @@ switch ($_GET["op"])
                                 $rspta=$Usuarios->insertarcentros($id,$idcentro);
                                }
                           } 
-                        //Ya no se envía el correo "Tu usuario de HANA" (decisión de Jaime): los datos
+                        //Ya no se envía el correo "Tu usuario de HANA": los datos
                         //se muestran aquí, una sola vez, para que quien lo crea se los pase a la persona.
                         //El correo solo llega cuando la persona usa "Olvidé mi contraseña".
                         echo "Usuario registrado con éxito.\n\nUsuario: ".$nombreususrio."\nContraseña temporal: ".$contrasena

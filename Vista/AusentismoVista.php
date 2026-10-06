@@ -14,7 +14,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if ($esCoordinador || $esJefe || in_array("20M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("22M", $modulosAcceso) || in_array("25M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=13" rel="stylesheet">
+<link href="../public/css/reporte.css?v=15" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -44,11 +44,46 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="aus-centros" id="aCentros"></div>
 
           <ul class="nav nav-tabs cd-pestanas" role="tablist">
-            <li class="active"><a href="#tabRegistrar" data-toggle="tab">Registrar por centro</a></li>
+            <li class="active"><a href="#tabRapido" data-toggle="tab">Registrar una ausencia</a></li>
+            <li><a href="#tabRegistrar" data-toggle="tab">Matriz del mes</a></li>
             <li><a href="#tabConsolidado" data-toggle="tab" id="tabConsLink">Consolidado del proyecto</a></li>
           </ul>
           <div class="tab-content cd-contenido">
-            <div class="tab-pane active" id="tabRegistrar">
+            <!-- Registro rápido: una ausencia a la vez. Escribe en las mismas celdas de la matriz del mes -->
+            <div class="tab-pane active" id="tabRapido">
+              <p class="rd-ayuda" style="margin-top:0;">Elige el día, el cargo y el motivo, y cuántas personas faltaron. Queda anotado en la matriz del mes,
+                así que el consolidado, el Excel y el dashboard se actualizan solos.</p>
+              <div id="ausNotaRapido"></div>
+              <form id="ausRapido" class="aus-rapido" autocomplete="off">
+                <div class="row">
+                  <div class="form-group col-md-2 col-sm-4 col-xs-6">
+                    <label for="rFecha">Día: <span class="rd-req">*</span></label>
+                    <input type="date" id="rFecha" name="fecha" class="form-control">
+                  </div>
+                  <div class="form-group col-md-3 col-sm-8 col-xs-12">
+                    <label for="rCargo">Cargo: <span class="rd-req">*</span></label>
+                    <select id="rCargo" name="cargo" class="form-control"></select>
+                  </div>
+                  <div class="form-group col-md-3 col-sm-6 col-xs-12">
+                    <label for="rNovedad">Motivo de la ausencia: <span class="rd-req">*</span></label>
+                    <select id="rNovedad" name="novedad" class="form-control"></select>
+                  </div>
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                    <label for="rCantidad">Personas: <span class="rd-req">*</span></label>
+                    <input type="number" id="rCantidad" name="cantidad" class="form-control" min="1" max="999" value="1">
+                  </div>
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                    <label class="hidden-xs">&nbsp;</label>
+                    <button type="submit" class="btn btn-success btn-block" id="btnRegistrarAus"><i class="fa fa-plus"></i> Registrar</button>
+                  </div>
+                </div>
+              </form>
+              <h4 class="rd-subtitulo">Ausencias registradas en el mes <span id="ausTotalMes"></span></h4>
+              <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
+                <thead><tr><th>Día</th><th>Cargo</th><th>Motivo</th><th class="rd-num-col">Personas</th><th></th></tr></thead>
+                <tbody id="ausLista"><tr><td colspan="5" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
+            </div>
+            <div class="tab-pane" id="tabRegistrar">
               <p class="rd-ayuda" style="margin-top:0;">En cada celda, cuántas personas del cargo tuvieron esa novedad ese día. Se escribe y se pasa de celda con las flechas del teclado.
                 Las filas en cursiva (como <em>cubre recolector</em>) no son ausencia: no suman en las ausencias diarias.</p>
               <div id="ausNota"></div>
@@ -72,8 +107,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=4"></script>
-<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=2"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=3"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

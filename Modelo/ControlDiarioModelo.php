@@ -10,6 +10,7 @@
 */
 require_once __DIR__ . "/TableroModelo.php";
 require_once __DIR__ . "/VacanteModelo.php";
+require_once __DIR__ . "/RQEstados.php";
 
 class ControlDiario
 {
@@ -53,7 +54,7 @@ class ControlDiario
                                (SELECT GROUP_CONCAT(c.NOM_CENTRO_OP ORDER BY c.NOM_CENTRO_OP SEPARATOR ' - ')
                                   FROM reporte_hoy_centro hc INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = hc.ID_CENTRO_OP
                                  WHERE hc.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS LUGARES,
-                               (SELECT COUNT(*) FROM reporte_hoy_hora hh WHERE hh.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS BLOQUES
+                               h.ACTIVIDAD
                           FROM reporte_hoy h
                          WHERE h.FECHA = ? AND h.ID_COLABORADOR IN ($m)",
                        's' . str_repeat('i', count($idsPersonas)), array_merge(array($fecha), array_map('intval', $idsPersonas)));
@@ -193,12 +194,15 @@ class ControlDiario
         $m = $this->marcas($idsCentros);
         $f = HanaDB::q("SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO,
                                col.NOM_COLABORADOR AS SOLICITA, DATEDIFF(NOW(), r.FEC_ESTADO) AS DIAS,
-                               (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ', ') FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS
+                               (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ', ') FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS,
+                               -- Los archivos de la RQ (fotos y soportes), separados por |, para mostrarlos donde se aprueba
+                               (SELECT GROUP_CONCAT(a.ARCHIVO ORDER BY a.ID_ADJUNTO SEPARATOR '|') FROM adjunto a
+                                 WHERE a.MODULO = 'RQ' AND a.ESTADO = 1 AND a.ID_REGISTRO = r.ID_RQ) AS ARCHIVOS
                           FROM rq r
                           INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                          INNER JOIN proyectos p ON p.ID_PROYECTO = r.ID_PROYECTO
+                          INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
                           LEFT JOIN colaboradores col ON col.ID_COLABORADOR = r.ID_COLABORADOR_SOLICITA
-                         WHERE r.ESTADO = 1 AND r.ID_RQ_ESTADO = 1 AND r.ID_CENTRO_OP IN ($m)
+                         WHERE r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . " AND r.ID_CENTRO_OP IN ($m)
                          ORDER BY (r.TIPO_RQ = 'U') DESC, r.FEC_ESTADO",
                        str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
         return $f ? $f : array();
