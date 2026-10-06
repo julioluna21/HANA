@@ -27,9 +27,7 @@ $ahora = date('Y-m-d H:i:s');
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     case 'listar':
-        $par = HanaDB::q("SELECT c.*, col.NOM_COLABORADOR AS MODIFICO FROM configuracion c
-                            LEFT JOIN colaboradores col ON col.ID_COLABORADOR = c.ID_COLABORADOR_MODIFICA
-                           ORDER BY c.ORDEN");
+        $par = HanaConfig::lista();
         $cargos = HanaDB::q("SELECT * FROM aus_cargo ORDER BY ORDEN, NOMBRE");
         $novedades = HanaDB::q("SELECT n.*, c.NOMBRE AS CARGO FROM aus_novedad n LEFT JOIN aus_cargo c ON c.ID_CARGO_AUS = n.ID_CARGO_AUS ORDER BY n.ORDEN, n.NOMBRE");
         echo json_encode(array('parametros' => $par ? $par : array(), 'cargos' => $cargos ? $cargos : array(),
@@ -39,12 +37,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //Guarda los parámetros que cambiaron: valores[CLAVE] = VALOR
     case 'guardar':
         $valores = isset($_POST['valores']) && is_array($_POST['valores']) ? $_POST['valores'] : array();
-        $defs = array();
-        foreach ((array)HanaDB::q("SELECT * FROM configuracion") as $p) { $defs[$p['CLAVE']] = $p; }
         $cambios = 0;
         foreach ($valores as $clave => $valor) {
-            if (!isset($defs[$clave])) { parError(400, 'Parámetro desconocido: ' . $clave); }
-            $d = $defs[$clave];
+            $d = HanaConfig::definicion((string)$clave);
+            if (!$d) { parError(400, 'Parámetro desconocido: ' . $clave); }
             $valor = trim((string)$valor);
             if ($d['TIPO'] === 'SI_NO') {
                 if ($valor !== '0' && $valor !== '1') { parError(400, '"' . $d['NOMBRE'] . '" debe ser sí o no.'); }
@@ -63,9 +59,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                 && !HanaDB::fila("SELECT 1 AS ok FROM observador_novedades_hallazgos WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS = ?", 'i', array((int)$valor))) {
                 parError(400, 'No existe un observador con el número ' . (int)$valor . ' (Configuración → Observadores).');
             }
-            if ($valor === (string)$d['VALOR']) { continue; }
-            HanaDB::q("UPDATE configuracion SET VALOR = ?, ID_COLABORADOR_MODIFICA = ?, FEC_MODIFICACION = ? WHERE CLAVE = ?",
-                      'siss', array($valor, $idColaborador, $ahora, $clave));
+            if ($valor === (string)HanaConfig::valor($clave, $d['DEFECTO'])) { continue; }
+            HanaConfig::guardar($clave, $valor, $idColaborador, $ahora);
             $cambios++;
         }
         echo json_encode(array('ok' => true, 'mensaje' => $cambios ? ($cambios === 1 ? 'Se guardó 1 cambio.' : "Se guardaron $cambios cambios.") : 'No había cambios.'),

@@ -12,6 +12,7 @@ require_once __DIR__ . "/HanaDB.php";
 require_once __DIR__ . "/HoyModelo.php";
 require_once __DIR__ . "/CronogramaModelo.php";
 require_once __DIR__ . "/RQEstados.php";
+require_once __DIR__ . "/ArqueoModelo.php";
 
 class Tablero
 {
@@ -57,7 +58,7 @@ class Tablero
                        h.SITUACION, h.HORA_INGRESO, h.HORA_SALIDA,
                        (SELECT COUNT(*) FROM vacante v WHERE v.ID_CENTRO_OP = c.ID_CENTRO_OP AND v.ESTADO_VACANTE = 'ABIERTA') AS VACANTES,
                        (SELECT COUNT(*) FROM arqueo a WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP AND a.FECHA = ? AND a.ESTADO = 1) AS ARQUEOS,
-                       (SELECT COUNT(*) FROM arqueo a WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP AND a.FECHA = ? AND a.ESTADO = 1 AND a.DIFERENCIA <> 0) AS ARQUEOS_DIF,
+                       (SELECT COUNT(*) FROM arqueo a WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP AND a.FECHA = ? AND a.ESTADO = 1 AND " . Arqueo::sqlDiferencia() . " <> 0) AS ARQUEOS_DIF,
                        (SELECT COUNT(*) FROM lista_chequeo l WHERE l.ID_CENTRO_OP_LISTA_CHEQUEO = c.ID_CENTRO_OP
                                 AND l.FEC_REGISTRO_LISTA_CHEQUEO >= ? AND l.FEC_REGISTRO_LISTA_CHEQUEO < ?) AS LISTAS,
                        (SELECT COUNT(*) FROM rq r WHERE r.ID_CENTRO_OP = c.ID_CENTRO_OP AND r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . ") AS RQ_PENDIENTES
@@ -81,8 +82,9 @@ class Tablero
                                h.SITUACION AS COORD_SITUACION, h.HORA_INGRESO AS COORD_INGRESO,
                                (SELECT COUNT(*) FROM lista_chequeo l WHERE l.ID_COLABORADOR_LISTA_CHEQUEO = p.ID_COLABORADOR_COORDINADOR
                                         AND l.FEC_REGISTRO_LISTA_CHEQUEO >= ? AND l.FEC_REGISTRO_LISTA_CHEQUEO < ?) AS COORD_LISTAS,
-                               (SELECT COUNT(*) FROM reporte_revision r WHERE r.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR
-                                        AND r.MODULO = 'CRONOGRAMA' AND r.FECHA = ?) AS COORD_REVISO,
+                               (SELECT COUNT(*) FROM bitacora_sistema b WHERE b.TIPO = 'REVISION' AND b.MODULO = 'CRONOGRAMA'
+                                        AND b.QUIEN = CONCAT(p.ID_COLABORADOR_COORDINADOR)
+                                        AND b.FECHA >= ? AND b.FECHA < ?) AS COORD_REVISO,
                                (SELECT COUNT(*) FROM comunicacion m WHERE m.ID_PROYECTO = p.ID_PROYECTO AND m.ESTADO = 1
                                         AND m.FECHA_ATENCION IS NULL) AS COMUNICACIONES
                           FROM proyectos p
@@ -90,7 +92,7 @@ class Tablero
                           LEFT JOIN reporte_hoy h ON h.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR AND h.FECHA = ?
                          WHERE p.ID_PROYECTO IN ($m)
                          ORDER BY p.NOM_PROYECTO",
-                       'ssss' . str_repeat('i', count($idsProyectos)), array_merge(array($fecha, $sig, $fecha, $fecha), array_map('intval', $idsProyectos)));
+                       'sssss' . str_repeat('i', count($idsProyectos)), array_merge(array($fecha, $sig, $fecha, $sig, $fecha), array_map('intval', $idsProyectos)));
         return $f ? $f : array();
     }
 
@@ -125,7 +127,8 @@ class Tablero
                               WHERE l.ID_COLABORADOR_LISTA_CHEQUEO = ?
                                 AND l.FEC_REGISTRO_LISTA_CHEQUEO >= ? AND l.FEC_REGISTRO_LISTA_CHEQUEO < ?
                               ORDER BY l.FEC_REGISTRO_LISTA_CHEQUEO", 'iss', array((int)$idColaborador, $fecha, $sig));
-        $arqueos = HanaDB::q("SELECT a.ID_ARQUEO, a.TIPO, a.HORA, a.TOTAL_ARQUEO, a.DIFERENCIA, a.ID_CENTRO_OP, c.NOM_CENTRO_OP
+        $arqueos = HanaDB::q("SELECT a.ID_ARQUEO, a.TIPO, a.HORA, " . Arqueo::sqlTotal() . " AS TOTAL_ARQUEO,
+                                     " . Arqueo::sqlDiferencia() . " AS DIFERENCIA, a.ID_CENTRO_OP, c.NOM_CENTRO_OP
                                 FROM arqueo a INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = a.ID_CENTRO_OP
                                WHERE a.ID_COLABORADOR_ARQUEA = ? AND a.FECHA = ? AND a.ESTADO = 1
                                ORDER BY a.HORA", 'is', array((int)$idColaborador, $fecha));

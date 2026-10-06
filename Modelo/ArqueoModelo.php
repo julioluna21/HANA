@@ -2,7 +2,9 @@
 /*
   HANA — Arqueos (Reporte diario, Fase 2)
   Caja menor y recambio, con la misma forma de los formatos en PDF.
-  El total y la diferencia los calcula el servidor a partir de las líneas.
+  Se guardan las líneas contadas, el fondo autorizado de ese momento y los
+  subtotales de efectivo y de documentos. El total del arqueo y la diferencia
+  con el fondo no se guardan: salen de esos valores (sqlTotal y sqlDiferencia).
 */
 require_once __DIR__ . "/HanaDB.php";
 
@@ -26,6 +28,18 @@ class Arqueo
     );
     public static $DOCUMENTOS = array('FACTURA' => 'Factura', 'REINTEGRO' => 'Reintegro de fondo',
                                       'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltante registrado');
+
+    //Total del arqueo = efectivo + documentos. Diferencia = total - fondo autorizado
+    //(negativa: faltante; positiva: sobrante). $a es el alias de la tabla arqueo en la consulta
+    public static function sqlTotal($a = 'a')
+    {
+        return "($a.TOTAL_EFECTIVO + $a.TOTAL_DOCUMENTOS)";
+    }
+
+    public static function sqlDiferencia($a = 'a')
+    {
+        return "($a.TOTAL_EFECTIVO + $a.TOTAL_DOCUMENTOS - $a.FONDO_AUTORIZADO)";
+    }
 
     //-----------------------------------------------------------------------
     // Fondos autorizados
@@ -88,8 +102,9 @@ class Arqueo
     {
         if (!count($idsCentros)) { return array(); }
         $marcas = implode(',', array_fill(0, count($idsCentros), '?'));
-        $sql = "SELECT a.ID_ARQUEO, a.TIPO, a.CASETA, a.FECHA, a.HORA, a.RESPONSABLE, a.FONDO_AUTORIZADO, a.TOTAL_ARQUEO,
-                       a.DIFERENCIA, a.ESTADO, a.ID_COLABORADOR_ARQUEA, c.NOM_CENTRO_OP, p.NOM_PROYECTO,
+        $sql = "SELECT a.ID_ARQUEO, a.TIPO, a.CASETA, a.FECHA, a.HORA, a.RESPONSABLE, a.FONDO_AUTORIZADO,
+                       " . self::sqlTotal() . " AS TOTAL_ARQUEO, " . self::sqlDiferencia() . " AS DIFERENCIA,
+                       a.ESTADO, a.ID_COLABORADOR_ARQUEA, c.NOM_CENTRO_OP, p.NOM_PROYECTO,
                        col.NOM_COLABORADOR AS ARQUEA
                   FROM arqueo a
                   INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = a.ID_CENTRO_OP
@@ -108,7 +123,8 @@ class Arqueo
     //Un arqueo completo, con sus líneas
     public function mostrar($idArqueo)
     {
-        $a = HanaDB::fila("SELECT a.*, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.NOM_PROYECTO, col.NOM_COLABORADOR AS ARQUEA
+        $a = HanaDB::fila("SELECT a.*, " . self::sqlTotal() . " AS TOTAL_ARQUEO, " . self::sqlDiferencia() . " AS DIFERENCIA,
+                                  c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.NOM_PROYECTO, col.NOM_COLABORADOR AS ARQUEA
                              FROM arqueo a
                              INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = a.ID_CENTRO_OP
                              INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
@@ -116,31 +132,30 @@ class Arqueo
                             WHERE a.ID_ARQUEO = ?", 'i', array((int)$idArqueo));
         if (!$a) { return null; }
         $a['LINEAS'] = HanaDB::q("SELECT CLASE, CONCEPTO, NOMBRE, FECHA, VALOR, OBSERVACION FROM arqueo_linea
-                                   WHERE ID_ARQUEO = ? ORDER BY CLASE DESC, ORDEN, ID_ARQUEO_LINEA",
+                                   WHERE ID_ARQUEO = ? ORDER BY CLASE DESC, ID_ARQUEO_LINEA",
                                   'i', array((int)$idArqueo));
         if (!$a['LINEAS']) { $a['LINEAS'] = array(); }
         return $a;
     }
 
-    //Guarda un arqueo nuevo con sus líneas (dentro de una transacción)
+    //Guarda un arqueo nuevo con sus líneas (dentro de una transacción).
+    //Las líneas quedan en el orden en que llegan: así se muestran después
     public function insertar($a, $lineas)
     {
         $ok = HanaDB::q("INSERT INTO arqueo (TIPO, ID_CENTRO_OP, CASETA, FECHA, HORA, HORA_FIN, RESPONSABLE, CARGO_RESPONSABLE,
                                              ID_COLABORADOR_ARQUEA, FONDO_AUTORIZADO, TOTAL_EFECTIVO, TOTAL_DOCUMENTOS,
-                                             TOTAL_ARQUEO, DIFERENCIA, OBSERVACION, FEC_REGISTRO, ESTADO)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-                        'sissssssidddddss',
+                                             OBSERVACION, FEC_REGISTRO, ESTADO)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+                        'sissssssidddss',
                         array($a['tipo'], $a['centro'], isset($a['caseta']) ? $a['caseta'] : null, $a['fecha'], $a['hora'], $a['horaFin'], $a['responsable'],
                               $a['cargo'], $a['colaborador'], $a['fondo'], $a['efectivo'], $a['documentos'],
-                              $a['total'], $a['diferencia'], $a['observacion'], $a['ahora']));
+                              $a['observacion'], $a['ahora']));
         if (!$ok) { return 0; }
         $id = HanaDB::id();
-        $orden = 0;
         foreach ($lineas as $l) {
-            $orden++;
-            if (!HanaDB::q("INSERT INTO arqueo_linea (ID_ARQUEO, CLASE, CONCEPTO, NOMBRE, FECHA, VALOR, OBSERVACION, ORDEN)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                           'issssdsi', array($id, $l['clase'], $l['concepto'], isset($l['nombre']) ? $l['nombre'] : null, $l['fecha'], $l['valor'], $l['obs'], $orden))) {
+            if (!HanaDB::q("INSERT INTO arqueo_linea (ID_ARQUEO, CLASE, CONCEPTO, NOMBRE, FECHA, VALOR, OBSERVACION)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           'issssds', array($id, $l['clase'], $l['concepto'], isset($l['nombre']) ? $l['nombre'] : null, $l['fecha'], $l['valor'], $l['obs']))) {
                 return 0;
             }
         }

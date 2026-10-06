@@ -11,6 +11,7 @@
 require_once __DIR__ . "/TableroModelo.php";
 require_once __DIR__ . "/VacanteModelo.php";
 require_once __DIR__ . "/RQEstados.php";
+require_once __DIR__ . "/ArqueoModelo.php";
 
 class ControlDiario
 {
@@ -124,7 +125,8 @@ class ControlDiario
     {
         if (!count($idsCentros)) { return array(); }
         $m = $this->marcas($idsCentros);
-        $f = HanaDB::q("SELECT a.ID_ARQUEO, a.TIPO, a.HORA, a.RESPONSABLE, a.TOTAL_ARQUEO, a.FONDO_AUTORIZADO, a.DIFERENCIA,
+        $f = HanaDB::q("SELECT a.ID_ARQUEO, a.TIPO, a.HORA, a.RESPONSABLE, " . Arqueo::sqlTotal() . " AS TOTAL_ARQUEO,
+                               a.FONDO_AUTORIZADO, " . Arqueo::sqlDiferencia() . " AS DIFERENCIA,
                                a.OBSERVACION, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO, col.NOM_COLABORADOR AS ARQUEA,
                                a.ID_COLABORADOR_ARQUEA AS ID_PERSONA
                           FROM arqueo a

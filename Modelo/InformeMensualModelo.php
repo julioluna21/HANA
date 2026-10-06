@@ -18,6 +18,7 @@ require_once __DIR__ . "/HanaDB.php";
 require_once __DIR__ . "/HanaConfig.php";
 require_once __DIR__ . "/HanaFechas.php";
 require_once __DIR__ . "/RQEstados.php";
+require_once __DIR__ . "/ArqueoModelo.php";
 
 class InformeMensual
 {
@@ -190,12 +191,13 @@ class InformeMensual
 
         //---- Arqueos del mes (sin los anulados). Diferencia negativa = faltante; positiva = sobrante
         self::sumar($porCentro, HanaDB::q(
-            "SELECT ID_CENTRO_OP AS C, COUNT(*) AS T, SUM(DIFERENCIA <> 0) AS D,
-                    SUM(CASE WHEN DIFERENCIA < 0 THEN -DIFERENCIA ELSE 0 END) AS F,
-                    SUM(CASE WHEN DIFERENCIA > 0 THEN DIFERENCIA ELSE 0 END) AS S
-               FROM arqueo
-              WHERE ESTADO = 1 AND FECHA >= ? AND FECHA < ? AND ID_CENTRO_OP IN ($idsC)
-              GROUP BY ID_CENTRO_OP", 'ss', array($d, $h)),
+            "SELECT x.C, COUNT(*) AS T, SUM(x.DIF <> 0) AS D,
+                    SUM(CASE WHEN x.DIF < 0 THEN -x.DIF ELSE 0 END) AS F,
+                    SUM(CASE WHEN x.DIF > 0 THEN x.DIF ELSE 0 END) AS S
+               FROM (SELECT a.ID_CENTRO_OP AS C, " . Arqueo::sqlDiferencia() . " AS DIF
+                       FROM arqueo a
+                      WHERE a.ESTADO = 1 AND a.FECHA >= ? AND a.FECHA < ? AND a.ID_CENTRO_OP IN ($idsC)) x
+              GROUP BY x.C", 'ss', array($d, $h)),
             array('T' => 'arq', 'D' => 'arqDif', 'F' => 'arqFalt', 'S' => 'arqSobr'));
 
         //---- Vacantes: las que se abrieron y las que se cubrieron en el mes; las que siguen
@@ -313,10 +315,11 @@ class InformeMensual
     //-----------------------------------------------------------------------
     private function arqueosDif($idProyecto, $per)
     {
-        $f = HanaDB::q("SELECT a.FECHA, a.TIPO, a.CASETA, a.DIFERENCIA, a.RESPONSABLE, c.NOM_CENTRO_OP AS CENTRO
+        $dif = Arqueo::sqlDiferencia();
+        $f = HanaDB::q("SELECT a.FECHA, a.TIPO, a.CASETA, $dif AS DIFERENCIA, a.RESPONSABLE, c.NOM_CENTRO_OP AS CENTRO
                           FROM arqueo a INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = a.ID_CENTRO_OP
-                         WHERE c.ID_PROYECTO_CENTRO_OP = ? AND a.ESTADO = 1 AND a.DIFERENCIA <> 0 AND a.FECHA >= ? AND a.FECHA < ?
-                         ORDER BY ABS(a.DIFERENCIA) DESC, a.FECHA LIMIT 40", 'iss', array((int)$idProyecto, $per['desde'], $per['hasta']));
+                         WHERE c.ID_PROYECTO_CENTRO_OP = ? AND a.ESTADO = 1 AND $dif <> 0 AND a.FECHA >= ? AND a.FECHA < ?
+                         ORDER BY ABS($dif) DESC, a.FECHA LIMIT 40", 'iss', array((int)$idProyecto, $per['desde'], $per['hasta']));
         return $f ? $f : array();
     }
 
