@@ -1,3 +1,7 @@
+//Configuración - Usuarios (Vista/UsuariosVista.php)
+//Tabla, formulario con los centros del usuario, cambio de clave y botones de activar/desactivar.
+//Habla con Control/UsuariosControl.php
+
 var tabla;//variable global
 var vrca;
 var Centroslista;
@@ -23,12 +27,12 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
 
     $("#formularioclave").on("submit",function(e)//e = variable que contiene el objeto
     {
-            cambiarclave(e);//guarda o edita el articulo
+            cambiarclave(e);//guarda la nueva clave
     });
 
 $.post("../Control/UsuariosControl.php?op=centros", function(data)
@@ -65,6 +69,7 @@ $('#colaborador').select2({
 }
 
 
+//Marca o desmarca todos los centros con la casilla "Seleccionar todos"
 function selecionar()
 { 
          if($('#todosc').prop('checked')){
@@ -102,6 +107,7 @@ function mostrarform(flag)
     }
 }
 
+//Muestra (true) u oculta (false) el formulario de cambio de clave
 function mostrarformcalve(flag)
 {
     if (flag)
@@ -204,6 +210,7 @@ function guardar(e)
 }
 
 
+//Revisa que las dos claves coincidan y guarda la nueva
 function cambiarclave(e)
 {
     e.preventDefault(); //No se activará la acción predeterminada del evento
@@ -238,6 +245,7 @@ function cambiarclave(e)
     }
 }
 
+//Trae un usuario y sus centros y los carga en el formulario para editarlo
 function mostrar(idusuario)
 {
     hanaCargando(true); //aviso de carga mientras llegan los datos y los centros del usuario
@@ -270,6 +278,7 @@ function mostrar(idusuario)
             hanaErrorAjax(xhr, "No se pudieron cargar los datos del usuario.");
         });
 }
+//Desactiva un usuario (pregunta antes)
 function anular(idusuario){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular este usuario?", function(){
@@ -282,6 +291,7 @@ function anular(idusuario){
         });
     });
 }
+//Vuelve a activar un usuario (pregunta antes)
 function activar(idusuario){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea activar este usuario?", function(){
@@ -295,6 +305,7 @@ function activar(idusuario){
     });
 }
 
+//Muestra en una ventana los centros asignados a un usuario
 function centros(idusuario){
     hanaCargando(true); //aviso de carga mientras llega la lista de centros
     $.post("../Control/UsuariosControl.php?op=MostrarCentros",{idusuario : idusuario}, function(data)
@@ -312,6 +323,7 @@ function centros(idusuario){
     });
 }
 
+//¿Las dos claves escritas son iguales?
 function validaPwds() {
     var c1=$("#clave").val();
     var c2=$("#clave2").val();

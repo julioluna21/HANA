@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Estado del día de quien tiene la sesión (alertas del reporte diario)
+  HANA - Estado del día de quien tiene la sesión (alertas del reporte diario)
     op=estado        lo del día: Hoy en qué estás, listas, arqueos, cronograma
     op=visto&modulo  deja constancia de que abrió una pantalla (el cronograma)
 */
@@ -18,6 +18,7 @@ $E = new EstadoDia();
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
+    //Cómo va hoy la persona de la sesión: qué ha registrado y qué le falta
     case 'estado':
         echo json_encode(array('fecha' => date('Y-m-d'), 'estado' => $E->resumen($idColaborador, date('Y-m-d'))), JSON_UNESCAPED_UNICODE);
         break;

@@ -133,3 +133,78 @@
     from{ transform: scale(.92); opacity: 0; }
     to{ transform: scale(1); opacity: 1; }
 }
+/* ===========================================================================
+   Visor de imágenes (Ajax/VisorAjax.js): la foto se abre encima de la página,
+   no en una pestaña nueva. Fondo oscuro y textos blancos: buen contraste
+   =========================================================================== */
+html.hana-visor-activo, html.hana-visor-activo body{ overflow: hidden; }
+.hana-visor{
+    position: fixed; inset: 0; z-index: 100010;            /* encima de todo, también de una confirmación con fotos */
+    display: none; align-items: center; justify-content: center;
+    background: rgba(18, 18, 18, .92);
+}
+.hana-visor.abierto{ display: flex; }
+.hana-visor-marco{
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    padding: 56px 64px 64px; box-sizing: border-box; overflow: auto;
+}
+.hana-visor-img{
+    max-width: 100%; max-height: 100%; object-fit: contain; display: block;
+    background: #FFFFFF; border-radius: 4px; box-shadow: 0 8px 30px rgba(0,0,0,.5); cursor: zoom-in;
+}
+/* Tamaño real: se recorre con la barra (o el dedo) */
+.hana-visor.hana-visor-real .hana-visor-marco{ align-items: flex-start; justify-content: flex-start; }
+.hana-visor.hana-visor-real .hana-visor-img{ max-width: none; max-height: none; cursor: zoom-out; margin: auto; }
+.hana-visor-cerrar{
+    position: absolute; top: 10px; right: 14px; z-index: 2;
+    width: 44px; height: 44px; border: 0; border-radius: 50%;
+    background: rgba(255,255,255,.14); color: #FFFFFF; font-size: 30px; line-height: 44px; cursor: pointer;
+}
+.hana-visor-flecha{
+    position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+    width: 48px; height: 64px; border: 0; border-radius: 8px;
+    background: rgba(255,255,255,.14); color: #FFFFFF; font-size: 40px; line-height: 60px; cursor: pointer;
+}
+.hana-visor-ant{ left: 10px; } .hana-visor-sig{ right: 10px; }
+.hana-visor-cerrar:hover, .hana-visor-flecha:hover,
+.hana-visor-cerrar:focus, .hana-visor-flecha:focus{ background: rgba(255,255,255,.28); outline: 2px solid #1ABB9C; }
+.hana-visor-pie{
+    position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; padding: 0 70px;
+    color: #FFFFFF; font-size: 14px; text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+.hana-visor-cuenta{ color: #D9D9D9; margin-left: 8px; }
+/* PDF: se ve en un marco blanco grande; la foto se esconde */
+.hana-visor-pdf{ display: none; width: 100%; height: 100%; border: 0; border-radius: 4px; background: #FFFFFF; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.hana-visor.hana-visor-modo-pdf .hana-visor-img{ display: none; }
+.hana-visor.hana-visor-modo-pdf .hana-visor-pdf{ display: block; }
+.hana-visor.hana-visor-modo-pdf .hana-visor-marco{ padding: 60px 24px 70px; }
+/* PDF dibujado por el visor (pdf.js): las hojas una debajo de otra, sobre el fondo oscuro */
+.hana-visor-hojas{ display: none; width: 100%; height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; text-align: center; }
+.hana-visor.hana-visor-modo-pdf .hana-visor-pdf{ display: none; }
+.hana-visor.hana-visor-modo-pdf .hana-visor-hojas{ display: block; }
+.hana-visor.hana-visor-modo-pdf.hana-visor-pdf-marco .hana-visor-pdf{ display: block; }
+.hana-visor.hana-visor-modo-pdf.hana-visor-pdf-marco .hana-visor-hojas{ display: none; }
+.hana-visor-hoja{ display: block; max-width: 100%; height: auto; margin: 0 auto 14px; background: #FFFFFF; border-radius: 2px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.hana-visor-mensaje{ display: inline-block; margin-top: 18vh; max-width: 520px; padding: 18px 22px; border-radius: 8px; background: #FFFFFF; color: #2A3F54; font-size: 15px; line-height: 1.5; text-align: left; }
+.hana-visor-mensaje-error{ border-left: 5px solid #6E1A1E; }
+/* Descargar: botón blanco sobre el fondo oscuro */
+.hana-visor-bajar{
+    display: inline-block; margin-left: 12px; padding: 6px 14px; border-radius: 4px;
+    background: #FFFFFF; color: #2A3F54 !important; font-weight: 600; text-shadow: none; text-decoration: none !important;
+}
+.hana-visor-bajar:hover, .hana-visor-bajar:focus{ background: #E6F7F4; outline: 2px solid #1ABB9C; }
+.hana-visor-aviso{ margin-top: 6px; font-size: 12px; color: #D9D9D9; }
+@media (min-width: 768px){ .hana-visor-aviso{ display: none !important; } }
+/* Archivos elegidos en una lista (antes de guardar): miniatura de la foto */
+.adjn-chip-mini{ width: 26px; height: 26px; object-fit: cover; border-radius: 50%; border: 1px solid #E8D5D5; background: #FFFFFF; }
+.adjn-chip-ver:hover{ border-color: #6E1A1E; }
+/* Lo que se puede ampliar lo dice el puntero */
+.rd-firma, .firma-guardada img, .modal img.img-rounded, a[data-visor] img, .rq-visor-grande img, .hana-foto-previa img, .rq-previa img, .rq-previa-pdf, .adjn-chip-ver{ cursor: zoom-in; }
+@media (max-width: 767px){
+    .hana-visor-marco{ padding: 56px 8px 60px; }
+    .hana-visor-flecha{ top: auto; bottom: 8px; transform: none; width: 52px; height: 44px; line-height: 40px; }
+    .hana-visor-pie{ bottom: 62px; padding: 0 12px; }
+    .hana-visor.hana-visor-modo-pdf .hana-visor-marco{ padding: 56px 6px 110px; }
+    .hana-visor.hana-visor-modo-pdf .hana-visor-pie{ bottom: 14px; }
+}
+@media print{ .hana-visor{ display: none !important; } }

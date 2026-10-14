@@ -1,3 +1,10 @@
+/*
+  HANA - Inicio de sesión (lo que pasa en la pantalla)
+  ---------------------------------------------------------------------------
+  Envía el usuario y la clave a Control/UsuariosControl.php?op=verificar.
+  Si son correctos entra a HANA; si no, muestra el aviso. También maneja
+  el formulario de "olvidé mi clave".
+*/
 function ini(){
     $("#LoginUsuarios").focus();
     
@@ -60,6 +67,7 @@ $("#frmrecuperar").on('submit',function(e){//recibe datos de frmAcceso
 recuperar(false);
 }
 
+//Cambia entre el formulario de entrar y el de recuperar la clave
 function recuperar(op){
     if(op){
     $("#recuperar").show();  

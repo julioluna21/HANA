@@ -1,4 +1,15 @@
 <?php
+/*
+  Archivo viejo del sistema original: ninguna pantalla lo usa. La versión vigente es UsuariosControl.php.
+  No revisaba la sesión ni los permisos, así que ahora responde "ya no existe" (410) y no
+  ejecuta nada. El código original se conserva debajo, sin cambios.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
 session_start();//inicia la session, permite guardar variables de sesion
 require_once "../Modelo/UsuarioModelo.php";//Utilizará este archivo
 require '../public/PHPMailer-master/src/Exception.php';
@@ -28,8 +39,8 @@ function correoenvio($correo,$mensaje,$asunto){
                          $mail->SMTPAuth = true;
                          $mail->Host = "regencysa.net";
                          $mail->Port = 465;
-                         $mail->Username = "no-reply@regencysa.net";
-                         $mail->Password = "Pr0t1nc0315*";
+                         $mail->Username = ""; // dato quitado: la cuenta de correo vive en Conexion/Global.php
+                         $mail->Password = ""; // dato quitado: la contraseña vive en Conexion/Global.php
                          $mail->SMTPSecure = "ssl";
                          $mail->From     = 'no-reply@regencysa.net';
                          $mail->FromName = utf8_decode('HANA LISTA DE CHEQUEO');

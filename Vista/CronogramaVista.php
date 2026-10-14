@@ -1,5 +1,5 @@
 <?php
-//Reporte diario — Cronograma de visitas y vehículo
+//Reporte diario - Cronograma de visitas y vehículo
 //Un calendario del mes: lo planeado para cada día y el estado del vehículo.
 //Reemplaza la hoja "Cronograma visitas y vehículo" del Excel
 session_start();
@@ -7,18 +7,17 @@ session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     //Si el administrador apagó este módulo (Parámetros del sistema), la pantalla no abre
-    require_once __DIR__ . '/../Modelo/HanaConfig.php';
-    if (!HanaConfig::modulo('CRONOGRAMA')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
-    HanaDB::usarModulo('CRONOGRAMA');
+    require_once __DIR__ . '/../Control/PaginaControl.php';
+    if (!pagModuloActivo('CRONOGRAMA')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
+    pagUsarModulo('CRONOGRAMA');
     //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    require_once __DIR__ . '/../Modelo/HanaDB.php';
-    $esCoordinador = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+    $esCoordinador = pagEsCoordinador();
 
     //Lo llena el coordinador; 5M: catálogo de vehículos; 20M y 21M: consultan todos los proyectos
     if ($esCoordinador || in_array("5M", $modulosAcceso) || in_array("20M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("22M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -70,7 +69,8 @@ if (isset($_SESSION['IdUsuarios'])) {
             <span class="crono-vh crono-vh-FALLA_FLOTA">Falla reportada</span>
           </div>
           <p class="rd-ayuda">Toca un día para planear, marcar lo que hiciste o registrar el estado del vehículo.
-            Las visitas a un peaje quedan realizadas solas si ese día lo marcaste en "Hoy en qué estás".</p>
+            Las visitas a un peaje quedan realizadas solas si ese día lo marcaste en "Hoy en qué estás".
+            El estado del vehículo se registra el mismo día; los sábados, domingos y festivos también se pueden dejar registrados por adelantado.</p>
 
           <!-- Dos formas de ver el mes: calendario, o lista con toda la información de cada día -->
           <div class="crono-vistas">
@@ -132,8 +132,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
-<script type="text/javascript" src="../Ajax/CronogramaAjax.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/CronogramaAjax.js?v=12"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

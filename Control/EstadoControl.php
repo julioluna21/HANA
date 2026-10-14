@@ -1,19 +1,34 @@
 <?php
+/*
+  HANA - Estados de prioridad de las novedades (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/EstadoAjax.js y responde con lo que
+  trae el modelo (Modelo/EstadosModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, mostrar, anular, activar, select y listar.
+  Permiso: 8M. El desplegable (select) también lo usa Novedades.
+*/
 session_start();//inicia la session, permite guardar variables de sesion
 require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
 hanaGuardia(array('8M'), array('select')); //Estados: 8M. El selector lo usan novedades
 require_once "../Modelo/EstadosModelo.php";//Utilizará este archivo
-$Estados=new Estados();//crea un nuevo articulo
+$Estados=new Estados();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idestado=isset($_POST["idestado"])? limpiarCadena($_POST["idestado"]):"";
 $nombreestado=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
-$dias=isset($_POST["dias"])? $_POST["dias"]:"";
+//Días para atender una novedad de esta prioridad: un número entero sin signos ni
+//decimales. Antes llegaba sin revisar a la consulta
+$dias=isset($_POST["dias"])? trim((string)$_POST["dias"]):"";
 
 
 //opciones
 switch ($_GET["op"])
     {
             case 'guardar'://primer caso
+                if (!preg_match('/^\d{1,3}$/', $dias) || (int)$dias > 365) {
+                    echo "Error: los días deben ser un número entero entre 0 y 365";
+                    break;
+                }
                 if (empty($idestado)) {
                   
                     $rspta=$Estados->insertar(strtoupper($nombreestado),$dias);
@@ -26,18 +41,21 @@ switch ($_GET["op"])
                 }
                             
             break;
+            //Trae un estado de prioridad para cargarlo en el formulario
             case 'mostrar':
        
                     $rspta=$Estados->mostrar($idestado);
                     //Codificar el resultado utilizando json
                     echo json_encode($rspta);
             break;
+            //Desactiva un estado de prioridad
             case 'anular':
                        $rspta=$Estados->desactivar($idestado);
                         echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
+             //Vuelve a activar un estado de prioridad
              case 'activar':
                    
                         $rspta=$Estados->activar($idestado);
@@ -46,6 +64,7 @@ switch ($_GET["op"])
             break;
         
         
+            //Arma las opciones del desplegable de estados de prioridad
             case 'select':
             $rspta=$Estados->select();
             echo "<option value=''>Seleccione Estado de prioridad...</option>";
@@ -60,10 +79,10 @@ switch ($_GET["op"])
    
         
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://lo pide la tabla de la pantalla al cargar
         
         
-                    $rspta=$Estados->listar();//Carga la rspta con lista de articulos
+                    $rspta=$Estados->listar();//trae los registros para la tabla
                     //Vamos a declarar un array
                     $data= Array();
         

@@ -3,19 +3,17 @@ session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     //Si el administrador apagó este módulo (Parámetros del sistema), la pantalla no abre
-    require_once __DIR__ . '/../Modelo/HanaConfig.php';
-    if (!HanaConfig::modulo('LISTAS')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
-    //Las listas las diligencia el coordinador del proyecto (con 11M). También las
-    //ven quien las administra (12M) y la administración del reporte (21M).
-    //Los jefes de peaje solo hacen RQ
-    require_once __DIR__ . '/../Modelo/HanaDB.php';
-    $esCoordinador = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
-    if ((($esCoordinador || !HanaConfig::si('LISTAS_SOLO_COORDINADOR')) && in_array("11M", $modulosAcceso)) or in_array("12M", $modulosAcceso) or in_array("21M", $modulosAcceso) or isset($_GET["op"])) {
+    require_once __DIR__ . '/../Control/PaginaControl.php';
+    if (!pagModuloActivo('LISTAS')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
+    //Las listas las diligencia quien tenga 11M en sus permisos. También las
+    //ven quien las administra (12M) y la administración del reporte (21M)
+    $esCoordinador = pagEsCoordinador();
+    if (in_array("11M", $modulosAcceso) or in_array("12M", $modulosAcceso) or in_array("21M", $modulosAcceso) or isset($_GET["op"])) {
         include('head.php');
 ?>  
         <!-- Estilos de la lista de chequeo: botones grandes, barra de avance y firma en pantalla -->
-        <link href="../public/css/listas.css?v=1" rel="stylesheet">
-        <link href="../public/css/reporte.css?v=15" rel="stylesheet">
+        <link href="../public/css/listas.css?v=2" rel="stylesheet">
+        <link href="../public/css/reporte.css?v=16" rel="stylesheet">
         <!-- Contenido aqui va todo el DIV del contenido.. -->
 
         <!--script type="text/javascript">
@@ -227,13 +225,13 @@ if (isset($_SESSION['IdUsuarios'])) {
                 100% { box-shadow: 0 0 0 0 rgba(217,83,79,0); }
             }
         </style>
-        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
         <script>
           //Archivos al llenar una lista nueva: si están permitidos y el tamaño máximo (Parámetros del sistema)
-          var HANA_ADJ_LISTAS = <?php echo HanaConfig::si('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
-          var HANA_ADJ_MAX_MB = <?php echo (int)max(1, HanaConfig::num('ADJUNTOS_MAX_MB', 10)); ?>;
+          var HANA_ADJ_LISTAS = <?php echo pagParametroSi('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
+          var HANA_ADJ_MAX_MB = <?php echo (int)max(1, pagParametroNum('ADJUNTOS_MAX_MB', 10)); ?>;
         </script>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=7"></script>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=9"></script>
         <script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script>
 <?php
     } else {

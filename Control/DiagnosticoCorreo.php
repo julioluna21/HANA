@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Diagnóstico del correo
+  HANA - Diagnóstico del correo
   ---------------------------------------------------------------------------
   Abre en el navegador:  http://localhost/DEV/Control/DiagnosticoCorreo.php
   (cambia DEV por el nombre de tu carpeta). Revisa todo lo que necesita el
@@ -26,6 +26,7 @@ require_once __DIR__ . '/../public/PHPMailer-master/src/Exception.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/PHPMailer.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
 
+//Escapa un texto para mostrarlo en la página sin riesgo
 function e($t) { return htmlspecialchars((string)$t, ENT_QUOTES, 'UTF-8'); }
 $filas = array(); //revisiones: [bien?, qué, detalle, qué hacer si está mal]
 $agregar = function ($ok, $que, $detalle, $siMal = '') use (&$filas) { $filas[] = array($ok, $que, $detalle, $siMal); };

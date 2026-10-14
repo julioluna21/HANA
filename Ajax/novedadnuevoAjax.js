@@ -1,3 +1,7 @@
+//Novedades y hallazgos (Vista/novedadesVista.php)
+//Registrar una novedad, verla como conversación, responderla con foto y cambiarle el estado.
+//Habla con Control/NovedadesControl.php
+
 var tabla;//variable global
 var vistaNov = 'mias'; //"mias" = Mis registros; "todas" = lo que mi rol puede ver
 var novedadesPrimeraCarga = true;  //solo la primera carga puede cambiar el filtro sola
@@ -12,12 +16,12 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
     
     $("#respuesta").on("submit",function(e)//e = variable que contiene el objeto
     {
-            respuesta(e);//guarda o edita el articulo
+            respuesta(e);//guarda la respuesta de la novedad
     });
     
     $.post("../Control/TituloControl.php?op=select",function(data){
@@ -151,6 +155,7 @@ function mostrarform(flag)
     }
 }
 
+//Cambia entre la tabla de novedades (true) y la conversación de una novedad (false)
 function mostrarcontenedor(flag)
 {
     if (flag)
@@ -184,6 +189,7 @@ function limpiar()
   
 }
 
+//Deja en blanco el formulario de respuesta de la novedad
 function limpiar2()
 {
     document.getElementById("respuesta").reset();
@@ -257,6 +263,7 @@ function guardar(e)
     });
 }
 
+//Guarda la respuesta a la novedad, con el estado elegido y la foto si la hay
 function respuesta(e)
 {
     e.preventDefault(); //No se activará la acción predeterminada del evento
@@ -306,6 +313,7 @@ function respuesta(e)
     }
 }
 
+//Abre la conversación de una novedad para responderla
 function mostrar(IDnovedad)
 {
     hanaCargando(true); //aviso de carga mientras llega la novedad
@@ -328,6 +336,7 @@ function mostrar(IDnovedad)
     });
 }
 
+//Abre la conversación de una novedad solo para leerla (sin poder responder)
 function solover(IDnovedad)
 {
     hanaCargando(true); //aviso de carga mientras llega la novedad
@@ -349,6 +358,7 @@ function solover(IDnovedad)
     });
 }
 
+//Vuelve a cargar la conversación después de responder y bloquea el botón si ya no se puede responder
 function mostrarres(IDnovedad)
 {
     $.post("../Control/NovedadesControl.php?op=mostrarnovedad",{IDnovedad : IDnovedad}, function(data)
@@ -368,6 +378,7 @@ function mostrarres(IDnovedad)
     });
 }
 
+//Deja anotado el estado elegido: 2 en proceso, 3 finalizada, 4 cerrada
 function novedades(op)
 {
     if(op==2){
@@ -381,6 +392,7 @@ function novedades(op)
    
 }
 
+//Revisa el rango de fechas del filtro y vuelve a cargar la tabla
 function condiciones()
 {
  var con1=$("#validador").val();
@@ -455,6 +467,7 @@ function prepararFoto(campo, boton, previa, imagen, nombre, quitar) {
 
             //Vista previa con el nombre y el peso final
             var lector = new FileReader();
+            //Cuando termina de leer la foto, la muestra como vista previa con su nombre y tamaño
             lector.onload = function (e) {
                 $(imagen).attr("src", e.target.result);
                 $(nombre).text(usada.name + "  (" + Math.round(usada.size / 1024) + " KB)");
@@ -488,10 +501,12 @@ function comprimirImagen(archivo, alTerminar) {
     if (archivo.size < 400 * 1024) { alTerminar(archivo); return; }
 
     var lector = new FileReader();
+    //Si el archivo no se puede leer como imagen, se sube tal como viene
     lector.onerror = function () { alTerminar(archivo); };
     lector.onload = function (e) {
         var img = new Image();
         img.onerror = function () { alTerminar(archivo); };
+        //La foto se achica antes de subirla, conservando la proporción
         img.onload = function () {
             try {
                 //Se calcula el tamano nuevo conservando la proporcion

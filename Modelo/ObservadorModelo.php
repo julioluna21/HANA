@@ -1,4 +1,10 @@
 <?php
+/*
+  HANA - Observadores (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla observador_novedades_hallazgos.
+  Lo usa Control/ObservadorControl.php.
+*/
 require "../Conexion/ConexionDB.php";
 class Observador
 {
@@ -37,11 +43,13 @@ class Observador
                 $sql = "SELECT * FROM observador_novedades_hallazgos WHERE ESTADO=1";
                 return ejecutarConsulta($sql);
         }
+        //Desactiva un observador (no se borra)
         public function desactivar($IDOBSERVADOR)
         {
                 $sql = "UPDATE observador_novedades_hallazgos SET ESTADO=0 WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$IDOBSERVADOR";
                 return ejecutarConsulta($sql);
         }
+        //Vuelve a activar un observador
         public function activar($IDOBSERVADOR)
         {
                $sql = "UPDATE observador_novedades_hallazgos SET ESTADO=1 WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$IDOBSERVADOR";

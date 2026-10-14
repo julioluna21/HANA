@@ -346,10 +346,12 @@ function abrirFormPregunta(boton) {
     $(".right_col").scrollTop(0); window.scrollTo(0, 0);
 }
 
+//Cierra el panel de edición de una pregunta
 function cerrarFormPregunta() {
     $("#panelPregunta").slideUp(150);
 }
 
+//Revisa y guarda la pregunta del panel de edición
 function guardarFormPregunta() {
     var pregunta = $.trim($("#fpPregunta").val());
     var genera = $("#fpGenera").val();

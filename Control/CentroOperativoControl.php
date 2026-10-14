@@ -1,7 +1,8 @@
 <?php
 session_start(); //inicia la session, permite guardar variables de sesion
 require_once "../Modelo/CentroOperativoModelo.php"; //Utilizará este archivo
-$Centro = new Centro(); //crea un nuevo articulo
+require_once __DIR__ . "/../Modelo/OrganizacionModelo.php"; //¿el jefe elegido existe y está activo?
+$Centro = new Centro(); //objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idcentro = isset($_POST["idcentro"]) ? limpiarCadena($_POST["idcentro"]) : "";
 $nombrecentro = isset($_POST["nombre"]) ? limpiarCadena($_POST["nombre"]) : "";
@@ -22,7 +23,7 @@ if (in_array($op, array('guardar', 'mostrar', 'anular', 'listar'), true) && !in_
         http_response_code(403); echo "No permitido: tu rol no administra centros de operación."; exit();
 }
 if ($op === 'guardar' && $jefe > 0) {
-        $existe = ejecutarConsultaSimpleFila("SELECT 1 AS ok FROM colaboradores WHERE ID_COLABORADOR = $jefe AND ESTADO = 1");
+        $existe = Organizacion::colaboradorActivo($jefe);
         if (!$existe) { http_response_code(400); echo "El jefe elegido no existe o está inactivo."; exit(); }
 }
 
@@ -49,6 +50,7 @@ switch ($op) {
                         echo json_encode($th);
                 }
                 break;
+        //Trae los datos de un centro operativo para cargarlos en el formulario
         case 'mostrar':
                 try {
                         $rspta = $Centro->mostrar($idcentro);
@@ -59,6 +61,7 @@ switch ($op) {
                         echo json_encode($th);
                 }
                 break;
+        //Desactiva un centro operativo (no se borra)
         case 'anular':
                 try {
                         $rspta = $Centro->anular($idcentro);
@@ -68,6 +71,7 @@ switch ($op) {
                         echo json_encode($th);
                 }
                 break;
+        //Arma las opciones del desplegable de centros operativos
         case 'select':
                 try {
                         $rspta = $Centro->select();
@@ -81,8 +85,8 @@ switch ($op) {
                         echo json_encode($th);
                 }
                 break;
-        case 'listar': //activado por el ajax en el scrip articulos
-                $rspta = $Centro->listar(); //Carga la rspta con lista de articulos
+        case 'listar': //lo pide la tabla de la pantalla al cargar
+                $rspta = $Centro->listar(); //trae los registros para la tabla
                 //Vamos a declarar un array
                 $data = array();
                 while ($reg = $rspta->fetch_object()) //mientras exista objeto en la respuesta

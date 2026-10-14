@@ -1,5 +1,5 @@
 <?php
-//Reporte diario — "Hoy en qué estás"
+//Reporte diario - "Hoy en qué estás"
 //El día de cada persona: situación, dónde estuvo, horario y qué hizo (un solo
 //texto). Reemplaza la hoja "Hoy en qué estás" del Excel
 session_start();
@@ -7,18 +7,17 @@ session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     //Si el administrador apagó este módulo (Parámetros del sistema), la pantalla no abre
-    require_once __DIR__ . '/../Modelo/HanaConfig.php';
-    if (!HanaConfig::modulo('HOY')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
-    HanaDB::usarModulo('HOY');
+    require_once __DIR__ . '/../Control/PaginaControl.php';
+    if (!pagModuloActivo('HOY')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
+    pagUsarModulo('HOY');
     //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    require_once __DIR__ . '/../Modelo/HanaDB.php';
-    $esCoordinador = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+    $esCoordinador = pagEsCoordinador();
 
     //Módulo 11M: diligenciar el reporte diario
     if ($esCoordinador) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -138,7 +137,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
 <script type="text/javascript" src="../Ajax/HoyAjax.js?v=4"></script>
 <?php
     } else {

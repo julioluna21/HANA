@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Cuenta de correo del sistema
+  HANA - Cuenta de correo del sistema
   ---------------------------------------------------------------------------
   Todos los envíos de correo (novedades, listas, recuperar contraseña,
   recordatorios) toman la cuenta de aquí.
@@ -153,6 +153,7 @@ function hanaIncrustarImagenes($mail)
     $mail->hanaImagenesListas = true;
 }
 
+//Envía un correo con la cuenta configurada y deja constancia del envío en la bitácora
 function hanaEnviar($mail, $modulo = 'GENERAL', &$diagnostico = null)
 {
     require_once __DIR__ . '/../Modelo/HanaConfig.php';
@@ -245,12 +246,9 @@ function hanaEnviar($mail, $modulo = 'GENERAL', &$diagnostico = null)
 function hanaCorreoLog($mail, $modulo, $metodo, $ok, $error)
 {
     try {
-        require_once __DIR__ . '/../Modelo/HanaDB.php';
+        require_once __DIR__ . '/../Modelo/BitacoraModelo.php';
         $para = implode(', ', array_map(function ($a) { return $a[0]; }, $mail->getToAddresses()));
-        HanaDB::q("INSERT INTO bitacora_sistema (TIPO, FECHA, MODULO, QUIEN, ASUNTO, DETALLE, OK, ERROR)
-                   VALUES ('CORREO', NOW(), ?, ?, ?, ?, ?, ?)",
-                  'ssssis', array(substr($modulo, 0, 30), substr($para, 0, 500), substr((string)$mail->Subject, 0, 250),
-                                  substr((string)$metodo, 0, 60), $ok ? 1 : 0, $error === null ? null : substr((string)$error, 0, 500)));
+        Bitacora::correo($modulo, $para, (string)$mail->Subject, (string)$metodo, $ok, $error);
     } catch (\Throwable $e) {
         error_log('HANA - no se pudo anotar el envío de correo: ' . $e->getMessage());
     }

@@ -1,6 +1,6 @@
 <?php
 //Pantalla de Requisiciones (RQ)
-//Reemplaza el Excel "REGISTRO DE RQ". Desde la Fase 1: dos tipos (RQ normal y
+//Reemplaza el Excel "REGISTRO DE RQ". Dos tipos (RQ normal y
 //RQ U urgente) y un solo paso: se solicita y se aprueba o se rechaza
 
 session_start();
@@ -8,11 +8,10 @@ session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
 
-    //Requisiciones: entran quien las pide, quien ve todas (17M) o quien aprueba (18M).
-    //Las pide solo el coordinador del proyecto (parámetro RQ_SOLO_COORDINADOR); si se apaga, quien tenga 15M
-    require_once __DIR__ . '/../Modelo/HanaConfig.php';
-    $coordinaRq = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
-    $puedePedirRq = HanaConfig::si('RQ_SOLO_COORDINADOR', true) ? $coordinaRq : in_array("15M", $modulosAcceso);
+    //Requisiciones: entran quien las ve (15M), quien ve todas (17M), quien aprueba (18M) y quien las pide (41M).
+    //Pedirlas es la casilla 41M de Permisos de usuario
+    require_once __DIR__ . '/../Control/PaginaControl.php';
+    $puedePedirRq = in_array("41M", $modulosAcceso);
     if ($puedePedirRq || in_array("15M", $modulosAcceso) || in_array("17M", $modulosAcceso) || in_array("18M", $modulosAcceso)) {
         include('head.php');
 ?>
@@ -59,7 +58,17 @@ if (isset($_SESSION['IdUsuarios'])) {
               <label for="fCentro">Peaje:</label>
               <select id="fCentro" class="form-control"><option value="0">Todos</option></select>
             </div>
-            <div class="form-group col-md-3 col-sm-6 col-xs-6">
+            <div class="form-group col-md-2 col-sm-4 col-xs-12">
+              <label for="fEstado">Estado:</label>
+              <select id="fEstado" class="form-control">
+                <option value="">Todas</option>
+                <option value="pendientes">Sin aprobar</option>
+                <option value="aprobadas">Aprobadas</option>
+                <option value="rechazadas">Rechazadas</option>
+                <option value="anuladas">Anuladas</option>
+              </select>
+            </div>
+            <div class="form-group col-md-2 col-sm-4 col-xs-6">
               <label for="fMes">Mes:</label>
               <select id="fMes" class="form-control">
                 <option value="0">Todo el año</option>
@@ -69,7 +78,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
               </select>
             </div>
-            <div class="form-group col-md-3 col-sm-6 col-xs-6">
+            <div class="form-group col-md-2 col-sm-4 col-xs-6">
               <label for="fAnio">Año:</label>
               <select id="fAnio" class="form-control"><option value="0">Todos</option></select>
             </div>
@@ -142,8 +151,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <i class="fa fa-plus"></i> Agregar otro ítem
             </button>
 
-            <!-- Ya no se elige rol ni se marca riesgo: la RQ le llega a quien tiene el
-                 permiso de aprobar, y lo urgente se indica con el tipo -->
+            <!-- La RQ le llega a quien tiene el permiso de aprobar; lo urgente se indica con el tipo -->
             <h4 class="rq-subtitulo">Observaciones</h4>
             <div class="form-group">
               <label for="rqSst">Observación:</label>
@@ -199,30 +207,16 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/RQAjax.js?v=4"></script>
+<script type="text/javascript" src="../Ajax/RQAjax.js?v=8"></script>
 
 <?php
     } else {
-        //Tiene sesión pero no el permiso del módulo. Antes se mandaba a Inicio sin
-        //decir nada, y parecía que la página no existía. Ahora se revisa la causa
-        //y se explica qué hacer
-        require_once __DIR__ . '/../Conexion/ConexionDB.php';
-        $idUsuario = intval($_SESSION['IdUsuarios']);
-
-        //¿Ya se ejecutó el script de la base de datos?
-        $r = ejecutarConsulta("SELECT COUNT(*) AS n FROM information_schema.TABLES
-                                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rq'");
-        $tablasListas = $r && ($f = $r->fetch_assoc()) && (int)$f['n'] > 0;
-
-        //¿El rol del usuario ya tiene el permiso en la base (aunque la sesión aún no)?
-        $r = ejecutarConsulta("SELECT ro.NOM_ROL_USUARIO_SISTEMA AS rol, ro.MODULOS_ROL_USUARIOS_SISTEMAS AS modulos
-                                 FROM usuarios_sistema u
-                                 INNER JOIN rol_usuarios_sistemas ro
-                                         ON ro.ID_ROL_USUARIO_SISTEMA = u.ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA
-                                WHERE u.ID_USUARIO_SISTEMA = $idUsuario LIMIT 1");
-        $filaRol  = $r ? $r->fetch_assoc() : null;
-        $nomRol   = $filaRol ? htmlspecialchars($filaRol['rol']) : '';
-        $rolTiene = $filaRol && in_array('15M', explode(',', $filaRol['modulos']));
+        //Tiene sesión pero no el permiso del módulo: se revisa la causa y se explica
+        //qué hacer
+        $diag = pagDiagnosticoRQ(); //lo revisa el controlador (Control/PaginaControl.php)
+        $tablasListas = $diag['tablasListas'];
+        $nomRol   = htmlspecialchars($diag['nomRol']);
+        $rolTiene = $diag['rolTiene'];
 
         if (!$tablasListas) {
             $titulo = 'Falta preparar la base de datos';
@@ -231,13 +225,13 @@ if (isset($_SESSION['IdUsuarios'])) {
                     . '(o <code>rq_modulo.sql</code>) en phpMyAdmin, sobre la base del sistema.';
         } elseif ($rolTiene) {
             $titulo = 'Cierra sesión y vuelve a entrar';
-            $texto  = 'Tu rol ya tiene el permiso de requisiciones, pero los permisos se cargan al '
+            $texto  = 'Tus permisos ya incluyen requisiciones, pero los permisos se cargan al '
                     . 'iniciar sesión. Cierra sesión y vuelve a entrar para que aparezca el módulo.';
         } else {
-            $titulo = 'Tu rol no tiene este permiso';
+            $titulo = 'No tienes este permiso';
             $texto  = 'Tu rol' . ($nomRol ? ' (<strong>' . $nomRol . '</strong>)' : '') . ' no tiene habilitado el '
-                    . 'módulo de requisiciones. Un administrador debe entrar a <strong>Configuración → Roles</strong>, '
-                    . 'editar el rol y marcar la casilla <strong>Requisiciones (RQ)</strong>. Después, cierra sesión '
+                    . 'módulo de requisiciones. Un administrador debe entrar a <strong>Configuración → Permisos de usuario</strong>, '
+                    . 'editar el rol y marcar las casillas de <strong>Requisiciones (RQ)</strong>. Después, cierra sesión '
                     . 'y vuelve a entrar.';
         }
 

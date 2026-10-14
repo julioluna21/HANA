@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Administración del reporte diario (consulta)
+  HANA - Administración del reporte diario (consulta)
   ---------------------------------------------------------------------------
   Para el administrador técnico (permiso 21M): ver TODO lo que llenan los
   coordinadores, de todos los proyectos, sin ser coordinador. Es de solo
@@ -15,11 +15,12 @@ require_once __DIR__ . "/../Modelo/HoyModelo.php";
 require_once __DIR__ . "/../Modelo/ArqueoModelo.php";
 require_once __DIR__ . "/../Modelo/CronogramaModelo.php";
 require_once __DIR__ . "/../Modelo/VacanteModelo.php";
-require_once __DIR__ . "/AccesoHelper.php";
+require_once __DIR__ . "/AccesoHelper.php"; //incluye OrganizacionModelo
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function admError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -34,9 +35,7 @@ $hoy = date('Y-m-d');
 
 //Todos los centros activos (con su proyecto), con el id como llave
 $centros = array();
-foreach ((array)HanaDB::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
-                             FROM centros_operacion c INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
-                            WHERE c.Estado = '1' ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP") as $c) {
+foreach (Organizacion::centrosActivos() as $c) {
     $centros[(int)$c['ID_CENTRO_OP']] = $c;
 }
 
@@ -70,15 +69,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //Filtros: proyectos, centros y las personas que llenan el reporte del
     //coordinador (los coordinadores actuales y quien haya registrado algo)
     case 'config':
-        $proyectos = HanaDB::q("SELECT p.ID_PROYECTO, p.NOM_PROYECTO, p.ID_COLABORADOR_COORDINADOR, c.NOM_COLABORADOR AS COORDINADOR
-                                  FROM proyectos p LEFT JOIN colaboradores c ON c.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR
-                                 WHERE p.Estado = '1' ORDER BY p.NOM_PROYECTO");
-        $personas = HanaDB::q("SELECT DISTINCT c.ID_COLABORADOR, c.NOM_COLABORADOR
-                                 FROM colaboradores c
-                                WHERE c.ID_COLABORADOR IN (SELECT ID_COLABORADOR_COORDINADOR FROM proyectos WHERE ID_COLABORADOR_COORDINADOR IS NOT NULL)
-                                   OR c.ID_COLABORADOR IN (SELECT ID_COLABORADOR FROM reporte_hoy)
-                                   OR c.ID_COLABORADOR IN (SELECT ID_COLABORADOR FROM cronograma)
-                                ORDER BY c.NOM_COLABORADOR");
+        $proyectos = Organizacion::proyectos();
+        $personas = Organizacion::personasDelReporte();
         echo json_encode(array(
             'hoy' => $hoy, 'proyectos' => $proyectos ? $proyectos : array(), 'centros' => array_values($centros),
             'personas' => $personas ? $personas : array(),
@@ -95,18 +87,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'hoy':
         list($desde, $hasta) = admMes();
         if ($desde === '') { admError(400, 'Elige un mes.'); }
-        $sql = "SELECT h.ID_COLABORADOR, col.NOM_COLABORADOR, h.FECHA, h.SITUACION, h.HORA_INGRESO, h.HORA_SALIDA, h.LUGAR_OTRO,
-                       h.OBSERVACION, h.FEC_REGISTRO, h.FEC_MODIFICACION,
-                       (SELECT GROUP_CONCAT(c.NOM_CENTRO_OP ORDER BY c.NOM_CENTRO_OP SEPARATOR ' - ')
-                          FROM reporte_hoy_centro hc INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = hc.ID_CENTRO_OP
-                         WHERE hc.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS LUGARES,
-                       h.ACTIVIDAD
-                  FROM reporte_hoy h INNER JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
-                 WHERE h.FECHA >= ? AND h.FECHA < ?";
-        $tipos = 'ss'; $params = array($desde, $hasta);
-        if (isset($_GET['persona']) && (int)$_GET['persona'] > 0) { $sql .= " AND h.ID_COLABORADOR = ?"; $tipos .= 'i'; $params[] = (int)$_GET['persona']; }
-        $sql .= " ORDER BY h.FECHA DESC, col.NOM_COLABORADOR";
-        $f = HanaDB::q($sql, $tipos, $params);
+        $f = (new Hoy())->mesTodos($desde, $hasta, isset($_GET['persona']) ? max(0, (int)$_GET['persona']) : 0);
         echo json_encode($f ? $f : array(), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -119,8 +100,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!$r) { admError(404, 'No hay registro de esa persona ese día.'); }
         $r['LUGARES'] = array();
         foreach ($r['CENTROS'] as $id) { if (isset($centros[$id])) { $r['LUGARES'][] = $centros[$id]['NOM_CENTRO_OP']; } }
-        $col = HanaDB::fila("SELECT NOM_COLABORADOR FROM colaboradores WHERE ID_COLABORADOR = ?", 'i', array($persona));
-        $r['NOM_COLABORADOR'] = $col ? $col['NOM_COLABORADOR'] : '';
+        $r['NOM_COLABORADOR'] = Organizacion::nombre($persona);
         echo json_encode($r, JSON_UNESCAPED_UNICODE);
         break;
 
@@ -134,6 +114,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                          JSON_UNESCAPED_UNICODE);
         break;
 
+    //El detalle de un arqueo, para abrirlo desde el reporte
     case 'arqueo':
         $a = (new Arqueo())->mostrar(isset($_GET['id']) ? (int)$_GET['id'] : 0);
         if (!$a) { admError(404, 'No se encontró el arqueo.'); }
@@ -172,12 +153,13 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode((new Vacante())->listar(admCentros($centros), $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Comunicaciones del mes (o las abiertas) de los proyectos activos
     case 'comunicaciones':
         list($desde, $hasta, $abiertas) = admMes();
         $proy = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
         $ids = array();
-        foreach ((array)HanaDB::q("SELECT ID_PROYECTO FROM proyectos WHERE Estado = '1'") as $p) {
-            if ($proy === 0 || (int)$p['ID_PROYECTO'] === $proy) { $ids[] = (int)$p['ID_PROYECTO']; }
+        foreach (Organizacion::idsProyectosActivos() as $p) {
+            if ($proy === 0 || $p === $proy) { $ids[] = $p; }
         }
         echo json_encode((new Comunicacion())->listar($ids, $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
         break;

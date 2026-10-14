@@ -1,4 +1,11 @@
 <?php
+/*
+  HANA - Tablero de Power BI
+  ---------------------------------------------------------------------------
+  Muestra dentro de HANA el tablero publicado en Power BI (en un iframe).
+  La dirección del tablero se arma más abajo en $urlFinal.
+  Permiso: 13M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    

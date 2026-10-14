@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Estados de las requisiciones (RQ)
+  HANA - Estados de las requisiciones (RQ)
   ---------------------------------------------------------------------------
   El flujo de la RQ es fijo y vive aquí. La tabla rq guarda solo el número del
   estado (rq.ID_RQ_ESTADO); el nombre, el color y el orden salen de esta lista.
@@ -92,6 +92,17 @@ class RqEstado
         $partes = array();
         foreach ($campos as $c) { $partes[] = self::sqlCampo($columna, $c) . " AS $c"; }
         return implode(",\n                       ", $partes);
+    }
+
+    //Tipos de evento de una RQ en historial (TIPO): un cambio de estado o una corrección sin cambio de estado
+    const HIST_CAMBIO     = 'CAMBIO_ESTADO';
+    const HIST_CORRECCION = 'CORRECCION';
+
+    //Desde cuándo está la RQ en su estado actual: la fecha de su último cambio de estado en el
+    //historial (la RQ no guarda esa fecha aparte, así no hay dos datos que puedan no coincidir)
+    public static function sqlDesde($columnaId)
+    {
+        return "(SELECT MAX(hd.FECHA) FROM historial hd WHERE hd.MODULO = 'RQ' AND hd.TIPO = '" . self::HIST_CAMBIO . "' AND hd.ID_REGISTRO = $columnaId)";
     }
 
     //1 si la RQ lleva en su estado más días de los esperados (solo estados no finales)

@@ -1,4 +1,4 @@
-//Reporte diario — Arqueos
+//Reporte diario - Arqueos
 //Formulario con cálculo en vivo (el servidor vuelve a calcular al guardar),
 //listado del mes, detalle con impresión y configuración de fondos
 
@@ -72,6 +72,7 @@ $(function () {
     $(document).on('click', '.btn-fondo', guardarFondo);
 });
 
+//Muestra solo uno de los paneles de la pantalla (lista, formulario, fondos o campos)
 function mostrarPanel(id) {
     $('#panelListaArq, #panelFormArq, #panelFondos, #panelCampos').hide();
     $(id).show();
@@ -156,13 +157,15 @@ function pintarTipo() {
     }
     $('#arqCentro').html(con ? h : '<option value="">Ningún centro tuyo tiene este fondo autorizado</option>');
 
-    //Efectivo: una línea por concepto
+    //Efectivo: un campo por concepto. El de billetes y monedas (EFECTIVO) va sin observación propia:
+    //se guarda solo como total del arqueo; lo que haya que explicar va en la observación general
     var ef = '';
     $.each(cfgArq.efectivo[tipo], function (cod, nom) {
+        var soloTotal = cod === 'EFECTIVO';
         ef += '<div class="row rd-linea-ef"><div class="form-group col-sm-5 col-xs-12"><label>' + rdEsc(nom) + ':</label>' +
               '<input type="text" inputmode="numeric" class="form-control rd-pesos" name="efectivo[' + rdEsc(cod) + ']" placeholder="$ 0"></div>' +
-              '<div class="form-group col-sm-7 col-xs-12"><label>Observación:</label>' +
-              '<input type="text" class="form-control" name="efectivoObs[' + rdEsc(cod) + ']" maxlength="300"></div></div>';
+              (soloTotal ? '' : '<div class="form-group col-sm-7 col-xs-12"><label>Observación:</label>' +
+              '<input type="text" class="form-control" name="efectivoObs[' + rdEsc(cod) + ']" maxlength="300"></div>') + '</div>';
     });
     $('#arqEfectivo').html(ef);
 
@@ -184,10 +187,12 @@ function pintarTipo() {
     calcular();
 }
 
+//El tipo de arqueo elegido: caja menor o recambio
 function tipoArq() { return $('input[name="tipo"]:checked').val(); }
 
 //Casetas: un renglón por cada campo configurado para el peaje elegido
 var camposCaseta = [];
+//Trae los campos de documentos del peaje elegido y arma un renglón por cada uno
 function pintarCampos() {
     var centro = $('#arqCentro').val();
     if (!centro) { $('#arqCampos').html('<p class="rd-vacio">Elige el peaje.</p>'); return; }
@@ -207,6 +212,7 @@ function pintarCampos() {
         .fail(function (xhr) { $('#arqCampos').html('<p class="rd-ayuda">' + rdEsc(rdError(xhr, 'No se pudieron cargar los campos.')) + '</p>'); });
 }
 
+//Agrega un renglón vacío a la tabla de documentos del arqueo
 function agregarDoc() {
     var opc = '<option value="">Concepto...</option>';
     $.each(cfgArq.documentos, function (cod, nom) { opc += '<option value="' + rdEsc(cod) + '">' + rdEsc(nom) + '</option>'; });
@@ -255,6 +261,7 @@ function calcular() {
     $('#arqTotales').html(h);
 }
 
+//Revisa el formulario y guarda el arqueo
 function guardarArq(e) {
     e.preventDefault();
     if (!$('#arqCentro').val()) { alert('Elige el centro. Si no aparece, ese centro no tiene fondo autorizado.'); return; }
@@ -326,6 +333,7 @@ function descargarPdf(id) {
     window.location.href = 'ArqueoPdfVista.php?id=' + parseInt(id, 10);
 }
 
+//Anula un arqueo; pide el motivo antes
 function anularArq() {
     var id = $(this).data('id'), motivo = $.trim($('#arqMotivo').val());
     if (!motivo) { alert('Escribe por qué se anula el arqueo.'); $('#arqMotivo').focus(); return; }
@@ -344,6 +352,7 @@ function abrirFondos() {
     $('#filasFondos').html('<tr><td colspan="5" class="rd-vacio">Cargando...</td></tr>');
     $.getJSON(URL_ARQ + '?op=fondos')
         .done(function (filas) {
+            //Pone los puntos de miles a un valor (sin decimales)
             var h = '', fmt = function (v) { return v ? Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''; };
             for (var i = 0; i < filas.length; i++) {
                 var f = filas[i], id = parseInt(f.ID_CENTRO_OP, 10);
@@ -357,6 +366,7 @@ function abrirFondos() {
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron cargar los fondos.')); });
 }
 
+//Guarda el fondo autorizado (caja menor y recambio) de un peaje
 function guardarFondo() {
     var id = $(this).data('id'), boton = this;
     hanaBoton(boton, true);
@@ -379,6 +389,7 @@ function abrirCampos() {
     cargarCampos();
 }
 
+//Carga la configuración de campos de documentos del peaje elegido
 function cargarCampos() {
     var centro = +($('#cmpCentro').val() || 0);
     $.getJSON(URL_ARQ + '?op=camposConfig&centro=' + centro)
@@ -433,6 +444,7 @@ function ocultarCampoFila() {
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo cambiar.')); cargarCampos(); });
 }
 
+//Agrega un campo nuevo a la configuración del peaje
 function agregarCampo() {
     var nombre = $.trim($('#cmpNombre').val());
     if (!nombre) { $('#cmpNombre').focus(); return; }

@@ -1,3 +1,7 @@
+//Listas de chequeo - administración de las listas y sus preguntas (Vista/GruposListasVista.php)
+//Crear y editar listas, agregar preguntas una por una o desde un archivo de Excel/CSV.
+//Habla con Control/GruposListasControl.php y Control/PreguntasListasControl.php
+
 var tabla;//variable global
 //Función para guardar o editar
 
@@ -30,6 +34,7 @@ function guardar(e)
         }
     });
 }
+//Trae una lista de chequeo y la carga en el formulario para editarla
 function mostrar(idLista)
 {
     hanaCargando(true); //aviso de carga mientras llegan los datos de la lista
@@ -50,6 +55,7 @@ function mostrar(idLista)
         hanaErrorAjax(xhr, "No se pudieron cargar los datos de la lista.");
     });
 }
+//Trae una pregunta y la carga en el formulario para editarla
 function mostrarPregunta(idPregunta)
 {
     hanaCargando(true); //aviso de carga mientras llegan los datos de la pregunta
@@ -86,6 +92,7 @@ function mostrarPregunta(idPregunta)
     });
 }
 
+//Anula una lista de chequeo (pregunta antes)
 function anular(idLista){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular esta lista?", function(){
@@ -99,6 +106,7 @@ function anular(idLista){
     });
 }
 
+//Anula una pregunta de la lista (pregunta antes)
 function anularPregunta(idPregunta, idGrupo) {
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular esta pregunta?", function(){
@@ -112,6 +120,7 @@ function anularPregunta(idPregunta, idGrupo) {
     });
 }
 
+//Vuelve a activar una lista de chequeo (pregunta antes)
 function activar(idLista){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     //Nota: el controlador de grupos no tiene la opción "activar"; hoy una lista
@@ -126,12 +135,14 @@ function activar(idLista){
         });
     });
 }
+//Cierra el formulario sin guardar
 function cancelarform()
 {
     limpiar();
     mostrarform(false);
     
 }
+//Deja el formulario en blanco
 function limpiar()
 {
     $("#idLista").val("");
@@ -146,6 +157,7 @@ function limpiar()
    $('#Titulo-novedad').val("").trigger('change');
   
 }
+//Muestra el formulario (true) o la tabla (false)
 function mostrarform(flag)
 {
     var formContainer = $('#x_title');
@@ -224,6 +236,7 @@ function listarPreguntas(idGrupoPreguntas)
     }).DataTable();
     
 }
+//Revisa y agrega una pregunta a la lista
 function agregarPregunta(e){
     //e.preventDefault();
     //Validaciones antes de enviar: si falta algo se avisa aquí, sin ir al servidor
@@ -263,6 +276,7 @@ function agregarPregunta(e){
     });
 }
 
+//Sube un archivo de Excel o CSV con varias preguntas a la vez
 function agregarPreguntaExcel(e){
     var fileInput = $('#fileInput')[0];
     var file = fileInput.files[0];
@@ -334,9 +348,11 @@ function csvTipo(valor) {
 //Lee el archivo y arma la vista previa
 function revisarCsv(file) {
     var lector = new FileReader();
+    //Si el navegador no pudo leer el archivo, se avisa
     lector.onerror = function () {
         $("#csvPrevia").html('<div class="hana-csv-previa"><div class="hana-csv-previa-cab error">No se pudo leer el archivo.</div></div>');
     };
+    //Ya leído el archivo: se detecta el separador y se muestra una vista previa de las preguntas
     lector.onload = function (e) {
         var texto = String(e.target.result).replace(/^\uFEFF/, ''); //quita la marca de Excel
         var lineas = texto.split(/\r\n|\r|\n/);
@@ -359,7 +375,7 @@ function revisarCsv(file) {
             var pregunta = (celdas[0] || '').replace(/^"|"$/g, '').trim();
             var tipoTxt  = (celdas[1] || '').replace(/^"|"$/g, '').trim();
 
-            //Fila sin pregunta ni tipo (por ejemplo «;» que deja Excel al guardar como CSV): se ignora,
+            //Fila sin pregunta ni tipo (por ejemplo ";" que deja Excel al guardar como CSV): se ignora,
             //igual que en el servidor
             if (pregunta === '' && tipoTxt === '') { continue; }
             //La primera fila de la plantilla es el encabezado
@@ -434,6 +450,7 @@ function limpiarCsv() {
     $("#btn-agregar-excel").prop("disabled", true);
 }
 
+//Lo que se hace al abrir la pantalla
 function init()
 {
 	listar();//lista 
@@ -441,7 +458,7 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
 
     // Agrega un evento al botón "Agregar pregunta".

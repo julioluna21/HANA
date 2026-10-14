@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Archivos adjuntos (comunicaciones y oficios, listas de chequeo)
+  HANA - Archivos adjuntos (comunicaciones y oficios, listas de chequeo)
   ---------------------------------------------------------------------------
   Cómo funciona:
     - El archivo se guarda en archivos/adjuntos/AAAA/MM/ con un nombre al azar
@@ -23,6 +23,7 @@
 session_start();
 require_once __DIR__ . "/../Modelo/HanaConfig.php";
 require_once __DIR__ . "/../Modelo/HanaFechas.php";
+require_once __DIR__ . "/../Modelo/AdjuntoModelo.php";
 require_once __DIR__ . "/AccesoHelper.php";
 date_default_timezone_set('America/Bogota');
 
@@ -37,6 +38,7 @@ $ADJ_TIPOS = array(
     'csv' => 'text/csv', 'txt' => 'text/plain', 'msg' => 'application/vnd.ms-outlook', 'eml' => 'message/rfc822'
 );
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function adjError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -56,49 +58,40 @@ $idColaborador = (int)$_SESSION['Idcolaborador'];
 function adjAcceso($modulo, $idRegistro, $idUsuario, $idColaborador)
 {
     $coordina = array();
-    foreach (HanaDB::proyectosCoordinados($idColaborador) as $p) { $coordina[(int)$p['ID_PROYECTO']] = true; }
+    foreach (hanaProyectosCoordinados($idColaborador) as $p) { $coordina[(int)$p['ID_PROYECTO']] = true; }
     $verTodos = hanaTienePermiso('20M') || hanaTienePermiso('21M') || hanaTienePermiso('22M');
 
     if ($modulo === 'COMUNICACION') {
         //Oficios como las RQ: los ve y les adjunta quien tenga el proyecto asignado (lo coordina,
         //es jefe de uno de sus peajes o tiene un peaje asignado en Usuarios); ADMIN TEC y 32M, todos
-        $r = HanaDB::fila("SELECT ID_PROYECTO FROM comunicacion WHERE ID_COMUNICACION = ? AND ESTADO = 1", 'i', array((int)$idRegistro));
-        if (!$r) { return null; }
-        $p = (int)$r['ID_PROYECTO'];
+        $p = (new Adjunto())->proyectoDeComunicacion($idRegistro);
+        if (!$p) { return null; }
         $asignado = isset($coordina[$p]) || hanaTienePermiso('24M') || hanaTienePermiso('32M')
-            || HanaDB::fila("SELECT 1 AS ok FROM centros_operacion c
-                              WHERE c.ID_PROYECTO_CENTRO_OP = ? AND c.Estado = '1'
-                                AND (c.ID_COLABORADOR_JEFE = ? OR c.ID_CENTRO_OP IN (SELECT ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP FROM asoc_usuarios_sistemas_x_cop
-                                                                                    WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = ?)) LIMIT 1",
-                            'iii', array($p, (int)$idColaborador, (int)$idUsuario));
+            || Organizacion::tienePeajes($idColaborador, $idUsuario, $p);
         $editar = HanaConfig::si('ADJUNTOS_COMUNICACIONES') && $asignado;
         return array('ver' => $asignado || $verTodos, 'editar' => $editar);
     }
 
     if ($modulo === 'LISTA') {
-        $r = HanaDB::fila("SELECT l.ID_CENTRO_OP_LISTA_CHEQUEO AS CENTRO, l.FEC_REGISTRO_LISTA_CHEQUEO AS FECHA, c.ID_PROYECTO_CENTRO_OP AS PROYECTO,
-                                  l.ID_COLABORADOR_LISTA_CHEQUEO AS DUENO
-                             FROM lista_chequeo l INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = l.ID_CENTRO_OP_LISTA_CHEQUEO
-                            WHERE l.ID_LISTA_CHEQUEO = ?", 'i', array((int)$idRegistro));
+        $r = (new Adjunto())->datosLista($idRegistro);
         if (!$r) { return null; }
-        //Quién diligencia listas en ese centro: el coordinador del proyecto, o (si el
-        //administrador lo permitió) quien tenga 11M y el centro asignado
-        $asignado = (bool)HanaDB::fila("SELECT 1 AS ok FROM asoc_usuarios_sistemas_x_cop WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = ?
-                                         AND ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = ?", 'ii', array($idUsuario, (int)$r['CENTRO']));
-        $diligencia = isset($coordina[(int)$r['PROYECTO']])
-                   || (!HanaConfig::si('LISTAS_SOLO_COORDINADOR') && hanaTienePermiso('11M') && $asignado);
-        //Los archivos de una lista los cambia solo quien la llenó, y solo si la lista es de hoy o de un día habilitado
-        $editar = HanaConfig::si('ADJUNTOS_LISTAS') && $diligencia && (int)$r['DUENO'] === (int)$idColaborador && HanaFechas::enVentana($r['FECHA']);
+        //Quién diligencia listas en ese centro: quien tenga 11M y el centro asignado (o el ADMIN TEC)
+        $asignado = Organizacion::centroAsignado($idUsuario, (int)$r['CENTRO']);
+        $diligencia = hanaTienePermiso('11M') && ($asignado || isset($coordina[(int)$r['PROYECTO']]) || hanaTienePermiso('24M'));
+        //Los archivos de una lista los cambia quien la llenó (o el ADMIN TEC), y solo si la lista es de hoy o de un día habilitado
+        $editar = HanaConfig::si('ADJUNTOS_LISTAS') && $diligencia && ((int)$r['DUENO'] === (int)$idColaborador || hanaTienePermiso('24M'))
+               && HanaFechas::enVentana($r['FECHA'], $idColaborador);
         $ver = $diligencia || $asignado || $verTodos || hanaTienePermiso('12M');
-        //El tablero (19M): el jefe mayor ve todo; el coordinador su proyecto; el jefe su peaje
+        //El tablero (19M): el gerente de operaciones ve todo; el coordinador su proyecto; el jefe su peaje
         if (!$ver && hanaTienePermiso('19M')) {
-            $ver = (bool)HanaDB::fila("SELECT 1 AS ok FROM centros_operacion WHERE ID_CENTRO_OP = ? AND ID_COLABORADOR_JEFE = ?", 'ii', array((int)$r['CENTRO'], $idColaborador));
+            $ver = Organizacion::esJefeDeCentro((int)$r['CENTRO'], $idColaborador);
         }
         return array('ver' => $ver, 'editar' => $editar);
     }
     return null;
 }
 
+//Revisa que el módulo sea válido y que la persona pueda ver (o editar) el registro antes de tocar sus adjuntos
 function adjCargar($modulo, $id, $idUsuario, $idColaborador, $paraEditar)
 {
     $m = in_array($modulo, array('COMUNICACION', 'LISTA'), true) ? $modulo : '';
@@ -112,7 +105,7 @@ function adjCargar($modulo, $id, $idUsuario, $idColaborador, $paraEditar)
 //Un adjunto por su id, con el acceso de su registro
 function adjPorId($id, $idUsuario, $idColaborador, $paraEditar)
 {
-    $x = HanaDB::fila("SELECT * FROM adjunto WHERE ID_ADJUNTO = ? AND ESTADO = 1", 'i', array((int)$id));
+    $x = (new Adjunto())->porId($id);
     if (!$x) { adjError(404, 'No se encontró el archivo.'); }
     adjCargar($x['MODULO'], $x['ID_REGISTRO'], $idUsuario, $idColaborador, $paraEditar);
     return $x;
@@ -123,13 +116,12 @@ if ($op !== 'ver') { header('Content-Type: application/json; charset=utf-8'); }
 
 switch ($op) {
 
+    //Lista los archivos adjuntos de una comunicación o de una lista de chequeo
     case 'listar':
         $modulo = isset($_GET['modulo']) ? $_GET['modulo'] : '';
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         $a = adjCargar($modulo, $id, $idUsuario, $idColaborador, false);
-        $f = HanaDB::q("SELECT a.ID_ADJUNTO, a.NOMBRE, a.DESCRIPCION, a.TIPO, a.TAMANO, a.FEC_REGISTRO, c.NOM_COLABORADOR AS QUIEN
-                          FROM adjunto a LEFT JOIN colaboradores c ON c.ID_COLABORADOR = a.ID_COLABORADOR
-                         WHERE a.MODULO = ? AND a.ID_REGISTRO = ? AND a.ESTADO = 1 ORDER BY a.ID_ADJUNTO", 'si', array($modulo, $id));
+        $f = (new Adjunto())->listar($modulo, $id);
         echo json_encode(array('archivos' => $f ? $f : array(), 'editable' => $a['editar'],
                                'maxMb' => HanaConfig::num('ADJUNTOS_MAX_MB', 10), 'tipos' => array_keys($ADJ_TIPOS)), JSON_UNESCAPED_UNICODE);
         break;
@@ -163,9 +155,7 @@ switch ($op) {
             }
             $ruta = $sub . '/' . bin2hex(random_bytes(12)) . '.' . $ext;
             if (!move_uploaded_file($_FILES['archivos']['tmp_name'][$i], ADJ_CARPETA . $ruta)) { $avisos[] = $nombre . ': no se pudo guardar en el servidor.'; continue; }
-            HanaDB::q("INSERT INTO adjunto (MODULO, ID_REGISTRO, NOMBRE, ARCHIVO, TIPO, TAMANO, ID_COLABORADOR, FEC_REGISTRO, ESTADO)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 1)", 'sisssii',
-                      array($modulo, $id, function_exists('mb_substr') ? mb_substr($nombre, 0, 200) : substr($nombre, 0, 200), $ruta, $ADJ_TIPOS[$ext], $tam, $idColaborador));
+            (new Adjunto())->guardar($modulo, $id, function_exists('mb_substr') ? mb_substr($nombre, 0, 200) : substr($nombre, 0, 200), $ruta, $ADJ_TIPOS[$ext], $tam, $idColaborador);
             $guardados++;
         }
         if (!$guardados) { adjError(400, $avisos ? implode(' ', $avisos) : 'No se guardó ningún archivo.'); }
@@ -176,13 +166,14 @@ switch ($op) {
     case 'describir':
         $x = adjPorId(isset($_POST['id']) ? (int)$_POST['id'] : 0, $idUsuario, $idColaborador, true);
         $d = HanaVal::texto(isset($_POST['descripcion']) ? $_POST['descripcion'] : '', 200);
-        HanaDB::q("UPDATE adjunto SET DESCRIPCION = ?, FEC_MODIFICACION = NOW() WHERE ID_ADJUNTO = ?", 'si', array($d, (int)$x['ID_ADJUNTO']));
+        (new Adjunto())->describir((int)$x['ID_ADJUNTO'], $d);
         echo json_encode(array('ok' => true, 'mensaje' => 'Descripción guardada.'), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Quita un adjunto (se revisa antes que la persona pueda editar el registro)
     case 'borrar':
         $x = adjPorId(isset($_POST['id']) ? (int)$_POST['id'] : 0, $idUsuario, $idColaborador, true);
-        HanaDB::q("UPDATE adjunto SET ESTADO = 0, FEC_MODIFICACION = NOW() WHERE ID_ADJUNTO = ?", 'i', array((int)$x['ID_ADJUNTO']));
+        (new Adjunto())->quitar((int)$x['ID_ADJUNTO']);
         echo json_encode(array('ok' => true, 'mensaje' => 'Archivo quitado.'), JSON_UNESCAPED_UNICODE);
         break;
 

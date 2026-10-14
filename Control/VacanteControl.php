@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Controlador de vacantes (Reporte diario, Fase 2)
+  HANA - Controlador de vacantes (Reporte diario, Fase 2)
   Permiso 11M, y solo en los centros asignados al usuario.
 */
 session_start();
@@ -11,6 +11,7 @@ require_once __DIR__ . "/AccesoHelper.php";
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function vacError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -21,19 +22,20 @@ function vacError($codigo, $mensaje)
 //Si el administrador apagó este módulo (Parámetros del sistema), no se registra nada
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 if (!HanaConfig::modulo('VACANTES')) { vacError(403, 'Este módulo está desactivado. Lo activa el administrador en Parámetros del sistema.'); }
-HanaDB::usarModulo('VACANTES'); //la casilla VACANTES de Roles da acceso en todos los proyectos
+hanaUsarModulo('VACANTES'); //la casilla VACANTES de Roles da acceso en todos los proyectos
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { vacError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
-if (!HanaDB::esCoordinador((int)$_SESSION['Idcolaborador'])) { vacError(403, 'Las vacantes las llena el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.'); }
+if (!hanaEsCoordinador((int)$_SESSION['Idcolaborador'])) { vacError(403, 'Las vacantes las llena el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.'); }
 
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $V   = new Vacante();
 $hoy = date('Y-m-d');
 $ultimoEditable = HanaFechas::ventana()[1]; //las fechas no pueden pasar de hoy
 $centros = array();
-foreach (HanaDB::centrosCoordinador($idColaborador) as $c) { $centros[(int)$c['ID_CENTRO_OP']] = $c; } //los de sus proyectos
+foreach (hanaCentrosCoordinador($idColaborador) as $c) { $centros[(int)$c['ID_CENTRO_OP']] = $c; } //los de sus proyectos
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
+    //Lo que necesita la pantalla al abrir: peajes, estados, días de ANS y motivos
     case 'config':
         echo json_encode(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'centros' => array_values($centros), 'estados' => Vacante::$ESTADOS,
                                'estadosGh' => Vacante::$ESTADOS_GH, 'diasAns' => Vacante::diasAns(),
@@ -58,6 +60,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode($V->listar($ids, $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Crea una vacante nueva o guarda los cambios de una existente
     case 'guardar':
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         if ($id > 0) {

@@ -1,4 +1,10 @@
 <?php
+/*
+  HANA - Roles (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla rol_usuarios_sistemas: cada rol con sus permisos separados por coma.
+  Lo usa Control/RolesControl.php.
+*/
 require "../Conexion/ConexionDB.php";
 class Roles
 {
@@ -37,11 +43,13 @@ class Roles
                 $sql = "SELECT * FROM rol_usuarios_sistemas WHERE ESTADO=1";
                 return ejecutarConsulta($sql);
         }
+        //Desactiva un rol (no se borra)
         public function desactivar($IDrol)
         {
                 $sql = "UPDATE rol_usuarios_sistemas SET ESTADO=0 WHERE ID_ROL_USUARIO_SISTEMA=$IDrol";
                 return ejecutarConsulta($sql);
         }
+        //Vuelve a activar un rol
         public function activar($IDrol)
         {
                $sql = "UPDATE rol_usuarios_sistemas SET ESTADO=1 WHERE ID_ROL_USUARIO_SISTEMA=$IDrol";

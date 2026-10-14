@@ -1,16 +1,13 @@
 <?php
 /*
-  HANA — Ausentismo: descargar el "Reporte nacional de ausentismo" en Excel
+  HANA - Ausentismo: descargar el "Reporte nacional de ausentismo" en Excel
   Con la misma estructura del archivo que se usa hoy: una hoja por centro, con
   un bloque por cargo (novedades × días) y las ausencias diarias; y al final
   la hoja del proyecto con el consolidado y el TOTAL (mes y 1ª quincena).
   Los totales van como fórmulas de Excel: si se corrige una celda en el
   archivo, se recalculan.
 */
-session_start();
-date_default_timezone_set('America/Bogota');
-if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { header('Location: login.php'); exit; }
-require_once __DIR__ . '/../Modelo/AusentismoModelo.php';
+require_once __DIR__ . '/../Control/AusentismoExcelControl.php'; //revisa el acceso y trae los datos
 require_once __DIR__ . '/../vendors/vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -18,25 +15,6 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
-function negar($msg) { http_response_code(403); header('Content-Type: text/plain; charset=utf-8'); echo $msg; exit; }
-
-$modulos = explode(',', $_SESSION['Modulos']);
-if (!HanaConfig::modulo('AUSENTISMO')) { negar('El módulo de ausentismo está desactivado.'); }
-$idColaborador = (int)$_SESSION['Idcolaborador'];
-$verTodos = in_array('20M', $modulos) || in_array('21M', $modulos) || in_array('22M', $modulos) || in_array('25M', $modulos);
-
-$idProy = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
-$anio = isset($_GET['anio']) ? (int)$_GET['anio'] : 0;
-$mes = isset($_GET['mes']) ? (int)$_GET['mes'] : 0;
-if ($anio < 2020 || $anio > 2100 || $mes < 1 || $mes > 12) { negar('El mes no es válido.'); }
-$proy = HanaDB::fila("SELECT ID_PROYECTO, NOM_PROYECTO, ID_COLABORADOR_COORDINADOR FROM proyectos WHERE ID_PROYECTO = ? AND Estado = '1'", 'i', array($idProy));
-if (!$proy || (!$verTodos && (int)$proy['ID_COLABORADOR_COORDINADOR'] !== $idColaborador)) { negar('Ese proyecto no está entre los que puedes ver.'); }
-
-$A = new Ausentismo();
-$cargos = $A->cargos();
-$novedades = $A->novedades();
-$centros = HanaDB::q("SELECT ID_CENTRO_OP, NOM_CENTRO_OP, TIPO_CENTRO FROM centros_operacion WHERE Estado = '1' AND ID_PROYECTO_CENTRO_OP = ?
-                       ORDER BY TIPO_CENTRO = 'BASCULA', NOM_CENTRO_OP", 'i', array($idProy));
 $dias = (int)date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes)));
 $MESES = array('', 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE');
 $VINO = '6E1A1E';
@@ -45,6 +23,7 @@ $libro = new Spreadsheet();
 $libro->removeSheetByIndex(0);
 $libro->getProperties()->setCreator('HANA - Grupo Regency')->setTitle('Reporte nacional de ausentismo ' . $proy['NOM_PROYECTO']);
 
+//Letra de la columna de Excel a partir de su número (1 = A, 27 = AA)
 function col($n) { return Coordinate::stringFromColumnIndex($n); }
 $colTotal = col($dias + 2);
 $colQuin = col($dias + 3);
@@ -95,6 +74,7 @@ function bloque($h, $fila, $cargo, $novs, $vals, $dias, $VINO)
     return array($r, $r + 3);
 }
 
+//Anchos de columna y formato común de cada hoja del Excel
 function formatoHoja($h, $dias, $extra = 0)
 {
     $h->getColumnDimension('A')->setWidth(34);
@@ -110,10 +90,9 @@ foreach ((array)$centros as $c) {
     $h->setTitle(nombreHoja(ucwords(strtolower($c['NOM_CENTRO_OP']))));
     $h->setCellValue('A2', 'NOVEDADES DE AUSENTISMO — ' . $proy['NOM_PROYECTO'] . ' — ' . $c['NOM_CENTRO_OP'] . ' — ' . $MESES[$mes] . ' ' . $anio);
     $h->getStyle('A2')->getFont()->setBold(true)->setSize(13)->getColor()->setRGB($VINO);
-    $vals = $A->mesCentro($c['ID_CENTRO_OP'], $anio, $mes);
+    $vals = $c['VALS'];
     $fila = 4; $totales = array();
-    foreach ($cargos as $cg) {
-        if (!Ausentismo::cargoAplica($cg, $c['TIPO_CENTRO'])) { continue; }
+    foreach ($c['CARGOS'] as $cg) {
         list($ft, $fila) = bloque($h, $fila, $cg, $novedades, isset($vals[(int)$cg['ID_CARGO_AUS']]) ? $vals[(int)$cg['ID_CARGO_AUS']] : array(), $dias, $VINO);
         $totales[] = $ft;
     }
@@ -129,7 +108,6 @@ foreach ((array)$centros as $c) {
 }
 
 //----- La hoja del proyecto: el consolidado -----
-$cons = $A->consolidado($idProy, $anio, $mes);
 $h = $libro->createSheet();
 $h->setTitle(nombreHoja($proy['NOM_PROYECTO']));
 $h->setCellValue('A2', 'REPORTE NACIONAL DE AUSENTISMO — ' . $proy['NOM_PROYECTO'] . ' — ' . $MESES[$mes] . ' ' . $anio);

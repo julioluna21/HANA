@@ -1,5 +1,7 @@
 <?php
 $modulosAcceso=explode(",",$_SESSION['Modulos']);
+//El menú pregunta al controlador qué puede ver esta persona (la vista no consulta la base)
+require_once __DIR__ . '/../Control/PaginaControl.php';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -36,7 +38,7 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
   <link href="../build/css/custom.min.css" rel="stylesheet">
 
   <!-- Alertas personalizadas de HANA (reemplazan las ventanas del navegador y de bootbox) -->
-  <link href="../public/css/alertas.css?v=2" rel="stylesheet">
+  <link href="../public/css/alertas.css?v=5" rel="stylesheet">
   <!-- Estilos comunes: tablas en celular, indicador de carga y barra de progreso -->
   <link href="../public/css/comun.css?v=3" rel="stylesheet">
   <!-- Tablas adaptables al celular (la libreria ya venia en vendors) -->
@@ -61,6 +63,8 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
   <link href="../public/css/paleta.css?v=1" rel="stylesheet">
   <!-- Campana de notificaciones -->
   <link href="../public/css/campana.css?v=2" rel="stylesheet">
+  <!-- Al imprimir o guardar como PDF: nada se corta ni se monta (va de último para que mande) -->
+  <link href="../public/css/impresion.css?v=5" rel="stylesheet">
 
 </head>
  
@@ -102,7 +106,7 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
         <?php if(in_array("4M",$modulosAcceso)){ ?><li><a href="cargosVista.php">Cargos</a></li> <?php } ?>
         <?php if(in_array("6M",$modulosAcceso)){ ?><li><a href="proyectosVista.php">Proyectos</a></li> <?php } ?> 
         <?php if(in_array("5M",$modulosAcceso)){ ?><li><a href="centroOperativoVista.php">Centros de operación</a></li> <?php } ?>
-        <?php if(in_array("2M",$modulosAcceso)){ ?><li><a href="RolesVista.php">Roles de usuario</a></li> <?php } ?> 
+        <?php if(in_array("2M",$modulosAcceso)){ ?><li><a href="RolesVista.php">Permisos de usuario</a></li> <?php } ?> 
         <?php if(in_array("24M",$modulosAcceso)){ ?><li><a href="ParametrosVista.php">Parámetros del sistema</a></li> <?php } ?>
         <?php if(in_array("1M",$modulosAcceso)){ ?><li><a href="UsuariosVista.php">Usuarios</a></li> <?php } ?>  
       </ul>
@@ -119,34 +123,33 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
       
     <?php if(in_array("10M",$modulosAcceso)){ ?><li><a href="novedadesVista.php"><i class="fa fa-comment "></i>Novedades</a> </li><?php } ?> 
 
-    <!-- Requisiciones: módulo 15M -->
-    <?php require_once __DIR__ . '/../Modelo/HanaDB.php'; $menuRqCoord = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']); //el coordinador pide RQ aunque su rol no tenga 15M ?>
-    <?php if(in_array("15M",$modulosAcceso) or in_array("17M",$modulosAcceso) or in_array("18M",$modulosAcceso) or $menuRqCoord){ ?><li><a href="RQVista.php"><i class="fa fa-wrench"></i>Requisiciones (RQ)</a></li><?php } ?>
+    <!-- Requisiciones: ver (15M), ver todas (17M), aprobar (18M) o pedir (41M) -->
+    <?php if(in_array("15M",$modulosAcceso) or in_array("17M",$modulosAcceso) or in_array("18M",$modulosAcceso) or in_array("41M",$modulosAcceso)){ ?><li><a href="RQVista.php"><i class="fa fa-wrench"></i>Requisiciones (RQ)</a></li><?php } ?>
     
       
     <?php
       //El reporte del coordinador (Hoy en qué estás, arqueos, cronograma, vacantes,
       //comunicaciones) solo aparece para quien coordina un proyecto. Los jefes de
       //peaje hacen RQ y listas de chequeo
-      require_once __DIR__ . '/../Modelo/HanaDB.php';
-      require_once __DIR__ . '/../Modelo/HanaConfig.php';
-      $menuCoord = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
-      //Cada pantalla del coordinador sale si es coordinador, ADMIN TEC o tiene su casilla en Roles
-      $mPuede = function ($m) { return HanaDB::puedeModulo($m); };
+      require_once __DIR__ . '/../Control/PaginaControl.php';
+      $menuCoord = pagEsCoordinador();
+      //Cada pantalla del coordinador sale si es coordinador, ADMIN TEC o tiene su casilla en Permisos de usuario
+      $mPuede = function ($m) { return pagPuedeModulo($m); };
       $menuAlgunModulo = false;
-      foreach (array_keys(HanaDB::$PERMISO_MODULO) as $mm) { if ($mPuede($mm)) { $menuAlgunModulo = true; break; } }
+      foreach (pagModulosCoordinador() as $mm) { if ($mPuede($mm)) { $menuAlgunModulo = true; break; } }
       //Oficios: también quien tenga peajes asignados (jefe de peaje o en Usuarios)
-      $menuOficios = $mPuede('COMUNICACIONES') || (isset($_SESSION['Idcolaborador'], $_SESSION['IdUsuarios']) && HanaDB::fila("SELECT 1 AS ok FROM centros_operacion c WHERE c.Estado = '1' AND (c.ID_COLABORADOR_JEFE = ? OR c.ID_CENTRO_OP IN
-           (SELECT ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP FROM asoc_usuarios_sistemas_x_cop WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = ?)) LIMIT 1",
-        'ii', array((int)$_SESSION['Idcolaborador'], (int)$_SESSION['IdUsuarios'])));
-      if ($menuOficios && HanaConfig::modulo('COMUNICACIONES')) { $menuAlgunModulo = true; }
+      $menuOficios = $mPuede('COMUNICACIONES') || pagTienePeajes();
+      if ($menuOficios && pagModuloActivo('COMUNICACIONES')) { $menuAlgunModulo = true; }
       //Los módulos que el administrador apagó en Parámetros del sistema no salen
-      $mOn = function ($m) { return HanaConfig::modulo($m); };
-      //¿Quién llena las listas? Por defecto el coordinador; si se apaga, cualquiera con 11M
-      $menuListas = (($menuCoord || !HanaConfig::si('LISTAS_SOLO_COORDINADOR')) and in_array("11M",$modulosAcceso)) or in_array("12M",$modulosAcceso) or in_array("21M",$modulosAcceso);
+      $mOn = function ($m) { return pagModuloActivo($m); };
+      //Listas de chequeo: las llena quien tenga 11M; las ven también 12M (las edita) y 21M (administración)
+      $menuListas = in_array("11M",$modulosAcceso) or in_array("12M",$modulosAcceso) or in_array("21M",$modulosAcceso);
+      //Promesa de valor: la regla de quién entra está en el controlador, para no repetirla aquí
+      $menuPromesa = pagPromesaEntrar();
+      $menuPromesaCons = pagPromesaConsolidado();
     ?>
     <?php if(in_array("11M",$modulosAcceso) or in_array("12M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("19M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("37M",$modulosAcceso) or $menuCoord or $menuAlgunModulo){ ?>  
-    <!-- Fase 2: "Listas de chequeo" pasa a llamarse Reporte diario y reúne sus secciones -->
+    <!-- Reporte diario: las listas de chequeo y las demás secciones del día -->
     <li><a><i class="fa fa-calendar-check-o"></i>Reporte diario<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
         <li><a href="ReporteDiarioVista.php">Todo el reporte</a></li>
@@ -165,17 +168,19 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
       </ul>
     </li><?php } ?> 
       
-    <?php //Fase 3: ausentismo. Lo registran el coordinador, el jefe de su peaje y quien tenga 25M;
+    <?php //Ausentismo. Lo registran el coordinador, el jefe de su peaje y quien tenga 25M;
       //lo consultan 20M, 21M y 22M
-      $menuJefe = isset($_SESSION['Idcolaborador']) && HanaConfig::si('AUS_JEFES_EDITAN')
-                  && HanaDB::fila("SELECT 1 AS ok FROM centros_operacion WHERE Estado = '1' AND ID_COLABORADOR_JEFE = ? LIMIT 1", 'i', array((int)$_SESSION['Idcolaborador']));
+      $menuJefe = pagParametroSi('AUS_JEFES_EDITAN') && pagEsJefePeaje();
       //Ausentismo y Dashboard van juntos: en uno se llena la data y el otro la muestra
       $menuAusReg = $mOn('AUSENTISMO') && ($menuCoord or $menuJefe or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso) or in_array("25M",$modulosAcceso));
       $menuDash = in_array("13M",$modulosAcceso);
-      if($menuAusReg or $menuDash){ ?>
+      //La promesa de valor (personal prometido y ejecutado) vive con el ausentismo, no en el reporte diario
+      if($menuAusReg or $menuDash or $menuPromesa or $menuPromesaCons){ ?>
     <li><a><i class="fa fa-user-times"></i> Ausentismo <span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
         <?php if($menuAusReg){ ?><li><a href="AusentismoVista.php">Registrar ausentismo</a></li><?php } ?>
+        <?php if($menuPromesa){ ?><li><a href="PromesaValorVista.php">Promesa de valor</a></li><?php } ?>
+        <?php if($menuPromesaCons){ ?><li><a href="PromesaConsolidadoVista.php">Consolidado promesa de valor</a></li><?php } ?>
         <?php if($menuDash){ ?><li><a href="reporteVista.php">Dashboard</a></li><?php } ?>
       </ul>
     </li>

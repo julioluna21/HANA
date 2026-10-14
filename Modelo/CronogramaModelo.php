@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Cronograma de visitas y vehículo (Reporte diario, Fase 2)
+  HANA - Cronograma de visitas y vehículo (Reporte diario, Fase 2)
   Es la hoja "Cronograma visitas y vehículo" del Excel: a la izquierda lo que
   la persona planea cada día, a la derecha el estado del vehículo.
 */
@@ -80,11 +80,13 @@ class Cronograma
         return $res;
     }
 
+    //Una actividad del cronograma por su id
     public function item($idCronograma)
     {
         return HanaDB::fila("SELECT * FROM cronograma WHERE ID_CRONOGRAMA = ?", 'i', array((int)$idCronograma));
     }
 
+    //Agrega una actividad al cronograma (queda como PROGRAMADA)
     public function agregar($idColaborador, $fecha, $tipo, $idCentro, $descripcion, $ahora)
     {
         $ok = HanaDB::q("INSERT INTO cronograma (ID_COLABORADOR, FECHA, TIPO, ID_CENTRO_OP, DESCRIPCION, ESTADO, FEC_REGISTRO)
@@ -93,12 +95,14 @@ class Cronograma
         return $ok ? HanaDB::id() : 0;
     }
 
+    //Cambia el estado de una actividad y guarda la observación
     public function cambiarEstado($idCronograma, $estado, $observacion)
     {
         return HanaDB::q("UPDATE cronograma SET ESTADO = ?, OBSERVACION = ? WHERE ID_CRONOGRAMA = ?",
                          'ssi', array($estado, $observacion, (int)$idCronograma));
     }
 
+    //Borra una actividad del cronograma
     public function quitar($idCronograma)
     {
         return HanaDB::q("DELETE FROM cronograma WHERE ID_CRONOGRAMA = ?", 'i', array((int)$idCronograma));
@@ -120,6 +124,7 @@ class Cronograma
         return $f ? $f : array();
     }
 
+    //Un vehículo por su id
     public function vehiculo($idVehiculo)
     {
         return HanaDB::fila("SELECT * FROM vehiculo WHERE ID_VEHICULO = ?", 'i', array((int)$idVehiculo));
@@ -138,6 +143,7 @@ class Cronograma
         return $res;
     }
 
+    //Guarda cómo estuvo un vehículo un día (si ya había registro de ese día, lo reemplaza)
     public function guardarVehiculoDia($idVehiculo, $fecha, $estado, $observacion, $idColaborador, $ahora, $transporte = null)
     {
         return HanaDB::q("INSERT INTO vehiculo_dia (ID_VEHICULO, FECHA, ESTADO_VH, TRANSPORTE, OBSERVACION, ID_COLABORADOR, FEC_REGISTRO)
@@ -181,6 +187,7 @@ class Cronograma
         return $f ? $f : array();
     }
 
+    //Crea o edita un vehículo
     public function guardarVehiculo($id, $placa, $descripcion, $idProyecto, $idResponsable, $estado)
     {
         if ((int)$id > 0) {
@@ -192,6 +199,7 @@ class Cronograma
                           VALUES (?, ?, ?, ?, 1)", 'ssii', array($placa, $descripcion, $idProyecto, $idResponsable));
     }
 
+    //¿Ya hay otro vehículo con esta placa?
     public function placaUsada($placa, $idExcepto)
     {
         return (bool)HanaDB::fila("SELECT 1 AS ok FROM vehiculo WHERE PLACA = ? AND ID_VEHICULO <> ?", 'si', array($placa, (int)$idExcepto));

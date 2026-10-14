@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Parámetros del sistema
+  HANA - Parámetros del sistema
   ---------------------------------------------------------------------------
   Las decisiones del negocio que el administrador cambia desde
   Configuración → Parámetros del sistema, sin tocar el código.
@@ -28,12 +28,15 @@ class HanaConfig
         'MODULO_VACANTES'       => array('Módulos del reporte diario', 'Vacantes', null, 'SI_NO', null, null, '1'),
         'MODULO_COMUNICACIONES' => array('Módulos del reporte diario', 'Comunicaciones y oficios', null, 'SI_NO', null, null, '1'),
         'MODULO_AUSENTISMO'     => array('Módulos del reporte diario', 'Ausentismo', null, 'SI_NO', null, null, '1'),
+        'MODULO_PROMESA'        => array('Módulos del reporte diario', 'Promesa de valor', null, 'SI_NO', null, null, '1'),
 
-        'LISTAS_SOLO_COORDINADOR' => array('Reglas del reporte diario', 'Las listas de chequeo solo las llena el coordinador',
-                                     'Si se apaga, las llena cualquiera que tenga el permiso 11M en su rol (por ejemplo, los jefes de peaje).', 'SI_NO', null, null, '1'),
-        'RQ_SOLO_COORDINADOR'   => array('Reglas del reporte diario', 'Las RQ solo las pide el coordinador del proyecto',
-                                     'Si se apaga, también las pide cualquiera que tenga el permiso 15M en su rol.', 'SI_NO', null, null, '1'),
+        'RQ_MAX_REINTENTOS'     => array('Reglas del reporte diario', 'Veces que una RQ rechazada se puede corregir y enviar de nuevo',
+                                     'Cuando se llega a ese número, si la vuelven a rechazar queda rechazada para siempre y hay que pedir una RQ nueva. Con 0 no se reenvía nunca.', 'NUMERO', 0, 20, '3'),
         'CRONO_TRANSPORTE_OBLIGATORIO' => array('Reglas del reporte diario', 'Pedir cómo se transportó cuando el vehículo no está operativo', null, 'SI_NO', null, null, '1'),
+        'CRONO_VH_FINDE_DIAS'   => array('Reglas del reporte diario', 'Días hacia adelante para registrar el vehículo de sábados, domingos y festivos',
+                                     'Esos días el estado del vehículo se puede dejar registrado por adelantado. Los demás días, solo hoy. Con 0 se apaga.', 'NUMERO', 0, 366, '60'),
+        'CRONO_VH_FINDE_ATRAS'  => array('Reglas del reporte diario', 'Días hacia atrás para corregir el vehículo de sábados, domingos y festivos',
+                                     'Después de un sábado, domingo o festivo, cuántos días quedan para registrar o corregir el estado del vehículo de ese día (por ejemplo, el lunes se corrige el fin de semana). Con 0 se apaga.', 'NUMERO', 0, 60, '7'),
         'NOV_AUTO_PRIORIDAD'    => array('Reglas del reporte diario', 'Prioridad de las novedades que abre una lista',
                                      'Número (ID) de la prioridad en Configuración → Estados de relevancia. De ahí salen también los días para cerrarla.', 'NUMERO', 1, 9999, '2'),
         'NOV_AUTO_OBSERVADOR'   => array('Reglas del reporte diario', 'Observador de las novedades que abre una lista',
@@ -46,8 +49,17 @@ class HanaConfig
 
         'AUS_MESES_CORREGIBLES' => array('Ausentismo', 'Meses anteriores que se pueden corregir',
                                      'Además del mes actual, cuántos meses atrás se pueden corregir mientras no estén cerrados.', 'NUMERO', 0, 12, '1'),
+        'AUS_DIAS_FUTURO'       => array('Ausentismo', 'Días hacia adelante en que se puede registrar una ausencia',
+                                     'Para dejar anotada una incapacidad, un permiso o unas vacaciones que ya se saben. Con 0 solo se registra hasta hoy.', 'NUMERO', 0, 31, '7'),
         'AUS_JEFES_EDITAN'      => array('Ausentismo', 'Los jefes de peaje registran el ausentismo de su peaje',
                                      'Cada jefe edita solo el peaje que tiene asignado en Centros de operación. El coordinador y quien tenga 25M editan todo el proyecto.', 'SI_NO', null, null, '1'),
+
+        'PV_DIAS_ATRAS'         => array('Promesa de valor', 'Días anteriores en que todavía se registra el ejecutado',
+                                     'Con 0 solo se registra hoy. Con 1 también se puede llenar el de ayer (sirve si el turno de la noche cierra al otro día).', 'NUMERO', 0, 7, '0'),
+        'PV_JEFES_REGISTRAN'    => array('Promesa de valor', 'Los jefes de peaje registran el ejecutado de su peaje',
+                                     'Apagado, lo registra solo el coordinador del proyecto.', 'SI_NO', null, null, '0'),
+        'PV_COORDINADOR_DEFINE' => array('Promesa de valor', 'El coordinador define la promesa de valor de sus peajes',
+                                     'Si se apaga, la define solo quien tenga la casilla 39M en su rol.', 'SI_NO', null, null, '1'),
 
         'CORREO_PLAN_B'         => array('Correo', 'Si el envío falla, probar otras formas automáticamente',
                                      'Prueba el otro puerto (465 con SSL o 587 con TLS) antes de rendirse.', 'SI_NO', null, null, '1'),
@@ -72,6 +84,7 @@ class HanaConfig
 
     private static $valores = null;
 
+    //Lee todos los parámetros de la tabla configuracion una sola vez por petición
     private static function cargar()
     {
         if (self::$valores !== null) { return; }
@@ -89,17 +102,20 @@ class HanaConfig
         }
     }
 
+    //El valor de un parámetro tal como está guardado, o el valor por defecto
     public static function valor($clave, $defecto)
     {
         self::cargar();
         return isset(self::$valores[$clave]) ? self::$valores[$clave] : $defecto;
     }
 
+    //El valor de un parámetro como número
     public static function num($clave, $defecto)
     {
         return (int)self::valor($clave, $defecto);
     }
 
+    //¿El parámetro está encendido? (guardado como 1)
     public static function si($clave, $defecto = true)
     {
         return (string)self::valor($clave, $defecto ? '1' : '0') === '1';

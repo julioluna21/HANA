@@ -25,7 +25,7 @@ include('head.php');
         <div class="x_panel">
           <div class="x_title">
             <h2>Crear usuarios<small>Formulario</small></h2>
-            <?php //Antes se imprimía lo que llegara en la dirección: permitía inyectar código en la página ?>
+            <?php //El modo de la pantalla no se copia tal cual de la dirección: así no se puede inyectar código ?>
             <input type="hidden" name="cambioclave" id="cambioclave" value="<?php echo $modoClave ? 'canvu' : ''; ?>">
             <div class="clearfix"></div>
           </div>
@@ -56,7 +56,7 @@ include('head.php');
                          <div class="row">
                              
                              <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" >
-                               <label>Rol del usuario:</label><br>
+                               <label>Rol (permisos de usuario):</label><br>
                                 <select name="rolColaborador" id="rolColaborador" class="form-control"  required>     
                               </select> 
                             </div>
@@ -129,7 +129,7 @@ include('head.php');
              </div>  
             <!-- Listado Registros-->
 
-            <!-- centro listado de articulos-->
+            <!-- tabla con el listado de registros -->
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">

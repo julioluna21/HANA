@@ -1,10 +1,10 @@
 <?php
 /*
-  HANA — Informe mensual de gestión (los datos)
+  HANA - Informe mensual de gestión (los datos)
   ---------------------------------------------------------------------------
   Reúne en un solo arreglo todo lo que pasó en un periodo (un mes, varios
   meses, una quincena o el rango de fechas que se elija), por proyecto y por
-  peaje, para pintarlo en el PDF (Modelo/InformeMensualPdf.php):
+  peaje, para pintarlo en el PDF (Vista/pdf/InformeMensualPdf.php):
   requisiciones, novedades, listas de chequeo, arqueos, vacantes, oficios,
   ausentismo y el reporte diario de cada coordinador.
 
@@ -330,10 +330,10 @@ class InformeMensual
     private function pendientes($idProyecto, $per, $plazoRq, $plazoOficio)
     {
         $h = $per['hasta']; $hoy = $per['hoy']; $idP = (int)$idProyecto;
-        $rq = HanaDB::q("SELECT r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, c.NOM_CENTRO_OP AS CENTRO, DATEDIFF(?, r.FEC_ESTADO) AS DIAS
+        $rq = HanaDB::q("SELECT r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, c.NOM_CENTRO_OP AS CENTRO, DATEDIFF(?, " . RqEstado::sqlDesde('r.ID_RQ') . ") AS DIAS
                            FROM rq r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
                           WHERE c.ID_PROYECTO_CENTRO_OP = ? AND r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . " AND r.FECHA_RQ < ?
-                          ORDER BY (r.TIPO_RQ = 'U') DESC, r.FEC_ESTADO LIMIT 40", 'sis', array($hoy, $idP, $h));
+                          ORDER BY (r.TIPO_RQ = 'U') DESC, DIAS DESC LIMIT 40", 'sis', array($hoy, $idP, $h));
         $vac = HanaDB::q("SELECT v.CARGO, v.FECHA_VACANTE, v.FECHA_ANS, c.NOM_CENTRO_OP AS CENTRO, DATEDIFF(?, v.FECHA_VACANTE) AS DIAS,
                                  (v.FECHA_ANS IS NOT NULL AND v.FECHA_ANS < ?) AS FUERA
                             FROM vacante v INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = v.ID_CENTRO_OP

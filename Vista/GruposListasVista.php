@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Listas de chequeo
+  ---------------------------------------------------------------------------
+  Pantalla para crear los tipos de lista de chequeo y administrar sus preguntas.
+  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/GruposListasnAjax.js
+  y los datos los entrega Control/GruposListasControl.php.
+  Permiso: 12M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);

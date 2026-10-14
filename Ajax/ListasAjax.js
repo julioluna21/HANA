@@ -1,3 +1,7 @@
+//Listas de chequeo - diligenciar, consultar y corregir (Vista/ListasVista.php)
+//Arma el formulario con las preguntas de la lista elegida, guarda un borrador en el navegador
+//mientras se llena, y maneja fotos, firma y archivos adjuntos. Habla con Control/ListasControl.php
+
 var tabla;//variable global
 var scriptActivo = true; //script para fecha y hora
 var diaListaFecha = '';   //día de la lista nueva: '' es hoy; si no, un día habilitado (AAAA-MM-DD)
@@ -9,6 +13,7 @@ function previsualizarFirma(input) {
     var img = input.nextElementSibling;
     if (img && input.files && input.files[0]) {
         var reader = new FileReader();
+        //Cuando termina de leer la foto, la muestra como vista previa
         reader.onload = function (e) { img.src = e.target.result; img.style.display = 'block'; };
         reader.readAsDataURL(input.files[0]);
     } else if (img) {
@@ -89,6 +94,7 @@ function validarFormulario() {
     return false;
 }
 
+//Revisa que la lista esté completa y la guarda
 function guardar(e) {
     e.preventDefault(); //No se activará la acción predeterminada del evento
 
@@ -105,6 +111,7 @@ function guardar(e) {
         contentType: false,
         processData: false,
         success: function (datos) {
+            //Lo que se hace cuando la lista quedó guardada en el servidor
             var terminar = function (mensaje) {
                 limpiarBorrador(); //la lista ya quedó en el servidor, el borrador sobra
                 limpiar(); //se limpia solo cuando la lista de verdad quedó guardada
@@ -262,18 +269,56 @@ function generateDynamicForm(data) {
     actualizarProgreso();
 }
 
-//Dibuja el recuadro para firmar. valorInicial se usa al editar una lista ya guardada
+//Dibuja el recuadro para firmar. valorInicial se usa al editar una lista ya guardada.
+//En la misma pregunta se puede firmar con el dedo, tomar una foto o subir una imagen
+//(por ejemplo, la foto de una firma en papel). Las dos quedan en el mismo campo oculto
 function construirFirma(idPregunta, valorInicial) {
     var html = '<div class="hana-firma">';
     html += '  <canvas class="hana-firma-lienzo" data-pregunta="' + idPregunta + '"></canvas>';
-    //El campo oculto es el que viaja al servidor, con la firma en formato imagen
+    //El campo oculto es el que viaja al servidor, con la firma (o la foto) en formato imagen
     html += '  <input type="hidden" name="answer_' + idPregunta + '" value="' + (valorInicial || '') + '">';
+    //Los selectores de archivo no llevan nombre: no viajan solos, la imagen pasa al campo oculto
+    html += '  <input type="file" class="hana-firma-camara" accept="image/*" capture="environment" style="display:none;">';
+    html += '  <input type="file" class="hana-firma-archivo" accept="image/*" style="display:none;">';
     html += '  <div class="hana-firma-pie">';
-    html += '    <span class="hana-firma-ayuda">Firme aqu\u00ed con el dedo o el mouse</span>';
-    html += '    <button type="button" class="hana-firma-borrar">Borrar firma</button>';
+    html += '    <span class="hana-firma-ayuda">Firme aquí con el dedo o el mouse, o suba una foto</span>';
+    html += '    <div class="hana-firma-botones">';
+    html += '      <button type="button" class="hana-firma-btn hana-firma-tomar"><i class="fa fa-camera"></i> Tomar foto</button>';
+    html += '      <button type="button" class="hana-firma-btn hana-firma-subir"><i class="fa fa-folder-open-o"></i> Subir foto o archivo</button>';
+    html += '      <button type="button" class="hana-firma-borrar">Borrar firma</button>';
+    html += '    </div>';
     html += '  </div>';
     html += '</div>';
     return html;
+}
+
+//Una foto se reduce a 1200 px de lado mayor y se pasa a JPG, con fondo blanco
+//(las PNG transparentes saldrian negras). Asi pesa poco en la base y se ve en el
+//Reporte general y en el correo, que ya aceptan firmas JPG
+function firmaDesdeFoto(archivo, listo) {
+    var url = (window.URL || window.webkitURL).createObjectURL(archivo);
+    var img = new Image();
+    //Si la foto no se puede abrir, se avisa
+    img.onerror = function () {
+        (window.URL || window.webkitURL).revokeObjectURL(url);
+        alert('No se pudo leer esa imagen. Prueba con otra foto (JPG o PNG).');
+    };
+    //La foto se achica a máximo 1200 px antes de subirla, para que no pese tanto
+    img.onload = function () {
+        (window.URL || window.webkitURL).revokeObjectURL(url);
+        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height, mayor = Math.max(w, h);
+        if (mayor > 1200) { w = Math.round(w * 1200 / mayor); h = Math.round(h * 1200 / mayor); }
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var cx = c.getContext('2d');
+        cx.fillStyle = '#ffffff';
+        cx.fillRect(0, 0, w, h);
+        cx.drawImage(img, 0, 0, w, h);
+        var dato = c.toDataURL('image/jpeg', 0.8);
+        if (dato.length > 1500000) { dato = c.toDataURL('image/jpeg', 0.6); } //una foto muy cargada baja de calidad
+        listo(dato);
+    };
+    img.src = url;
 }
 
 //Deja listos todos los lienzos de firma que haya en la pantalla
@@ -283,29 +328,52 @@ function activarFirmas() {
         if (lienzo.dataset.listo === '1') { return; } //ya estaba activo
         lienzo.dataset.listo = '1';
 
-        var campo = $(lienzo).siblings('input[type="hidden"]');
+        var caja = $(lienzo).closest('.hana-firma');
+        var campo = caja.find('input[type="hidden"]');
+        var ayuda = caja.find('.hana-firma-ayuda');
+        var borrar = caja.find('.hana-firma-borrar');
         //El lienzo se dibuja con el tamano real que ocupa en pantalla, si no la firma sale corrida
         var ancho = lienzo.offsetWidth || 400;
         lienzo.width = ancho;
         lienzo.height = lienzo.offsetHeight || 170;
 
         var ctx = lienzo.getContext('2d');
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#1a1a1a';
-
-        //Si venia una firma guardada, se pinta encima para poder verla
-        var valor = campo.val();
-        if (valor) {
-            var img = new Image();
-            img.onload = function () { ctx.drawImage(img, 0, 0, lienzo.width, lienzo.height); };
-            img.src = valor;
-            $(lienzo).addClass('hana-firma-hecha');
+        //Estilo del trazo de la firma
+        function pincel() {
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#1a1a1a';
         }
+        pincel();
 
         var dibujando = false;
-        var hayTrazo = !!valor;
+        var hayTrazo = false;
+
+        //Pinta lo que haya en el campo (firma o foto) sin deformarlo, centrado en el recuadro.
+        //Si es una foto (JPG) no se dibuja encima: al guardar el lienzo se perderia su tamano real
+        function pintarValor() {
+            var valor = campo.val();
+            ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+            var foto = /^data:image\/jpe?g/i.test(valor || '');
+            lienzo.dataset.foto = foto ? '1' : '';
+            hayTrazo = !!valor;
+            $(lienzo).toggleClass('hana-firma-hecha', !!valor).toggleClass('hana-firma-con-foto', foto);
+            ayuda.text(foto ? 'Foto cargada. Para firmar a mano, bórrala primero.'
+                            : 'Firme aquí con el dedo o el mouse, o suba una foto');
+            borrar.text(foto ? 'Quitar foto' : 'Borrar firma');
+            if (!valor) { return; }
+            var img = new Image();
+            //Si ya había una firma guardada, se dibuja en el lienzo
+            img.onload = function () {
+                var e = Math.min(lienzo.width / img.width, lienzo.height / img.height);
+                var w = img.width * e, h = img.height * e;
+                ctx.drawImage(img, (lienzo.width - w) / 2, (lienzo.height - h) / 2, w, h);
+                pincel();
+            };
+            img.src = valor;
+        }
+        pintarValor();
 
         //Posicion del dedo o del mouse dentro del lienzo
         function punto(e) {
@@ -313,13 +381,16 @@ function activarFirmas() {
             var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
             return { x: t.clientX - r.left, y: t.clientY - r.top };
         }
+        //Empieza un trazo de la firma (con el mouse o con el dedo)
         function empezar(e) {
+            if (lienzo.dataset.foto === '1') { return; } //sobre una foto no se firma
             e.preventDefault();
             dibujando = true;
             var p = punto(e);
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
         }
+        //Sigue el trazo mientras se mueve el dedo o el mouse
         function mover(e) {
             if (!dibujando) { return; }
             e.preventDefault();
@@ -328,6 +399,7 @@ function activarFirmas() {
             ctx.stroke();
             hayTrazo = true;
         }
+        //Termina el trazo y guarda la firma
         function terminar() {
             if (!dibujando) { return; }
             dibujando = false;
@@ -345,12 +417,26 @@ function activarFirmas() {
         lienzo.addEventListener('touchmove', mover, { passive: false });
         lienzo.addEventListener('touchend', terminar);
 
-        //Boton para volver a empezar la firma
-        $(lienzo).siblings('.hana-firma-pie').find('.hana-firma-borrar').on('click', function () {
-            ctx.clearRect(0, 0, lienzo.width, lienzo.height);
-            hayTrazo = false;
+        //Boton para volver a empezar (borra la firma o quita la foto)
+        borrar.off('click.firma').on('click.firma', function () {
             campo.val('').trigger('change');
-            $(lienzo).removeClass('hana-firma-hecha');
+            pintarValor();
+        });
+
+        //Foto: con la camara o eligiendo una imagen del equipo. Queda en el mismo campo
+        caja.find('.hana-firma-tomar').off('click.firma').on('click.firma', function () { caja.find('.hana-firma-camara').val('')[0].click(); });
+        caja.find('.hana-firma-subir').off('click.firma').on('click.firma', function () { caja.find('.hana-firma-archivo').val('')[0].click(); });
+        caja.find('.hana-firma-camara, .hana-firma-archivo').off('change.firma').on('change.firma', function () {
+            var archivo = this.files && this.files[0];
+            if (!archivo) { return; }
+            if (!/^image\//i.test(archivo.type || '')) {
+                alert('En la firma solo se puede subir una imagen (foto, JPG o PNG). Un PDF u otro documento se adjunta en «Archivos» de la lista.');
+                return;
+            }
+            firmaDesdeFoto(archivo, function (dato) {
+                campo.val(dato).trigger('change');
+                pintarValor();
+            });
         });
     });
 }
@@ -408,6 +494,7 @@ function actualizarProgreso() {
         aviso.attr('class', 'hana-progreso-listo').text('Completa');
     }
 }
+//Deja elegido en el select el centro que corresponde
 function selectCentroId(sel) {
     //console.log("sel: ",sel)
     /**
@@ -563,6 +650,7 @@ var centroListaActual = { id: '', nombre: '' };
 //true mientras se corrige una lista ya guardada
 var editandoLista = false;
 
+//Habilita (o bloquea) todas las respuestas del formulario para corregir una lista
 function activarEdicionTotal(activar) {
     $('#formDinamico [name^="answer_"]').prop('disabled', !activar).prop('readonly', !activar);
 
@@ -749,6 +837,7 @@ $(document).on('click', '#diaLista [data-fecha]', function () {
     if ($('#selectCentro').val()) { $('#selectCentro').trigger('change'); }
 });
 
+//Anula una lista diligenciada (pregunta antes)
 function anular(idLista) {
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular esta lista?", function () {
@@ -761,6 +850,7 @@ function anular(idLista) {
         });
     });
 }
+//Vuelve a activar una lista diligenciada (pregunta antes)
 function activar(idLista) {
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea activar esta lista?", function () {
@@ -773,12 +863,14 @@ function activar(idLista) {
         });
     });
 }
+//Cierra el formulario sin guardar
 function cancelarform() {
     limpiar();
     mostrarform(false);
 
     //location.reload();
 }
+//Deja el formulario en blanco
 function limpiar() {
     $("#idLista").val("");
     $("#idGrupo").val("");
@@ -984,6 +1076,7 @@ function listarRespuestas(idGrupo) {
 }
 //Llena el selector de posicion con las preguntas del grupo
 var _dragOrdenEl = null;
+//Carga las preguntas de la lista para elegir en qué posición va la nueva y para reordenarlas
 function cargarPosiciones(idGrupo) {
     var sel = $("#posicion-pregunta");
     sel.html('<option value="final">Al final</option>');
@@ -1031,6 +1124,7 @@ function guardarOrden() {
     });
 }
 
+//Revisa y agrega una pregunta a la lista
 function agregarPregunta(e) {
     //Validaciones antes de enviar: si falta algo se avisa aquí, sin ir al servidor
     if ($.trim($("#pregunta").val()) === "") { alert("Escribe el texto de la pregunta."); return; }
@@ -1064,18 +1158,19 @@ function agregarPregunta(e) {
         }
     });
 }
+//Lo que se hace al abrir la pantalla
 function init() {
     mostrarform(false)
     listar();//lista OK
     //al oprimir el boton del formulario
     $("#demo-form2").on("submit", function (e)//e = variable que contiene el objeto
     {
-        guardar(e);//guarda o edita el articulo
+        guardar(e);//guarda o edita el registro
     });
     //al oprimir el boton del formulario
     $("#btnModalGuardar").on("click", function (e)//e = variable que contiene el objeto
     {
-        guardarEditarRespuesta(e);//guarda o edita el articulo
+        guardarEditarRespuesta(e);//guarda la respuesta corregida
     });
     // Agrega un evento al botón "Agregar pregunta".
     $("#btn-agregar-pregunta").on("click", function (e) {
@@ -1271,6 +1366,7 @@ function limpiarBorrador() {
 var adjnPendientes = [];
 var ADJN_TIPOS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'msg', 'eml'];
 
+//Deja lista la zona de archivos adjuntos (o avisa si están apagados en Parámetros)
 function adjnPreparar() {
     adjnPendientes = [];
     if (typeof HANA_ADJ_LISTAS !== 'undefined' && !HANA_ADJ_LISTAS) {
@@ -1291,8 +1387,10 @@ function adjnPreparar() {
     adjnPintar();
 }
 
+//Tamaño de un archivo en KB o MB, para mostrarlo
 function adjnTam(b) { return b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB'; }
 
+//Agrega los archivos elegidos a la lista de pendientes, revisando tipo y tamaño
 function adjnAgregar(lista) {
     var max = (window.HANA_ADJ_MAX_MB || 10) * 1024 * 1024, avisos = [];
     Array.prototype.forEach.call(lista || [], function (f) {
@@ -1306,10 +1404,19 @@ function adjnAgregar(lista) {
     adjnPintar(avisos);
 }
 
+//Las miniaturas de las fotos elegidas (se liberan al volver a pintar)
+var adjnMinis = [];
+//Pinta los archivos pendientes con su miniatura y el botón para quitarlos
 function adjnPintar(avisos) {
+    adjnMinis.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+    adjnMinis = [];
     var h = adjnPendientes.map(function (f, i) {
-        var esImg = /^image\//.test(f.type);
-        return '<span class="adjn-chip" title="' + rdEsc(f.name) + '"><i class="fa ' + (esImg ? 'fa-file-image-o' : (/\.pdf$/i.test(f.name) ? 'fa-file-pdf-o' : 'fa-file-o')) + '"></i> ' +
+        var esImg = /^image\//.test(f.type), esPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+        var mini = '';
+        if (esImg) { var u = URL.createObjectURL(f); adjnMinis.push(u); mini = '<img class="adjn-chip-mini" src="' + u + '" alt="">'; }
+        //Una foto o un PDF se pueden ver antes de guardar: se toca la etiqueta (menos la ✕)
+        return '<span class="adjn-chip' + (esImg || esPdf ? ' adjn-chip-ver' : '') + '" data-i="' + i + '" title="' + (esImg || esPdf ? 'Ver ' : '') + rdEsc(f.name) + '">' +
+               (mini || '<i class="fa ' + (esPdf ? 'fa-file-pdf-o' : 'fa-file-o') + '"></i>') + ' ' +
                '<span class="adjn-nom">' + rdEsc(f.name) + '</span> <small>' + adjnTam(f.size) + '</small>' +
                '<button type="button" class="adjn-quitar" data-i="' + i + '" aria-label="Quitar ' + rdEsc(f.name) + '">&times;</button></span>';
     }).join('');
@@ -1336,7 +1443,11 @@ function adjnSubir(idLista, alTerminar) {
 
 $(document).on('click', '#adjnElegir', function () { $('#adjnInput').trigger('click'); });
 $(document).on('change', '#adjnInput', function () { adjnAgregar(this.files); this.value = ''; });
-$(document).on('click', '.adjn-quitar', function () { adjnPendientes.splice(+$(this).data('i'), 1); adjnPintar(); });
+$(document).on('click', '.adjn-quitar', function (e) { e.stopPropagation(); adjnPendientes.splice(+$(this).data('i'), 1); adjnPintar(); });
+$(document).on('click', '.adjn-chip-ver', function () {
+    var f = adjnPendientes[+$(this).data('i')];
+    if (f && window.hanaVerArchivoLocal) { window.hanaVerArchivoLocal(f); }
+});
 $(document).on('dragover dragenter', '#adjnZona', function (e) { e.preventDefault(); $(this).addClass('arrastrando'); });
 $(document).on('dragleave drop', '#adjnZona', function (e) { e.preventDefault(); $(this).removeClass('arrastrando'); });
 $(document).on('drop', '#adjnZona', function (e) { adjnAgregar(e.originalEvent.dataTransfer.files); });

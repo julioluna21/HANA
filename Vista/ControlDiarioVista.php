@@ -1,5 +1,5 @@
 <?php
-//Reporte diario — Reporte general del día
+//Reporte diario - Reporte general del día
 //Lo que enviaron los coordinadores y jefes de peaje, organizado por módulo,
 //con quién falta por reportar. Permiso 19M (el del tablero)
 session_start();
@@ -9,7 +9,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("19M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -51,6 +51,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             <li><a href="#tabVac" data-toggle="tab">Vacantes</a></li>
             <li><a href="#tabCom" data-toggle="tab">Comunicaciones</a></li>
             <li><a href="#tabRq" data-toggle="tab">RQ por aprobar</a></li>
+            <li id="cdPestanaAus"><a href="#tabAus" data-toggle="tab">Ausentismo</a></li>
           </ul>
           <div class="tab-content cd-contenido">
             <div class="tab-pane active" id="tabHoy">
@@ -72,8 +73,8 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <tbody id="tbListas"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabArqueos">
+              <h4 class="cd-sub-imprimir">Arqueos</h4> <!-- al imprimir, el título va primero en su hoja -->
               <div id="cdArqueosQuien"></div>
-              <h4 class="cd-sub-imprimir">Arqueos</h4>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>Hora</th><th>Tipo</th><th>Centro</th><th>Responsable</th><th>Arqueó</th><th class="rd-num-col">Total</th><th class="rd-num-col">Fondo</th><th>Resultado</th><th class="rd-no-imprimir"></th></tr></thead>
                 <tbody id="tbArqueos"></tbody></table></div>
@@ -92,25 +93,46 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <tbody id="tbVh"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabVac">
+              <h4 class="cd-sub-imprimir">Vacantes abiertas</h4> <!-- al imprimir, el título va primero en su hoja -->
               <div id="cdVacProy"></div>
-              <h4 class="cd-sub-imprimir">Vacantes abiertas</h4>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>Centro</th><th>Cargo</th><th>Desde</th><th>Acuerdo hasta</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Compromiso GH</th></tr></thead>
                 <tbody id="tbVac"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabCom">
+              <h4 class="cd-sub-imprimir">Comunicaciones abiertas</h4> <!-- al imprimir, el título va primero en su hoja -->
               <div id="cdComProy"></div>
-              <h4 class="cd-sub-imprimir">Comunicaciones abiertas</h4>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>Tipo</th><th>Recepción</th><th>Remitente</th><th>Asunto</th><th>Responsable</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Pendiente de</th></tr></thead>
                 <tbody id="tbCom"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabRq">
+              <h4 class="cd-sub-imprimir">RQ por aprobar</h4> <!-- al imprimir, el título va primero en su hoja -->
               <div id="cdRqProy"></div>
-              <h4 class="cd-sub-imprimir">RQ por aprobar</h4>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>RQ</th><th>Centro</th><th>Solicitó</th><th>Qué se pide</th><th class="rd-num-col">Días esperando</th><th class="rd-no-imprimir cd-col-decidir">Decidir</th></tr></thead>
                 <tbody id="tbRq"></tbody></table></div>
+            </div>
+            <!-- Ausentismo del día y, dentro, la promesa de valor contra lo ejecutado (el porqué de la diferencia) -->
+            <div class="tab-pane" id="tabAus">
+              <h4 class="cd-sub-imprimir">Ausentismo</h4> <!-- al imprimir, el título va primero en su hoja -->
+              <div id="cdAusProy"></div>
+              <h4 class="rd-subtitulo" style="margin-top:4px;">Ausencias registradas el día</h4>
+              <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
+                <thead><tr><th>Peaje</th><th>Proyecto</th><th>Cargo</th><th>Motivo</th><th class="rd-num-col">Personas</th><th>Registró</th></tr></thead>
+                <tbody id="tbAus"></tbody></table></div>
+              <div id="cdPromesaAus">
+                <h4 class="rd-subtitulo">Promesa de valor del día</h4>
+                <p class="rd-ayuda" style="margin-top:0;">Diferencia = ejecutado − promesa de valor. En negativo faltó gente; las ausencias de arriba explican por qué.</p>
+                <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
+                  <thead><tr><th>Peaje</th><th>Proyecto</th><th class="rd-num-col">Promesa</th><th class="rd-num-col">Ejecutado</th><th class="rd-num-col">Diferencia</th>
+                    <th class="rd-num-col">Ausencias</th><th>Estado</th></tr></thead>
+                  <tbody id="tbPvPeaje"></tbody></table></div>
+                <h4 class="rd-subtitulo">Por cargo</h4>
+                <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
+                  <thead><tr><th>Cargo</th><th class="rd-num-col">Promesa</th><th class="rd-num-col">Ejecutado</th><th class="rd-num-col">Diferencia</th><th class="rd-num-col">Ausencias</th></tr></thead>
+                  <tbody id="tbPvCargo"></tbody></table></div>
+              </div>
             </div>
           </div>
         </div>
@@ -133,8 +155,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
-<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=13"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=14"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

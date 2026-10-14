@@ -1,4 +1,4 @@
-//Administración del reporte diario — consulta de todo lo que llenan los coordinadores
+//Administración del reporte diario - consulta de todo lo que llenan los coordinadores
 //Una sola lógica para las cinco pantallas: cada una trae <div id="admPagina" data-pagina="...">
 //y los filtros que usa. Todo lo que viene de la base se escapa con rdEsc
 
@@ -7,13 +7,16 @@ var cfgA = null;
 var paginaA = '';
 var filasA = [];
 
+//Pequeñas ayudas para armar HTML: una etiqueta de color y una fila de "no hay datos"
 function tagA(txt, clase) { return '<span class="rd-tag ' + (clase || '') + '">' + txt + '</span>'; }
 function vacioA(n, txt) { return '<tr><td colspan="' + n + '" class="rd-vacio">' + txt + '</td></tr>'; }
+//Arma las <option> de un select a partir de una lista (con una primera opción opcional)
 function opcionesA(lista, valor, texto, primero) {
     var h = primero !== undefined ? '<option value="0">' + rdEsc(primero) + '</option>' : '';
     for (var i = 0; i < lista.length; i++) { h += '<option value="' + parseInt(lista[i][valor], 10) + '">' + rdEsc(lista[i][texto]) + '</option>'; }
     return h;
 }
+//Junta los filtros que tenga la página (mes, año, proyecto...) para mandarlos en la URL
 function filtrosA() {
     var q = '';
     ['Mes', 'Anio', 'Proyecto', 'Centro', 'Persona', 'Tipo'].forEach(function (n) {
@@ -62,6 +65,7 @@ function llenarCentrosA() {
     $('#aCentro').html(opcionesA(lista, 'ID_CENTRO_OP', 'NOM_CENTRO_OP', 'Todos los centros'));
 }
 
+//Pide al servidor los datos de la pestaña abierta y los pinta en la tabla
 function cargarA() {
     var op = { hoy: 'hoy', arqueos: 'arqueos', cronograma: 'cronograma', vacantes: 'vacantes', comunicaciones: 'comunicaciones' }[paginaA];
     if (paginaA === 'cronograma' && !$('#aPersona').val()) {
@@ -101,6 +105,7 @@ function pintarHoyA(f) {
     $('#admFilas').html(h || vacioA(8, 'No hay registros en este mes.'));
 }
 
+//Abre en una ventana el detalle del reporte diario de una persona en una fecha
 function verHoyA(persona, fecha) {
     $('#admModalCuerpo').html('<p class="rd-vacio">Cargando...</p>');
     $('#admModal').modal('show');
@@ -127,6 +132,7 @@ function difA(d) {
     return d === 0 ? tagA('<i class="fa fa-check"></i> Cuadra', 'rd-tag-ok') : tagA((d < 0 ? 'Faltante ' : 'Sobrante ') + rdPesos(Math.abs(d)), 'rd-tag-mal');
 }
 
+//Pinta la tabla de arqueos con el conteo de cuántos cuadran y cuántos tienen diferencia
 function pintarArqueosA(f) {
     var h = '', total = 0, cuadran = 0, dif = 0;
     for (var i = 0; i < f.length; i++) {
@@ -144,6 +150,7 @@ function pintarArqueosA(f) {
     $('#admFilas').html(h || vacioA(10, 'No hay arqueos con estos filtros.'));
 }
 
+//Abre en una ventana el detalle de un arqueo
 function verArqueoA(id) {
     $('#admModalCuerpo').html('<p class="rd-vacio">Cargando...</p>');
     $('#admModal').modal('show');

@@ -1,10 +1,10 @@
 <?php
 /*
-  HANA — Reporte general del día (control del reporte diario)
+  HANA - Reporte general del día (control del reporte diario)
   ---------------------------------------------------------------------------
   Todo lo que enviaron los coordinadores y jefes de peaje en un día,
   organizado por módulo. El alcance es el mismo del tablero:
-    - con 20M (jefe mayor): todo
+    - con 20M (gerente de operaciones): todo
     - el coordinador: su proyecto (él y los jefes de sus centros)
     - el jefe de peaje: lo suyo
 */
@@ -16,8 +16,10 @@ require_once __DIR__ . "/ArqueoModelo.php";
 class ControlDiario
 {
     private $T;
+    //Usa el modelo del tablero para no repetir las consultas de centros y personas
     public function __construct() { $this->T = new Tablero(); }
 
+    //Arma los signos de pregunta (?, ?, ?) para un IN con varios ids
     private function marcas($ids) { return implode(',', array_fill(0, count($ids), '?')); }
 
     //-----------------------------------------------------------------------
@@ -64,7 +66,8 @@ class ControlDiario
         return $res;
     }
 
-    //Listas de chequeo diligenciadas ese día en los centros visibles
+    //Listas de chequeo diligenciadas ese día en los centros visibles. PREGUNTAS (activas del
+    //grupo) y RESPUESTAS (guardadas en la lista) se cuentan al momento
     public function listas($idsCentros, $fecha)
     {
         if (!count($idsCentros)) { return array(); }
@@ -72,7 +75,8 @@ class ControlDiario
         $m = $this->marcas($idsCentros);
         $f = HanaDB::q("SELECT l.ID_LISTA_CHEQUEO, l.ID_COLABORADOR_LISTA_CHEQUEO AS ID_PERSONA,
                                l.FEC_REGISTRO_LISTA_CHEQUEO AS FECHA, g.NOM_GRUPO_LISTA_CHEQUEO AS LISTA,
-                               g.CANT_PREGUNTAS_GRUPO AS PREGUNTAS, l.CANT_RESPUESTAS_LISTA AS RESPUESTAS,
+                               (SELECT COUNT(*) FROM detalle_grupo_lista_chequeo q WHERE q.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = l.ID_GRUPO_LISTA_CHEQUEO AND q.ESTADO = 1) AS PREGUNTAS,
+                               (SELECT COUNT(*) FROM detalle_lista_chequeo d WHERE d.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = l.ID_LISTA_CHEQUEO) AS RESPUESTAS,
                                c.NOM_CENTRO_OP, p.NOM_PROYECTO, col.NOM_COLABORADOR AS PERSONA
                           FROM lista_chequeo l
                           INNER JOIN grupo_lista_chequeo g ON g.ID_GRUPO_LISTA_CHEQUEO = l.ID_GRUPO_LISTA_CHEQUEO
@@ -93,7 +97,8 @@ class ControlDiario
     public function listaRespuestas($idLista)
     {
         $l = HanaDB::fila("SELECT l.ID_LISTA_CHEQUEO, l.ID_CENTRO_OP_LISTA_CHEQUEO AS ID_CENTRO, l.FEC_REGISTRO_LISTA_CHEQUEO AS FECHA,
-                                  l.ID_GRUPO_LISTA_CHEQUEO AS ID_GRUPO, l.CANT_RESPUESTAS_LISTA AS RESPUESTAS,
+                                  l.ID_GRUPO_LISTA_CHEQUEO AS ID_GRUPO,
+                                  (SELECT COUNT(*) FROM detalle_lista_chequeo d WHERE d.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = l.ID_LISTA_CHEQUEO) AS RESPUESTAS,
                                   g.NOM_GRUPO_LISTA_CHEQUEO AS LISTA, c.NOM_CENTRO_OP, p.NOM_PROYECTO, col.NOM_COLABORADOR AS PERSONA
                              FROM lista_chequeo l
                              INNER JOIN grupo_lista_chequeo g ON g.ID_GRUPO_LISTA_CHEQUEO = l.ID_GRUPO_LISTA_CHEQUEO
@@ -103,13 +108,13 @@ class ControlDiario
                             WHERE l.ID_LISTA_CHEQUEO = ?", 'i', array((int)$idLista));
         if (!$l) { return null; }
         $f = HanaDB::q("SELECT q.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO AS PREGUNTA, q.TIPO_RESPUESTA AS TIPO,
-                               d.RESPUTA_DETALLE_LISTA_CHEQUEO AS RESPUESTA
-                          FROM detalle_grupo_lista_cheque q
-                          LEFT JOIN detale_lista_chequeo d
-                                 ON d.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO = q.ID_DETALLE_GRUPO_LISTA_CHEQUEO
-                                AND d.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO = ?
+                               d.RESPUESTA_DETALLE_LISTA_CHEQUEO AS RESPUESTA
+                          FROM detalle_grupo_lista_chequeo q
+                          LEFT JOIN detalle_lista_chequeo d
+                                 ON d.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = q.ID_DETALLE_GRUPO_LISTA_CHEQUEO
+                                AND d.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = ?
                          WHERE q.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = ?
-                           AND (q.ESTADO = 1 OR d.ID_DETALE_LISTA_CHEQUEO IS NOT NULL)
+                           AND (q.ESTADO = 1 OR d.ID_DETALLE_LISTA_CHEQUEO IS NOT NULL)
                          ORDER BY q.ORDEN, q.ID_DETALLE_GRUPO_LISTA_CHEQUEO", 'ii', array((int)$idLista, (int)$l['ID_GRUPO']));
         $dec = function ($t) { return $t === null ? null : html_entity_decode((string)$t, ENT_QUOTES, 'UTF-8'); };
         $l['PREGUNTAS'] = array();
@@ -190,12 +195,66 @@ class ControlDiario
         return $res;
     }
 
+    //Las ausencias de un día, una fila por centro, cargo y motivo, con quién la anotó.
+    //CUENTA = 0 para los motivos marcados como "no es ausencia" en Parámetros
+    public function ausenciasDetalle($idsCentros, $fecha)
+    {
+        if (!count($idsCentros)) { return array(); }
+        try {
+            $f = HanaDB::q("SELECT r.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, c.ID_PROYECTO_CENTRO_OP AS ID_PROYECTO, p.NOM_PROYECTO,
+                                   r.ID_CARGO_AUS, ca.NOMBRE AS CARGO, n.NOMBRE AS MOTIVO, n.CUENTA_AUSENCIA AS CUENTA, r.CANTIDAD,
+                                   col.NOM_COLABORADOR AS QUIEN, r.FEC_MODIFICACION
+                              FROM aus_registro r
+                              INNER JOIN aus_novedad n ON n.ID_NOVEDAD_AUS = r.ID_NOVEDAD_AUS
+                              INNER JOIN aus_cargo ca ON ca.ID_CARGO_AUS = r.ID_CARGO_AUS
+                              INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
+                              INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
+                              LEFT JOIN colaboradores col ON col.ID_COLABORADOR = r.ID_COLABORADOR
+                             WHERE r.FECHA = ? AND r.ID_CENTRO_OP IN (" . $this->marcas($idsCentros) . ")
+                             ORDER BY p.NOM_PROYECTO, c.TIPO_CENTRO = 'BASCULA', c.NOM_CENTRO_OP, ca.ORDEN, n.ORDEN",
+                           's' . str_repeat('i', count($idsCentros)), array_merge(array($fecha), $idsCentros));
+        } catch (\Throwable $e) { return array(); } //si el ausentismo no está instalado
+        return $f ? $f : array();
+    }
+
+    //La promesa de valor del día en cada centro, por cargo, con lo ejecutado:
+    //[idCentro => [idCargo => [promesa, ejecutado (null si no se ha registrado)]]].
+    //Solo salen los cargos con promesa ese día o con algo registrado
+    public function promesaDetalle($idsCentros, $fecha)
+    {
+        if (!count($idsCentros)) { return array(); }
+        require_once __DIR__ . '/PromesaValorModelo.php';
+        $PV = new PromesaValor();
+        $reglas = $PV->reglas($idsCentros);
+        $eje = HanaDB::q("SELECT ID_CENTRO_OP, ID_CARGO_AUS, CANTIDAD FROM pv_ejecutado WHERE FECHA = ? AND ID_CENTRO_OP IN (" . $this->marcas($idsCentros) . ")",
+                         's' . str_repeat('i', count($idsCentros)), array_merge(array($fecha), $idsCentros));
+        $res = array();
+        foreach ((array)$eje as $x) { $res[(int)$x['ID_CENTRO_OP']][(int)$x['ID_CARGO_AUS']] = array('promesa' => 0, 'ejecutado' => (int)$x['CANTIDAD']); }
+        foreach ($reglas as $idCentro => $porCargo) {
+            foreach ($porCargo as $idCargo => $lista) {
+                $n = (int)PromesaValor::resolver($lista, $fecha);
+                if ($n <= 0 && !isset($res[$idCentro][$idCargo])) { continue; }
+                if (!isset($res[$idCentro][$idCargo])) { $res[$idCentro][$idCargo] = array('promesa' => 0, 'ejecutado' => null); }
+                $res[$idCentro][$idCargo]['promesa'] = $n;
+            }
+        }
+        return $res;
+    }
+
+    //Los cargos del ausentismo (los mismos de la promesa de valor), en su orden
+    public function cargos()
+    {
+        require_once __DIR__ . '/AusentismoModelo.php';
+        return array_map(function ($c) { return array('id' => (int)$c['ID_CARGO_AUS'], 'nombre' => $c['NOMBRE']); }, (new Ausentismo())->cargos());
+    }
+
+    //Requisiciones de estos centros que siguen esperando aprobación, con cuántos días llevan
     public function rqPendientes($idsCentros)
     {
         if (!count($idsCentros)) { return array(); }
         $m = $this->marcas($idsCentros);
         $f = HanaDB::q("SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO,
-                               col.NOM_COLABORADOR AS SOLICITA, DATEDIFF(NOW(), r.FEC_ESTADO) AS DIAS,
+                               col.NOM_COLABORADOR AS SOLICITA, DATEDIFF(NOW(), " . RqEstado::sqlDesde('r.ID_RQ') . ") AS DIAS,
                                (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ', ') FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS,
                                -- Los archivos de la RQ (fotos y soportes), separados por |, para mostrarlos donde se aprueba
                                (SELECT GROUP_CONCAT(a.ARCHIVO ORDER BY a.ID_ADJUNTO SEPARATOR '|') FROM adjunto a
@@ -205,7 +264,7 @@ class ControlDiario
                           INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
                           LEFT JOIN colaboradores col ON col.ID_COLABORADOR = r.ID_COLABORADOR_SOLICITA
                          WHERE r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . " AND r.ID_CENTRO_OP IN ($m)
-                         ORDER BY (r.TIPO_RQ = 'U') DESC, r.FEC_ESTADO",
+                         ORDER BY (r.TIPO_RQ = 'U') DESC, DIAS DESC",
                        str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
         return $f ? $f : array();
     }

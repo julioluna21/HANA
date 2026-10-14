@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Controlador de comunicaciones y oficios (Reporte diario, Fase 2)
+  HANA - Controlador de comunicaciones y oficios (Reporte diario, Fase 2)
   Permiso 11M, y solo en los proyectos de los centros asignados al usuario.
 */
 session_start();
@@ -11,6 +11,7 @@ require_once __DIR__ . "/AccesoHelper.php";
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function comError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -21,7 +22,7 @@ function comError($codigo, $mensaje)
 //Si el administrador apagó este módulo (Parámetros del sistema), no se registra nada
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 if (!HanaConfig::modulo('COMUNICACIONES')) { comError(403, 'Este módulo está desactivado. Lo activa el administrador en Parámetros del sistema.'); }
-HanaDB::usarModulo('COMUNICACIONES'); //la casilla COMUNICACIONES de Roles da acceso en todos los proyectos
+hanaUsarModulo('COMUNICACIONES'); //la casilla COMUNICACIONES de Roles da acceso en todos los proyectos
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { comError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $idUsuario     = (int)$_SESSION['IdUsuarios'];
@@ -44,22 +45,18 @@ $agregar = function ($filas) use (&$centros, &$proyectos) {
         $proyectos[(int)$c['ID_PROYECTO']] = array('ID_PROYECTO' => (int)$c['ID_PROYECTO'], 'NOM_PROYECTO' => $c['NOM_PROYECTO']);
     }
 };
-$agregar(HanaDB::centrosCoordinador($idColaborador)); //los que coordina (todos si ADMIN TEC o 32M)
-$sel = "SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
-          FROM centros_operacion c INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
-         WHERE p.Estado = '1' AND c.Estado = '1' AND ";
-$agregar(HanaDB::q($sel . "c.ID_COLABORADOR_JEFE = ?", 'i', array($idColaborador))); //los peajes de los que es jefe
-$agregar(HanaDB::q($sel . "c.ID_CENTRO_OP IN (SELECT ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP FROM asoc_usuarios_sistemas_x_cop
-                                               WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = ?)", 'i', array($idUsuario))); //asignados en Usuarios
+$agregar(hanaCentrosCoordinador($idColaborador)); //los que coordina (todos si ADMIN TEC o 32M)
+$agregar(Organizacion::centrosJefeConProyecto($idColaborador));     //los peajes de los que es jefe
+$agregar(Organizacion::centrosAsignadosConProyecto($idUsuario));    //asignados en Usuarios
 if (!count($proyectos)) { comError(403, 'No tienes proyectos asignados. Pide que te asignen un peaje en Configuración → Usuarios o Centros de operación.'); }
 
 //¿Puede marcar como resuelta (o reabrir) una comunicación de este proyecto?
 $puedeResolver = function ($idProyecto) use ($resuelveTodo, $idColaborador) {
     if ($resuelveTodo) { return true; }
-    $p = HanaDB::fila("SELECT ID_COLABORADOR_COORDINADOR AS C FROM proyectos WHERE ID_PROYECTO = ?", 'i', array((int)$idProyecto));
-    return $p && (int)$p['C'] === $idColaborador;
+    return Organizacion::coordinadorDe($idProyecto) === $idColaborador;
 };
 
+//Trae una comunicación y revisa que esté activa y que sea de un proyecto de la persona
 function comCargar($M, $proyectos, $id)
 {
     $m = $M->mostrar($id);
@@ -73,15 +70,16 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     case 'config':
         //El nombre de quien entra, para proponerlo como responsable
-        $yo = HanaDB::fila("SELECT NOM_COLABORADOR FROM colaboradores WHERE ID_COLABORADOR = ?", 'i', array($idColaborador));
+        $yo = Organizacion::nombre($idColaborador);
         echo json_encode(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'proyectos' => array_values($proyectos), 'centros' => array_values($centros),
                                'tipos' => Comunicacion::$TIPOS, 'medios' => Comunicacion::$MEDIOS,
                                'pendiente' => Comunicacion::$PENDIENTE, 'diasRespuesta' => Comunicacion::diasRespuesta(),
-                               'miNombre' => $yo ? html_entity_decode($yo['NOM_COLABORADOR'], ENT_QUOTES, 'UTF-8') : '',
+                               'miNombre' => html_entity_decode($yo, ENT_QUOTES, 'UTF-8'),
                                'proyectosResuelve' => array_values(array_filter(array_keys($proyectos), $puedeResolver))),
                          JSON_UNESCAPED_UNICODE);
         break;
 
+    //Comunicaciones del mes elegido, o las que siguen abiertas si no se elige mes
     case 'listar':
         $abiertas = !isset($_GET['mes']) || (int)$_GET['mes'] === 0;
         $desde = $hasta = '';
@@ -142,6 +140,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode(array('ok' => true, 'mensaje' => $msg), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Crea una comunicación nueva o guarda los cambios de una existente
     case 'guardar':
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         $antes = null;
@@ -203,6 +202,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                          JSON_UNESCAPED_UNICODE);
         break;
 
+    //Anula una comunicación (solo quien la registró o quien tenga el permiso 5M)
     case 'anular':
         $m = comCargar($M, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
         if ((int)$m['ID_COLABORADOR_REGISTRA'] !== $idColaborador && !hanaTienePermiso('5M')) {

@@ -1,20 +1,20 @@
 <?php
-//Ausentismo (Fase 3) — el "Reporte nacional de ausentismo" dentro de HANA.
+//Ausentismo - el "Reporte nacional de ausentismo" dentro de HANA.
 //Registra el coordinador de cada proyecto; consultan 20M, 21M y 22M
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
-    require_once __DIR__ . '/../Modelo/HanaConfig.php';
-    if (!HanaConfig::modulo('AUSENTISMO')) { echo "<script>window.location.replace('InicioVista.php');</script>"; exit; }
-    $esCoordinador = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+    require_once __DIR__ . '/../Control/PaginaControl.php';
+    if (!pagModuloActivo('AUSENTISMO')) { echo "<script>window.location.replace('InicioVista.php');</script>"; exit; }
+    $esCoordinador = pagEsCoordinador();
     //El jefe de peaje registra el de su peaje (si el administrador lo permite en Parámetros)
-    $esJefe = isset($_SESSION['Idcolaborador']) && HanaConfig::si('AUS_JEFES_EDITAN')
-              && HanaDB::fila("SELECT 1 AS ok FROM centros_operacion WHERE Estado = '1' AND ID_COLABORADOR_JEFE = ? LIMIT 1", 'i', array((int)$_SESSION['Idcolaborador']));
+    $esJefe = pagParametroSi('AUS_JEFES_EDITAN') && pagEsJefePeaje();
     if ($esCoordinador || $esJefe || in_array("20M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("22M", $modulosAcceso) || in_array("25M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
+<style media="print">@page{ size: landscape; }</style> <!-- la matriz del mes (31 días) cabe mejor a lo ancho -->
 
 <div class="right_col" role="main">
   <div class="row">
@@ -52,27 +52,32 @@ if (isset($_SESSION['IdUsuarios'])) {
             <!-- Registro rápido: una ausencia a la vez. Escribe en las mismas celdas de la matriz del mes -->
             <div class="tab-pane active" id="tabRapido">
               <p class="rd-ayuda" style="margin-top:0;">Elige el día, el cargo y el motivo, y cuántas personas faltaron. Queda anotado en la matriz del mes,
-                así que el consolidado, el Excel y el dashboard se actualizan solos.</p>
+                así que el consolidado, el Excel y el dashboard se actualizan solos. Si la ausencia dura varios días (una incapacidad de hoy al sábado),
+                escribe también el último día: se anota en cada día del rango. <span id="ausFuturoAyuda"></span></p>
               <div id="ausNotaRapido"></div>
               <form id="ausRapido" class="aus-rapido" autocomplete="off">
                 <div class="row">
-                  <div class="form-group col-md-2 col-sm-4 col-xs-6">
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
                     <label for="rFecha">Día: <span class="rd-req">*</span></label>
                     <input type="date" id="rFecha" name="fecha" class="form-control">
                   </div>
-                  <div class="form-group col-md-3 col-sm-8 col-xs-12">
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                    <label for="rHasta">Hasta (opcional):</label>
+                    <input type="date" id="rHasta" name="hasta" class="form-control" title="El último día de la ausencia. Vacío = solo un día">
+                  </div>
+                  <div class="form-group col-md-2 col-sm-6 col-xs-12">
                     <label for="rCargo">Cargo: <span class="rd-req">*</span></label>
                     <select id="rCargo" name="cargo" class="form-control"></select>
                   </div>
-                  <div class="form-group col-md-3 col-sm-6 col-xs-12">
+                  <div class="form-group col-md-2 col-sm-6 col-xs-12">
                     <label for="rNovedad">Motivo de la ausencia: <span class="rd-req">*</span></label>
                     <select id="rNovedad" name="novedad" class="form-control"></select>
                   </div>
-                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                  <div class="form-group col-md-2 col-sm-6 col-xs-6">
                     <label for="rCantidad">Personas: <span class="rd-req">*</span></label>
                     <input type="number" id="rCantidad" name="cantidad" class="form-control" min="1" max="999" value="1">
                   </div>
-                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                  <div class="form-group col-md-2 col-sm-6 col-xs-6">
                     <label class="hidden-xs">&nbsp;</label>
                     <button type="submit" class="btn btn-success btn-block" id="btnRegistrarAus"><i class="fa fa-plus"></i> Registrar</button>
                   </div>
@@ -85,7 +90,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             </div>
             <div class="tab-pane" id="tabRegistrar">
               <p class="rd-ayuda" style="margin-top:0;">En cada celda, cuántas personas del cargo tuvieron esa novedad ese día. Se escribe y se pasa de celda con las flechas del teclado.
-                Las filas en cursiva (como <em>cubre recolector</em>) no son ausencia: no suman en las ausencias diarias.</p>
+                Las filas <em>CUBRIENDO A…</em> son ausencia del cargo de quien cubre: esa persona dejó su puesto para cubrir el otro cargo, que quedó cubierto.</p>
               <div id="ausNota"></div>
               <form id="ausForm" onsubmit="return false;"><div id="ausGrid"><p class="rd-vacio">Cargando...</p></div></form>
               <div class="rd-acciones rd-acciones-fijas" id="ausAcciones">
@@ -107,8 +112,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
-<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=5"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

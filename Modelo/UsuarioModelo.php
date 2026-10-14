@@ -1,4 +1,11 @@
 <?php
+/*
+  HANA - Usuarios (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de usuarios_sistema y de asoc_usuarios_sistemas_x_cop (qué centros tiene
+  asignados cada usuario). También la consulta para iniciar sesión.
+  Lo usa Control/UsuariosControl.php.
+*/
 require "../Conexion/ConexionDB.php";
 class Usuarios
 {
@@ -20,10 +27,12 @@ class Usuarios
                 return ejecutarConsulta($sql);
         }
     
+        //Asigna un centro a un usuario. La pareja usuario-centro es la llave de la tabla:
+        //si ya estaba asignado no se repite (IGNORE)
         public function insertarcentros($idusuario,$idcentro)
         {
-                $sql = "INSERT INTO asoc_usuarios_sistemas_x_cop(ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP ,ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP ,ESTADO)
-                            VALUES ($idusuario,$idcentro,'1')";
+                $sql = "INSERT IGNORE INTO asoc_usuarios_sistemas_x_cop(ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP ,ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP)
+                            VALUES (" . intval($idusuario) . "," . intval($idcentro) . ")";
                 return ejecutarConsulta($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
         }
         //Implementar un método para mostrar los datos de un registro a modificar
@@ -33,12 +42,14 @@ class Usuarios
                 return ejecutarConsultaSimpleFila($sql);
         }
     
+        //Centros asignados a un usuario
         public function detectarcentros($ID_usuario)
         {
                 $sql = "SELECT * FROM asoc_usuarios_sistemas_x_cop WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP='$ID_usuario'";
                 return ejecutarConsulta($sql);
         }
     
+         //Todos los centros activos con el nombre de su proyecto
          public function mostrarcentros()
         {
                 $sql = "SELECT centros_operacion.*,proyectos.NOM_PROYECTO FROM centros_operacion INNER JOIN proyectos ON proyectos.ID_PROYECTO=centros_operacion.ID_PROYECTO_CENTRO_OP WHERE centros_operacion.Estado=1 ORDER BY centros_operacion.ID_PROYECTO_CENTRO_OP ASC";
@@ -46,9 +57,10 @@ class Usuarios
         }
     
     
+         //Nombres de los centros asignados a un usuario
          public function consultaCentros($ID_usuario)
         {
-                $sql = "SELECT centros_operacion.NOM_CENTRO_OP from asoc_usuarios_sistemas_x_cop INNER JOIN centros_operacion on centros_operacion.ID_CENTRO_OP=asoc_usuarios_sistemas_x_cop.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP WHERE asoc_usuarios_sistemas_x_cop.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP='$ID_usuario'";
+                $sql = "SELECT centros_operacion.NOM_CENTRO_OP from asoc_usuarios_sistemas_x_cop INNER JOIN centros_operacion on centros_operacion.ID_CENTRO_OP=asoc_usuarios_sistemas_x_cop.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP WHERE asoc_usuarios_sistemas_x_cop.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP='$ID_usuario' ORDER BY centros_operacion.NOM_CENTRO_OP";
                 return ejecutarConsulta($sql);
         }
         //Implementar un método para listar los registros
@@ -59,17 +71,20 @@ class Usuarios
         }
         
     
+        //Desactiva un usuario (ya no puede entrar)
         public function desactivar($IDUsuario)
         {
                 $sql = "UPDATE usuarios_sistema SET ESTADO=0 WHERE ID_USUARIO_SISTEMA=$IDUsuario";
                 return ejecutarConsulta($sql);
         }
+        //Vuelve a activar un usuario
         public function activar($IDUsuario)
         {
                $sql = "UPDATE usuarios_sistema SET ESTADO=1 WHERE ID_USUARIO_SISTEMA=$IDUsuario";
                 return ejecutarConsulta($sql);
         }
     
+        //Busca un usuario por su nombre de inicio de sesión
         public function Verficar($usuario)
         {
                 $sql = "SELECT * from  usuarios_sistema WHERE NOM_USUARIO_SISTEMA='$usuario'";
@@ -77,12 +92,14 @@ class Usuarios
         }
         
     
+        //Correo de un colaborador
         public function correo($idcolaborador)
         {
                $sql = "SELECT MAIL_COLABORADOR from  colaboradores WHERE ID_COLABORADOR=$idcolaborador";
                 return ejecutarConsultaSimpleFila($sql);
         }
     
+        //Quita todos los centros de un usuario (se usa antes de guardar los nuevos)
         public function eliminarcentros($idusuario)
         {
                $sql = "DELETE from asoc_usuarios_sistemas_x_cop WHERE asoc_usuarios_sistemas_x_cop.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP=$idusuario";
@@ -91,12 +108,14 @@ class Usuarios
         
      
     
+       //Guarda la nueva clave de un usuario (llega ya convertida en hash desde el controlador)
        public function cambiraclave($IDUsuario,$clave)
         {
                $sql = "UPDATE usuarios_sistema SET CLAVE_USUARIO_SISTEMA='$clave' WHERE ID_USUARIO_SISTEMA=$IDUsuario";
                 return ejecutarConsulta($sql);
         }
     
+          //Colaboradores activos
           public function colaboradores()
         {
                 $sql = "SELECT * FROM colaboradores WHERE ESTADO=1";
@@ -104,12 +123,14 @@ class Usuarios
         }
         
     
+         //Datos del usuario para iniciar sesión: colaborador, rol y permisos
          public function verificar($usuario,$calve)
         {
-                $sql = "SELECT usuarios_sistema.ID_USUARIO_SISTEMA,colaboradores.ID_COLABORADOR,colaboradores.NOM_COLABORADOR, rol_usuarios_sistemas.MODULOS_ROL_USUARIOS_SISTEMAS,rol_usuarios_sistemas.PERMISOS_CERRAR_NOVEDADES,cargos_colaboladores.PERMISO_ASIGNAR_NOVEDAD FROM usuarios_sistema INNER JOIN rol_usuarios_sistemas on rol_usuarios_sistemas.ID_ROL_USUARIO_SISTEMA=usuarios_sistema.ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA INNER JOIN colaboradores on colaboradores.ID_COLABORADOR=usuarios_sistema.ID_COLABORADOR_USUARIOS_SISTEMA INNER JOIN cargos_colaboladores on cargos_colaboladores.ID_CARGO_COLABORADORES=colaboradores.ID_CARGO_COLABORADORES_COLABORADORES WHERE usuarios_sistema.NOM_USUARIO_SISTEMA='$usuario' AND usuarios_sistema.CLAVE_USUARIO_SISTEMA='$calve' AND usuarios_sistema.ESTADO=1";
+                $sql = "SELECT usuarios_sistema.ID_USUARIO_SISTEMA,colaboradores.ID_COLABORADOR,colaboradores.NOM_COLABORADOR, rol_usuarios_sistemas.MODULOS_ROL_USUARIOS_SISTEMAS,rol_usuarios_sistemas.PERMISOS_CERRAR_NOVEDADES FROM usuarios_sistema INNER JOIN rol_usuarios_sistemas on rol_usuarios_sistemas.ID_ROL_USUARIO_SISTEMA=usuarios_sistema.ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA INNER JOIN colaboradores on colaboradores.ID_COLABORADOR=usuarios_sistema.ID_COLABORADOR_USUARIOS_SISTEMA INNER JOIN cargos_colaboradores on cargos_colaboradores.ID_CARGO_COLABORADORES=colaboradores.ID_CARGO_COLABORADORES_COLABORADORES WHERE usuarios_sistema.NOM_USUARIO_SISTEMA='$usuario' AND usuarios_sistema.CLAVE_USUARIO_SISTEMA='$calve' AND usuarios_sistema.ESTADO=1";
                 return ejecutarConsulta($sql);
         }
     
+         //Correo y nombre del usuario que pidió recuperar la clave
          public function CorreoRecuperacion($usuario)
         {
                 $sql = "SELECT colaboradores.MAIL_COLABORADOR, usuarios_sistema.ID_USUARIO_SISTEMA, colaboradores.NOM_COLABORADOR FROM usuarios_sistema INNER JOIN colaboradores ON colaboradores.ID_COLABORADOR=usuarios_sistema.ID_COLABORADOR_USUARIOS_SISTEMA WHERE usuarios_sistema.NOM_USUARIO_SISTEMA='$usuario' AND usuarios_sistema.ESTADO=1";

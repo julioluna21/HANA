@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Guardia de sesión y permisos para los controladores
+  HANA - Guardia de sesión y permisos para los controladores
   ---------------------------------------------------------------------------
   Antes, los controladores de Roles, Colaboradores, Cargos, Títulos, Estados,
   Observador, Listas, Preguntas, Novedades y Notificaciones respondían a
@@ -21,6 +21,7 @@
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
+//Revisa los permisos antes de atender la petición. Las operaciones de solo lectura pueden pedir otros permisos y las "libres" no piden ninguno
 function hanaGuardia($permisos, $opsLectura = array(), $opsLibres = array(), $permisosLectura = null)
 {
     $op = isset($_GET['op']) ? $_GET['op'] : '';

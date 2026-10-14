@@ -1,8 +1,9 @@
-//Reporte diario — utilidades que comparten arqueos, cronograma y lo que siga
+//Reporte diario - utilidades que comparten arqueos, cronograma y lo que siga
 //Todo lleva el prefijo "rd" para no chocar con las funciones de otras pantallas
 
 //Escapa texto para pintarlo como HTML: lo que viene de la base lo escriben usuarios
 function rdEsc(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
+//Número con dos dígitos: 7 -> "07"
 function rdDos(n) { return ('0' + n).slice(-2); }
 
 //"2026-09-16" -> "16/09/2026"
@@ -14,16 +15,19 @@ function rdFecha(f) {
 //"08:00:00" -> "08:00"
 function rdHora(t) { return t ? String(t).substring(0, 5) : ''; }
 
-//Un texto largo recortado para que quepa en una celda (ya escapado): "Visita al peaje, arqueo de…"
+//Un texto largo recortado para que quepa en una celda (ya escapado): "Visita al peaje, arqueo de..."
+//En la pantalla se ve recortado; al imprimir sale completo (ver impresion.css)
 function rdRecortar(t, max) {
     t = String(t == null ? '' : t).replace(/\s+/g, ' ');
-    return rdEsc(t.length > max ? t.substring(0, max - 1) + '…' : t);
+    if (t.length <= max) { return rdEsc(t); }
+    return '<span class="rd-solo-pantalla">' + rdEsc(t.substring(0, max - 1) + '…') + '</span><span class="rd-solo-papel">' + rdEsc(t) + '</span>';
 }
 //Un texto de varios renglones listo para pintar: escapado y con sus saltos de línea
 function rdParrafo(t) { return rdEsc(t).replace(/\n/g, '<br>'); }
 
 //Fechas sin el desfase de UTC
 function rdAFecha(txt) { var p = txt.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+//De fecha a texto "2026-09-16", y sumar días a una fecha en texto
 function rdATexto(d) { return d.getFullYear() + '-' + rdDos(d.getMonth() + 1) + '-' + rdDos(d.getDate()); }
 function rdSumarDias(txt, n) { var d = rdAFecha(txt); d.setDate(d.getDate() + n); return rdATexto(d); }
 
@@ -110,7 +114,9 @@ var RD_GUARDAR = {
     cronograma: /CronogramaControl\.php\?op=(vehiculoDia|agregar|estado)/
 };
 
+//Muestra arriba de la pantalla si la persona ya hizo hoy lo de este módulo o si le falta
 function rdAlertaDia(modulo, contenedor) {
+    //Pregunta al servidor cómo va el día y arma el aviso
     var pintar = function () {
         $.getJSON('../Control/EstadoDiaControl.php?op=estado').done(function (d) {
             var e = d.estado && d.estado[modulo];
@@ -165,6 +171,7 @@ function rdAviso(texto, tipo) {
 //   rdCambiosGuardados()           se llama después de guardar
 //===========================================================================
 var rdHayCambios = false;
+//Si hay cambios sin guardar en el formulario, avisa antes de salir de la página
 function rdVigilarCambios(form) {
     $(document).on('input change', form + ' input, ' + form + ' textarea, ' + form + ' select', function () { rdHayCambios = true; });
     window.addEventListener('beforeunload', function (e) {
@@ -173,6 +180,7 @@ function rdVigilarCambios(form) {
         e.returnValue = ''; //el navegador muestra su propio aviso
     });
 }
+//Se llama después de guardar, para que ya no avise al salir
 function rdCambiosGuardados() { rdHayCambios = false; }
 
 //===========================================================================
@@ -256,6 +264,7 @@ function rdRespuesta(p) {
 //===========================================================================
 var URL_ADJ = '../Control/AdjuntoControl.php';
 
+//El icono que le corresponde a un archivo según su tipo (PDF, imagen, Excel...)
 function rdIconoArchivo(tipo, nombre) {
     var ext = String(nombre).split('.').pop().toLowerCase();
     if (tipo === 'application/pdf') { return 'fa-file-pdf-o'; }
@@ -266,8 +275,10 @@ function rdIconoArchivo(tipo, nombre) {
     return 'fa-file-text-o';
 }
 
+//Tamaño de un archivo en KB o MB, para mostrarlo
 function rdTamano(b) { b = +b || 0; return b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
 
+//Trae y pinta los archivos adjuntos de un registro, con los botones para ver o quitar
 function rdAdjuntos(contenedor, modulo, id) {
     var caja = $(contenedor);
     caja.html('<div class="adj"><div class="adj-cab"><i class="fa fa-paperclip"></i> Archivos</div><p class="rd-vacio">Cargando...</p></div>');
@@ -277,14 +288,19 @@ function rdAdjuntos(contenedor, modulo, id) {
             if (!d.archivos.length) { h += '<p class="adj-vacio">' + (d.editable ? 'Todavía no hay archivos. Puedes subir el oficio, fotos o soportes.' : 'Sin archivos.') + '</p>'; }
             h += '<ul class="adj-lista">';
             d.archivos.forEach(function (a) {
-                var url = URL_ADJ + '?op=ver&id=' + parseInt(a.ID_ADJUNTO, 10), img = /^image\//.test(a.TIPO);
+                var url = URL_ADJ + '?op=ver&id=' + parseInt(a.ID_ADJUNTO, 10), img = /^image\//.test(a.TIPO), pdf = a.TIPO === 'application/pdf';
+                //Las imágenes y los PDF se ven en el visor de la misma página (VisorAjax.js); Word, Excel o
+                //correos no se pueden ver en el navegador: esos se descargan
+                var abre = img ? 'data-visor="adj-' + rdEsc(modulo) + '-' + parseInt(id, 10) + '" title="' + rdEsc(a.NOMBRE) + '"'
+                         : (pdf ? 'data-visor-pdf data-nombre="' + rdEsc(a.NOMBRE) + '" title="Ver ' + rdEsc(a.NOMBRE) + '"' : 'title="Descargar ' + rdEsc(a.NOMBRE) + '"');
+                if (!img && !pdf) { url += '&descargar=1'; }
                 h += '<li class="adj-item">' +
-                     (img ? '<a href="' + url + '" target="_blank" rel="noopener" class="adj-mini"><img src="' + url + '" alt="" loading="lazy"></a>'
-                          : '<a href="' + url + '" target="_blank" rel="noopener" class="adj-mini adj-icono"><i class="fa ' + rdIconoArchivo(a.TIPO, a.NOMBRE) + '"></i></a>') +
-                     '<div class="adj-datos"><a href="' + url + '" target="_blank" rel="noopener" class="adj-nombre">' + rdEsc(a.NOMBRE) + '</a>' +
+                     (img ? '<a href="' + url + '" ' + abre + ' class="adj-mini"><img src="' + url + '" alt="' + rdEsc(a.NOMBRE) + '" loading="lazy"></a>'
+                          : '<a href="' + url + '" ' + abre + ' class="adj-mini adj-icono"><i class="fa ' + rdIconoArchivo(a.TIPO, a.NOMBRE) + '"></i></a>') +
+                     '<div class="adj-datos"><a href="' + url + '" ' + abre + ' class="adj-nombre">' + rdEsc(a.NOMBRE) + '</a>' +
                      (a.DESCRIPCION ? '<div class="adj-desc">' + rdEsc(a.DESCRIPCION) + '</div>' : '') +
                      '<div class="adj-meta">' + rdTamano(a.TAMANO) + ' · ' + rdEsc(a.QUIEN || '') + ' · ' + rdFecha(a.FEC_REGISTRO) + '</div></div>' +
-                     '<div class="adj-acciones"><a class="btn btn-default btn-xs" href="' + url + '&descargar=1" title="Descargar"><i class="fa fa-download"></i></a>' +
+                     '<div class="adj-acciones"><a class="btn btn-default btn-xs" href="' + URL_ADJ + '?op=ver&id=' + parseInt(a.ID_ADJUNTO, 10) + '&descargar=1" title="Descargar"><i class="fa fa-download"></i></a>' +
                      (d.editable ? '<button type="button" class="btn btn-default btn-xs adj-describir" data-id="' + parseInt(a.ID_ADJUNTO, 10) + '" data-desc="' + rdEsc(a.DESCRIPCION || '') + '" title="Escribir una descripción"><i class="fa fa-pencil"></i></button>' +
                                    '<button type="button" class="btn btn-default btn-xs adj-borrar" data-id="' + parseInt(a.ID_ADJUNTO, 10) + '" data-nombre="' + rdEsc(a.NOMBRE) + '" title="Quitar"><i class="fa fa-trash"></i></button>' : '') +
                      '</div></li>';
@@ -362,7 +378,7 @@ function rdRqArchivosHtml(archivos) {
     var otros = archivos.filter(function (a) { return !rdEsFoto(a.RUTA); });
     var h = '';
     if (fotos.length) {
-        h += '<div class="rq-visor"><a class="rq-visor-grande" href="' + rdEsc(fotos[0].URL) + '" target="_blank" rel="noopener" title="Abrir en tamaño completo">' +
+        h += '<div class="rq-visor"><a class="rq-visor-grande" href="' + rdEsc(fotos[0].URL) + '" title="Ver en grande">' + //lo abre el visor de la misma página
              '<img src="' + rdEsc(fotos[0].URL) + '" alt="Foto de la RQ"></a>';
         if (fotos.length > 1) {
             h += '<div class="rq-visor-minis">' + fotos.map(function (a, i) {
@@ -374,7 +390,10 @@ function rdRqArchivosHtml(archivos) {
     }
     if (otros.length) {
         h += '<div class="dq-arch">' + otros.map(function (a) {
-            return '<a href="' + rdEsc(a.URL) + '" target="_blank" rel="noopener"><i class="fa fa-file-pdf-o"></i> ' + rdEsc(a.NOMBRE_ORIGINAL) + '</a>';
+            //Un PDF se ve en el visor de la misma página; otro tipo de archivo se descarga
+            var pdf = /\.pdf$/i.test(a.RUTA || '');
+            return '<a href="' + rdEsc(a.URL) + '" ' + (pdf ? 'data-visor-pdf data-nombre="' + rdEsc(a.NOMBRE_ORIGINAL || '') + '"' : 'download="' + rdEsc(a.NOMBRE_ORIGINAL || '') + '"') + '>' +
+                   '<i class="fa ' + (pdf ? 'fa-file-pdf-o' : 'fa-download') + '"></i> ' + rdEsc(a.NOMBRE_ORIGINAL) + '</a>';
         }).join('') + '</div>';
     }
     return h;

@@ -14,14 +14,14 @@ if (isset($_SESSION['IdUsuarios'])) {
 
     //Saludo al azar. Se usa switch y no match() porque match() solo existe desde
     //PHP 8 y el servidor corre PHP 7: alli match() deja la pantalla en blanco
-    $azar = rand(1, 10); //son 7 saludos; antes era rand(1,8) y el 8 caia en "Buenas"
+    $azar = rand(1, 10); //son 10 saludos; si el número no tuviera saludo, queda "Buenas"
 
     switch ($azar) {
         case 1:  $saludo = "¡Hola! Qué gusto verte"; break;
         case 2:  $saludo = "Me alegra verte"; break;
         case 3:  $saludo = "Todo listo para empezar"; break;
         case 4:  $saludo = "¡Hola de nuevo!"; break;
-        case 5:  $saludo = "¡Hola! Bienvenido de vuelta"; break; //antes repetia el saludo 4
+        case 5:  $saludo = "¡Hola! Bienvenido de vuelta"; break;
         case 6:  $saludo = "¡Hola! Comencemos con la revisión de hoy"; break;
         case 7:  $saludo = "¡Buenas! Empecemos la revisión de hoy"; break;
         case 8:  $saludo = "¡Buenas! Por donde empezaremos?"; break;
@@ -44,7 +44,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         array("4M", "cargosVista.php", "fa-briefcase", "Cargos", "Administra los cargos de los colaboradores"),
         array("6M", "proyectosVista.php", "fa-folder-open", "Proyectos", "Administra los proyectos y concesiones"),
         array("5M", "centroOperativoVista.php", "fa-building", "Centros de operación", "Administra los centros operativos"),
-        array("2M", "RolesVista.php", "fa-key", "Roles de usuario", "Define los permisos por rol"),
+        array("2M", "RolesVista.php", "fa-key", "Permisos de usuario", "Define qué puede hacer cada rol"),
         array("24M", "ParametrosVista.php", "fa-sliders", "Parámetros del sistema", "Módulos activos, plazos, correo y catálogos"),
         array("1M", "UsuariosVista.php", "fa-user", "Usuarios", "Administra los usuarios del sistema"),
         array("7M", "TitulosNovedadesVista.php", "fa-tags", "Títulos de novedades", "Parametriza los títulos de novedades"),
@@ -56,6 +56,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         array("12M", "GruposListasVista.php", "fa-list-ul", "Editar listas", "Crea y edita las preguntas de cada lista"),
         array("12M", "NotificacionesVista.php", "fa-envelope-o", "Correos de listas", "Configura los reportes automáticos por correo"),
         array("AUSENTISMO", "AusentismoVista.php", "fa-user-times", "Registrar ausentismo", "El reporte de ausentismo de cada peaje"),
+        array("PROMESA", "PromesaValorVista.php", "fa-users", "Promesa de valor", "Personal prometido y ejecutado, por peaje y cargo"),
         array("13M", "reporteVista.php", "fa-bar-chart", "Dashboard", "Indicadores y gráficas del sistema")
     );
 ?>
@@ -98,12 +99,14 @@ if (isset($_SESSION['IdUsuarios'])) {
     //Las reglas especiales, iguales a las del menú lateral (head.php ya las calculó)
     $permitidos = $modulosAcceso;
     $permitidos[] = 'TODOS';
-    if (array_intersect(array('15M', '17M', '18M'), $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'RQ'; } //pedir (el coordinador), ver todas o aprobar
-    $esCoordMenu = !empty($menuCoord);
+    $esCoordMenu = !empty($menuCoord); //head.php ya calculó si coordina un proyecto
+    if (array_intersect(array('15M', '17M', '18M', '41M'), $modulosAcceso)) { $permitidos[] = 'RQ'; } //ver, ver todas, aprobar o pedir
     if (in_array('11M', $modulosAcceso) || in_array('12M', $modulosAcceso) || in_array('5M', $modulosAcceso)
         || in_array('19M', $modulosAcceso) || in_array('21M', $modulosAcceso) || in_array('37M', $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'REPORTE'; }
     if ((!isset($mOn) || $mOn('AUSENTISMO')) && ($esCoordMenu || !empty($menuJefe) || in_array('20M', $modulosAcceso)
         || in_array('21M', $modulosAcceso) || in_array('22M', $modulosAcceso) || in_array('25M', $modulosAcceso))) { $permitidos[] = 'AUSENTISMO'; }
+    //La promesa de valor está en el menú de Ausentismo (head.php calcula quién entra)
+    if (!empty($menuPromesa) || !empty($menuPromesaCons)) { $permitidos[] = 'PROMESA'; }
 
     foreach ($accesos as $a) {
         if (!in_array($a[0], $permitidos)) { continue; } //sin permiso: se salta

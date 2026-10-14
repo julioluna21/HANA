@@ -1,7 +1,10 @@
 <?php
 /*
-  HANA — PDF del arqueo
+  HANA - PDF del arqueo
   ---------------------------------------------------------------------------
+  OJO: esta es una copia anterior. La que usa el sistema es Vista/pdf/ArqueoPdf.php
+  (ahí están los últimos ajustes). Esta se deja para no romper nada viejo.
+
   Genera el arqueo con la MISMA estructura de los formatos en PDF que se usan
   hoy ("Arqueo caja menor ..." y "Arqueo recambio ..."): mismas posiciones,
   tamaños de letra, líneas y grises. Las coordenadas se tomaron de esos PDF
@@ -20,6 +23,7 @@ class ArqueoPdf extends FPDF
 {
     private $gris = 0;
 
+    //Hoja carta en puntos, sin márgenes ni saltos automáticos: todo se ubica a mano
     public function __construct()
     {
         parent::__construct('P', 'pt', 'Letter');
@@ -100,6 +104,7 @@ class ArqueoPdf extends FPDF
         return $res;
     }
 
+    //Ayudas para dibujar: línea horizontal, línea vertical y rectángulo relleno
     private function h($x1, $x2, $y) { $this->Line($x1, $y, $x2, $y); }
     private function v($x, $y1, $y2) { $this->Line($x, $y1, $x, $y2); }
     private function relleno($x1, $y1, $x2, $y2, $r, $g, $b)
@@ -124,6 +129,7 @@ class ArqueoPdf extends FPDF
         $this->t($n === '-' ? $xFin - 8 : $xFin, $top, $n, $tam, $negrita, 'R');
     }
 
+    //La fecha en palabras, por ejemplo "lunes 5 de octubre de 2026"
     public static function fechaLarga($f)
     {
         $dias = array('domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado');
@@ -459,6 +465,7 @@ class ArqueoPdf extends FPDF
         $this->Image($f, $x1 + (($x2 - $x1) - $ancho) / 2, $y1 + 2, $ancho, $alto);
     }
 
+    //Pie del arqueo: número, quién lo hizo y cuándo se registró en HANA
     private function pie($a, $top)
     {
         $this->SetTextColor(120, 120, 120);

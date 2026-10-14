@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Controlador de "Hoy en qué estás" (Reporte diario, Fase 2)
+  HANA - Controlador de "Hoy en qué estás" (Reporte diario, Fase 2)
   Cada persona registra su propio día. Nadie registra el día de otro: el
   colaborador sale siempre de la sesión, nunca de lo que envíe la pantalla.
 */
@@ -33,12 +33,12 @@ function hoyError($codigo, $mensaje)
 //Si el administrador apagó este módulo (Parámetros del sistema), no se registra nada
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 if (!HanaConfig::modulo('HOY')) { hoyError(403, 'Este módulo está desactivado. Lo activa el administrador en Parámetros del sistema.'); }
-HanaDB::usarModulo('HOY'); //la casilla HOY de Roles da acceso en todos los proyectos
+hanaUsarModulo('HOY'); //la casilla HOY de Roles da acceso en todos los proyectos
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) {
     hoyError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.');
 }
 //Hoy en qué estás es del coordinador: lo llena quien coordina un proyecto
-if (!HanaDB::esCoordinador((int)$_SESSION['Idcolaborador'])) {
+if (!hanaEsCoordinador((int)$_SESSION['Idcolaborador'])) {
     hoyError(403, 'Hoy en qué estás lo llena el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.');
 }
 
@@ -86,7 +86,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'ultimoEditable'=> $ultimoEditable,
             'habilitados'   => HanaFechas::habilitados($idColaborador), //los días que el administrador le abrió
             'situaciones'   => Hoy::$SITUACIONES,
-            'centros'       => HanaDB::centrosCoordinador($idColaborador) //los peajes de sus proyectos
+            'centros'       => hanaCentrosCoordinador($idColaborador) //los peajes de sus proyectos
         ), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -126,7 +126,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'guardar':
         $fecha = hoyFecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         if ($fecha === '') { hoyError(400, 'La fecha no es válida.'); }
-        if (!HanaFechas::enVentana($fecha)) {
+        if (!HanaFechas::enVentana($fecha, $idColaborador)) {
             hoyError(400, 'Ese día no se puede modificar: solo se registra ' . HanaFechas::textoVentana() . '.');
         }
 
@@ -157,7 +157,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
             //Centros: solo los asignados al usuario, sin repetir
             $permitidos = array();
-            foreach (HanaDB::centrosCoordinador($idColaborador) as $c) { $permitidos[(int)$c['ID_CENTRO_OP']] = true; }
+            foreach (hanaCentrosCoordinador($idColaborador) as $c) { $permitidos[(int)$c['ID_CENTRO_OP']] = true; }
             foreach ((array)(isset($_POST['centros']) ? $_POST['centros'] : array()) as $idC) {
                 $idC = (int)$idC;
                 if (!isset($permitidos[$idC])) { hoyError(400, 'Uno de los peajes elegidos no está asignado a tu usuario.'); }

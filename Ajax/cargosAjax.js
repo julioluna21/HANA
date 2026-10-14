@@ -1,3 +1,6 @@
+//Configuración - Cargos (Vista/cargosVista.php)
+//Tabla, formulario y el botón de desactivar. Habla con Control/cargosControl.php
+
 var tabla;//variable global
 //Función para guardar o editar
 function guardar(e)
@@ -30,6 +33,7 @@ function guardar(e)
         }
     });
 }
+//Trae un cargo y lo carga en el formulario para editarlo
 function mostrar(idCargo)
 {
     hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
@@ -40,13 +44,13 @@ function mostrar(idCargo)
         mostrarform(true);
         $("#idCargo").val(data.ID_CARGO_COLABORADORES);
         $("#nombre").val(data.NOM_CARGO_COLABORADORES);
-        $("#permisoNovedad").val(data.PERMISO_ASIGNAR_NOVEDAD);
     })
     .fail(function(xhr){
         hanaCargando(false);
         hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
+//Desactiva un cargo (pregunta antes)
 function anular(idCargo){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular este registro?", function(){
@@ -59,6 +63,7 @@ function anular(idCargo){
         });
     });
 }
+//Vuelve a activar un cargo (pregunta antes)
 function activar(idCargo){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     //Nota: hoy ninguna pantalla muestra el botón Activar y el controlador no tiene la opción "activar"
@@ -72,11 +77,13 @@ function activar(idCargo){
         });
     });
 }
+//Cierra el formulario sin guardar
 function cancelarform()
 {
     limpiar();
     mostrarform(false);
 }
+//Deja el formulario en blanco
 function limpiar()
 {
     $("#idCargo").val("");
@@ -85,6 +92,7 @@ function limpiar()
     
   
 }
+//Muestra el formulario (true) o la tabla (false)
 function mostrarform(flag)
 {
     //limpia el formulario
@@ -130,6 +138,7 @@ function listar()
     }).DataTable();
     
 }
+//Lo que se hace al abrir la pantalla
 function init()
 {
     mostrarform(false)
@@ -137,7 +146,7 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
 }
 init();

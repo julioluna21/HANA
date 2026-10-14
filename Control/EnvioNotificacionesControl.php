@@ -9,7 +9,8 @@ require_once __DIR__ . '/../public/PHPMailer-master/src/Exception.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/PHPMailer.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
 require_once __DIR__ . '/CorreoConfig.php'; //cuenta de correo y plantilla
-require_once __DIR__ . '/../Modelo/HanaDB.php'; //para buscar el nombre de cada destinatario
+require_once __DIR__ . '/../Modelo/OrganizacionModelo.php'; //para buscar el nombre de cada destinatario
+require_once __DIR__ . '/../Modelo/BitacoraModelo.php'; //cada correo queda enlazado a su aviso y a su lista
 
 use PHPMailer\PHPMailer\PHPMailer;
 
@@ -61,8 +62,8 @@ function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
     $mail->Subject = $asunto;
     $bien = true;
     foreach ($validos as $correo) {
-        $col = HanaDB::fila("SELECT NOM_COLABORADOR FROM colaboradores WHERE MAIL_COLABORADOR = ? LIMIT 1", 's', array($correo));
-        $nombre = $col ? hanaNombreBonito($col['NOM_COLABORADOR']) : '';
+        $nomCol = Organizacion::nombrePorCorreo($correo);
+        $nombre = $nomCol !== '' ? hanaNombreBonito($nomCol) : '';
         $mail->clearAddresses();
         $mail->addAddress($correo, $nombre);
         //El saludo va al comienzo del cuerpo de la plantilla
@@ -186,7 +187,7 @@ function hanaNotificarInmediato($idLista)
         $cab = $Notif->cabeceraLista($idLista);
         if (!$cab) { return false; } //la lista no existe
         //La consulta devuelve un arreglo; se pasa a objeto para leer $cab->CAMPO.
-        //(Antes se leía como objeto y el aviso «al guardar» nunca salía, sin mostrar error)
+        //(Antes se leía como objeto y el aviso "al guardar" nunca salía, sin mostrar error)
         $cab = (object)$cab;
 
         //Se buscan las configuraciones inmediatas de esa lista de chequeo
@@ -209,11 +210,14 @@ function hanaNotificarInmediato($idLista)
             $asunto = ($cfg->ASUNTO != '')
                     ? $cfg->ASUNTO
                     : 'HANA - '.$cab->NOM_GRUPO_LISTA_CHEQUEO.' diligenciada por '.$cab->NOM_COLABORADOR;
+            Bitacora::contexto($cfg->ID_NOTIFICACION, $idLista); //en la bitácora: qué aviso y qué lista
             hanaEnviarCorreo($cfg->DESTINATARIOS, $asunto, $html);
+            Bitacora::contexto();
         }
         return true;
 
     } catch (\Throwable $th) {
+        Bitacora::contexto();
         return false; //nunca se propaga el error hacia el guardado de la lista
     }
 }
@@ -286,7 +290,10 @@ function hanaEnviarResumen($frecuencia)
                 ? $cfg->ASUNTO
                 : 'HANA - '.$etiqueta.' - '.$cfg->NOM_GRUPO_LISTA_CHEQUEO;
 
-        if (hanaEnviarCorreo($cfg->DESTINATARIOS, $asunto, $html)) {
+        Bitacora::contexto($cfg->ID_NOTIFICACION); //en la bitácora: qué aviso mandó el resumen
+        $salio = hanaEnviarCorreo($cfg->DESTINATARIOS, $asunto, $html);
+        Bitacora::contexto();
+        if ($salio) {
             $Notif->marcarEnvio($cfg->ID_NOTIFICACION); //queda la constancia
             $enviados++;
         }

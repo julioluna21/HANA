@@ -1,5 +1,5 @@
 <?php
-//Reporte diario — Arqueos de caja menor y de recambio
+//Reporte diario - Arqueos de caja menor y de recambio
 //Reemplaza los formatos en PDF: calcula solo el total y la diferencia contra
 //el fondo autorizado, y se puede imprimir para las firmas
 session_start();
@@ -7,18 +7,17 @@ session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     //Si el administrador apagó este módulo (Parámetros del sistema), la pantalla no abre
-    require_once __DIR__ . '/../Modelo/HanaConfig.php';
-    if (!HanaConfig::modulo('ARQUEOS')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
-    HanaDB::usarModulo('ARQUEOS');
+    require_once __DIR__ . '/../Control/PaginaControl.php';
+    if (!pagModuloActivo('ARQUEOS')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
+    pagUsarModulo('ARQUEOS');
     //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    require_once __DIR__ . '/../Modelo/HanaDB.php';
-    $esCoordinador = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+    $esCoordinador = pagEsCoordinador();
 
     //Hace arqueos quien diligencia el reporte (11M); configura fondos quien administra centros (5M)
     if ($esCoordinador || in_array("5M", $modulosAcceso) || in_array("36M", $modulosAcceso)) { //5M: campos y anular; 36M: autorizar fondos
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -221,8 +220,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
-<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=7"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=8"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

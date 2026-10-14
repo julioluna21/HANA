@@ -1,27 +1,37 @@
 <?php
+/*
+  HANA - Roles (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/RolesAjax.js y responde con lo que
+  trae el modelo (Modelo/RolesModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, mostrar, anular, activar, select y listar.
+  Un rol es la lista de permisos (1M, 2M, ...) que se guarda separada por comas.
+  Permiso: 2M. El desplegable (select) también lo usa Usuarios.
+*/
 session_start();//inicia la session, permite guardar variables de sesion
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('2M'), array('select')); //Roles: 2M. El selector lo usa Usuarios
 require_once "../Modelo/RolesModelo.php";//Utilizará este archivo
-$Roles=new Roles();//crea un nuevo articulo
+$Roles=new Roles();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idroles=isset($_POST["idrol"])? limpiarCadena($_POST["idrol"]):"";
 $nombrerol=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
 $modulos=isset($_POST["permiso"])? $_POST["permiso"]:"";
-//"Permiso de cerrar novedades": 1 si viene marcado, 0 si no (antes llegaba vacío y MySQL rechazaba el guardado)
+//"Permiso de cerrar novedades": 1 si viene marcado, 0 si no
 $auditoria = (isset($_POST["auditoria"]) && $_POST["auditoria"] !== '' && $_POST["auditoria"] !== '0') ? 1 : 0;
 
 //Solo códigos de permiso válidos (número + M)
 $modulos = is_array($modulos) ? array_values(array_filter($modulos, function ($m) { return preg_match('/^\d{1,3}M$/', $m); })) : array();
-//Protección: quien edita SU PROPIO rol no puede quitarse "Roles de usuario" (2M),
+//Protección: quien edita SU PROPIO rol no puede quitarse "Permisos de usuario" (2M),
 //porque se quedaría sin poder volver a entrar a esta pantalla para arreglarlo
 $avisoPropio = '';
 if (!empty($idroles) && isset($_SESSION['IdUsuarios'])) {
-    require_once __DIR__ . '/../Modelo/HanaDB.php';
-    $mio = HanaDB::fila("SELECT ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA AS R FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = ?", 'i', array((int)$_SESSION['IdUsuarios']));
-    if ($mio && (int)$mio['R'] === (int)$idroles && !in_array('2M', $modulos, true)) {
+    require_once __DIR__ . '/../Modelo/AccesoModelo.php';
+    $mio = Acceso::rolDeUsuario((int)$_SESSION['IdUsuarios']);
+    if ($mio && $mio === (int)$idroles && !in_array('2M', $modulos, true)) {
         $modulos[] = '2M';
-        $avisoPropio = "\n\nSe conservó la casilla «Roles de usuario» (2M): es tu propio rol y sin ella no podrías volver a esta pantalla.";
+        $avisoPropio = "\n\nSe conservó la casilla «Permisos de usuario» (2M): es tu propio rol y sin ella no podrías volver a esta pantalla.";
     }
 }
 
@@ -54,18 +64,21 @@ switch ($_GET["op"])
                 }
                             
             break;
+            //Trae un rol para cargarlo en el formulario
             case 'mostrar':
        
                     $rspta=$Roles->mostrar($idroles);
                     //Codificar el resultado utilizando json
                     echo json_encode($rspta);
             break;
+            //Desactiva un rol
             case 'anular':
                        $rspta=$Roles->desactivar($idroles);
                         echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
+             //Vuelve a activar un rol
              case 'activar':
                    
                         $rspta=$Roles->activar($idroles);
@@ -74,6 +87,7 @@ switch ($_GET["op"])
             break;
         
         
+            //Arma las opciones del desplegable de roles
             case 'select':
             $rspta=$Roles->select();
             echo "<option value=''>Seleccione Rol...</option>";
@@ -88,10 +102,10 @@ switch ($_GET["op"])
    
         
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://lo pide la tabla de la pantalla al cargar
         
         
-                    $rspta=$Roles->listar();//Carga la rspta con lista de articulos
+                    $rspta=$Roles->listar();//trae los registros para la tabla
                     //Vamos a declarar un array
                     $data= Array();
         

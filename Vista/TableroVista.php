@@ -1,5 +1,5 @@
 <?php
-//Reporte diario — Tablero por proyectos
+//Reporte diario - Tablero por proyectos
 //Para los jefes: un mosaico por proyecto; dentro, cada peaje con su jefe y lo
 //que reportó ese día; y el reporte completo de cada persona
 session_start();
@@ -9,7 +9,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("19M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -60,8 +60,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
-<script type="text/javascript" src="../Ajax/TableroAjax.js?v=10"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/TableroAjax.js?v=11"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

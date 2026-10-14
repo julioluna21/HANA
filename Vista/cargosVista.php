@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Cargos
+  ---------------------------------------------------------------------------
+  Pantalla de los cargos que se le asignan a cada colaborador.
+  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/cargosAjax.js
+  y los datos los entrega Control/cargosControl.php.
+  Permiso: 4M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
@@ -38,13 +46,10 @@ include('head.php');
                               <input type="text" class="form-control" name="nombre" id="nombre" required="" autofocus>
                               </div>
                           
+                              <!-- El cargo es solo el puesto de la persona: lo que puede hacer en HANA
+                                   (por ejemplo, asignar novedades) se marca en Permisos de usuario -->
                               <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                               <label>Permiso de asignar novedades:</label><br>
-                                <select name="permisoNovedad" id="permisoNovedad" class="form-control"  required>
-                                <option value="">Seleccione...</option>
-                                <option value="1">Sí</option>
-                                <option value="0">No</option>       
-                              </select> 
+                                <p class="help-block" style="margin-top:24px;">El cargo es el puesto de la persona. Lo que puede hacer en HANA se define en <a href="RolesVista.php">Permisos de usuario</a>.</p>
                             </div>
                           
                         </div> 
@@ -68,7 +73,7 @@ include('head.php');
              </div>
             <!-- Listado Registros-->
 
-            <!-- centro listado de articulos-->
+            <!-- tabla con el listado de registros -->
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
@@ -120,7 +125,7 @@ include('head.php');
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/cargosAjax.js"></script>
+<script type="text/javascript" src="../Ajax/cargosAjax.js?v=2"></script>
 <?php
 
 }else{   

@@ -1,4 +1,4 @@
-//Reporte diario — "Hoy en qué estás"
+//Reporte diario - "Hoy en qué estás"
 //Carga un día, lo guarda y muestra el mes con los días que faltan.
 //Solo se registra HOY; otro día, únicamente si el administrador lo habilitó.
 //Todo texto de la base se escapa al pintarlo
@@ -15,10 +15,12 @@ var NOMBRES_DIA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 // Utilidades
 //---------------------------------------------------------------------------
 function esc(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
+//Número con dos dígitos: 7 -> "07"
 function dos(n) { return ('0' + n).slice(-2); }
 
 //"2026-09-07" -> Date local (sin el desfase de UTC)
 function aFecha(txt) { var p = txt.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+//De fecha a texto "2026-09-07", y sumar días a una fecha en texto
 function aTexto(d) { return d.getFullYear() + '-' + dos(d.getMonth() + 1) + '-' + dos(d.getDate()); }
 function sumarDias(txt, n) { var d = aFecha(txt); d.setDate(d.getDate() + n); return aTexto(d); }
 
@@ -37,6 +39,7 @@ function recortar(t, max) {
     return t.length > max ? t.substring(0, max - 1) + '…' : t;
 }
 
+//El mensaje de error que mandó el servidor, o uno general si no vino ninguno
 function mensajeError(xhr, base) {
     try { return JSON.parse(xhr.responseText).error || base; } catch (e) { return base; }
 }
@@ -139,6 +142,7 @@ function pintarCentros() {
     $('#hoyCentros').html(h);
 }
 
+//Muestra los campos de trabajo solo si la situación del día es LABORAL
 function mostrarLaboral() {
     var laboral = $('input[name="situacion"]:checked').val() === 'LABORAL';
     $('#hoyLaboral').toggle(laboral);

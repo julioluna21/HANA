@@ -1,7 +1,17 @@
 <?php
+/*
+  HANA - Novedades y hallazgos (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/novedadnuevoAjax.js y responde con lo que
+  trae el modelo (Modelo/NovedadModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, roles, mostrarnovedad, listar, foto y select.
+  Permiso: 10M. Ver una novedad o su foto también se permite desde la campana de avisos,
+  siempre que el rol de la persona pueda ver esa novedad (AccesoHelper.php).
+*/
 session_start();//inicia la session, permite guardar variables de sesion
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
-hanaGuardia(array('10M'), array('select', 'roles', 'mostrarnovedad')); //Novedades: 10M. Ver una novedad (desde la campana) solo pide sesión
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
+hanaGuardia(array('10M'), array('select', 'roles', 'mostrarnovedad', 'foto')); //Novedades: 10M. Ver una novedad o su foto (desde la campana) solo pide sesión
 require_once "../Modelo/NovedadModelo.php";//Utilizará este archivo
 require_once "AccesoHelper.php"; //quién puede ver qué: la misma regla para novedades, RQ y campana
 require '../public/PHPMailer-master/src/Exception.php';
@@ -11,7 +21,7 @@ require_once __DIR__ . '/CorreoConfig.php'; //cuenta de correo y plantilla de lo
                 use PHPMailer\PHPMailer\PHPMailer;
                 use PHPMailer\PHPMailer\Exception;
 
-$Novedades=new Novedades();//crea un nuevo articulo
+$Novedades=new Novedades();//objeto del modelo: con él se hacen las consultas
 setlocale(LC_ALL,'es-Es');// Activa la localización con el sistema para mostrar en español
 date_default_timezone_set("America/Lima");
 //carga las variables con los valores recibidos y limpia los que no se usaran
@@ -28,16 +38,40 @@ $rolDestino=isset($_POST["rolDestino"])? intval($_POST["rolDestino"]):0; //rol a
 $fecha=date("Y-m-d_H:i:s");
 $fecha2=date("Y-m-j H:i:s");
 
-if($_SESSION['NovedadesAS']==0){
+//Sin la casilla 42M (asignar novedades) la novedad queda asignada a quien la registra
+if(!hanaTienePermiso(PERMISO_ASIGNAR_NOVEDAD)){
 $idcolaborador=$_SESSION['Idcolaborador'];   
 }
 
-function esImagen($path)
-    {
-                $imageSizeArray = getimagesize($path);
-                $imageTypeArray = $imageSizeArray[2];
-                return (bool)(in_array($imageTypeArray , array(IMAGETYPE_GIF , IMAGETYPE_JPEG ,IMAGETYPE_PNG , IMAGETYPE_BMP)));
-     }
+//Fotos de las novedades: cada una es un archivo en archivos/novedades/AAAA/MM/ y en la
+//base queda solo su ruta. Esa carpeta no se abre desde el navegador (archivos/.htaccess):
+//las fotos se entregan con op=foto, que revisa si la persona puede ver la novedad.
+//Las fotos registradas antes de este cambio siguen guardadas como texto base64 y se muestran igual
+define('NOV_CARPETA_FOTOS', __DIR__ . '/../archivos/novedades/');
+$NOV_TIPOS_FOTO = array(IMAGETYPE_GIF => array('gif', 'image/gif'), IMAGETYPE_JPEG => array('jpg', 'image/jpeg'),
+                        IMAGETYPE_PNG => array('png', 'image/png'), IMAGETYPE_BMP => array('bmp', 'image/bmp'));
+
+//Guarda la foto que llegó en $_FILES[$campo]. Devuelve la ruta relativa, '' si no llegó
+//foto o no es una imagen válida (la novedad se guarda sin foto) y false si no se pudo
+//escribir en el servidor
+function novGuardarFoto($campo)
+{
+    global $NOV_TIPOS_FOTO;
+    if (!isset($_FILES[$campo]) || !$_FILES[$campo]['name'] || $_FILES[$campo]['error'] !== UPLOAD_ERR_OK) { return ''; }
+    $info = @getimagesize($_FILES[$campo]['tmp_name']);
+    if (!$info || !isset($NOV_TIPOS_FOTO[$info[2]])) { return ''; }
+    $sub = date('Y/m');
+    if (!is_dir(NOV_CARPETA_FOTOS . $sub) && !@mkdir(NOV_CARPETA_FOTOS . $sub, 0755, true)) { return false; }
+    $ruta = $sub . '/' . bin2hex(random_bytes(12)) . '.' . $NOV_TIPOS_FOTO[$info[2]][0];
+    return move_uploaded_file($_FILES[$campo]['tmp_name'], NOV_CARPETA_FOTOS . $ruta) ? $ruta : false;
+}
+
+//Lo que va en el src de la imagen: la foto guardada dentro del registro (data:) tal cual, o la dirección que la entrega
+function novFotoSrc($valor, $idNovedad, $cual)
+{
+    if (strpos((string)$valor, 'data:') === 0) { return $valor; }
+    return '../Control/NovedadesControl.php?op=foto&amp;id=' . intval($idNovedad) . '&amp;f=' . $cual;
+}
 
 //Envía un correo a una persona, en HTML y saludándola por su nombre
 //(la plantilla y la cuenta están en CorreoConfig.php)
@@ -53,7 +87,7 @@ function correoenvio($correo,$mensaje,$asunto,$nombre='',$boton=null){
 }
 
 //Avisa a todas las personas de un rol: cada una recibe su propio correo, dirigido
-//a ella y con su nombre (antes era un solo correo en copia oculta).
+//a ella y con su nombre.
 //$destinatarios = array(array('correo' => ..., 'nombre' => ...), ...)
 //Devuelve true si le llegó a todas (o si no había a quién avisar)
 function correoenvioRol($destinatarios,$mensaje,$asunto,$boton=null){
@@ -81,18 +115,14 @@ switch ($_GET["op"])
                     $date_now = date('Y-m-j H:i:s', strtotime($fecha2));   
                     $date_past = strtotime('+'.$dias.' days', strtotime($date_now));
                     $date_past = date ('Y-m-j H:i:s' ,$date_past);
-                    $imagen="";
-                    
-                    if(isset($_FILES["miarchivo2"]) and $_FILES["miarchivo2"]["name"]){
-                        if(esImagen($_FILES['miarchivo2']['tmp_name'])){
-                         $tipo = pathinfo($_FILES['miarchivo2']['tmp_name'], PATHINFO_EXTENSION); 
-                           $imagen ='data:'.mime_content_type($_FILES['miarchivo2']['tmp_name']).';base64,'.base64_encode(file_get_contents($_FILES['miarchivo2']['tmp_name']));   
-                        }
-                        
+                    $imagen = novGuardarFoto('miarchivo2');
+                    if ($imagen === false) {
+                        echo 'Error: no se pudo guardar la foto en el servidor. Revisa los permisos de la carpeta archivos/novedades.';
+                        break;
                     }
                     if($rspta=$Novedades->insertar($fecha,$_SESSION['Idcolaborador'],$idcentroOP,$idcolaborador,$idobservador,$idtitulo,$novedad,$imagen,$validez,$idestado,$date_past,$rolDestino)){
 						
-						//El aviso ya no va a una persona sino a todo el ROL elegido.
+						//El aviso va a todas las personas del ROL elegido.
 						//Además, la novedad aparece en la campana de cada persona de ese rol
 						$idNueva = $rspta;
 						$datos = $Novedades->correo($idNueva);
@@ -117,6 +147,7 @@ switch ($_GET["op"])
 						}
 
 					}else{
+						if ($imagen !== '') { @unlink(NOV_CARPETA_FOTOS . $imagen); } //la foto no queda suelta en la carpeta
 						echo 'Error: no se pudo guardar la novedad';
 					}
 					
@@ -130,15 +161,12 @@ switch ($_GET["op"])
                     }
                     
                     if($estadonovedad==3){
-                    $imagen="";
-                    if(isset($_FILES["miarchivo"]) and $_FILES["miarchivo"]["name"]){
-                        if (esImagen($_FILES['miarchivo']['tmp_name'])) {
-                           $tipo = pathinfo($_FILES['miarchivo']['tmp_name'], PATHINFO_EXTENSION); 
-                          $imagen ='data:'.mime_content_type($_FILES['miarchivo']['tmp_name']).';base64,'.base64_encode(file_get_contents($_FILES['miarchivo']['tmp_name']));   
-                           $rspta=$Novedades->imagencierre($idnovedad,$imagen);     
+                        $imagen = novGuardarFoto('miarchivo');
+                        if ($imagen === false) {
+                            echo 'Error: no se pudo guardar la foto en el servidor. Revisa los permisos de la carpeta archivos/novedades.';
+                            break;
                         }
-                        
-                    }
+                        if ($imagen !== '' && !$Novedades->imagencierre($idnovedad,$imagen)) { @unlink(NOV_CARPETA_FOTOS . $imagen); }
                         $rspta=$Novedades->editarfecha($idnovedad,$fecha);
                     }
                     
@@ -161,6 +189,7 @@ switch ($_GET["op"])
                     echo json_encode(array('roles' => $roles, 'verTodas' => hanaTienePermiso(PERMISO_VER_TODAS_NOVEDADES)), JSON_UNESCAPED_UNICODE);
                     break;
 
+            //Trae una novedad con su detalle para abrirla
             case 'mostrarnovedad':
 
                     //Aunque alguien escriba el número de otra novedad a mano, el
@@ -174,7 +203,8 @@ switch ($_GET["op"])
                     $arreglo= Array();
                     $arreglo['titulo']=$rspta['NOM_TITULO_NOVEDADES_HALLAZGOS'];
                     $arreglo['fechacreacion']=$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'];
-                    $imagencierre=$rspta['NOM_FOTO_FIN_NOVEDADES_HALLAZGOS'];
+                    $imagencierre = $rspta['NOM_FOTO_FIN_NOVEDADES_HALLAZGOS'] != '' ? novFotoSrc($rspta['NOM_FOTO_FIN_NOVEDADES_HALLAZGOS'], $idnovedad, 'fin') : '';
+                    $fotoInicial = novFotoSrc($rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'], $idnovedad, 'ini');
                     $contenido="";
                 
         
@@ -229,7 +259,7 @@ switch ($_GET["op"])
                                 <div class="card bg-primary text-white">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <a><img src="'.$rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'].'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
+                                        <a><img src="'.$fotoInicial.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
                                             <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
@@ -292,7 +322,7 @@ switch ($_GET["op"])
                                 <div class="card bg-secondary">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <a ><img src="'.$rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'].'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
+                                        <a ><img src="'.$fotoInicial.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
                                             <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
@@ -312,6 +342,7 @@ switch ($_GET["op"])
                         $estadon="";
                         switch($reg->ESTADO_NOVEDAD)
                         {
+                            //El número del estado se cambia por su nombre para mostrarlo en la tabla
                             case 0:
                                 $estadon="Observador";
                                 break;    
@@ -430,12 +461,12 @@ switch ($_GET["op"])
                     echo json_encode($arreglo);
             break;        
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://lo pide la tabla de la pantalla al cargar
         
         
                    
         
-                    $rspta=$Novedades->centrosOP($_SESSION['IdUsuarios']);//Carga la rspta con lista de articulos
+                    $rspta=$Novedades->centrosOP($_SESSION['IdUsuarios']);//trae los registros para la tabla
                      $centrosoperativos= Array();
                      while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
                      {
@@ -446,28 +477,21 @@ switch ($_GET["op"])
                     //Las condiciones se juntan en una lista y se unen con AND.
                     //La PRIMERA siempre es la regla de acceso: sin importar los demás
                     //filtros, nadie recibe novedades que su rol no puede ver.
-                    //Antes los valores de la dirección iban directo a la consulta SQL;
-                    //ahora se validan uno por uno
+                    //Los valores de la dirección se validan uno por uno antes de llegar a la consulta
                     $vista = hanaVista(isset($_GET['vista']) ? $_GET['vista'] : 'mias');
-                    $cond = array(hanaCondNovedades($vista));
-
-                    $fi = isset($_GET['fechai']) ? $_GET['fechai'] : '';
-                    $ff = isset($_GET['fechaf']) ? $_GET['fechaf'] : '';
-                    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fi) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $ff)) {
-                        $cond[] = "(novedades_hallazgos.FEC_CREACION_NOVEDADES_HALLAZGOS BETWEEN '$fi 00:00:00' AND '$ff 23:59:59')";
-                    }
-
+                    $filtros = array(
+                        'desde' => isset($_GET['fechai']) ? $_GET['fechai'] : '',
+                        'hasta' => isset($_GET['fechaf']) ? $_GET['fechaf'] : ''
+                    );
                     $val = isset($_GET['validador']) ? $_GET['validador'] : 'todo';
                     if ($val === 'usuario') {
-                        $cond[] = "novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS = " . intval($_SESSION['Idcolaborador']);
+                        $filtros['asignadoA'] = intval($_SESSION['Idcolaborador']);
                     } elseif ($val !== 'todo' && ctype_digit((string)$val)) {
-                        $cond[] = "proyectos.ID_PROYECTO = " . intval($val);
+                        $filtros['proyecto'] = intval($val);
                     }
+                    $filtros['estado'] = isset($_GET['validador2']) ? max(0, intval($_GET['validador2'])) : 0;
 
-                    $est = isset($_GET['validador2']) ? intval($_GET['validador2']) : 0;
-                    if ($est > 0) { $cond[] = "novedades_hallazgos.ESTADO_NOVEDAD = $est"; }
-
-                    $rspta=$Novedades->listarCondicional("WHERE " . implode(" AND ", $cond));
+                    $rspta=$Novedades->listarFiltrado(hanaCondNovedades($vista), $filtros);
                      
                     
                    
@@ -510,6 +534,7 @@ switch ($_GET["op"])
                          switch($reg->ESTADO_NOVEDAD)
                         {
                                      
+                            //El número del estado se cambia por su nombre para mostrarlo en la tabla
                             case 1:
                                 $estadon="Asignada";
                                 break;     
@@ -577,6 +602,28 @@ switch ($_GET["op"])
                     echo json_encode($results);//muestra el resultado
             break;
 		
+            //Entrega la foto de una novedad (f=ini la del registro, f=fin la del cierre),
+            //solo a quien puede ver esa novedad
+            case 'foto':
+                    $idFoto = isset($_GET['id']) ? intval($_GET['id']) : 0;
+                    if (!hanaPuedeVerNovedad($idFoto)) { http_response_code(403); echo 'No tienes permiso para ver esta foto.'; break; }
+                    $fotos = $Novedades->fotos($idFoto);
+                    $valor = $fotos ? (string)$fotos[(isset($_GET['f']) && $_GET['f'] === 'fin') ? 'FIN' : 'INI'] : '';
+                    $ruta = ($valor !== '' && strpos($valor, 'data:') !== 0) ? realpath(NOV_CARPETA_FOTOS . $valor) : false;
+                    $base = realpath(NOV_CARPETA_FOTOS);
+                    $info = $ruta ? @getimagesize($ruta) : false;
+                    if (!$ruta || !$base || strpos($ruta, $base . DIRECTORY_SEPARATOR) !== 0 || !$info || !isset($NOV_TIPOS_FOTO[$info[2]])) {
+                        http_response_code(404); echo 'La foto ya no está en el servidor.'; break;
+                    }
+                    while (ob_get_level() > 0) { ob_end_clean(); }
+                    header('Content-Type: ' . $NOV_TIPOS_FOTO[$info[2]][1]);
+                    header('Content-Length: ' . filesize($ruta));
+                    header('X-Content-Type-Options: nosniff');
+                    header('Cache-Control: private, max-age=86400');
+                    readfile($ruta);
+            break;
+
+		     //Opciones del filtro de proyectos (todas, las asignadas a mí o un proyecto)
 		     case 'select':
                 try {
                         $rspta = $Novedades->proyectos();

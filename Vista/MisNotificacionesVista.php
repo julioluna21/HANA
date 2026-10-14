@@ -34,7 +34,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <span class="hana-notif-fila" style="display:inline; padding:0; border:0; cursor:default;">
                 <span class="marca alta" style="display:inline-block; vertical-align:middle;"></span> Alta
                 <span class="marca media" style="display:inline-block; vertical-align:middle; margin-left:10px;"></span> Media
-                <span class="marca baja" style="display:inline-block; vertical-align:middle; margin-left:10px;"></span> Aprobada
+                <span class="marca baja" style="display:inline-block; vertical-align:middle; margin-left:10px;"></span> Respondida
               </span>
             </span>
           </p>
@@ -57,6 +57,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 //La lista completa de esta pantalla. Reutiliza el mismo controlador de la campana
 (function ($) {
 
+    //Escapa el texto para pintarlo como HTML sin riesgo
     function seguro(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
 
     //Fecha legible: "17/09/2026 10:30"
@@ -68,6 +69,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                ' ' + dos(d.getHours()) + ':' + dos(d.getMinutes());
     }
 
+    //Trae los avisos de los últimos 30 días y los pinta como tarjetas
     function cargar() {
         $.getJSON('../Control/CampanaControl.php?op=lista')
             .done(function (filas) {

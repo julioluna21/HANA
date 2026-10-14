@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Lector de archivos Excel (.xlsx)
+  HANA - Lector de archivos Excel (.xlsx)
 
   Un .xlsx es en realidad un ZIP con archivos XML adentro. Aqui se abre ese ZIP y
   se leen las celdas directamente, sin instalar ninguna libreria: PHP ya trae todo
@@ -31,6 +31,7 @@ function hanaColumnaDeCelda($ref)
     return $num > 0 ? $num : 1;
 }
 
+//Lee una hoja de un archivo de Excel (.xlsx) y la devuelve como filas, sin librerías externas
 function hanaLeerXlsx($ruta, $nombreHoja = '')
 {
     if (!hanaPuedeLeerXlsx()) {

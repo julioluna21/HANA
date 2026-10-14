@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Controlador de arqueos (Reporte diario, Fase 2)
+  HANA - Controlador de arqueos (Reporte diario)
     - Hacer arqueos: permiso 11M, solo en los centros asignados al usuario.
     - Configurar los fondos autorizados: permiso 5M (el de centros de operación).
 */
@@ -13,6 +13,7 @@ header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function arqError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -23,10 +24,10 @@ function arqError($codigo, $mensaje)
 //Si el administrador apagó este módulo (Parámetros del sistema), no se registra nada
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 if (!HanaConfig::modulo('ARQUEOS')) { arqError(403, 'Este módulo está desactivado. Lo activa el administrador en Parámetros del sistema.'); }
-HanaDB::usarModulo('ARQUEOS'); //la casilla ARQUEOS de Roles da acceso en todos los proyectos
+hanaUsarModulo('ARQUEOS'); //la casilla ARQUEOS de Roles da acceso en todos los proyectos
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { arqError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
 //Los arqueos los hace el coordinador; los fondos los configura quien administra centros (5M)
-$esCoordinador = HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+$esCoordinador = hanaEsCoordinador((int)$_SESSION['Idcolaborador']);
 if (!$esCoordinador && !hanaTienePermiso('5M')) { arqError(403, 'Los arqueos los hace el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.'); }
 
 $idUsuario     = (int)$_SESSION['IdUsuarios'];
@@ -35,13 +36,12 @@ $puedeArquear  = $esCoordinador;
 //Autorizar fondos: casilla 36M en Roles. Si quien la tiene es coordinador, solo en los peajes
 //de su proyecto; el ADMIN TEC (24M) o quien no coordine, en todos
 $puedeFondos   = hanaTienePermiso('36M');
-$puedeAnularOtros = hanaTienePermiso('5M'); //anular arqueos de otros: como antes, quien administra centros
+$puedeAnularOtros = hanaTienePermiso('5M') || hanaTienePermiso('24M'); //anular arqueos de otros: quien administra centros (5M) o el ADMIN TEC (24M)
 //Los peajes en los que puede autorizar fondos (null = todos)
 $centrosFondo = null;
 if ($puedeFondos && !hanaTienePermiso('24M')) {
-    $mios = HanaDB::q("SELECT c.ID_CENTRO_OP FROM centros_operacion c INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
-                        WHERE p.ID_COLABORADOR_COORDINADOR = ? AND c.Estado = '1'", 'i', array($idColaborador));
-    if ($mios) { $centrosFondo = array_map('intval', array_column($mios, 'ID_CENTRO_OP')); } //es coordinador: solo los suyos
+    $mios = Organizacion::idsCentrosCoordinados($idColaborador);
+    if ($mios) { $centrosFondo = $mios; } //es coordinador: solo los suyos
 }
 //Los campos del arqueo de casetas los configura quien maneja fondos (5M) o el administrador (24M)
 $puedeCampos   = $puedeFondos || hanaTienePermiso('24M');
@@ -51,7 +51,7 @@ list($primerEditable, $ultimoEditable) = HanaFechas::ventana(); //solo hoy (los 
 
 //Los centros de los proyectos que coordina, con su id como llave
 $centros = array();
-foreach (HanaDB::centrosCoordinador($idColaborador) as $c) { $centros[(int)$c['ID_CENTRO_OP']] = $c; }
+foreach (hanaCentrosCoordinador($idColaborador) as $c) { $centros[(int)$c['ID_CENTRO_OP']] = $c; }
 
 //¿Puede ver este arqueo? Solo si es de uno de sus centros
 function arqCargar($A, $centros, $idArqueo)
@@ -80,6 +80,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode(array('centros' => $A->centrosConFondos(), 'campos' => $A->conceptosConfig($idCentro)), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Crea o edita un campo de documento (vales, tirillas, etc.) que se pide en el arqueo de un peaje
     case 'guardarCampo':
         if (!$puedeCampos) { arqError(403, 'No tienes permiso para configurar los campos.'); }
         $idCampo = isset($_POST['id']) ? (int)$_POST['id'] : 0;
@@ -103,6 +104,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode(array('ok' => true, 'mensaje' => $ocultar ? 'El campo ya no sale en este peaje.' : 'El campo vuelve a salir en este peaje.'), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Lo que necesita la pantalla al abrir: los peajes de la persona con sus fondos autorizados
     case 'config':
         $fondos = $A->fondos(array_keys($centros));
         $lista = array();
@@ -119,6 +121,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         ), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Arqueos del mes elegido, solo de los peajes que la persona puede ver
     case 'listar':
         $anio = isset($_GET['anio']) ? (int)$_GET['anio'] : (int)date('Y');
         $mes  = isset($_GET['mes'])  ? (int)$_GET['mes']  : (int)date('n');
@@ -130,6 +133,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                                     isset($_GET['tipo']) ? $_GET['tipo'] : ''), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Un arqueo con todo su detalle, y si quien lo mira lo puede anular
     case 'mostrar':
         $a = arqCargar($A, $centros, isset($_GET['id']) ? (int)$_GET['id'] : 0);
         $a['PUEDE_ANULAR'] = (int)$a['ESTADO'] === 1 && ((int)$a['ID_COLABORADOR_ARQUEA'] === $idColaborador || $puedeAnularOtros);
@@ -157,7 +161,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         if ($fecha === '') { arqError(400, 'La fecha no es válida.'); }
-        if (!HanaFechas::enVentana($fecha)) { arqError(400, 'Solo se registran arqueos de ' . HanaFechas::textoVentana() . '.'); }
+        if (!HanaFechas::enVentana($fecha, $idColaborador)) { arqError(400, 'Solo se registran arqueos de ' . HanaFechas::textoVentana() . '.'); }
 
         $hora = HanaVal::hora(isset($_POST['hora']) ? $_POST['hora'] : '');
         if ($hora === null) { arqError(400, 'Escribe la hora del arqueo.'); }
@@ -187,7 +191,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                 if ($c['ROL'] === 'ESPERADO') { $esperado += $valor; }
                 elseif ($c['ROL'] === 'SUMA') { $recaudo += $valor; }
                 elseif ($c['ROL'] === 'RESTA') { $recaudo -= $valor; }
-                $lineas[] = array('clase' => 'CASETA', 'concepto' => $c['ROL'] . '-' . $id, 'nombre' => $c['NOMBRE'], 'fecha' => null, 'valor' => $valor, 'obs' => null);
+                //El campo va por su ID (con FK); CONCEPTO y NOMBRE guardan cómo era el campo ese día
+                $lineas[] = array('clase' => 'CASETA', 'concepto' => $c['ROL'], 'idConcepto' => $id, 'nombre' => $c['NOMBRE'], 'fecha' => null, 'valor' => $valor, 'obs' => null);
             }
             if ($esperado <= 0) { arqError(400, 'Escribe el recaudo de la caseta (el valor esperado).'); }
             $diferencia = round($recaudo - $esperado, 2);
@@ -210,7 +215,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             break;
         }
 
-        //--- Efectivo: una línea por concepto del tipo ---
+        //--- Efectivo: un valor por concepto del tipo. Billetes y monedas (EFECTIVO) no se guardan
+        //como línea: solo suman al total de efectivo del arqueo (arqueo.TOTAL_EFECTIVO) ---
         $lineas = array();
         $efectivo = 0;
         $valores = isset($_POST['efectivo']) ? (array)$_POST['efectivo'] : array();
@@ -220,6 +226,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $valor = ($crudo === '') ? 0.0 : HanaVal::pesos($crudo);
             if ($valor === null) { arqError(400, "El valor de \"$nombre\" no es válido."); }
             $efectivo += $valor;
+            if ($codigo === 'EFECTIVO') { continue; } //va solo en el total
             $lineas[] = array('clase' => 'EFECTIVO', 'concepto' => $codigo, 'fecha' => null, 'valor' => $valor,
                               'obs' => HanaVal::texto(isset($obsEf[$codigo]) ? $obsEf[$codigo] : '', 300));
         }
@@ -302,11 +309,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode($lista, JSON_UNESCAPED_UNICODE);
         break;
 
+    //Guarda el fondo autorizado de un peaje (necesita el permiso 36M)
     case 'guardarFondo':
         if (!$puedeFondos) { arqError(403, 'Autorizar fondos necesita el permiso 36M en tu rol.'); }
         $idCentro = isset($_POST['centro']) ? (int)$_POST['centro'] : 0;
         if ($centrosFondo !== null && !in_array($idCentro, $centrosFondo, true)) { arqError(403, 'Solo autorizas fondos de los peajes de tu proyecto.'); }
-        $existe = HanaDB::fila("SELECT 1 AS ok FROM centros_operacion WHERE ID_CENTRO_OP = ? AND Estado = '1'", 'i', array($idCentro));
+        $existe = Organizacion::centroActivo($idCentro);
         if (!$existe) { arqError(400, 'Ese centro no existe o está inactivo.'); }
         foreach (array_keys(Arqueo::$TIPOS) as $t) {
             $crudo = isset($_POST[$t]) ? trim($_POST[$t]) : '';

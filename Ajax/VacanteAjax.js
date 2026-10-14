@@ -1,4 +1,4 @@
-//Reporte diario — Vacantes
+//Reporte diario - Vacantes
 var URL_VAC = '../Control/VacanteControl.php';
 var cfgV = null, filasV = [];
 
@@ -44,6 +44,7 @@ $(function () {
     $(document).on('click', '.btn-editar-vac', function () { abrir(filasV[$(this).data('i')]); });
 });
 
+//Trae las vacantes según los filtros y las pinta en la tabla
 function listar() {
     var q = '&centro=' + ($('#fCentro').val() || 0) + '&mes=' + $('#fMes').val() + '&anio=' + $('#fAnio').val();
     $.getJSON(URL_VAC + '?op=listar' + q)
@@ -70,6 +71,7 @@ function listar() {
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudieron cargar las vacantes.'); });
 }
 
+//Abre el formulario: vacío para una nueva, o con los datos de una existente
 function abrir(v) {
     $('#formVac')[0].reset();
     $('#vId').val(v ? v.ID_VACANTE : '');
@@ -95,6 +97,7 @@ function mostrarCierre() {
     if (cerrada && !$('#vCierre').val()) { $('#vCierre').val(cfgV.hoy); }
 }
 
+//Guarda la vacante y vuelve a la lista
 function guardar(e) {
     e.preventDefault();
     hanaBoton('#btnGuardar', true);

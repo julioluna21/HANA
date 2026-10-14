@@ -4,6 +4,7 @@ require "../Conexion/ConexionDB.php";
 
 Class Notificaciones
 {
+     //No necesita preparar nada al crearse
      public function __construct()
      {
      }
@@ -53,7 +54,10 @@ Class Notificaciones
      //Listado para la tabla de la pantalla de administracion
      public function listar()
      {
-             $sql = "SELECT n.*, g.NOM_GRUPO_LISTA_CHEQUEO
+             //El último envío sale de la bitácora: cada correo de un aviso queda ahí con su ID_NOTIFICACION
+             $sql = "SELECT n.*, g.NOM_GRUPO_LISTA_CHEQUEO,
+                            (SELECT MAX(b.FECHA) FROM bitacora_sistema b
+                              WHERE b.TIPO = 'CORREO' AND b.ID_NOTIFICACION = n.ID_NOTIFICACION AND b.OK = 1) AS ULTIMO_ENVIO
                      FROM notificaciones_listas n
                      JOIN grupo_lista_chequeo g ON g.ID_GRUPO_LISTA_CHEQUEO = n.ID_GRUPO_LISTA_CHEQUEO
                      ORDER BY n.ID_NOTIFICACION DESC";
@@ -81,11 +85,11 @@ Class Notificaciones
              return ejecutarConsulta($sql);
      }
 
-     //Deja constancia de cuando se envio por ultima vez un resumen
+     //La constancia de cada envío ya queda en bitacora_sistema (con ID_NOTIFICACION), y de ahí
+     //sale el "último envío" del listado. Se conserva el método para quien lo llama; no guarda nada aparte
      public function marcarEnvio($id)
      {
-             $sql = "UPDATE notificaciones_listas SET ULTIMO_ENVIO=NOW() WHERE ID_NOTIFICACION='$id'";
-             return ejecutarConsulta($sql);
+             return true;
      }
 
      //Datos de cabecera de UNA lista diligenciada: quien, donde y cuando
@@ -107,11 +111,11 @@ Class Notificaciones
      {
              $sql = "SELECT dgl.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO AS PREGUNTA,
                             dgl.TIPO_RESPUESTA,
-                            dl.RESPUTA_DETALLE_LISTA_CHEQUEO AS RESPUESTA
-                     FROM detale_lista_chequeo dl
-                     JOIN detalle_grupo_lista_cheque dgl
-                       ON dgl.ID_DETALLE_GRUPO_LISTA_CHEQUEO = dl.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO
-                     WHERE dl.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO='$idLista'
+                            dl.RESPUESTA_DETALLE_LISTA_CHEQUEO AS RESPUESTA
+                     FROM detalle_lista_chequeo dl
+                     JOIN detalle_grupo_lista_chequeo dgl
+                       ON dgl.ID_DETALLE_GRUPO_LISTA_CHEQUEO = dl.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO
+                     WHERE dl.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO='$idLista'
                      ORDER BY dgl.ORDEN ASC, dgl.ID_DETALLE_GRUPO_LISTA_CHEQUEO ASC";
              return ejecutarConsulta($sql);
      }

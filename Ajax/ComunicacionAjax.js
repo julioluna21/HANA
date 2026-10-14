@@ -1,4 +1,4 @@
-//Reporte diario — Comunicaciones y oficios
+//Reporte diario - Comunicaciones y oficios
 var URL_COM = '../Control/ComunicacionControl.php';
 var cfgM = null, filasM = [];
 
@@ -9,6 +9,7 @@ var RESULTADO_COM = {
     VENCIDA:   '<span class="rd-tag rd-tag-mal">Fuera de tiempo</span>'
 };
 
+//Arma las <option> de un select a partir de un objeto {valor: texto}
 function opciones(obj, vacio) {
     var h = vacio !== undefined ? '<option value="">' + rdEsc(vacio) + '</option>' : '';
     $.each(obj, function (k, v) { h += '<option value="' + rdEsc(k) + '">' + rdEsc(v) + '</option>'; });
@@ -61,6 +62,7 @@ function centrosDe(idProyecto, marcado) {
     $('#mCentro').html(h).val(marcado ? String(marcado) : '');
 }
 
+//Trae las comunicaciones según los filtros y las pinta en la tabla
 function listar() {
     var q = '&proyecto=' + ($('#fProyecto').val() || 0) + '&mes=' + $('#fMes').val() + '&anio=' + $('#fAnio').val();
     $.getJSON(URL_COM + '?op=listar' + q)
@@ -89,6 +91,7 @@ function listar() {
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudieron cargar las comunicaciones.'); });
 }
 
+//Abre el formulario: vacío para una nueva, o con los datos de una existente
 function abrir(m) {
     $('#formCom')[0].reset();
     $('#mId').val(m ? m.ID_COMUNICACION : '');
@@ -121,6 +124,7 @@ function abrir(m) {
     $('#panelLista').hide(); $('#panelForm').show(); window.scrollTo(0, 0);
 }
 
+//Guarda la comunicación
 function guardar(e) {
     e.preventDefault();
     hanaBoton('#btnGuardar', true);
@@ -143,6 +147,7 @@ function guardar(e) {
         .always(function () { hanaBoton('#btnGuardar', false); });
 }
 
+//Anula la comunicación abierta; pide el motivo antes
 function anular() {
     var motivo = $.trim($('#mMotivo').val());
     if (!motivo) { alert('Escribe el motivo para anular.'); $('#mMotivo').focus(); return; }
@@ -159,6 +164,7 @@ function anular() {
 //---------------------------------------------------------------------------
 function puedeResolverProy(idProy) { return (cfgM.proyectosResuelve || []).indexOf(+idProy) >= 0; }
 
+//Trae la conversación de la comunicación (respuestas y notas) y la pinta
 function cargarHilo(id) {
     $.getJSON(URL_COM + '?op=hilo&id=' + id)
         .done(function (d) {
@@ -182,6 +188,7 @@ function cargarHilo(id) {
         .fail(function (xhr) { $('#mHilo').html('<p class="rd-ayuda">' + rdEsc(rdError(xhr, 'No se pudo cargar la conversación.')) + '</p>'); });
 }
 
+//Responder, resolver o reabrir la comunicación abierta
 function accionHilo(op, exigeTexto) {
     var id = $('#mId').val(), texto = $.trim($('#mNuevaResp').val());
     if (exigeTexto && !texto) { $('#mNuevaResp').focus(); return; }

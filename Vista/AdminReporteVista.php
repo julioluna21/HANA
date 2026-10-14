@@ -1,5 +1,5 @@
 <?php
-//Administración del reporte diario — pantalla de entrada
+//Administración del reporte diario - pantalla de entrada
 //Para el administrador (permiso 21M): consultar todo lo que llenan los
 //coordinadores. Desde aquí se llega a las cinco consultas y a las
 //pantallas de control
@@ -26,7 +26,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         );
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">

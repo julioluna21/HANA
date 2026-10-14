@@ -1,4 +1,4 @@
-//Reporte diario — Reporte general del día
+//Reporte diario - Reporte general del día
 //Pinta el resumen por módulo y una tabla por pestaña. Todo lo que viene de la
 //base se escapa con rdEsc antes de pintarlo
 
@@ -15,9 +15,10 @@ var PEND_CD = { COORDINADOR_OP: 'Coordinador operativo', DIRECCION: 'Dirección'
 //"1 no cuadra" / "3 no cuadran"
 function pl(n, singular, plural) { return n + ' ' + (n === 1 ? singular : plural); }
 
+//Etiqueta de color para los textos de las tablas
 function tag(txt, clase) { return '<span class="rd-tag ' + (clase || '') + '">' + txt + '</span>'; }
 //---------------------------------------------------------------------------
-// Quién sí y quién no (los coordinadores, como en «Hoy en qué estás»)
+// Quién sí y quién no (los coordinadores, como en "Hoy en qué estás")
 //   conteo: {idPersona: texto que va al lado del nombre}. Los que no están, faltan
 //---------------------------------------------------------------------------
 function quienSiNo(sel, titulo, conteo, etqSi, etqNo) {
@@ -38,6 +39,7 @@ function quienSiNo(sel, titulo, conteo, etqSi, etqNo) {
 //   datosProy: {idProyecto: {n: número grande, lineas: [textos pequeños]}}
 //---------------------------------------------------------------------------
 var filtroProyTab = {};
+//Arma la tabla resumen por proyecto de una pestaña
 function porProyecto(sel, tbody, unidad, datosProy) {
     var fijo = +($('#cdProyecto').val() || 0), h = '';
     datosCD.proyectos.forEach(function (p) {
@@ -50,6 +52,7 @@ function porProyecto(sel, tbody, unidad, datosProy) {
     $(sel).html(h ? '<div class="cd-proyectos">' + h + '</div>' + (filtroProyTab[tbody] ? '<p class="rd-ayuda" style="margin:2px 0 8px;">Mostrando solo un proyecto. Toca la tarjeta otra vez para ver todos.</p>' : '') : '');
     aplicarFiltroProy(tbody);
 }
+//Muestra solo las filas del proyecto en que se hizo clic
 function aplicarFiltroProy(tbody) {
     var f = filtroProyTab[tbody];
     $(tbody + ' tr[data-proy]').each(function () { $(this).toggle(!f || +$(this).data('proy') === f); });
@@ -61,10 +64,12 @@ $(document).on('click', '.cd-proy', function () {
     aplicarFiltroProy(tb);
 });
 
+//Fila de "no hay datos" que ocupa todas las columnas
 function vacio(n, txt) { return '<tr><td colspan="' + n + '" class="rd-vacio">' + txt + '</td></tr>'; }
 
 //Qué pestaña abre cada valor de ?ver=
-var VER_TAB = { hoy: 'tabHoy', listas: 'tabListas', arqueos: 'tabArqueos', cronograma: 'tabCrono', vehiculos: 'tabVh', vacantes: 'tabVac', comunicaciones: 'tabCom', rq: 'tabRq' };
+var VER_TAB = { hoy: 'tabHoy', listas: 'tabListas', arqueos: 'tabArqueos', cronograma: 'tabCrono', vehiculos: 'tabVh', vacantes: 'tabVac', comunicaciones: 'tabCom', rq: 'tabRq',
+                ausentismo: 'tabAus', promesa: 'tabAus' };
 
 $(function () {
     //Se puede llegar con ?fecha=AAAA-MM-DD&proyecto=ID&ver=rq (desde el tablero): abre ese día, ese proyecto y esa pestaña
@@ -91,6 +96,7 @@ $(function () {
     $(document).on('click', '.btn-ver-lista', function () { rdVerLista($(this).data('id')); });
 });
 
+//Trae todo lo del día elegido (y del proyecto, si se filtró) y pinta cada pestaña
 function cargar(fecha, proyecto) {
     var p = proyecto !== undefined ? proyecto : ($('#cdProyecto').val() || 0);
     $.getJSON(URL_CD + '?op=dia' + (fecha ? '&fecha=' + encodeURIComponent(fecha) : '') + '&proyecto=' + encodeURIComponent(p))
@@ -110,7 +116,7 @@ function cargar(fecha, proyecto) {
             $('#cdTituloImprimir').text('Reporte general · ' + rdFecha(d.fecha) + ($('#cdProyecto').val() !== '0' ? ' · ' + $('#cdProyecto option:selected').text() : ''));
 
             pintarResumen();
-            pintarHoy(); pintarListas(); pintarArqueos(); pintarCrono(); pintarVh(); pintarVac(); pintarCom(); pintarRq();
+            pintarHoy(); pintarListas(); pintarArqueos(); pintarCrono(); pintarVh(); pintarVac(); pintarCom(); pintarRq(); pintarAus();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el reporte general.'); });
 }
@@ -155,6 +161,13 @@ function pintarResumen() {
         ['tabCom', 'fa-inbox', 'Comunicaciones', d.comunicaciones.length, 'abiertas', comFuera ? 'mal' : (d.comunicaciones.length ? 'pend' : 'ok'), comFuera ? pl(comFuera, 'fuera de tiempo', 'fuera de tiempo') : ''],
         ['tabRq', 'fa-wrench', 'RQ por aprobar', d.rq.length, 'esperando', rqU ? 'mal' : (d.rq.length ? 'pend' : 'ok'), rqU ? pl(rqU, 'urgente', 'urgentes') : '']
     ];
+    //Ausentismo (con la promesa de valor adentro), si el módulo está encendido
+    if (d.modAusentismo || d.modPromesa) {
+        var ra = resumenAus();
+        t.push(['tabAus', 'fa-user-times', 'Ausentismo', ra.aus, ra.aus === 1 ? 'ausencia en el día' : 'ausencias en el día',
+                ra.prom ? (ra.sinExplicar > 0 ? 'mal' : (ra.faltan ? 'pend' : 'ok')) : '',
+                ra.prom ? (ra.faltan ? pl(ra.faltan, 'peaje sin ejecutado', 'peajes sin ejecutado') : 'Promesa ' + ra.prom + ' · ejecutado ' + ra.eje) : '']);
+    }
     var h = '';
     for (var i = 0; i < t.length; i++) {
         h += '<div class="cd-tarjeta cd-' + (t[i][5] || 'neutro') + '" data-tab="' + t[i][0] + '" role="button" tabindex="0">' +
@@ -196,6 +209,7 @@ function pintarHoy() {
     $('#tbHoy').html(h || vacio(7, datosCD.hoyEnQue.length ? 'Nadie en este filtro.' : 'No hay coordinadores asignados en lo que ves. Se asignan en Configuración → Proyectos.'));
 }
 
+//Pestaña de listas de chequeo: quién llenó listas ese día y cuántas
 function pintarListas() {
     //Las listas las llenan los coordinadores: quién registró ese día y cuántas
     var cuantas = {};
@@ -215,6 +229,7 @@ function pintarListas() {
     $('#tbListas').html(h || vacio(7, 'Ninguna lista diligenciada este día.'));
 }
 
+//Pestaña de arqueos: quién hizo arqueos ese día y el detalle de cada uno
 function pintarArqueos() {
     var cuantos = {};
     datosCD.arqueos.forEach(function (a) { if (a.ID_PERSONA) { cuantos[a.ID_PERSONA] = (cuantos[a.ID_PERSONA] || 0) + 1; } });
@@ -233,6 +248,7 @@ function pintarArqueos() {
     $('#tbArqueos').html(h || vacio(9, 'Ningún arqueo este día.'));
 }
 
+//Pestaña de cronograma: quién lo revisó y qué tenía programado
 function pintarCrono() {
     //Quién revisó el cronograma ese día (con la hora)
     var rev = {};
@@ -251,6 +267,7 @@ function pintarCrono() {
     $('#tbCrono').html(h || vacio(4, 'Nada planeado para este día.'));
 }
 
+//Pestaña de vehículos: el estado de cada vehículo ese día
 function pintarVh() {
     var h = '', f = datosCD.vehiculos;
     var clase = { OPERATIVO: 'rd-tag-ok', INOPERATIVO: 'rd-tag-mal', FALLA_FLOTA: 'rd-tag-pend' };
@@ -265,6 +282,7 @@ function pintarVh() {
     $('#tbVh').html(h || vacio(4, 'No hay vehículos registrados en lo que ves.'));
 }
 
+//Pestaña de vacantes: las abiertas por proyecto y cuántas van fuera del ANS
 function pintarVac() {
     var h = '', f = datosCD.vacantes, pp = {}, aus = datosCD.ausentismoDia || {};
     f.forEach(function (v) { var k = +v.ID_PROYECTO; pp[k] = pp[k] || { n: 0, fuera: 0 }; pp[k].n++; if (v.RESULTADO_ANS === 'VENCIDA') { pp[k].fuera++; } });
@@ -283,6 +301,7 @@ function pintarVac() {
     aplicarFiltroProy('#tbVac');
 }
 
+//Pestaña de comunicaciones: las abiertas por proyecto y cuántas van vencidas
 function pintarCom() {
     var h = '', f = datosCD.comunicaciones, pp = {};
     f.forEach(function (c) { var k = +c.ID_PROYECTO; pp[k] = pp[k] || { n: 0, fuera: 0, env: 0 }; pp[k].n++; if (c.RESULTADO === 'VENCIDA') { pp[k].fuera++; } if (c.TIPO === 'POR_ENVIAR') { pp[k].env++; } });
@@ -302,6 +321,106 @@ function pintarCom() {
     aplicarFiltroProy('#tbCom');
 }
 
+//---------------------------------------------------------------------------
+// Ausentismo del día, con la promesa de valor adentro
+//---------------------------------------------------------------------------
+//Las cuentas por peaje: ausencias (las que cuentan), promesa y ejecutado.
+//Devuelve los totales y [idCentro] = {aus, prom, eje, conEje}
+function resumenAus() {
+    var d = datosCD, porCentro = {}, tot = { aus: 0, prom: 0, eje: 0, faltan: 0, sinExplicar: 0, centros: porCentro };
+    (d.ausentismo || []).forEach(function (a) {
+        var c = +a.ID_CENTRO_OP; porCentro[c] = porCentro[c] || { aus: 0, prom: 0, eje: 0, conEje: false, porCargo: {} };
+        if (+a.CUENTA) { porCentro[c].aus += +a.CANTIDAD; tot.aus += +a.CANTIDAD; porCentro[c].porCargo[+a.ID_CARGO_AUS] = (porCentro[c].porCargo[+a.ID_CARGO_AUS] || 0) + +a.CANTIDAD; }
+    });
+    $.each(d.promesa || {}, function (idC, cargos) {
+        var c = +idC; porCentro[c] = porCentro[c] || { aus: 0, prom: 0, eje: 0, conEje: false, porCargo: {} };
+        $.each(cargos, function (idCa, x) {
+            porCentro[c].prom += +x.promesa;
+            if (x.ejecutado !== null) { porCentro[c].eje += +x.ejecutado; porCentro[c].conEje = true; }
+        });
+    });
+    $.each(porCentro, function (c, x) {
+        if (!x.prom) { return; }
+        tot.prom += x.prom;
+        if (!x.conEje) { tot.faltan++; return; }
+        tot.eje += x.eje;
+        if (x.prom - x.eje > x.aus) { tot.sinExplicar++; }                    //faltó gente que no está en el ausentismo
+    });
+    return tot;
+}
+
+//Muestra una diferencia con su signo (+ o −) y en rojo si es negativa
+function difCD(n) { return '<span class="' + (n < 0 ? 'cd-mal' : '') + '">' + (n > 0 ? '+' : (n < 0 ? '−' : '')) + Math.abs(n) + '</span>'; }
+
+//Pestaña de ausentismo: el resumen del día por peaje (solo si el módulo está activo)
+function pintarAus() {
+    var d = datosCD;
+    $('#cdPestanaAus, #tabAus').toggle(!!(d.modAusentismo || d.modPromesa));
+    if (!d.modAusentismo && !d.modPromesa) { return; }
+    var r = resumenAus(), centros = {}, h = '';
+    (d.centros || []).forEach(function (c) { centros[c.ID_CENTRO_OP] = c; });
+
+    //Una tarjeta por proyecto: ausencias y cómo va la promesa
+    var pp = {};
+    $.each(r.centros, function (idC, x) {
+        var c = centros[idC]; if (!c) { return; }
+        var k = +c.ID_PROYECTO; pp[k] = pp[k] || { aus: 0, prom: 0, eje: 0, faltan: 0 };
+        pp[k].aus += x.aus; pp[k].prom += x.prom; if (x.conEje) { pp[k].eje += x.eje; } else if (x.prom) { pp[k].faltan++; }
+    });
+    var dp = {};
+    d.proyectos.forEach(function (p) {
+        var x = pp[p.id] || { aus: 0, prom: 0, eje: 0, faltan: 0 };
+        dp[p.id] = { n: x.aus, lineas: d.modPromesa && x.prom ? ['Promesa ' + x.prom + ' · ejecutado ' + x.eje, x.faltan ? '<b class="cd-mal">' + pl(x.faltan, 'peaje sin ejecutado', 'peajes sin ejecutado') + '</b>' : 'todos con ejecutado'] : ['sin promesa de valor'] };
+    });
+    porProyecto('#cdAusProy', '#tbAus', 'ausencias', dp);
+
+    //Las ausencias del día
+    (d.ausentismo || []).forEach(function (a) {
+        h += '<tr data-proy="' + parseInt(a.ID_PROYECTO, 10) + '"' + (+a.CUENTA ? '' : ' class="aus-no-cuenta"') + '><td>' + (a.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(a.NOM_CENTRO_OP) + '</td>' +
+             '<td>' + rdEsc(a.NOM_PROYECTO) + '</td><td>' + rdEsc(a.CARGO) + '</td><td>' + rdEsc(a.MOTIVO) + (+a.CUENTA ? '' : ' <small>(no cuenta como ausencia)</small>') + '</td>' +
+             '<td class="rd-num-col"><strong>' + parseInt(a.CANTIDAD, 10) + '</strong></td><td>' + rdEsc(a.QUIEN || '') + '</td></tr>';
+    });
+    $('#tbAus').html(d.modAusentismo ? (h || vacio(6, 'No hay ausencias registradas ese día.')) : vacio(6, 'El módulo de ausentismo está apagado.'));
+    aplicarFiltroProy('#tbAus');
+
+    //La promesa de valor: por peaje y por cargo
+    $('#cdPromesaAus').toggle(!!d.modPromesa);
+    if (!d.modPromesa) { return; }
+    var hp = '', porCargo = {}, nombres = {};
+    (d.cargosAus || []).forEach(function (c) { nombres[c.id] = c.nombre; });
+    (d.centros || []).forEach(function (c) {
+        var x = r.centros[c.ID_CENTRO_OP];
+        if (!x || !x.prom) { return; }
+        var estado = !x.conEje ? tag('Falta el ejecutado', 'rd-tag-pend') : (x.prom - x.eje > x.aus ? tag('Faltan ' + (x.prom - x.eje - x.aus) + ' por explicar', 'rd-tag-mal') : tag('Registrado', 'rd-tag-ok'));
+        hp += '<tr data-proy="' + parseInt(c.ID_PROYECTO, 10) + '"><td>' + (c.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(c.NOM_CENTRO_OP) + '</td><td>' + rdEsc(c.NOM_PROYECTO) + '</td>' +
+              '<td class="rd-num-col">' + x.prom + '</td><td class="rd-num-col">' + (x.conEje ? x.eje : '—') + '</td>' +
+              '<td class="rd-num-col">' + (x.conEje ? difCD(x.eje - x.prom) : '—') + '</td><td class="rd-num-col">' + x.aus + '</td><td>' + estado + '</td></tr>';
+        $.each(d.promesa[c.ID_CENTRO_OP] || {}, function (idCa, y) {
+            var k = +idCa; porCargo[k] = porCargo[k] || { prom: 0, eje: 0, aus: 0, conEje: false };
+            porCargo[k].prom += +y.promesa;
+            if (y.ejecutado !== null) { porCargo[k].eje += +y.ejecutado; porCargo[k].conEje = true; }
+        });
+        $.each(x.porCargo, function (idCa, n) { var k = +idCa; porCargo[k] = porCargo[k] || { prom: 0, eje: 0, aus: 0, conEje: false }; porCargo[k].aus += n; });
+    });
+    $('#tbPvPeaje').html(hp || vacio(7, 'Ese día no hay promesa de valor definida en los peajes que ves.'));
+    aplicarFiltroProyPv();
+    var hc = '';
+    (d.cargosAus || []).forEach(function (c) {
+        var x = porCargo[c.id]; if (!x || !x.prom) { return; }
+        hc += '<tr><td>' + rdEsc(c.nombre) + '</td><td class="rd-num-col">' + x.prom + '</td><td class="rd-num-col">' + (x.conEje ? x.eje : '—') + '</td>' +
+              '<td class="rd-num-col">' + (x.conEje ? difCD(x.eje - x.prom) : '—') + '</td><td class="rd-num-col">' + x.aus + '</td></tr>';
+    });
+    $('#tbPvCargo').html(hc || vacio(5, 'Sin promesa de valor ese día.'));
+}
+
+//La tabla de la promesa por peaje sigue la misma tarjeta de proyecto elegida arriba
+function aplicarFiltroProyPv() {
+    var f = filtroProyTab['#tbAus'];
+    $('#tbPvPeaje tr[data-proy]').each(function () { $(this).toggle(!f || +$(this).data('proy') === f); });
+}
+$(document).on('click', '.cd-proy[data-tb="#tbAus"]', aplicarFiltroProyPv);
+
+//Pestaña de requisiciones: las pendientes por proyecto y cuántas son urgentes
 function pintarRq() {
     var h = '', f = datosCD.rq, pp = {}, decide = !!datosCD.puedeAprobar;
     f.forEach(function (r) { var k = +r.ID_PROYECTO; pp[k] = pp[k] || { n: 0, u: 0, max: 0 }; pp[k].n++; if (r.TIPO_RQ === 'U') { pp[k].u++; } pp[k].max = Math.max(pp[k].max, +r.DIAS); });

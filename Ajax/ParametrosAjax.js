@@ -1,4 +1,4 @@
-//Configuración — Parámetros del sistema y catálogos de ausentismo
+//Configuración - Parámetros del sistema y catálogos de ausentismo
 var URL_PAR = '../Control/ParametrosControl.php';
 var datosPar = null;
 var APLICA = { PEAJE: 'Peajes', BASCULA: 'Básculas', AMBOS: 'Peajes y básculas' };
@@ -17,6 +17,7 @@ $(function () {
     $(document).on('submit', '#formCat', guardarCatalogo);
 });
 
+//Trae los parámetros y los catálogos y los pinta por grupos
 function cargarPar() {
     $.getJSON(URL_PAR + '?op=listar')
         .done(function (d) {
@@ -62,6 +63,7 @@ function cargarPar() {
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudieron cargar los parámetros.'); });
 }
 
+//Guarda todos los parámetros de la pantalla de una vez
 function guardarPar(e) {
     e.preventDefault();
     var datos = {};
@@ -87,7 +89,7 @@ function editarCatalogo(tipo, x) {
     } else {
         h += '<div class="form-group"><label>¿Es ausencia?</label><select name="cuenta" class="form-control">' +
              '<option value="1"' + (!x || +x.CUENTA_AUSENCIA ? ' selected' : '') + '>Sí: suma en las ausencias diarias</option>' +
-             '<option value="0"' + (x && !+x.CUENTA_AUSENCIA ? ' selected' : '') + '>No: se registra aparte (como cubre recolector)</option></select></div>' +
+             '<option value="0"' + (x && !+x.CUENTA_AUSENCIA ? ' selected' : '') + '>No: se muestra en su fila, sin sumar</option></select></div>' +
              '<div class="form-group"><label>Solo en el cargo:</label><select name="cargo" class="form-control"><option value="0">Todos los cargos</option>';
         datosPar.cargos.forEach(function (c) { h += '<option value="' + parseInt(c.ID_CARGO_AUS, 10) + '"' + (x && +x.ID_CARGO_AUS === +c.ID_CARGO_AUS ? ' selected' : '') + '>' + rdEsc(c.NOMBRE) + '</option>'; });
         h += '</select></div>';
@@ -106,6 +108,7 @@ function editarCatalogo(tipo, x) {
     m.modal('show');
 }
 
+//Guarda un cargo o una novedad del catálogo de ausentismo
 function guardarCatalogo(e) {
     e.preventDefault();
     var tipo = $(this).data('tipo');
@@ -122,6 +125,7 @@ $(function () {
     $('#btnProbarCorreo').on('click', probarCorreo);
 });
 
+//Trae los últimos correos enviados (o que fallaron) para revisarlos
 function cargarCorreoLog() {
     $.getJSON(URL_PAR + '?op=correoLog').done(function (f) {
         var h = '';
@@ -134,6 +138,7 @@ function cargarCorreoLog() {
     });
 }
 
+//Envía un correo de prueba y muestra cómo le fue a cada intento
 function probarCorreo() {
     var para = $.trim($('#correoPrueba').val());
     if (!para) { $('#correoPrueba').focus(); return; }
@@ -186,6 +191,7 @@ $(function () {
     $(document).on('click', '.btn-deshabilitar-dia', function () { deshabilitarDia($(this).data('id'), $(this).data('texto')); });
 });
 
+//Trae los días habilitados a cada persona para registrar fuera de fecha
 function cargarDias() {
     $.getJSON(URL_PAR + '?op=diasHabilitados')
         .done(function (d) {
@@ -217,6 +223,7 @@ function cargarDias() {
         .fail(function (xhr) { $('#tbDias').html('<tr><td colspan="6" class="rd-vacio">' + rdEsc(rdError(xhr, 'No se pudieron cargar los días habilitados.')) + '</td></tr>'); });
 }
 
+//Habilita un día pasado a una persona para que pueda registrar
 function habilitarDia(e) {
     e.preventDefault();
     if (!$('#diaPersona').val()) { alert('Elige a quién se le habilita el día.'); return; }
@@ -228,6 +235,7 @@ function habilitarDia(e) {
         .always(function () { hanaBoton('#btnHabilitarDia', false); });
 }
 
+//Quita un día habilitado (pregunta antes)
 function deshabilitarDia(id, texto) {
     hanaConfirmar('¿Deshabilitar el día de ' + texto + '? Volverá a quedar solo de consulta.', function () {
         $.post(URL_PAR + '?op=deshabilitarDia', { id: id }, null, 'json')

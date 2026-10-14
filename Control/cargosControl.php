@@ -1,23 +1,31 @@
 <?php
+/*
+  HANA - Cargos (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/cargosAjax.js y responde con lo que
+  trae el modelo (Modelo/cargosModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, mostrar, select, listar y anular.
+  Permiso: 4M. El desplegable (select) también lo usa Colaboradores.
+*/
 session_start();
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('4M'), array('select')); //Cargos: 4M. El selector lo usa Colaboradores
 require_once "../Modelo/cargosModelo.php";//Utilizará este archivo
-$cargos=new Cargos();//crea un nuevo articulo
+$cargos=new Cargos();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $IdCargos=isset($_POST["idCargo"])? limpiarCadena($_POST["idCargo"]):"";
 $NombreCargos=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
-$PermisoNovedad=isset($_POST["permisoNovedad"])? limpiarCadena($_POST["permisoNovedad"]):"";
 //opciones
 switch ($_GET["op"])
 	{
 		case 'guardar'://primer caso
             try {
                     if (empty($IdCargos)) {
-                        $rspta=$cargos->insertar($NombreCargos,$PermisoNovedad);
+                        $rspta=$cargos->insertar($NombreCargos);
                             echo $rspta ? http_response_code(200) : http_response_code(400);
                     } else {
-                        $rspta=$cargos->editar($IdCargos, $NombreCargos, $PermisoNovedad);
+                        $rspta=$cargos->editar($IdCargos, $NombreCargos);
                             echo $rspta ? http_response_code(200) : http_response_code(400);
                     }
             } catch (\Throwable $th) {
@@ -25,6 +33,7 @@ switch ($_GET["op"])
                     echo json_encode($th);
             }
 		break;
+	    //Trae un cargo para cargarlo en el formulario
 	    case 'mostrar':
             try {
                 $rspta=$cargos->mostrar($IdCargos);
@@ -35,6 +44,7 @@ switch ($_GET["op"])
                 echo json_encode($th);
             }
 	 	break;
+		//Opciones del buscador de cargos
 		case "select":
             $search_term = isset($_GET['search'])? $_GET['search']:0;
             try {
@@ -54,9 +64,9 @@ switch ($_GET["op"])
                         echo json_encode($th);
                 }
 		break;
-		case 'listar'://activado por el ajax en el scrip articulos
+		case 'listar'://lo pide la tabla de la pantalla al cargar
             try {
-                $rspta=$cargos->listar();//Carga la rspta con lista de articulos
+                $rspta=$cargos->listar();//trae los registros para la tabla
                 //Vamos a declarar un array
                 $data= Array();
                 while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
@@ -86,6 +96,7 @@ switch ($_GET["op"])
                 echo json_encode($th);
             }
 		break;
+		//Desactiva un cargo
 		case 'anular':
             try {
                 $rspta=$cargos->desactivar($IdCargos);

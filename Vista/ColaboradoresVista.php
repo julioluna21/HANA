@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Colaboradores
+  ---------------------------------------------------------------------------
+  Pantalla para registrar, editar y desactivar a las personas que trabajan en los proyectos.
+  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/ColaboradoresAjax.js
+  y los datos los entrega Control/ColaboradoresControl.php.
+  Permiso: 3M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
@@ -75,7 +83,7 @@ include('head.php');
               </div>
               <!-- Listado Registros-->
 
-              <!-- centro listado de articulos-->
+              <!-- tabla con el listado de registros -->
               <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">

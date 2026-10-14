@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Consultas preparadas para los módulos nuevos (Fase 2 en adelante)
+  HANA - Consultas preparadas para los módulos nuevos (Fase 2 en adelante)
   ---------------------------------------------------------------------------
   Los datos viajan aparte del SQL, así que no hace falta limpiarCadena(): el
   texto se guarda tal cual y cada pantalla lo escapa al mostrarlo.
@@ -17,6 +17,8 @@ require_once __DIR__ . "/../Conexion/ConexionDB.php";
 
 class HanaDB
 {
+    //Ejecuta una consulta preparada. Devuelve las filas si es un SELECT, true si es otra cosa
+    //y false si falla (el error queda en el log, no en pantalla)
     public static function q($sql, $tipos = '', $params = array())
     {
         global $conexion;
@@ -43,6 +45,7 @@ class HanaDB
         return ($f && isset($f[0])) ? $f[0] : null;
     }
 
+    //Id del último registro insertado y manejo de transacciones (iniciar, confirmar, deshacer)
     public static function id()        { global $conexion; return (int)$conexion->insert_id; }
     public static function iniciar()   { global $conexion; $conexion->begin_transaction(); }
     public static function confirmar() { global $conexion; $conexion->commit(); }
@@ -53,47 +56,15 @@ class HanaDB
     // cronograma y vehículo, vacantes y comunicaciones) lo llena SOLO quien
     // está asignado como coordinador de un proyecto (en Proyectos). Los jefes
     // de peaje hacen RQ y listas de chequeo. Sus centros son los de los
-    // proyectos que coordina: no hay que asignarlos uno por uno en Usuarios
+    // proyectos que coordina: no hay que asignarlos uno por uno en Usuarios.
+    //
+    // $todos = true: la persona puede usar esa pantalla en TODOS los proyectos
+    // (ADMIN TEC o la casilla del módulo). Eso lo decide el controlador con la
+    // sesión (Control/AccesoHelper.php): el modelo no lee la sesión
     //-----------------------------------------------------------------------
-    //El ADMIN TEC (permiso 24M, Parámetros del sistema) puede usar las pantallas
-    //del coordinador en todos los proyectos: cuenta como coordinador de todos.
-    //Solo aplica a la persona que está usando el sistema (no cambia cómo se ve
-    //a los demás en el tablero o en los reportes)
-    //Además, cada pantalla del coordinador tiene su casilla en Roles: quien la tenga
-    //la usa en todos los proyectos, como el coordinador en el suyo. La pantalla dice
-    //a qué módulo pertenece con HanaDB::usarModulo('ARQUEOS'), al comenzar
-    public static $PERMISO_MODULO = array(
-        'HOY' => '28M', 'ARQUEOS' => '29M', 'CRONOGRAMA' => '30M', 'VACANTES' => '31M', 'COMUNICACIONES' => '32M'
-        //33M, 34M y 35M eran Pendientes con Regency, Novedades del proyecto y Disciplinarios (se quitaron)
-    );
-    private static $moduloActual = '';
-
-    public static function usarModulo($modulo) { self::$moduloActual = (string)$modulo; }
-
-    public static function adminVeTodo($idColaborador)
+    public static function proyectosCoordinados($idColaborador, $todos = false)
     {
-        if (!isset($_SESSION['Idcolaborador'], $_SESSION['Modulos'])) { return false; }
-        if ((int)$idColaborador <= 0 || (int)$idColaborador !== (int)$_SESSION['Idcolaborador']) { return false; }
-        $mios = explode(',', $_SESSION['Modulos']);
-        if (in_array('24M', $mios, true)) { return true; }
-        $m = self::$moduloActual;
-        return $m !== '' && isset(self::$PERMISO_MODULO[$m]) && in_array(self::$PERMISO_MODULO[$m], $mios, true);
-    }
-
-    //¿La persona conectada puede usar la pantalla de ese módulo? (coordinador, ADMIN TEC o su casilla)
-    public static function puedeModulo($modulo)
-    {
-        if (!isset($_SESSION['Idcolaborador'])) { return false; }
-        $antes = self::$moduloActual;
-        self::$moduloActual = (string)$modulo;
-        $si = self::esCoordinador((int)$_SESSION['Idcolaborador']);
-        self::$moduloActual = $antes;
-        return $si;
-    }
-
-    public static function proyectosCoordinados($idColaborador)
-    {
-        if (self::adminVeTodo($idColaborador)) {
+        if ($todos) {
             $f = self::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos WHERE Estado = '1' ORDER BY NOM_PROYECTO");
             return $f ? $f : array();
         }
@@ -103,19 +74,20 @@ class HanaDB
         return $f ? $f : array();
     }
 
-    public static function esCoordinador($idColaborador)
+    //¿Coordina al menos un proyecto?
+    public static function esCoordinador($idColaborador, $todos = false)
     {
-        return (int)$idColaborador > 0 && count(self::proyectosCoordinados($idColaborador)) > 0;
+        return (int)$idColaborador > 0 && count(self::proyectosCoordinados($idColaborador, $todos)) > 0;
     }
 
     //Los centros de los proyectos que coordina (misma forma que centrosUsuario)
-    public static function centrosCoordinador($idColaborador)
+    public static function centrosCoordinador($idColaborador, $todos = false)
     {
         $f = self::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
                         FROM centros_operacion c
                         INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
                        WHERE p.Estado = '1' AND c.Estado = '1' AND (p.ID_COLABORADOR_COORDINADOR = ? OR ? = 1)
-                       ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP", 'ii', array((int)$idColaborador, self::adminVeTodo($idColaborador) ? 1 : 0));
+                       ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP", 'ii', array((int)$idColaborador, $todos ? 1 : 0));
         return $f ? $f : array();
     }
 

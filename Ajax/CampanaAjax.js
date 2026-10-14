@@ -99,11 +99,13 @@
             });
     }
 
+    //Empieza a revisar los avisos cada cierto tiempo
     function iniciar() {
         detener();
         actualizar();
         temporizador = setInterval(actualizar, CADA);
     }
+    //Deja de revisar (por ejemplo, cuando la pestaña no está a la vista)
     function detener() {
         if (temporizador) { clearInterval(temporizador); temporizador = null; }
     }

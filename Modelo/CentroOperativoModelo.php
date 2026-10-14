@@ -1,4 +1,10 @@
 <?php
+/*
+  HANA - Centros operativos (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla centros_operacion: peajes, básculas y oficinas de cada proyecto.
+  Lo usa Control/CentroOperativoControl.php.
+*/
 //Incluímos inicialmente la conexión a la base de datos
 require "../Conexion/ConexionDB.php";
 class Centro
@@ -51,6 +57,7 @@ class Centro
                 $sql = "UPDATE centros_operacion SET Estado=0 WHERE ID_CENTRO_OP=$id";
                 return ejecutarConsulta($sql);
         }
+        //Centros operativos activos, para los desplegables
         public function select()
         {
                 $sql = "SELECT * FROM centros_operacion WHERE Estado=1";

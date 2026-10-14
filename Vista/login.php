@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Inicio de sesión
+  ---------------------------------------------------------------------------
+  Muestra el formulario de usuario y clave. Si ya hay una sesión abierta,
+  devuelve a la página anterior. Lo que pasa al dar "Entrar" está en
+  Ajax/LoginAjax.js, que le pregunta a Control/UsuariosControl.php?op=verificar.
+  Desde aquí también se pide una clave nueva cuando se olvidó.
+*/
 session_start();
 if (!isset($_SESSION["IdUsuarios"])){
 ?>

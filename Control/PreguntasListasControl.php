@@ -1,4 +1,14 @@
 <?php
+/*
+  HANA - Preguntas de las listas de chequeo (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/GruposListasnAjax.js y Ajax/Editarpreguntasajax.js y responde con lo que
+  trae el modelo (Modelo/PreguntasListasModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, mostrar, importar (desde Excel o CSV), mostrarPreguntas, anular, select,
+    reordenar, posiciones, guardarLote y listar.
+  Permiso: 12M para cambiarlas; con 11M solo se consultan.
+*/
 session_start();
 require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
 hanaGuardia(array('12M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M')); //Cambiar preguntas: 12M; verlas: 11M o 12M
@@ -24,19 +34,20 @@ $generaNovedad=isset($_POST['genera-novedad'])? limpiarCadena($_POST['genera-nov
 $titulo=isset($_POST['Titulo-novedad'])? limpiarCadena($_POST['Titulo-novedad']):'';
 $posicion=isset($_POST['posicion'])? limpiarCadena($_POST['posicion']):'final';
 
-//GENERA_NOVEDAD es una columna entera. Los tipos que no generan novedad (texto,
-//fecha, firma) la enviaban vacía, y MySQL en modo estricto rechaza '' en una
-//columna entera: la pregunta no se guardaba. Vacío = 0 (no genera)
+//¿La pregunta genera novedad? 1 o 0 (vacío = 0). En la base ya no hay una columna
+//aparte: genera novedad la pregunta que tiene título de novedad (TITULO_NOVEDAD)
 $generaNovedad = ($generaNovedad === '1' || $generaNovedad === 1) ? 1 : 0;
 
 switch ($_GET["op"]) {
   case 'guardar':
+    //Si genera novedad tiene que decir con qué título (sin título no se podría crear la novedad)
+    if ($generaNovedad === 1 && intval($titulo) <= 0) {
+      http_response_code(400);
+      echo "Si la pregunta genera novedad, elige el título de la novedad.";
+      break;
+    }
 
     if (empty($idPregunta)) {
-      $rspta = $Preguntas->consCantPreguntas($idLista);
-      if ($rspta != '') {
-        $rspt = $rspta->fetch_assoc();
-        $numPreguntas = $rspt['cantPreguntas'] + 1;
         if ($posicion === '' || $posicion === 'final') {
           $filaMax = $Preguntas->ordenMax($idLista);
           $orden = ($filaMax ? $filaMax['m'] : 0) + 1;
@@ -46,19 +57,12 @@ switch ($_GET["op"]) {
           $Preguntas->correrOrden($idLista, $orden);
         }
         $rspta1 = $Preguntas->insertar($idLista, $pregunta, $tiposRespuesta,$generaNovedad,$titulo,$orden);
-        if ($rspta1 != '') {
-          $rspta = $Preguntas->insertarCantPreguntas($idLista, $numPreguntas);
-          if (!$rspta) { http_response_code(400); echo "No se pudo actualizar el conteo de preguntas."; }
-        } else {
+        if ($rspta1 == '') {
           //Antes, si el insert fallaba, no se respondia nada y la pantalla
           //lo tomaba como exito
           http_response_code(400);
           echo "No se pudo guardar la pregunta.";
         }
-      }else{
-        http_response_code(400);
-        echo "No se pudo consultar la lista de preguntas.";
-      }
     } else {
       $rspta = $Preguntas->editar($idPregunta, $pregunta, $tiposRespuesta,$generaNovedad,$titulo);
       if (!$rspta) { http_response_code(400); echo "No se pudo actualizar la pregunta."; }
@@ -72,6 +76,7 @@ switch ($_GET["op"]) {
     }
     break;
   
+  //Trae una pregunta para cargarla en el formulario
   case 'mostrar':
     try {
       $rspta=$Preguntas->mostrar($idPregunta);
@@ -267,26 +272,16 @@ switch ($_GET["op"]) {
       $filaMax = $Preguntas->ordenMax($idLista);
       $orden   = $filaMax ? intval($filaMax['m']) : 0;
 
-      $numPreguntas = 0;
-      $rsptaCant = $Preguntas->consCantPreguntas($idLista);
-      if ($rsptaCant) {
-        $filaCant = $rsptaCant->fetch_assoc();
-        $numPreguntas = intval($filaCant['cantPreguntas']);
-      }
-
       $guardadas = 0;
       $fallaron  = 0;
       foreach ($preguntasOk as $p) {
         $orden++;
         //insertar() espera 6 datos. Antes se le enviaban 3 y la importacion
         //moria con un error fatal que no se veia en pantalla.
-        //GENERA_NOVEDAD es una columna entera: enviarle '' hace fallar el INSERT
-        //cuando MySQL esta en modo estricto
+        //Las preguntas importadas no generan novedad (0, sin título)
         $rspta1 = $Preguntas->insertar($idLista, limpiarCadena($p['pregunta']), $p['tipo'], 0, '', $orden);
         if ($rspta1 != '') { $guardadas++; } else { $fallaron++; }
       }
-
-      $Preguntas->insertarCantPreguntas($idLista, $numPreguntas + $guardadas);
 
       if ($fallaron > 0) {
         http_response_code(400);
@@ -301,6 +296,7 @@ switch ($_GET["op"]) {
     }
     break;
   
+    //Trae una pregunta como arreglo, para la pantalla de edición
     case 'mostrarPreguntas':
       try {
         $rsmostrar = [];
@@ -315,27 +311,17 @@ switch ($_GET["op"]) {
         echo json_encode($th);
       }
       break;
+  //Anula una pregunta de la lista
   case 'anular':
-    $rspta = $Preguntas->consCantPreguntas($idLista);
-    if ($rspta) {
-      $rspt = $rspta->fetch_assoc();
-      $numPreguntas = $rspt['cantPreguntas'];
-      $rspta1=$Preguntas->anular($idPregunta);
-      if ($rspta1 != '') {
-        $numPreguntas = $numPreguntas - 1;
-        $rspta = $Preguntas->insertarCantPreguntas($idLista, $numPreguntas);
-        if (!$rspta) { http_response_code(400); echo "No se pudo actualizar el conteo de preguntas."; }
-      } else {
-        //Antes, si la anulacion fallaba, no se respondia nada y la pantalla
-        //lo tomaba como exito
-        http_response_code(400);
-        echo "No se pudo anular la pregunta.";
-      }
-    } else {
+    $rspta1=$Preguntas->anular($idPregunta);
+    if ($rspta1 == '') {
+      //Antes, si la anulacion fallaba, no se respondia nada y la pantalla
+      //lo tomaba como exito
       http_response_code(400);
-      echo "No se pudo consultar la lista de preguntas.";
+      echo "No se pudo anular la pregunta.";
     }
     break;
+  //Opciones del buscador de preguntas (filtra por lo que se escriba)
   case 'select':
       $search_term = isset($_GET['search'])?$_GET['search']:'0';
       try {
@@ -355,6 +341,7 @@ switch ($_GET["op"]) {
       }
     break;
 
+  //Guarda el nuevo orden de las preguntas después de arrastrarlas
   case 'reordenar':
     try {
       $ids = (isset($_POST['orden']) && is_array($_POST['orden'])) ? $_POST['orden'] : array();
@@ -368,6 +355,7 @@ switch ($_GET["op"]) {
       http_response_code(404); echo json_encode($th);
     }
     break;
+  //Preguntas activas de una lista con su orden, para la edición masiva
   case 'posiciones':
     try {
       $rspta = $Preguntas->listar($idGrupoPreguntas);
@@ -416,14 +404,9 @@ switch ($_GET["op"]) {
       http_response_code(404); echo json_encode($th);
     }
     break;
+  //Todas las preguntas de una lista para la tabla
   case 'listar':
     try {
-      $rspta = $Preguntas->consCantPreguntas($idGrupoPreguntas);
-      $rspt = $rspta->fetch_assoc();
-      $numPreguntas = $rspt['cantPreguntas'];
-      //print_r($numPreguntas);
-      $rspta = $Preguntas->insertarCantPreguntas($idGrupoPreguntas, $numPreguntas);
-
       $rspta= $Preguntas->listar($idGrupoPreguntas);
       //print_r($rspta);
       $userData = array();

@@ -1,4 +1,11 @@
 <?php
+/*
+  HANA - Listas de chequeo diligenciadas (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de lista_chequeo (el encabezado: peaje, fecha y quién la llenó) y de
+  detalle_lista_chequeo (una fila por respuesta). También crea las novedades que
+  salen de las respuestas. Lo usa Control/ListasControl.php.
+*/
 require_once __DIR__ . "/HanaDB.php"; //para saber si es el ADMIN TEC (ve todos los peajes)
 require_once __DIR__ . "/HanaConfig.php"; //prioridad y observador de las novedades automáticas
 require "../Conexion/ConexionDB.php";
@@ -7,31 +14,37 @@ class listas{
      public function __construct()
      {
      }
+     //Cambia una respuesta ya guardada y quién la corrigió
      public function editarUnaRespuesta($respuesta, $colaborador, $idRespuesta){
-        $sql="UPDATE `detale_lista_chequeo` SET `RESPUTA_DETALLE_LISTA_CHEQUEO`='$respuesta',`ID_COLABORADOR_DETALE_LISTA_CHEQUEO`='$colaborador' WHERE `ID_DETALE_LISTA_CHEQUEO`='$idRespuesta'";/* AND detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO =$idLista"*/;
+        $sql="UPDATE `detalle_lista_chequeo` SET `RESPUESTA_DETALLE_LISTA_CHEQUEO`='$respuesta',`ID_COLABORADOR_DETALLE_LISTA_CHEQUEO`='$colaborador' WHERE `ID_DETALLE_LISTA_CHEQUEO`='$idRespuesta'";/* AND detalle_lista_chequeo.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO =$idLista"*/;
         return ejecutarConsulta($sql);
      }
+     //Agrega la respuesta de una pregunta que había quedado sin responder
      public function insertarUnaRespuesta($idLista, $idPregunta, $respuesta, $colaborador){
-        $sql="INSERT INTO `detale_lista_chequeo`(`ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`, `ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`, `RESPUTA_DETALLE_LISTA_CHEQUEO`, `ID_COLABORADOR_DETALE_LISTA_CHEQUEO`) VALUES ('$idLista','$idPregunta','$respuesta','$colaborador')";
+        $sql="INSERT INTO `detalle_lista_chequeo`(`ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`, `ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`, `RESPUESTA_DETALLE_LISTA_CHEQUEO`, `ID_COLABORADOR_DETALLE_LISTA_CHEQUEO`) VALUES ('$idLista','$idPregunta','$respuesta','$colaborador')";
         return ejecutarConsulta($sql);
      }
+     //¿Ya hay una lista de este tipo empezada para ese peaje en esa fecha?
      public function validaListaIniciada($idGrupo,$fechaEncuesta,$idCentro){
         $sql="SELECT lista_chequeo.ID_LISTA_CHEQUEO FROM lista_chequeo WHERE lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idGrupo' AND lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO LIKE '$fechaEncuesta%' AND lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO='$idCentro'";
         return ejecutarConsultaSimpleFila($sql);
         }
-     //LISTA LAS LISTAS ACTIVAS
+     //LISTA LAS LISTAS ACTIVAS, con cuántas preguntas activas tiene cada una
      public function listar()
      {
-             $sql = "SELECT * FROM grupo_lista_chequeo WHERE ESTADO = 1";
+             $sql = "SELECT g.*, (SELECT COUNT(*) FROM detalle_grupo_lista_chequeo p
+                                   WHERE p.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = g.ID_GRUPO_LISTA_CHEQUEO AND p.ESTADO = 1) AS CANT_PREGUNTAS_GRUPO
+                       FROM grupo_lista_chequeo g WHERE g.ESTADO = 1";
              return ejecutarConsulta($sql);
      }
+     //Fechas en las que la persona ya respondió esta lista
      public function validarRespuesta($fechaEncuesta, $idGrupoPreguntas, $nombreColaborador){
-        $sql = "SELECT DISTINCT lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO FROM lista_chequeo INNER JOIN detale_lista_chequeo ON detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO = lista_chequeo.ID_LISTA_CHEQUEO JOIN detalle_grupo_lista_cheque ON detale_lista_chequeo.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO=detalle_grupo_lista_cheque.ID_DETALLE_GRUPO_LISTA_CHEQUEO WHERE lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO LIKE '$fechaEncuesta%' AND lista_chequeo.ID_COLABORADOR_LISTA_CHEQUEO= '$nombreColaborador' AND detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO ='$idGrupoPreguntas'";
+        $sql = "SELECT DISTINCT lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO FROM lista_chequeo INNER JOIN detalle_lista_chequeo ON detalle_lista_chequeo.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = lista_chequeo.ID_LISTA_CHEQUEO JOIN detalle_grupo_lista_chequeo ON detalle_lista_chequeo.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO=detalle_grupo_lista_chequeo.ID_DETALLE_GRUPO_LISTA_CHEQUEO WHERE lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO LIKE '$fechaEncuesta%' AND lista_chequeo.ID_COLABORADOR_LISTA_CHEQUEO= '$nombreColaborador' AND detalle_grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO ='$idGrupoPreguntas'";
         return ejecutarConsulta($sql);
      }
      //insertar encabezado de lista ok
      public function insertarLista($selectCentro,$fechaEncuesta,$nombreColaborador,$idGrupo){
-        $sql = "INSERT INTO `lista_chequeo`(`ID_CENTRO_OP_LISTA_CHEQUEO`, `FEC_REGISTRO_LISTA_CHEQUEO`, `ID_COLABORADOR_LISTA_CHEQUEO`, `ID_GRUPO_LISTA_CHEQUEO`, `CANT_RESPUESTAS_LISTA`) VALUES ('$selectCentro','$fechaEncuesta','$nombreColaborador','$idGrupo',0)";
+        $sql = "INSERT INTO `lista_chequeo`(`ID_CENTRO_OP_LISTA_CHEQUEO`, `FEC_REGISTRO_LISTA_CHEQUEO`, `ID_COLABORADOR_LISTA_CHEQUEO`, `ID_GRUPO_LISTA_CHEQUEO`) VALUES ('$selectCentro','$fechaEncuesta','$nombreColaborador','$idGrupo')";
         return ejecutarConsulta_retornarID($sql);
      }
      //Implementamos un método para editar registros
@@ -47,36 +60,33 @@ class listas{
            return ejecutarConsulta($sql);
    }
 
-     public function contarRespuestas($idGrupo, $idLista){//,$fechaEncuesta,$nombreColaborador
-        /*$sql = "SELECT COUNT(detalle_grupo_lista_cheque.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO) AS npreguntas FROM detalle_grupo_lista_cheque WHERE detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = '$idLista';";//muestra 5 preguntas
-        $sql1= "SELECT COUNT(detale_lista_chequeo.RESPUTA_DETALLE_LISTA_CHEQUEO ) AS nrespuestas FROM detale_lista_chequeo WHERE detale_lista_chequeo.RESPUTA_DETALLE_LISTA_CHEQUEO != '' AND detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO=(SELECT detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO FROM detale_lista_chequeo INNER JOIN detalle_grupo_lista_cheque ON detalle_grupo_lista_cheque.ID_DETALLE_GRUPO_LISTA_CHEQUEO=detale_lista_chequeo.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO WHERE detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = '$idLista' LIMIT 1);"; //respuestas guardadas != '' 2
-        $sql = "SELECT (SELECT COUNT(detalle_grupo_lista_cheque.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO) FROM detalle_grupo_lista_cheque WHERE detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO ='$idLista') AS npreguntas,COUNT(detale_lista_chequeo.RESPUTA_DETALLE_LISTA_CHEQUEO ) AS nrespuestas FROM detale_lista_chequeo WHERE detale_lista_chequeo.RESPUTA_DETALLE_LISTA_CHEQUEO != '' AND detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO=(SELECT detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO FROM detale_lista_chequeo INNER JOIN detalle_grupo_lista_cheque ON detalle_grupo_lista_cheque.ID_DETALLE_GRUPO_LISTA_CHEQUEO=detale_lista_chequeo.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO WHERE detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = '$idLista' LIMIT 1)";
-        $sql = "SELECT grupo_lista_chequeo.CANT_PREGUNTAS_GRUPO, lista_chequeo.CANT_RESPUESTAS_LISTA FROM grupo_lista_chequeo INNER JOIN lista_chequeo ON lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idGrupo' AND lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO = '$idCentro' AND lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO LIKE '$fechaEncuesta%';";
-        */
-        $sql = "SELECT grupo_lista_chequeo.CANT_PREGUNTAS_GRUPO AS npreguntas, lista_chequeo.CANT_RESPUESTAS_LISTA AS nrespuestas FROM grupo_lista_chequeo INNER JOIN lista_chequeo ON lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idGrupo' AND lista_chequeo.ID_LISTA_CHEQUEO = $idLista";
+     //Las cuentas del avance de una lista, calculadas al momento: preguntas activas de su
+     //grupo y respuestas guardadas. Antes eran dos columnas (CANT_PREGUNTAS_GRUPO y
+     //CANT_RESPUESTAS_LISTA) que había que ir sumando a mano y se podían descuadrar
+     const SQL_NPREGUNTAS = "(SELECT COUNT(*) FROM detalle_grupo_lista_chequeo p WHERE p.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = lista_chequeo.ID_GRUPO_LISTA_CHEQUEO AND p.ESTADO = 1)";
+     const SQL_NRESPUESTAS = "(SELECT COUNT(*) FROM detalle_lista_chequeo d WHERE d.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = lista_chequeo.ID_LISTA_CHEQUEO)";
+
+     //Cuántas preguntas tiene la lista y cuántas se han respondido
+     public function contarRespuestas($idGrupo, $idLista){
+        $sql = "SELECT " . self::SQL_NPREGUNTAS . " AS npreguntas, " . self::SQL_NRESPUESTAS . " AS nrespuestas
+                  FROM lista_chequeo
+                 WHERE lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = " . intval($idGrupo) . " AND lista_chequeo.ID_LISTA_CHEQUEO = " . intval($idLista);
         return ejecutarConsulta($sql);
      }
      //Implementamos un método para editar registros
      public function editarPreguntas($id, $preguntas,$tiposRespuesta)
      {
-             $sql = "UPDATE detalle_grupo_lista_cheque SET PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO='$preguntas',TIPO_RESPUESTA='$tiposRespuesta', ESTADO='1' where 
+             $id = intval($id); //solo números en la consulta
+             $sql = "UPDATE detalle_grupo_lista_chequeo SET PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO='$preguntas',TIPO_RESPUESTA='$tiposRespuesta', ESTADO='1' where 
                  ID_DETALLE_GRUPO_LISTA_CHEQUEO=$id";
              return ejecutarConsulta($sql);
-     }
-     public function getCantRespuestas($idLista){
-        $sql = "SELECT lista_chequeo.CANT_RESPUESTAS_LISTA FROM lista_chequeo WHERE lista_chequeo.ID_LISTA_CHEQUEO = '$idLista'";
-        return ejecutarConsultaSimpleFila($sql);
-     }
-     public function insertarCantRespuestas($idLista, $setCantRespuestas){
-        $sql = "UPDATE lista_chequeo SET lista_chequeo.CANT_RESPUESTAS_LISTA = '$setCantRespuestas' WHERE lista_chequeo.ID_LISTA_CHEQUEO='$idLista'";
-        return ejecutarConsulta($sql);
      }
      //Implementamos un método para insertar ok
      public function insertarRespuesta($idLista, $idPregunta, $respuesta,$nombreColaborador)
      {
-             /*$sql = "INSERT INTO `detale_lista_chequeo`(`ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`, `ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`, `RESPUTA_DETALLE_LISTA_CHEQUEO`,`ID_COLABORADOR_DETALE_LISTA_CHEQUEO`) VALUES ( '$idLista', '$idPregunta', '$respuesta','$nombreColaborador')";
+             /*$sql = "INSERT INTO `detalle_lista_chequeo`(`ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`, `ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`, `RESPUESTA_DETALLE_LISTA_CHEQUEO`,`ID_COLABORADOR_DETALLE_LISTA_CHEQUEO`) VALUES ( '$idLista', '$idPregunta', '$respuesta','$nombreColaborador')";
              return ejecutarConsulta($sql); */
-             $sql = "INSERT INTO `detale_lista_chequeo`(`ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`, `ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`, `RESPUTA_DETALLE_LISTA_CHEQUEO`,`ID_COLABORADOR_DETALE_LISTA_CHEQUEO`)";
+             $sql = "INSERT INTO `detalle_lista_chequeo`(`ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`, `ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`, `RESPUESTA_DETALLE_LISTA_CHEQUEO`,`ID_COLABORADOR_DETALLE_LISTA_CHEQUEO`)";
 
              $values = array();
          
@@ -104,26 +114,29 @@ class listas{
              }
              
      }
+     //Guarda los cambios de una respuesta
      public function editarRespuesta($idRespuesta, $idLista, $idPregunta, $respuesta){
-        $sql = "UPDATE `detale_lista_chequeo` SET `ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`='$idLista',`ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO`='$idPregunta',`RESPUTA_DETALLE_LISTA_CHEQUEO`='$respuesta' WHERE `ID_DETALE_LISTA_CHEQUEO`='$idRespuesta'";
+        $sql = "UPDATE `detalle_lista_chequeo` SET `ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`='$idLista',`ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO`='$idPregunta',`RESPUESTA_DETALLE_LISTA_CHEQUEO`='$respuesta' WHERE `ID_DETALLE_LISTA_CHEQUEO`='$idRespuesta'";
         return ejecutarConsulta($sql);
      }
      //Implementar un método para listar los registros
      public function listarPregunta($idGrupoPreguntas)
      {
-             $sql = "SELECT detalle_grupo_lista_cheque.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_cheque` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_cheque.ID_DETALLE_GRUPO_LISTA_CHEQUEO WHERE `ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO`=$idGrupoPreguntas";
+             $sql = "SELECT detalle_grupo_lista_chequeo.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_chequeo` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_chequeo.ID_DETALLE_GRUPO_LISTA_CHEQUEO WHERE `ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO`=$idGrupoPreguntas";
              return ejecutarConsulta($sql);
      }
      //Implementar un método para listar los registros
      public function listarRespuestas($idLista)
      {
-             $sql = "SELECT lista_chequeo.ID_LISTA_CHEQUEO, lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO, centros_operacion.ID_CENTRO_OP, centros_operacion.NOM_CENTRO_OP, colaboradores.NOM_COLABORADOR, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO FROM lista_chequeo INNER JOIN centros_operacion ON lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO=centros_operacion.ID_CENTRO_OP JOIN colaboradores ON lista_chequeo.ID_COLABORADOR_LISTA_CHEQUEO = colaboradores.ID_COLABORADOR JOIN grupo_lista_chequeo ON lista_chequeo.ID_GRUPO_LISTA_CHEQUEO=grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idLista'";
+             //Trae de una vez las cuentas del avance (antes era una consulta más por cada lista)
+             $sql = "SELECT lista_chequeo.ID_LISTA_CHEQUEO, lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO, centros_operacion.ID_CENTRO_OP, centros_operacion.NOM_CENTRO_OP, colaboradores.NOM_COLABORADOR, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO, " . self::SQL_NPREGUNTAS . " AS npreguntas, " . self::SQL_NRESPUESTAS . " AS nrespuestas FROM lista_chequeo INNER JOIN centros_operacion ON lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO=centros_operacion.ID_CENTRO_OP JOIN colaboradores ON lista_chequeo.ID_COLABORADOR_LISTA_CHEQUEO = colaboradores.ID_COLABORADOR JOIN grupo_lista_chequeo ON lista_chequeo.ID_GRUPO_LISTA_CHEQUEO=grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idLista'";
              return ejecutarConsulta($sql);
      }
+     //Listas diligenciadas de un tipo en los centros indicados, con su avance
      public function listarRespPorCentro($idGrupo,$centrosoperativos){
         //$cantCentros = count($centrosoperativos);
        //var_dump($cantCentros);
-        $sql = "SELECT lista_chequeo.ID_LISTA_CHEQUEO, lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO, centros_operacion.ID_CENTRO_OP, centros_operacion.NOM_CENTRO_OP, colaboradores.NOM_COLABORADOR, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO FROM lista_chequeo INNER JOIN centros_operacion ON lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO=centros_operacion.ID_CENTRO_OP JOIN colaboradores ON lista_chequeo.ID_COLABORADOR_LISTA_CHEQUEO = colaboradores.ID_COLABORADOR JOIN grupo_lista_chequeo ON lista_chequeo.ID_GRUPO_LISTA_CHEQUEO=grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idGrupo' AND centros_operacion.ID_CENTRO_OP IN ('" . implode("','", $centrosoperativos) . "')";
+        $sql = "SELECT lista_chequeo.ID_LISTA_CHEQUEO, lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO, centros_operacion.ID_CENTRO_OP, centros_operacion.NOM_CENTRO_OP, colaboradores.NOM_COLABORADOR, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO, " . self::SQL_NPREGUNTAS . " AS npreguntas, " . self::SQL_NRESPUESTAS . " AS nrespuestas FROM lista_chequeo INNER JOIN centros_operacion ON lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO=centros_operacion.ID_CENTRO_OP JOIN colaboradores ON lista_chequeo.ID_COLABORADOR_LISTA_CHEQUEO = colaboradores.ID_COLABORADOR JOIN grupo_lista_chequeo ON lista_chequeo.ID_GRUPO_LISTA_CHEQUEO=grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idGrupo' AND centros_operacion.ID_CENTRO_OP IN ('" . implode("','", $centrosoperativos) . "')";
         return ejecutarConsulta($sql);
      }
      //Implementar un método para mostrar los datos de un registro a modificar
@@ -136,34 +149,36 @@ class listas{
      public function mostrarPreguntas($idGrupo)
 
      {
-        $sql = "SELECT detalle_grupo_lista_cheque.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_cheque` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO WHERE detalle_grupo_lista_cheque.ESTADO = 1 AND detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO='$idGrupo' ORDER BY detalle_grupo_lista_cheque.ORDEN";
+        $sql = "SELECT detalle_grupo_lista_chequeo.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_chequeo` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO WHERE detalle_grupo_lista_chequeo.ESTADO = 1 AND detalle_grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO='$idGrupo' ORDER BY detalle_grupo_lista_chequeo.ORDEN";
              return ejecutarConsulta($sql);
      }
      //metodo ok
      public function mostrarPreguntasRespuestas($idLista)
 
      {
-        $sql = "SELECT detalle_grupo_lista_cheque.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_cheque` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO JOIN lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE detalle_grupo_lista_cheque.ESTADO = 1 AND lista_chequeo.ID_LISTA_CHEQUEO ='$idLista'";
+        $sql = "SELECT detalle_grupo_lista_chequeo.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM `detalle_grupo_lista_chequeo` INNER JOIN grupo_lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = detalle_grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO JOIN lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE detalle_grupo_lista_chequeo.ESTADO = 1 AND lista_chequeo.ID_LISTA_CHEQUEO ='$idLista'";
              return ejecutarConsulta($sql);
      }
      //metodo ok
      public function mostrarPreguntasIniciadas($idGrupo, $idCentro, $fechaEncuesta)
      {        
-        $sql = "SELECT detalle_grupo_lista_cheque.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM detalle_grupo_lista_cheque INNER JOIN grupo_lista_chequeo ON detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO=grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO JOIN lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO=lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = '$idGrupo' AND lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO LIKE '$fechaEncuesta%' AND lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO='$idCentro'";
+        $sql = "SELECT detalle_grupo_lista_chequeo.*, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO AS lista FROM detalle_grupo_lista_chequeo INNER JOIN grupo_lista_chequeo ON detalle_grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO=grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO JOIN lista_chequeo ON grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO=lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO = '$idGrupo' AND lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO LIKE '$fechaEncuesta%' AND lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO='$idCentro'";
         return ejecutarConsulta($sql);
      }
      //metodo ok
      public function mostrarRespuestas($idLista)
      {
-             $sql = "SELECT detale_lista_chequeo.*, lista_chequeo.*, centros_operacion.NOM_CENTRO_OP FROM detale_lista_chequeo INNER JOIN lista_chequeo ON detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO = lista_chequeo.ID_LISTA_CHEQUEO JOIN centros_operacion ON centros_operacion.ID_CENTRO_OP = lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO WHERE detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO ='$idLista'";
+             $sql = "SELECT detalle_lista_chequeo.*, lista_chequeo.*, centros_operacion.NOM_CENTRO_OP FROM detalle_lista_chequeo INNER JOIN lista_chequeo ON detalle_lista_chequeo.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = lista_chequeo.ID_LISTA_CHEQUEO JOIN centros_operacion ON centros_operacion.ID_CENTRO_OP = lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO WHERE detalle_lista_chequeo.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO ='$idLista'";
              return ejecutarConsulta($sql);
      }
      //Implementamos un método para editar reasignar contraseña
      public function anular($id)
      {
-             $sql = "UPDATE detalle_grupo_lista_cheque SET ESTADO=0 WHERE ID_DETALLE_GRUPO_LISTA_CHEQUEO=$id";
+             $id = intval($id); //solo números en la consulta
+             $sql = "UPDATE detalle_grupo_lista_chequeo SET ESTADO=0 WHERE ID_DETALLE_GRUPO_LISTA_CHEQUEO=$id";
              return ejecutarConsulta($sql);
      }
+     //Colaboradores activos para el buscador
      public function selectColaborador($search_term)
      {
              if ($search_term === 0) {
@@ -174,6 +189,7 @@ class listas{
              return ejecutarConsulta($sql);
              
      }
+     //Centros activos para el buscador
      public function selectCentro($search_term)
      {
              if ($search_term === 0) {
@@ -188,7 +204,7 @@ class listas{
      //Antes se ofrecian todos los centros activos: alguien podia diligenciar una lista en un
      //centro que no le corresponde y despues no la veia en "Mostrar respuestas", porque ese
      //listado si filtra por los centros asignados
-     public function selectCentroUsuario($search_term, $idUsuario)
+     public function selectCentroUsuario($search_term, $idUsuario, $todos = false) //$todos: el ADMIN TEC ve todos los centros
      {
              $idUsuario = intval($idUsuario); //solo numero, nunca texto del usuario
              $filtro = "";
@@ -207,13 +223,14 @@ class listas{
                           OR centros_operacion.ID_PROYECTO_CENTRO_OP IN (SELECT p.ID_PROYECTO FROM proyectos p
                                  INNER JOIN usuarios_sistema u ON u.ID_COLABORADOR_USUARIOS_SISTEMA = p.ID_COLABORADOR_COORDINADOR
                                  WHERE u.ID_USUARIO_SISTEMA = $idUsuario AND p.Estado = '1')
-                          OR " . (HanaDB::adminVeTodo(isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0) ? "1 = 1" : "1 = 0") . ")
+                          OR " . ($todos ? "1 = 1" : "1 = 0") . ")
                        AND centros_operacion.Estado = '1'
                        $filtro
                      ORDER BY centros_operacion.NOM_CENTRO_OP ASC";
              return ejecutarConsulta($sql);
      }
 
+        //Un centro activo por su id
         public function selectCentroId($search_term)
         {
                 $sql = "SELECT * FROM centros_operacion WHERE ID_CENTRO_OP = $search_term AND Estado= '1' ORDER BY NOM_CENTRO_OP ASC";
@@ -222,12 +239,15 @@ class listas{
 	
 	   
 	
+	    //Preguntas de la lista que tienen título de novedad (las que pueden generar una novedad)
 	    public function preguntasnovedad($idgrupo)
         {
-                $sql = "SELECT detalle_grupo_lista_cheque.ID_DETALLE_GRUPO_LISTA_CHEQUEO,  detalle_grupo_lista_cheque.TITULO_NOVEDAD,detalle_grupo_lista_cheque.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO FROM detalle_grupo_lista_cheque  WHERE detalle_grupo_lista_cheque.GENERA_NOVEDAD=1 and detalle_grupo_lista_cheque.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO=$idgrupo and detalle_grupo_lista_cheque.ESTADO=1";
+                $idgrupo = intval($idgrupo); //solo números en la consulta
+                $sql = "SELECT detalle_grupo_lista_chequeo.ID_DETALLE_GRUPO_LISTA_CHEQUEO,  detalle_grupo_lista_chequeo.TITULO_NOVEDAD,detalle_grupo_lista_chequeo.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO FROM detalle_grupo_lista_chequeo  WHERE detalle_grupo_lista_chequeo.TITULO_NOVEDAD IS NOT NULL and detalle_grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO=$idgrupo and detalle_grupo_lista_chequeo.ESTADO=1";
                 return ejecutarConsulta($sql);
         }
 	
+	     //Crea la novedad que sale de una respuesta de la lista de chequeo
 	     public function insertarNovedad($fechacreacion,$colaboraador,$centroopertivo,$asignado,$observador,$titulo,$descripcion,$validez,$relevancia,$fechalimite)
         {
                 $sql = "INSERT INTO novedades_hallazgos(FEC_CREACION_NOVEDADES_HALLAZGOS,ID_COLABORADOR_NOVEDADES_HALLAZGOS,ID_CENTRO_OP_NOVEDADES_HALLAZGOS,ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS,ID_OBSERVADOR_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,ID_TITULO_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,DESCR_NOVEDADES_HALLAZGOS,VALIDEZ_NOVEDADES_HALLAZGOS,ID_ESTADO_RELEVANCIA_NOVEDADES_HALLAZGOS,FECHA_LIMITE_NOVEDAD,ESTADO_NOVEDAD)
@@ -245,6 +265,7 @@ class listas{
                 return $f ? $id : 2;
         }
 
+        //El observador que se pone a las novedades automáticas (se toma de Parámetros)
         public function observadorAutomatico()
         {
                 $id = HanaConfig::num('NOV_AUTO_OBSERVADOR', 2);
@@ -260,15 +281,17 @@ class listas{
         }
 	
 	
+	       //Centro y tipo de lista de una respuesta
 	       public function getCentro($centro)
         {
-                $sql = "SELECT centros_operacion.ID_CENTRO_OP,lista_chequeo.ID_GRUPO_LISTA_CHEQUEO from detale_lista_chequeo INNER JOIN lista_chequeo on lista_chequeo.ID_LISTA_CHEQUEO=detale_lista_chequeo.ID_LISTA_CHEQUEO_DETALE_LISTA_CHEQUEO INNER JOIN centros_operacion on centros_operacion.ID_CENTRO_OP=lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO WHERE detale_lista_chequeo.ID_DETALE_LISTA_CHEQUEO=$centro";
+                $centro = intval($centro); //solo números en la consulta
+                $sql = "SELECT centros_operacion.ID_CENTRO_OP,lista_chequeo.ID_GRUPO_LISTA_CHEQUEO from detalle_lista_chequeo INNER JOIN lista_chequeo on lista_chequeo.ID_LISTA_CHEQUEO=detalle_lista_chequeo.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO INNER JOIN centros_operacion on centros_operacion.ID_CENTRO_OP=lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO WHERE detalle_lista_chequeo.ID_DETALLE_LISTA_CHEQUEO=$centro";
                 return ejecutarConsultaSimpleFila($sql);
         }
 	
         //¿Este centro está asignado a este usuario? Así nadie mueve una lista a
         //un peaje ajeno modificando el formulario
-        public function centroAsignado($idUsuario, $idCentro)
+        public function centroAsignado($idUsuario, $idCentro, $todos = false)
         {
                 $idUsuario = intval($idUsuario);
                 $idCentro  = intval($idCentro);
@@ -280,8 +303,21 @@ class listas{
                           OR centros_operacion.ID_PROYECTO_CENTRO_OP IN (SELECT p.ID_PROYECTO FROM proyectos p
                                  INNER JOIN usuarios_sistema u ON u.ID_COLABORADOR_USUARIOS_SISTEMA = p.ID_COLABORADOR_COORDINADOR
                                  WHERE u.ID_USUARIO_SISTEMA = $idUsuario AND p.Estado = '1')
-                          OR " . (HanaDB::adminVeTodo(isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0) ? "1 = 1" : "1 = 0") . ") LIMIT 1";
+                          OR " . ($todos ? "1 = 1" : "1 = 0") . ") LIMIT 1";
                 return (bool)ejecutarConsultaSimpleFila($sql);
+        }
+
+        //La fecha de una lista y quién la llenó (por el id de la lista o de una de sus respuestas).
+        //Devuelve array('F' => fecha, 'DUENO' => id del colaborador) o null
+        public function fechaYDueno($idLista, $idRespuesta)
+        {
+                require_once __DIR__ . '/HanaDB.php';
+                if ((int)$idLista > 0) {
+                        return HanaDB::fila("SELECT FEC_REGISTRO_LISTA_CHEQUEO AS F, ID_COLABORADOR_LISTA_CHEQUEO AS DUENO FROM lista_chequeo WHERE ID_LISTA_CHEQUEO = ?", 'i', array((int)$idLista));
+                }
+                return HanaDB::fila("SELECT l.FEC_REGISTRO_LISTA_CHEQUEO AS F, l.ID_COLABORADOR_LISTA_CHEQUEO AS DUENO FROM detalle_lista_chequeo d
+                                       INNER JOIN lista_chequeo l ON l.ID_LISTA_CHEQUEO = d.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO
+                                      WHERE d.ID_DETALLE_LISTA_CHEQUEO = ?", 'i', array((int)$idRespuesta));
         }
 
         //¿Hay OTRA lista del mismo grupo, en ese centro, el mismo día que esta?
@@ -309,8 +345,10 @@ class listas{
                 return ejecutarConsulta($sql);
         }
 
+	       //Centro y tipo de lista de una lista diligenciada
 	       public function getCentro2($centro)
         {
+                $centro = intval($centro); //solo números en la consulta
                 $sql = "SELECT lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO, lista_chequeo.ID_GRUPO_LISTA_CHEQUEO from lista_chequeo WHERE lista_chequeo.ID_LISTA_CHEQUEO=$centro";
                 return ejecutarConsultaSimpleFila($sql);
         }

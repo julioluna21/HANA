@@ -1,4 +1,15 @@
 <?php
+/*
+  Archivo viejo del sistema original: ninguna pantalla lo usa. La versión vigente es PreguntasListasControl.php.
+  No revisaba la sesión ni los permisos, así que ahora responde "ya no existe" (410) y no
+  ejecuta nada. El código original se conserva debajo, sin cambios.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
 session_start();
 require_once "../Modelo/PreguntasListasModelo.php";
 $Preguntas = new preguntas();

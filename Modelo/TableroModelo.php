@@ -1,10 +1,10 @@
 <?php
 /*
-  HANA — Tablero del reporte diario (Fase 2)
+  HANA - Tablero del reporte diario
   ---------------------------------------------------------------------------
   Tres niveles: proyectos -> centros de cada proyecto -> el reporte de una
   persona en un día. Qué ve cada quien sale de la jerarquía:
-    - Con el permiso 20M (jefe mayor): todos los proyectos.
+    - Con el permiso 20M (gerente de operaciones): todos los proyectos.
     - El coordinador de un proyecto: ese proyecto completo.
     - El jefe de un centro: ese centro, dentro de su proyecto.
 */
@@ -42,6 +42,7 @@ class Tablero
         return $a;
     }
 
+    //Arma los signos de pregunta (?, ?, ?) para un IN con varios ids
     private function marcas($ids) { return implode(',', array_fill(0, count($ids), '?')); }
 
     //-----------------------------------------------------------------------
@@ -83,7 +84,7 @@ class Tablero
                                (SELECT COUNT(*) FROM lista_chequeo l WHERE l.ID_COLABORADOR_LISTA_CHEQUEO = p.ID_COLABORADOR_COORDINADOR
                                         AND l.FEC_REGISTRO_LISTA_CHEQUEO >= ? AND l.FEC_REGISTRO_LISTA_CHEQUEO < ?) AS COORD_LISTAS,
                                (SELECT COUNT(*) FROM bitacora_sistema b WHERE b.TIPO = 'REVISION' AND b.MODULO = 'CRONOGRAMA'
-                                        AND b.QUIEN = CONCAT(p.ID_COLABORADOR_COORDINADOR)
+                                        AND b.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR
                                         AND b.FECHA >= ? AND b.FECHA < ?) AS COORD_REVISO,
                                (SELECT COUNT(*) FROM comunicacion m WHERE m.ID_PROYECTO = p.ID_PROYECTO AND m.ESTADO = 1
                                         AND m.FECHA_ATENCION IS NULL) AS COMUNICACIONES
@@ -103,7 +104,7 @@ class Tablero
     {
         $col = HanaDB::fila("SELECT c.ID_COLABORADOR, c.NOM_COLABORADOR, g.NOM_CARGO_COLABORADORES AS CARGO
                                FROM colaboradores c
-                               LEFT JOIN cargos_colaboladores g ON g.ID_CARGO_COLABORADORES = c.ID_CARGO_COLABORADORES_COLABORADORES
+                               LEFT JOIN cargos_colaboradores g ON g.ID_CARGO_COLABORADORES = c.ID_CARGO_COLABORADORES_COLABORADORES
                               WHERE c.ID_COLABORADOR = ?", 'i', array((int)$idColaborador));
         if (!$col) { return null; }
         $sig = date('Y-m-d', strtotime("$fecha +1 day"));
@@ -120,7 +121,7 @@ class Tablero
 
         $C = new Cronograma();
         $listas = HanaDB::q("SELECT l.ID_LISTA_CHEQUEO, l.FEC_REGISTRO_LISTA_CHEQUEO AS FECHA, g.NOM_GRUPO_LISTA_CHEQUEO AS LISTA,
-                                    c.NOM_CENTRO_OP, l.CANT_RESPUESTAS_LISTA AS RESPUESTAS
+                                    c.NOM_CENTRO_OP, (SELECT COUNT(*) FROM detalle_lista_chequeo d WHERE d.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = l.ID_LISTA_CHEQUEO) AS RESPUESTAS
                                FROM lista_chequeo l
                                INNER JOIN grupo_lista_chequeo g ON g.ID_GRUPO_LISTA_CHEQUEO = l.ID_GRUPO_LISTA_CHEQUEO
                                INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = l.ID_CENTRO_OP_LISTA_CHEQUEO

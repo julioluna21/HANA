@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Estados de prioridad
+  ---------------------------------------------------------------------------
+  Pantalla de las prioridades de las novedades (alta, media, baja...) y los días para atenderlas.
+  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/EstadoAjax.js
+  y los datos los entrega Control/EstadoControl.php.
+  Permiso: 8M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
@@ -62,7 +70,7 @@ include('head.php');
              </div>
             <!-- Listado Registros-->
 
-            <!-- centro listado de articulos-->
+            <!-- tabla con el listado de registros -->
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">

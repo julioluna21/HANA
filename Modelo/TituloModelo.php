@@ -1,4 +1,10 @@
 <?php
+/*
+  HANA - Títulos de novedades (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla titulo_novedades_hallazgos.
+  Lo usa Control/TituloControl.php.
+*/
 require "../Conexion/ConexionDB.php";
 class Titulo
 {
@@ -37,11 +43,13 @@ class Titulo
                 $sql = "SELECT * FROM titulo_novedades_hallazgos WHERE ESTADO=1";
                 return ejecutarConsulta($sql);
         }
+        //Desactiva un título de novedad (no se borra)
         public function desactivar($IDETITULO)
         {
                 $sql = "UPDATE titulo_novedades_hallazgos SET ESTADO=0 WHERE ID_TITULO_NOVEDADES_HALLAZGOS=$IDETITULO";
                 return ejecutarConsulta($sql);
         }
+        //Vuelve a activar un título de novedad
         public function activar($IDETITULO)
         {
                $sql = "UPDATE titulo_novedades_hallazgos SET ESTADO=1 WHERE ID_TITULO_NOVEDADES_HALLAZGOS=$IDETITULO";

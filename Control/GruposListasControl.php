@@ -1,4 +1,13 @@
 <?php
+/*
+  HANA - Listas de chequeo (los tipos de lista) (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/GruposListasnAjax.js y Ajax/Editarpreguntasajax.js y responde con lo que
+  trae el modelo (Modelo/GruposListasModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, mostrar, mostrarPreguntas, anular, select y listar.
+  Permiso: 12M para cambiarlas; con 11M solo se consultan.
+*/
 session_start();
 require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
 hanaGuardia(array('12M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M')); //Cambiar listas: 12M; verlas: 11M o 12M
@@ -12,6 +21,7 @@ $nombreLista = isset($_POST["nombre"])? limpiarCadena($_POST['nombre']):'';
 //$preguntasRespuestas = isset($_POST["preguntasRespuestas"])?$_POST["preguntasRespuestas"]:'';
 
 switch ($_GET["op"]) {
+  //Crea una lista de chequeo nueva o le cambia el nombre a una existente
   case 'guardar':
     try {
       if (empty($idLista)) {
@@ -27,6 +37,7 @@ switch ($_GET["op"]) {
     }  
     break;
   
+  //Trae una lista de chequeo para cargarla en el formulario
   case 'mostrar':
     try {
       $rspta=$Grupos->mostrar($idLista);
@@ -56,6 +67,7 @@ switch ($_GET["op"]) {
     $rspta=$Grupos->anular($idLista);
     $rspta? http_response_code(200):http_response_code(400);
     break;
+  //Opciones del buscador de listas de chequeo (filtra por lo que se escriba)
   case 'select':
       $search_term = isset($_GET['search'])?$_GET['search']:'0';
       try {
@@ -74,6 +86,7 @@ switch ($_GET["op"]) {
         echo json_encode($th);
       }
     break;
+  //Todas las listas activas para la tabla
   case 'listar':
     try {
       $rspta= $Grupos->listar();

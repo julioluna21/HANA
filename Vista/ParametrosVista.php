@@ -1,5 +1,5 @@
 <?php
-//Configuración — Parámetros del sistema
+//Configuración - Parámetros del sistema
 //Las decisiones del negocio que se cambian sin tocar el código. Permiso 24M
 session_start();
 
@@ -8,7 +8,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("24M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -20,7 +20,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         </div>
         <div class="x_content">
           <p class="rd-intro">Las decisiones del negocio se cambian aquí, sin tocar el código. Quién puede hacer qué se define en
-            <a href="RolesVista.php">Roles</a> (por ejemplo: quién aprueba RQ, quién consulta todos los proyectos).</p>
+            <a href="RolesVista.php">Permisos de usuario</a> (por ejemplo: quién aprueba RQ, quién consulta todos los proyectos).</p>
 
           <ul class="nav nav-tabs cd-pestanas" role="tablist">
             <li class="active"><a href="#tabPar" data-toggle="tab">Parámetros</a></li>
@@ -72,7 +72,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <button type="button" class="btn btn-success btn-sm" data-nuevo="cargo"><i class="fa fa-plus"></i> Nuevo cargo</button>
             </div>
             <div class="tab-pane" id="tabNovedades">
-              <p class="rd-ayuda" style="margin-top:0;">Las filas de cada bloque. Las que "no son ausencia" (como cubre recolector) no suman en las ausencias diarias.
+              <p class="rd-ayuda" style="margin-top:0;">Las filas de cada bloque. Los motivos CUBRIENDO A… cuentan como ausencia del cargo de quien cubre. Si un motivo se marca como "no es ausencia", se ve en su fila pero no suma en las ausencias diarias.
                 Si una novedad es solo de un cargo, sale únicamente en ese bloque.</p>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>Orden</th><th>Novedad</th><th>¿Es ausencia?</th><th>Solo en el cargo</th><th>Activa</th><th></th></tr></thead>
@@ -107,7 +107,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
 <script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=4"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }

@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Ausentismo (Fase 3)
+  HANA - Ausentismo (Fase 3)
   ---------------------------------------------------------------------------
   El "Reporte nacional de ausentismo" dentro de HANA. Cada hoja del Excel es un
   centro (peaje o báscula); cada bloque, un cargo; cada fila, una novedad; cada
@@ -19,19 +19,40 @@ class Ausentismo
         return $f ? $f : array();
     }
 
+    //¿Este cargo se usa en este tipo de centro? (peaje, báscula o ambos)
     public static function cargoAplica($cargo, $tipoCentro)
     {
         $tipo = $tipoCentro === 'BASCULA' ? 'BASCULA' : 'PEAJE';
         return $cargo['APLICA'] === 'AMBOS' || $cargo['APLICA'] === $tipo;
     }
 
-    //Novedades activas (con el cargo al que se limitan, si es el caso)
+    //Novedades (motivos) activas, con el cargo al que se limitan si es el caso. Son las que se pueden escoger
     public function novedades()
     {
-        $f = HanaDB::q("SELECT ID_NOVEDAD_AUS, NOMBRE, CUENTA_AUSENCIA, ID_CARGO_AUS, ORDEN FROM aus_novedad WHERE ESTADO = 1 ORDER BY ORDEN, NOMBRE");
+        $f = HanaDB::q("SELECT ID_NOVEDAD_AUS, NOMBRE, CUENTA_AUSENCIA, ID_CARGO_AUS, ORDEN, ESTADO FROM aus_novedad WHERE ESTADO = 1 ORDER BY ORDEN, NOMBRE");
         return $f ? $f : array();
     }
 
+    //Todas, también las que ya no se usan (ESTADO 0): la pantalla las muestra solo en los meses que tienen datos con ellas
+    public function todasNovedades()
+    {
+        $f = HanaDB::q("SELECT ID_NOVEDAD_AUS, NOMBRE, CUENTA_AUSENCIA, ID_CARGO_AUS, ORDEN, ESTADO FROM aus_novedad ORDER BY ESTADO DESC, ORDEN, NOMBRE");
+        return $f ? $f : array();
+    }
+
+    //Las de un mes: las activas y las que ya no se usan pero tienen ausencias registradas ese mes.
+    //Así los meses de antes (consolidado, Excel) se siguen viendo con los motivos con que se registraron
+    public function novedadesDelMes($anio, $mes)
+    {
+        list($desde, $hasta) = self::rango($anio, $mes);
+        $f = HanaDB::q("SELECT n.ID_NOVEDAD_AUS, n.NOMBRE, n.CUENTA_AUSENCIA, n.ID_CARGO_AUS, n.ORDEN, n.ESTADO FROM aus_novedad n
+                         WHERE n.ESTADO = 1
+                            OR EXISTS (SELECT 1 FROM aus_registro r WHERE r.ID_NOVEDAD_AUS = n.ID_NOVEDAD_AUS AND r.FECHA >= ? AND r.FECHA < ?)
+                         ORDER BY n.ESTADO DESC, n.ORDEN, n.NOMBRE", 'ss', array($desde, $hasta));
+        return $f ? $f : array();
+    }
+
+    //Primer día del mes y primer día del mes siguiente, para filtrar por fechas
     private static function rango($anio, $mes)
     {
         $desde = sprintf('%04d-%02d-01', $anio, $mes);
@@ -109,6 +130,7 @@ class Ausentismo
                               WHERE c.ID_PROYECTO = ? AND c.ANIO = ? AND c.MES = ?", 'iii', array((int)$idProyecto, (int)$anio, (int)$mes));
     }
 
+    //Cierra o reabre el mes de un proyecto (si ya había registro, lo actualiza)
     public function marcarCierre($idProyecto, $anio, $mes, $cerrado, $idColaborador, $ahora)
     {
         return HanaDB::q("INSERT INTO aus_cierre (ID_PROYECTO, ANIO, MES, CERRADO, ID_COLABORADOR, FEC_MODIFICACION) VALUES (?, ?, ?, ?, ?, ?)

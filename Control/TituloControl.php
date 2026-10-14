@@ -1,9 +1,18 @@
 <?php
+/*
+  HANA - Títulos de las novedades (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/TituloAjax.js y responde con lo que
+  trae el modelo (Modelo/TituloModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, mostrar, anular, activar, select y listar.
+  Permiso: 7M. El desplegable (select) también lo usan Novedades y Listas.
+*/
 session_start();//inicia la session, permite guardar variables de sesion
 require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
 hanaGuardia(array('7M'), array('select')); //Títulos: 7M. El selector lo usan novedades y listas
 require_once "../Modelo/TituloModelo.php";//Utilizará este archivo
-$Titulo=new Titulo();//crea un nuevo articulo
+$Titulo=new Titulo();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idestitulo=isset($_POST["idtitulo"])? limpiarCadena($_POST["idtitulo"]):"";
 $nombreestado=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
@@ -26,18 +35,21 @@ switch ($_GET["op"])
                 }
                             
             break;
+            //Trae un título de novedad para cargarlo en el formulario
             case 'mostrar':
        
                     $rspta=$Titulo->mostrar($idestitulo);
                     //Codificar el resultado utilizando json
                     echo json_encode($rspta);
             break;
+            //Desactiva un título de novedad
             case 'anular':
                        $rspta=$Titulo->desactivar($idestitulo);
                         echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
+             //Vuelve a activar un título de novedad
              case 'activar':
                    
                         $rspta=$Titulo->activar($idestitulo);
@@ -46,6 +58,7 @@ switch ($_GET["op"])
             break;
         
         
+            //Arma las opciones del desplegable de títulos de novedad
             case 'select':
             $rspta=$Titulo->select();
             echo "<option value=''>Seleccione Titulo...</option>";
@@ -60,10 +73,10 @@ switch ($_GET["op"])
    
         
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://lo pide la tabla de la pantalla al cargar
         
         
-                    $rspta=$Titulo->listar();//Carga la rspta con lista de articulos
+                    $rspta=$Titulo->listar();//trae los registros para la tabla
                     //Vamos a declarar un array
                     $data= Array();
         

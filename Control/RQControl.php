@@ -1,8 +1,8 @@
 <?php
 //Controlador del módulo de Requisiciones (RQ)
-//Fase 1 (24 de septiembre): dos tipos (normal y urgente), flujo de un solo paso
-//(Solicitada -> Aprobada o Rechazada), permiso 18M para aprobar, filtro por
-//periodo y sin novedades: las RQ ya no generan novedades
+//Dos tipos (normal y urgente), flujo de un solo paso (Solicitada -> Aprobada
+//o Rechazada), permiso 18M para aprobar y filtro por periodo. Las RQ no
+//generan novedades
 session_start();
 require_once __DIR__ . "/../Modelo/RQModelo.php";
 require_once __DIR__ . "/AccesoHelper.php"; //quién puede ver qué: la misma regla de novedades y campana
@@ -11,7 +11,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 //---------------------------------------------------------------------------
 // Sin sesión, o sin ningún permiso de RQ, no se atiende nada.
-// Entran: pedir RQ (15M), ver todas (17M) o aprobar (18M). Crear una nueva exige 15M
+// Entran: ver las propias (15M), ver todas (17M), aprobar (18M) o pedir (41M). Crear una nueva exige 41M
 //---------------------------------------------------------------------------
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) {
     http_response_code(401);
@@ -19,17 +19,19 @@ if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) {
     exit;
 }
 $modulos = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
-//Quién pide RQ: con RQ_SOLO_COORDINADOR encendido (lo normal), solo quien coordina un proyecto;
-//si se apaga en Parámetros del sistema, cualquiera con la casilla 15M
+//Quién pide RQ: quien tenga la casilla 41M (Pedir RQ) en su rol, en sus peajes: los que tiene
+//asignados en Usuarios, los de los que es jefe y los de los proyectos que coordina.
+//Con 24M (ADMIN TEC) pide, corrige y anula en todos los peajes
 require_once __DIR__ . "/../Modelo/HanaConfig.php";
-$soloCoordinador = HanaConfig::si('RQ_SOLO_COORDINADOR', true);
-$coordinaRq = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
-if (!array_intersect(array('15M', '17M', '18M'), $modulos) && !$coordinaRq) {
+$todoRq = in_array('24M', $modulos, true);
+if (!array_intersect(array('15M', '17M', '18M', '41M'), $modulos)) {
     http_response_code(403);
     echo json_encode(array('error' => 'No tienes permiso para el módulo de requisiciones.'));
     exit;
 }
-$puedePedir = $soloCoordinador ? $coordinaRq : in_array('15M', $modulos, true);
+$puedePedir = in_array(PERMISO_PEDIR_RQ, $modulos, true);
+//Cuántas veces se puede corregir y reenviar una RQ rechazada (Parámetros del sistema)
+$maxReintentos = HanaConfig::num('RQ_MAX_REINTENTOS', 3);
 
 $idUsuario     = (int)$_SESSION['IdUsuarios'];
 $idColaborador = (int)$_SESSION['Idcolaborador'];
@@ -70,6 +72,7 @@ function hanaFilas($rspta)
     }
     return $filas;
 }
+//Devuelve los textos de una fila sin entidades HTML (por ejemplo &amp; vuelve a ser &)
 function hanaFila($fila)
 {
     if (!$fila) { return null; }
@@ -92,20 +95,23 @@ function hanaEtiquetaRQ($tipo, $numero)
 }
 
 //Qué puede hacer este usuario con una RQ concreta
-//  Solo quien subió la RQ la modifica. Quien aprueba (18M)
-//  la aprueba o la rechaza, pero no cambia su contenido ni la anula.
-//  Anular:   mientras esté en "Solicitada", solo quien la pidió
-//  Editar:   en "Solicitada" o "Rechazada", solo quien la pidió
+//  Quien subió la RQ la modifica. Quien aprueba (18M) la aprueba o la rechaza,
+//  pero no cambia su contenido ni la anula. El ADMIN TEC (24M) puede todo.
+//  Anular:   mientras esté en "Solicitada", quien la pidió o el ADMIN TEC
+//  Editar:   en "Solicitada" o "Rechazada", quien la pidió o el ADMIN TEC
 //            (si estaba rechazada, al corregirla vuelve a "Solicitada")
-function hanaAccionesRQ($cab, $idColaborador, $puedeAprobar)
+//  Reintentos: una RQ rechazada se reenvía máximo $maxReintentos veces; después queda rechazada
+function hanaAccionesRQ($cab, $idColaborador, $puedeAprobar, $maxReintentos)
 {
+    global $todoRq;
     $estado     = (int)$cab['ID_RQ_ESTADO'];
     $activa     = $estado !== RqEstado::ANULADA;
-    $esQuienPide = (int)$cab['ID_COLABORADOR_SOLICITA'] === (int)$idColaborador;
+    $esQuienPide = (int)$cab['ID_COLABORADOR_SOLICITA'] === (int)$idColaborador || !empty($todoRq);
+    $quedan     = (int)$cab['REINTENTOS'] < (int)$maxReintentos; //todavía puede reenviarse
     return array(
         'anular'    => $activa && $estado === RqEstado::SOLICITADA && $esQuienPide,
-        'editar'    => $activa && $esQuienPide && ($estado === RqEstado::SOLICITADA || $estado === RqEstado::RECHAZADA),
-        'retrocede' => $activa && $estado === RqEstado::RECHAZADA
+        'editar'    => $activa && $esQuienPide && ($estado === RqEstado::SOLICITADA || ($estado === RqEstado::RECHAZADA && $quedan)),
+        'retrocede' => $activa && $estado === RqEstado::RECHAZADA && $quedan
     );
 }
 
@@ -156,7 +162,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //Los peajes del usuario, para el formulario y los filtros
     case 'centros':
         //Quien pide ve los peajes donde puede pedir; quien solo consulta o aprueba, los suyos (para los filtros)
-        echo json_encode(hanaFilas($Rq->centrosUsuario($idUsuario, $puedePedir && $soloCoordinador)), JSON_UNESCAPED_UNICODE);
+        echo json_encode(hanaFilas($Rq->centrosUsuario($idUsuario, $todoRq)), JSON_UNESCAPED_UNICODE);
         break;
 
     //Lo que la pantalla necesita saber al abrir: si ve todas, si aprueba y
@@ -175,7 +181,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     //El número que le tocaría a la próxima RQ de un peaje
     case 'siguienteNumero':
-        $idProyecto = $Rq->proyectoDeCentro($idUsuario, isset($_GET['centro']) ? $_GET['centro'] : 0, $soloCoordinador);
+        $idProyecto = $Rq->proyectoDeCentro($idUsuario, isset($_GET['centro']) ? $_GET['centro'] : 0, $todoRq);
         if (!$idProyecto) { hanaError(400, 'Ese peaje no está asignado a tu usuario.'); }
         echo json_encode(array('numero' => $Rq->siguienteNumero($idProyecto)));
         break;
@@ -201,7 +207,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $archivos = hanaFilas($Rq->soportes($idRq));
         foreach ($archivos as $i => $a) { $archivos[$i]['URL'] = RUTA_WEB_RQ . $a['RUTA']; }
 
-        $acc = hanaAccionesRQ($cab, $idColaborador, $puedeAprobar);
+        $acc = hanaAccionesRQ($cab, $idColaborador, $puedeAprobar, $maxReintentos);
         echo json_encode(array(
             'rq'          => $cab,
             'items'       => hanaFilas($Rq->detalle($idRq)),
@@ -211,7 +217,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'siguientes'  => $Rq->estadosPermitidos($cab['ID_RQ_ESTADO'], $puedeAprobar),
             'puedeEditar' => $acc['editar'],
             'puedeAnular' => $acc['anular'],
-            'retrocede'   => $acc['retrocede']
+            'retrocede'   => $acc['retrocede'],
+            //Reintentos usados y el máximo: la pantalla avisa cuando ya no se puede reenviar
+            'reintentos'    => (int)$cab['REINTENTOS'],
+            'maxReintentos' => $maxReintentos
         ), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -219,10 +228,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     // Crear una RQ
     //-----------------------------------------------------------------------
     case 'guardar':
-        if (!$puedePedir) { hanaError(403, $soloCoordinador ? 'Las RQ las pide solo el coordinador del proyecto.' : 'Pedir RQ necesita la casilla 15M (Requisiciones) en tu rol.'); }
+        if (!$puedePedir) { hanaError(403, 'Pedir RQ necesita la casilla 41M (Pedir RQ) en tus permisos de usuario.'); }
         $idCentro = isset($_POST['centro']) ? intval($_POST['centro']) : 0;
-        $idProyecto = $Rq->proyectoDeCentro($idUsuario, $idCentro, $soloCoordinador);
-        if (!$idProyecto) { hanaError(400, $soloCoordinador ? 'Elige un peaje de un proyecto que coordines.' : 'Elige un peaje de los que tienes asignados.'); }
+        $idProyecto = $Rq->proyectoDeCentro($idUsuario, $idCentro, $todoRq);
+        if (!$idProyecto) { hanaError(400, 'Elige uno de tus peajes: los asignados en Usuarios, de los que eres jefe o de los proyectos que coordinas.'); }
 
         //Fecha: la que se escriba, si es válida y no es futura; si no, hoy
         $fecha = isset($_POST['fecha']) ? trim($_POST['fecha']) : '';
@@ -266,7 +275,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         }
         if (count($items) === 0) { hanaError(400, 'Agrega al menos un ítem con su descripción.'); }
 
-        //Normal o urgente. Ya no se elige rol a notificar: la RQ le llega a
+        //Normal o urgente. No se elige a quién avisar: la RQ le llega a
         //quien tenga el permiso de aprobar
         $tipo        = hanaTipoRQ(isset($_POST['tipo']) ? $_POST['tipo'] : 'N');
         $observacion = isset($_POST['sst']) ? $_POST['sst'] : '';
@@ -361,10 +370,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     //-----------------------------------------------------------------------
     // Editar
-    //   - En "Solicitada": la corrige quien la pidió o quien aprueba.
-    //   - En "Rechazada": quien la pidió la corrige y vuelve a "Solicitada",
-    //     para que se apruebe de nuevo.
-    //   - Aprobada o anulada: ya no se edita.
+    //   - En "Solicitada": la corrige quien la pidió (o el ADMIN TEC).
+    //   - En "Rechazada": quien la pidió (o el ADMIN TEC) la corrige y vuelve
+    //     a "Solicitada", para que se apruebe de nuevo.
+    //   - Aprobada o anulada: no se edita.
     //-----------------------------------------------------------------------
     case 'editar':
         $idRq   = isset($_POST['id']) ? intval($_POST['id']) : 0;
@@ -372,8 +381,14 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         $cab = $Rq->mostrar(hanaCondRQ('todas'), $idRq);
         if (!$cab) { hanaError(404, 'No se encontró la RQ, o no tienes permiso para verla.'); }
-        $acc = hanaAccionesRQ($cab, $idColaborador, $puedeAprobar);
-        if (!$acc['editar']) { hanaError(403, 'Esta RQ solo la puede modificar quien la subió, mientras esté pendiente o rechazada.'); }
+        $acc = hanaAccionesRQ($cab, $idColaborador, $puedeAprobar, $maxReintentos);
+        //Rechazada y sin reintentos: no se puede reenviar (lo revisa el servidor, no solo la pantalla)
+        if ((int)$cab['ID_RQ_ESTADO'] === RqEstado::RECHAZADA && !$acc['retrocede']
+            && ((int)$cab['ID_COLABORADOR_SOLICITA'] === $idColaborador || $todoRq)) {
+            hanaError(403, 'Esta RQ ya se envió de nuevo ' . (int)$cab['REINTENTOS'] . ' ' . ((int)$cab['REINTENTOS'] === 1 ? 'vez' : 'veces')
+                         . ', que es el máximo. Quedó rechazada; si todavía hace falta, pide una RQ nueva.');
+        }
+        if (!$acc['editar']) { hanaError(403, 'Esta RQ solo la puede modificar quien la subió (o el ADMIN TEC), mientras esté pendiente o rechazada.'); }
 
         $retrocede = $acc['retrocede'];
         if ($retrocede && $motivo === '') {
@@ -415,7 +430,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                && $Rq->marcarNoLeida($idRq);
         } elseif ($ok) {
             $ok = $Rq->insertarSeguimiento($idRq, null, RqEstado::SOLICITADA, $idColaborador,
-                                           'RQ corregida' . ($motivo !== '' ? ': ' . $motivo : '')) > 0;
+                                           'RQ corregida' . ($motivo !== '' ? ': ' . $motivo : ''), RqEstado::HIST_CORRECCION) > 0;
         }
         if (!$ok) { $Rq->deshacer(); hanaError(500, 'No se pudo guardar la corrección. No cambió nada; intenta de nuevo.'); }
         $Rq->confirmar();
@@ -436,9 +451,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $cab = $Rq->mostrar(hanaCondRQ('todas'), $idRq);
         if (!$cab) { hanaError(404, 'No se encontró la RQ, o no pertenece a tus peajes.'); }
         if ((int)$cab['ID_RQ_ESTADO'] === RqEstado::ANULADA) { hanaError(400, 'Esta RQ ya estaba anulada.'); }
-        $acc = hanaAccionesRQ($cab, $idColaborador, $puedeAprobar);
+        $acc = hanaAccionesRQ($cab, $idColaborador, $puedeAprobar, $maxReintentos);
         if (!$acc['anular']) {
-            hanaError(403, 'Solo se anula una RQ pendiente, y solo quien la subió.');
+            hanaError(403, 'Solo se anula una RQ pendiente, y solo quien la subió (o el ADMIN TEC).');
         }
 
         $Rq->iniciar();

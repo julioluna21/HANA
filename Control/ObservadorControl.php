@@ -1,9 +1,18 @@
 <?php
+/*
+  HANA - Observadores de las novedades (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/ObservadorAjax.js y responde con lo que
+  trae el modelo (Modelo/ObservadorModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, mostrar, anular, activar, select y listar.
+  Permiso: 9M. El desplegable (select) también lo usa Novedades.
+*/
 session_start();//inicia la session, permite guardar variables de sesion
 require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
 hanaGuardia(array('9M'), array('select')); //Observador: 9M. El selector lo usan novedades
 require_once "../Modelo/ObservadorModelo.php";//Utilizará este archivo
-$Observador=new Observador();//crea un nuevo articulo
+$Observador=new Observador();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $ideobservador=isset($_POST["idobservador"])? limpiarCadena($_POST["idobservador"]):"";
 $nombreobservador=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
@@ -26,18 +35,21 @@ switch ($_GET["op"])
                 }
                             
             break;
+            //Trae un observador para cargarlo en el formulario
             case 'mostrar':
        
                     $rspta=$Observador->mostrar($ideobservador);
                     //Codificar el resultado utilizando json
                     echo json_encode($rspta);
             break;
+            //Desactiva un observador
             case 'anular':
                        $rspta=$Observador->desactivar($ideobservador);
                         echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
+             //Vuelve a activar un observador
              case 'activar':
                    
                         $rspta=$Observador->activar($ideobservador);
@@ -46,6 +58,7 @@ switch ($_GET["op"])
             break;
         
         
+            //Arma las opciones del desplegable de observadores
             case 'select':
             $rspta=$Observador->select();
             echo "<option value=''>Seleccione Observador...</option>";
@@ -60,10 +73,10 @@ switch ($_GET["op"])
    
         
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://lo pide la tabla de la pantalla al cargar
         
         
-                    $rspta=$Observador->listar();//Carga la rspta con lista de articulos
+                    $rspta=$Observador->listar();//trae los registros para la tabla
                     //Vamos a declarar un array
                     $data= Array();
         

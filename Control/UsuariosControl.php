@@ -1,4 +1,15 @@
 <?php
+/*
+  HANA - Usuarios y sesión (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/UsuariosAjax.js y Ajax/LoginAjax.js y responde con lo que
+  trae el modelo (Modelo/UsuarioModelo.php).
+  Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
+    guardar, cambiarclave, mostrar, anular, activar, los select, los de centros, verificar
+    (iniciar sesión), recuperar (clave olvidada), salir y listar.
+  Permiso: 1M para administrar usuarios. Entrar, recuperar la clave y salir no piden sesión;
+  el resto pide al menos haber iniciado sesión (ver el bloque de permisos más abajo).
+*/
 session_start();//inicia la session, permite guardar variables de sesion
 require_once "../Modelo/UsuarioModelo.php";//Utilizará este archivo
 require '../public/PHPMailer-master/src/Exception.php';
@@ -9,7 +20,7 @@ require_once __DIR__ . '/../Modelo/HanaDB.php';
                 use PHPMailer\PHPMailer\PHPMailer;
                 use PHPMailer\PHPMailer\Exception;
 
-$Usuarios=new Usuarios();//crea un nuevo articulo
+$Usuarios=new Usuarios();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idusuario=isset($_POST["idusuario"])? limpiarCadena($_POST["idusuario"]):"";
 $nombreususrio=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
@@ -21,9 +32,7 @@ $clave=isset($_POST["clave"])? limpiarCadena($_POST["clave"]):"";
 $mod="";
 
 /*
-  Quién puede usar cada operación (Fase 0, 24 de septiembre).
-  Antes ninguna operación revisaba la sesión: sin haber entrado, cualquiera
-  podía crear usuarios o cambiarle la contraseña a otro.
+  Quién puede usar cada operación:
     - Sin sesión: solo entrar, recuperar la contraseña y salir.
     - Administrar usuarios (crear, editar, ver, activar, anular): permiso 1M.
     - Lo demás (listas de colaboradores de otras pantallas, cambiar la clave
@@ -81,9 +90,9 @@ switch ($_GET["op"])
                                 $rspta=$Usuarios->insertarcentros($id,$idcentro);
                                }
                           } 
-                        //Ya no se envía el correo "Tu usuario de HANA": los datos
-                        //se muestran aquí, una sola vez, para que quien lo crea se los pase a la persona.
-                        //El correo solo llega cuando la persona usa "Olvidé mi contraseña".
+                        //Los datos del usuario se muestran aquí, una sola vez, para que quien lo crea se los
+                        //pase a la persona (no se envían por correo). El correo solo llega cuando la
+                        //persona usa "Olvidé mi contraseña".
                         echo "Usuario registrado con éxito.\n\nUsuario: ".$nombreususrio."\nContraseña temporal: ".$contrasena
                             ."\n\nAnótala y pásasela a la persona: no se envía por correo y no se vuelve a mostrar."
                             ."\nSi se le olvida, puede pedir una nueva con «Olvidé mi contraseña».";
@@ -128,6 +137,7 @@ switch ($_GET["op"])
                     echo $rspta? "La contraseña se cambió con éxito" : "Error: no se pudo actualizar la contraseña";
             break;
         
+            //Trae un usuario para cargarlo en el formulario
             case 'mostrar':
        
                     $rspta=$Usuarios->mostrar($idusuario);
@@ -137,12 +147,14 @@ switch ($_GET["op"])
         
             
         
+            //Desactiva un usuario (ya no puede entrar)
             case 'anular':
                        $rspta=$Usuarios->desactivar($idusuario);
                         echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
                             
             break;
         
+             //Vuelve a activar un usuario
              case 'activar':
                    
                         $rspta=$Usuarios->activar($idusuario);
@@ -151,6 +163,7 @@ switch ($_GET["op"])
             break;
         
         
+            //Arma las opciones del desplegable de colaboradores (para asociarlos a un usuario)
             case 'select':
             $rspta=$Usuarios->colaboradores();
             echo "<option value=''>Seleccione Colaborador...</option>";
@@ -162,6 +175,7 @@ switch ($_GET["op"])
             break;
         
         
+         //Arma las opciones del desplegable de centros operativos
          case 'select2':
        
                     $rspta=$Usuarios->mostrarcentros();
@@ -173,6 +187,7 @@ switch ($_GET["op"])
                    }
         break;
 		
+		 //Opciones del filtro de centros: todos, los asignados a mí o un centro
 		 case 'selectc':
        
                     $rspta=$Usuarios->mostrarcentros();
@@ -184,6 +199,7 @@ switch ($_GET["op"])
                    }
         break;
         
+        //Ids de los centros asignados al usuario, separados por coma
         case 'centroslista':
        
                     $rspta=$Usuarios->detectarcentros($idusuario);
@@ -201,6 +217,7 @@ switch ($_GET["op"])
                     
         break;
         
+        //Ids de todos los centros, separados por coma
         case 'centroslistatodos':
        
                     $rspta=$Usuarios->mostrarcentros();
@@ -218,6 +235,7 @@ switch ($_GET["op"])
                     
         break;
    
+         //Nombres de los centros del usuario, uno por renglón, para la tabla
          case 'MostrarCentros':
        
                     $rspta=$Usuarios->consultaCentros($idusuario);
@@ -233,6 +251,7 @@ switch ($_GET["op"])
    
         
         
+       //Arma las casillas de centros agrupadas por proyecto para el formulario de usuario
        case 'centros':
        
                      $rspta=$Usuarios->mostrarcentros();
@@ -293,7 +312,6 @@ switch ($_GET["op"])
                                 $_SESSION['IdUsuarios']=$fetch->ID_USUARIO_SISTEMA;
                                 $_SESSION['Idcolaborador']=$fetch->ID_COLABORADOR;
                                 $_SESSION['Audititoria']=$fetch->PERMISOS_CERRAR_NOVEDADES;
-                                $_SESSION['NovedadesAS']=$fetch->PERMISO_ASIGNAR_NOVEDAD;
                                 $_SESSION['Modulos']=$fetch->MODULOS_ROL_USUARIOS_SISTEMAS;
                                 $_SESSION['Nombre']=$fetch->NOM_COLABORADOR;
                                 echo json_encode(array('error' =>false));      
@@ -308,6 +326,7 @@ switch ($_GET["op"])
             break;
         
         
+        //Genera una clave temporal y la envía al correo del usuario que la olvidó
         case 'recuperar':
         $LoginUsuarios=isset($_POST["LoginUsuarios"])? limpiarCadena($_POST["LoginUsuarios"]):"";
         $permitted_chars = '0123456789abcdefghijklmnopqrstuvwxyz';
@@ -342,6 +361,7 @@ switch ($_GET["op"])
         
         break;
         
+          //Cierra la sesión y vuelve al inicio de sesión
           case 'salir':
                                  
             session_unset();
@@ -353,10 +373,10 @@ switch ($_GET["op"])
             break;
         
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://lo pide la tabla de la pantalla al cargar
         
         
-                    $rspta=$Usuarios->listar();//Carga la rspta con lista de articulos
+                    $rspta=$Usuarios->listar();//trae los registros para la tabla
                     //Vamos a declarar un array
                     $data= Array();
         

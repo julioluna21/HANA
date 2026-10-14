@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Configuración de la conexión a la base de datos (EJEMPLO)
+  HANA - Configuración de la conexión a la base de datos (EJEMPLO)
 
   Este archivo NO se usa tal cual. Para que el sistema funcione:
     1. Copia este archivo con el nombre Global.php, en esta misma carpeta.

@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Tareas programadas: recordatorios del día a los coordinadores
+  HANA - Tareas programadas: recordatorios del día a los coordinadores
   ---------------------------------------------------------------------------
   Se llama desde cPanel (Tareas Cron), por ejemplo todos los días a las 10 a. m.:
 
@@ -21,6 +21,7 @@ session_start();
 require_once __DIR__ . '/../Conexion/Global.php';
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 require_once __DIR__ . '/../Modelo/EstadoDiaModelo.php';
+require_once __DIR__ . '/../Modelo/OrganizacionModelo.php';
 require_once __DIR__ . '/CorreoConfig.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/Exception.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/PHPMailer.php';
@@ -28,6 +29,7 @@ require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function tareaError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -44,6 +46,7 @@ if (!$conToken && !($conSesion && $simular)) { tareaError(403, 'Acceso no permit
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
+    //Envía los recordatorios por correo de lo que falta por registrar (si están encendidos en Parámetros)
     case 'recordatorios':
         if (!$simular && !HanaConfig::si('RECORDATORIOS_CORREO', false)) {
             echo json_encode(array('ok' => true, 'enviados' => 0, 'mensaje' => 'Los recordatorios están apagados en Parámetros.'), JSON_UNESCAPED_UNICODE);
@@ -55,9 +58,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $base = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost')
               . rtrim(dirname(dirname(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/Control/x.php')), '/\\') . '/Vista/ReporteDiarioVista.php';
 
-        $coords = HanaDB::q("SELECT DISTINCT c.ID_COLABORADOR, c.NOM_COLABORADOR, c.MAIL_COLABORADOR
-                               FROM proyectos p INNER JOIN colaboradores c ON c.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR
-                              WHERE p.Estado = '1'");
+        $coords = Organizacion::coordinadoresConCorreo();
         $salida = array(); $enviados = 0;
         foreach ((array)$coords as $c) {
             $e = $E->resumen((int)$c['ID_COLABORADOR'], $hoy);

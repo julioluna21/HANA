@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Controlador del cronograma y el vehículo (Reporte diario, Fase 2)
+  HANA - Controlador del cronograma y el vehículo (Reporte diario)
     - Cada persona planea y marca SU cronograma (11M). El colaborador sale de
       la sesión, nunca de la pantalla.
     - El estado del vehículo lo registra su responsable, o quien administra (5M).
@@ -15,7 +15,7 @@ require_once __DIR__ . "/AccesoHelper.php";
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
-//Lo pasado ya no se modifica, salvo un día que el administrador haya habilitado.
+//Lo pasado no se modifica, salvo un día que el administrador haya habilitado.
 //Planear sí se puede con anticipación: para eso es el cronograma
 define('CRONO_MESES_ADELANTE', 12); //se planea hasta un año adelante
 
@@ -29,11 +29,11 @@ function cronoError($codigo, $mensaje)
 //Si el administrador apagó este módulo (Parámetros del sistema), no se registra nada
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 if (!HanaConfig::modulo('CRONOGRAMA')) { cronoError(403, 'Este módulo está desactivado. Lo activa el administrador en Parámetros del sistema.'); }
-HanaDB::usarModulo('CRONOGRAMA'); //la casilla CRONOGRAMA de Roles da acceso en todos los proyectos
+hanaUsarModulo('CRONOGRAMA'); //la casilla CRONOGRAMA de Roles da acceso en todos los proyectos
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { cronoError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
 //El cronograma lo llena el coordinador; el catálogo de vehículos lo maneja quien
-//administra centros (5M); el jefe mayor (20M) y la administración (21M) consultan todos
-$esCoordinador = HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+//administra centros (5M); el gerente de operaciones (20M) y la administración (21M) consultan todos
+$esCoordinador = hanaEsCoordinador((int)$_SESSION['Idcolaborador']);
 //22M: consultar todos los proyectos (por ejemplo, un coordinador que ve los de los demás)
 //30M (Cronograma y vehículo en Roles): consultar el de todos los proyectos (cada coordinador llena el suyo)
 $verTodos      = hanaTienePermiso('20M') || hanaTienePermiso('21M') || hanaTienePermiso('22M') || hanaTienePermiso('30M');
@@ -42,6 +42,8 @@ if (!$esCoordinador && !hanaTienePermiso('5M') && !$verTodos) { cronoError(403, 
 $idUsuario     = (int)$_SESSION['IdUsuarios'];
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $usaCrono      = $esCoordinador;
+//ADMIN TEC (24M): planea y corrige el cronograma de cualquier proyecto, a nombre de su coordinador
+$cronoTodo     = hanaTienePermiso('24M');
 $adminVh       = hanaTienePermiso('5M');
 $C             = new Cronograma();
 $hoy           = date('Y-m-d');
@@ -57,11 +59,49 @@ function cronoVehiculo($C, $idVehiculo, $idColaborador, $adminVh)
     return null;
 }
 
-//Un ítem del cronograma de esta persona, que todavía se pueda modificar
-function cronoItemPropio($C, $idItem, $idColaborador, $primerEditable)
+//El último día en que se puede dejar registrado por adelantado el vehículo de un sábado, domingo o
+//festivo ('' si el administrador lo apagó: parámetro CRONO_VH_FINDE_DIAS)
+function cronoFindeHasta($hoy)
+{
+    $n = max(0, min(366, HanaConfig::num('CRONO_VH_FINDE_DIAS', 60)));
+    return $n > 0 ? date('Y-m-d', strtotime("$hoy +$n day")) : '';
+}
+
+//El primer día pasado en que todavía se registra o corrige el vehículo de un sábado, domingo o
+//festivo ('' si el administrador lo apagó: parámetro CRONO_VH_FINDE_ATRAS)
+function cronoFindeDesde($hoy)
+{
+    $n = max(0, min(60, HanaConfig::num('CRONO_VH_FINDE_ATRAS', 7)));
+    return $n > 0 ? date('Y-m-d', strtotime("$hoy -$n day")) : '';
+}
+
+//¿Se puede registrar el estado del vehículo ese día? Hoy (o un día que el administrador habilitó);
+//y los sábados, domingos y festivos, por adelantado y también después (dentro de los días de los parámetros)
+function cronoDiaVehiculo($fecha, $hoy, $idColaborador)
+{
+    if (HanaFechas::enVentana($fecha, $idColaborador)) { return true; }
+    if (HanaFechas::esHabil($fecha)) { return false; }             //entre semana, solo hoy
+    $hasta = cronoFindeHasta($hoy); $desde = cronoFindeDesde($hoy);
+    if ($fecha > $hoy) { return $hasta !== '' && $fecha <= $hasta; } //por adelantado
+    return $desde !== '' && $fecha >= $desde;                       //después
+}
+
+//Cómo se explica la regla cuando un día no se puede
+function cronoTextoVehiculo($hoy)
+{
+    $hasta = cronoFindeHasta($hoy); $desde = cronoFindeDesde($hoy);
+    $partes = array();
+    if ($hasta !== '') { $partes[] = 'por adelantado hasta el ' . date('d/m/Y', strtotime($hasta)); }
+    if ($desde !== '') { $partes[] = 'después, desde el ' . date('d/m/Y', strtotime($desde)); }
+    return 'El estado del vehículo se registra para ' . HanaFechas::textoVentana()
+         . (count($partes) ? '. Los sábados, domingos y festivos también se pueden registrar ' . implode(' y ', $partes) . '.' : '.');
+}
+
+//Un ítem del cronograma de esta persona (o de cualquiera, para el ADMIN TEC), que todavía se pueda modificar
+function cronoItemPropio($C, $idItem, $idColaborador, $primerEditable, $todo = false)
 {
     $it = $C->item($idItem);
-    if (!$it || (int)$it['ID_COLABORADOR'] !== $idColaborador) { cronoError(404, 'No se encontró esa actividad en tu cronograma.'); }
+    if (!$it || ((int)$it['ID_COLABORADOR'] !== $idColaborador && !$todo)) { cronoError(404, 'No se encontró esa actividad en tu cronograma.'); }
     //Un día pasado solo se toca si el administrador se lo habilitó a la persona
     if ($it['FECHA'] < $primerEditable && !HanaFechas::habilitado($it['FECHA'], $idColaborador)) { cronoError(400, 'Ese día ya no se puede modificar.'); }
     return $it;
@@ -69,21 +109,19 @@ function cronoItemPropio($C, $idItem, $idColaborador, $primerEditable)
 
 //Los proyectos que esta persona puede ver en el cronograma: los que coordina y,
 //con 20M o 21M, todos. Cada uno con su coordinador, sus centros y sus vehículos.
-//Solo el cronograma propio se edita; el de otro proyecto queda en consulta
+//Solo el cronograma propio se edita; el de otro proyecto queda en consulta.
+//El ADMIN TEC (24M) edita el de todos los proyectos que tienen coordinador
 function cronoProyectos($C, $idColaborador, $verTodos)
 {
-    $f = HanaDB::q("SELECT p.ID_PROYECTO, p.NOM_PROYECTO, p.ID_COLABORADOR_COORDINADOR, col.NOM_COLABORADOR AS COORDINADOR
-                      FROM proyectos p LEFT JOIN colaboradores col ON col.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR
-                     WHERE p.Estado = '1' AND (? = 1 OR p.ID_COLABORADOR_COORDINADOR = ?)
-                     ORDER BY p.NOM_PROYECTO", 'ii', array($verTodos ? 1 : 0, (int)$idColaborador));
+    $todo = hanaTienePermiso('24M');
+    $f = Organizacion::proyectos($idColaborador, $verTodos);
     $res = array();
     foreach ((array)$f as $p) {
         $id = (int)$p['ID_PROYECTO'];
         $coord = (int)$p['ID_COLABORADOR_COORDINADOR'];
-        $p['EDITABLE'] = $coord > 0 && $coord === (int)$idColaborador;
-        $cen = HanaDB::q("SELECT ID_CENTRO_OP, NOM_CENTRO_OP, TIPO_CENTRO FROM centros_operacion
-                           WHERE Estado = '1' AND ID_PROYECTO_CENTRO_OP = ? ORDER BY NOM_CENTRO_OP", 'i', array($id));
-        $p['CENTROS'] = $cen ? $cen : array();
+        $p['PROPIO'] = $coord > 0 && $coord === (int)$idColaborador;   //el cronograma es de quien lo está viendo
+        $p['EDITABLE'] = $p['PROPIO'] || ($coord > 0 && $todo);
+        $p['CENTROS'] = Organizacion::centrosDeProyecto($id, false);
         $p['VEHICULOS'] = $C->vehiculosProyecto($id, $coord);
         $res[$id] = $p;
     }
@@ -92,6 +130,7 @@ function cronoProyectos($C, $idColaborador, $verTodos)
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
+    //Lo que necesita la pantalla al abrir: proyectos que ve la persona y en cuál arrancar
     case 'config':
         $proyectos = cronoProyectos($C, $idColaborador, $verTodos);
         //Arranca en el proyecto que coordina; si no coordina ninguno, en el primero que ve
@@ -103,8 +142,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'habilitados' => HanaFechas::habilitados($idColaborador), //los días pasados que el administrador le abrió
             'tipos' => Cronograma::$TIPOS, 'estadosVh' => Cronograma::$ESTADOS_VH, 'transportes' => Cronograma::$TRANSPORTES,
             'proyectos' => array_values($proyectos), 'proyectoInicial' => $inicial,
-            'centros' => HanaDB::centrosCoordinador($idColaborador), //para planear visitas: los de sus proyectos
-            'usaCrono' => $usaCrono, 'adminVh' => $adminVh
+            'centros' => hanaCentrosCoordinador($idColaborador), //para planear visitas: los de sus proyectos
+            'usaCrono' => $usaCrono, 'adminVh' => $adminVh,
+            //Sábados, domingos y festivos: el vehículo se registra por adelantado hasta este día y después desde este otro
+            'vhFindeHasta' => cronoFindeHasta($hoy), 'vhFindeDesde' => cronoFindeDesde($hoy),
+            //Festivos del año anterior, este y el siguiente (para corregir hacia atrás en enero y registrar por adelantado en diciembre)
+            'festivos' => array_keys(HanaFechas::festivos((int)substr($hoy, 0, 4) - 1) + HanaFechas::festivos((int)substr($hoy, 0, 4)) + HanaFechas::festivos((int)substr($hoy, 0, 4) + 1))
         ), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -138,6 +181,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         echo json_encode(array(
             'editable'    => $proy['EDITABLE'],
+            'propio'      => $proy['PROPIO'],
             'coordinador' => $proy['COORDINADOR'],
             'visitados'   => $conPersona ? (object)$C->centrosVisitados($persona, $desde, $hasta) : new stdClass(),
             'desde'       => $desde,
@@ -155,6 +199,16 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //-----------------------------------------------------------------------
     case 'agregar':
         if (!$usaCrono) { cronoError(403, 'No tienes permiso para el cronograma.'); }
+        //De quién es el cronograma: el propio; el ADMIN TEC escribe en el del coordinador del proyecto que está viendo
+        $duenio = $idColaborador;
+        if ($cronoTodo && !empty($_POST['proyecto'])) {
+            $proyectos = cronoProyectos($C, $idColaborador, true);
+            $idProy = (int)$_POST['proyecto'];
+            if (!isset($proyectos[$idProy]) || (int)$proyectos[$idProy]['ID_COLABORADOR_COORDINADOR'] <= 0) {
+                cronoError(400, 'Ese proyecto no tiene coordinador asignado en Configuración → Proyectos.');
+            }
+            $duenio = (int)$proyectos[$idProy]['ID_COLABORADOR_COORDINADOR'];
+        }
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         if ($fecha === '') { cronoError(400, 'La fecha no es válida.'); }
         if ($fecha < $primerEditable && !HanaFechas::habilitado($fecha, $idColaborador)) { cronoError(400, 'Ese día ya no se puede modificar.'); }
@@ -168,13 +222,13 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($tipo === 'VISITA') {
             $idCentro = isset($_POST['centro']) ? (int)$_POST['centro'] : 0;
             $valido = false;
-            foreach (HanaDB::centrosCoordinador($idColaborador) as $c) { if ((int)$c['ID_CENTRO_OP'] === $idCentro) { $valido = true; break; } }
+            foreach (hanaCentrosCoordinador($idColaborador) as $c) { if ((int)$c['ID_CENTRO_OP'] === $idCentro) { $valido = true; break; } }
             if (!$valido) { cronoError(400, 'Elige uno de los peajes de los proyectos que coordinas.'); }
         } elseif (in_array($tipo, array('REUNION', 'OTRO')) && $descripcion === null) {
             cronoError(400, 'Describe la actividad: con quién es la reunión, o qué vas a hacer.');
         }
 
-        $id = $C->agregar($idColaborador, $fecha, $tipo, $idCentro, $descripcion, date('Y-m-d H:i:s'));
+        $id = $C->agregar($duenio, $fecha, $tipo, $idCentro, $descripcion, date('Y-m-d H:i:s'));
         if (!$id) { cronoError(500, 'No se pudo agregar. Intenta de nuevo.'); }
         echo json_encode(array('ok' => true, 'id' => $id, 'mensaje' => 'Agregado al cronograma.'), JSON_UNESCAPED_UNICODE);
         break;
@@ -182,7 +236,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //Marcar realizada, cancelada, o devolverla a programada
     case 'estado':
         if (!$usaCrono) { cronoError(403, 'No tienes permiso para el cronograma.'); }
-        $it = cronoItemPropio($C, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable);
+        $it = cronoItemPropio($C, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable, $cronoTodo);
         $estado = isset($_POST['estado']) ? $_POST['estado'] : '';
         if (!in_array($estado, array('PROGRAMADA', 'REALIZADA', 'CANCELADA'), true)) { cronoError(400, 'Estado no válido.'); }
         if ($estado === 'REALIZADA' && $it['FECHA'] > $ultimoEditable) { cronoError(400, 'Ese día todavía no llega: no se puede marcar como realizado.'); }
@@ -195,7 +249,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //Quitar algo agregado por error: solo lo que todavía no ha pasado
     case 'quitar':
         if (!$usaCrono) { cronoError(403, 'No tienes permiso para el cronograma.'); }
-        $it = cronoItemPropio($C, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable);
+        $it = cronoItemPropio($C, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable, $cronoTodo);
         if ($it['FECHA'] < $hoy) { cronoError(400, 'Lo de días pasados no se quita: se marca como cancelado, con el motivo.'); }
         if (!$C->quitar($it['ID_CRONOGRAMA'])) { cronoError(500, 'No se pudo quitar. Intenta de nuevo.'); }
         echo json_encode(array('ok' => true), JSON_UNESCAPED_UNICODE);
@@ -208,8 +262,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $v = cronoVehiculo($C, isset($_POST['vehiculo']) ? (int)$_POST['vehiculo'] : 0, $idColaborador, $adminVh);
         if (!$v) { cronoError(403, 'Ese vehículo no está a tu cargo.'); }
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
-        if ($fecha === '' || !HanaFechas::enVentana($fecha)) {
-            cronoError(400, 'El estado del vehículo se registra para ' . HanaFechas::textoVentana() . '.');
+        if ($fecha === '' || !cronoDiaVehiculo($fecha, $hoy, $idColaborador)) {
+            cronoError(400, cronoTextoVehiculo($hoy));
         }
         $estado = isset($_POST['estado']) ? $_POST['estado'] : '';
         if (!isset(Cronograma::$ESTADOS_VH[$estado])) { cronoError(400, 'Elige el estado del vehículo.'); }
@@ -236,6 +290,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode($C->catalogo(), JSON_UNESCAPED_UNICODE);
         break;
 
+    //Crea o edita un vehículo (solo los roles que administran vehículos)
     case 'guardarVehiculo':
         if (!$adminVh) { cronoError(403, 'No permitido: tu rol no administra vehículos.'); }
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
@@ -245,7 +300,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $desc = HanaVal::texto(isset($_POST['descripcion']) ? $_POST['descripcion'] : '', 80);
         $proy = isset($_POST['proyecto']) && (int)$_POST['proyecto'] > 0 ? (int)$_POST['proyecto'] : null;
         $resp = isset($_POST['responsable']) && (int)$_POST['responsable'] > 0 ? (int)$_POST['responsable'] : null;
-        if ($resp && !HanaDB::fila("SELECT 1 AS ok FROM colaboradores WHERE ID_COLABORADOR = ? AND ESTADO = 1", 'i', array($resp))) {
+        if ($resp && !Organizacion::colaboradorActivo($resp)) {
             cronoError(400, 'El responsable elegido no existe o está inactivo.');
         }
         $estado = isset($_POST['estado']) && (int)$_POST['estado'] === 0 ? 0 : 1;

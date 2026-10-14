@@ -1,7 +1,10 @@
 <?php
 /*
-  HANA — Informe de gestión, mensual o por rango de fechas (el PDF)
+  HANA - Informe de gestión, mensual o por rango de fechas (el PDF)
   ---------------------------------------------------------------------------
+  OJO: copia sin uso. La que usa el sistema es Vista/pdf/InformeMensualPdf.php;
+  esta se conserva como referencia.
+
   Pinta lo que arma Modelo/InformeMensualModelo.php:
     Primero La parte general (dos hojas con cinco proyectos): las cifras del
             mes, lo más relevante, el comparativo por proyecto, el
@@ -71,6 +74,7 @@ class InformeMensualPdf extends FPDF
         return $t;
     }
 
+    //Colores de texto, relleno y línea a partir de un arreglo [r, g, b]
     private function tinta($c)   { $this->SetTextColor($c[0], $c[1], $c[2]); }
     private function relleno($c) { $this->SetFillColor($c[0], $c[1], $c[2]); }
     private function trazo($c)   { $this->SetDrawColor($c[0], $c[1], $c[2]); }
@@ -136,6 +140,7 @@ class InformeMensualPdf extends FPDF
         $this->curva($xc - $r, $yc - $r * $arco, $xc - $r * $arco, $yc - $r, $xc, $yc - $r);
         $this->_out($op);
     }
+    //Dibuja una curva (FPDF no trae una función para esto)
     private function curva($x1, $y1, $x2, $y2, $x3, $y3)
     {
         $k = $this->k; $h = $this->h;
@@ -184,6 +189,7 @@ class InformeMensualPdf extends FPDF
         $this->Rect(self::M, 72, self::ANCHO, 1.6, 'F');
     }
 
+    //Pie de cada hoja: línea y número de página
     public function Footer()
     {
         $this->relleno(self::LINEA);
@@ -356,6 +362,7 @@ class InformeMensualPdf extends FPDF
         if ($this->cy + $alto > 742) { $this->AddPage(); $this->cy = 86; }
     }
 
+    //Las hojas generales del informe, con todos los proyectos
     private function general($d)
     {
         $this->AddPage(); $this->cy = 86;
@@ -422,7 +429,7 @@ class InformeMensualPdf extends FPDF
         foreach ($proyectos as $p) { $porProyecto[$p['NOM_PROYECTO']] = $p['kpi']['aus']; }
         $barras = $t['aus'] > 0 ? min(8, max(count($d['ausMotivos']), $nP)) : 0;
         $this->espacio($t['aus'] > 0 ? 20 + 14 + 15 * $barras + 10 : 20 + 34);
-        $this->cy = $this->seccion($this->cy, 'Ausentismo', 'Personas ausentes por día. No cuenta lo que no es ausencia (como cubre recolector).');
+        $this->cy = $this->seccion($this->cy, 'Ausentismo', 'Personas ausentes por día. Incluye a quien dejó su cargo para cubrir otro (CUBRIENDO A…).');
         if ($t['aus'] > 0) {
             $mitad = (self::ANCHO - 20) / 2;
             $this->t(self::M, $this->cy, 'Por motivo', 8, 'B', self::GRIS);

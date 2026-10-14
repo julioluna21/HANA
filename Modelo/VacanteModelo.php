@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Vacantes y comunicaciones (Reporte diario, Fase 2)
+  HANA - Vacantes y comunicaciones (Reporte diario, Fase 2)
   Las hojas "Vacantes" y "Comunicaciones y SOLIC" del Excel del reporte diario.
   Los resultados que en Excel eran fórmulas (días, cumple / no cumple, abierto
   o cerrado) se calculan aquí, bien: una vacante abierta ya no da días
@@ -53,6 +53,7 @@ class Vacante
         return $v;
     }
 
+    //Una vacante con el nombre de su peaje
     public function mostrar($id)
     {
         return HanaDB::fila("SELECT v.*, c.NOM_CENTRO_OP FROM vacante v
@@ -60,6 +61,7 @@ class Vacante
                               WHERE v.ID_VACANTE = ?", 'i', array((int)$id));
     }
 
+    //Crea o edita una vacante
     public function guardar($id, $d, $idColaborador, $ahora)
     {
         if ((int)$id > 0) {
@@ -102,6 +104,7 @@ class Comunicacion
     public static $PENDIENTE = array('COORDINADOR_OP' => 'Coordinador operativo', 'DIRECCION' => 'Dirección',
                                      'COMUNICACIONES' => 'Comunicaciones', 'GH' => 'Gestión Humana', 'CONTABLE' => 'Contable');
 
+    //Vacantes de los proyectos indicados: las del rango de fechas o las que siguen abiertas
     public function listar($idsProyectos, $desde, $hasta, $soloAbiertas, $hoy)
     {
         if (!count($idsProyectos)) { return array(); }
@@ -144,6 +147,7 @@ class Comunicacion
         return $m;
     }
 
+    //Una comunicación con la última respuesta que se le dio
     public function mostrar($id)
     {
         //RESPUESTA es lo último que se respondió en la conversación (no es una columna de comunicacion)
@@ -154,6 +158,7 @@ class Comunicacion
                                FROM comunicacion m WHERE m.ID_COMUNICACION = ?", 'i', array((int)$id));
     }
 
+    //Crea o edita una comunicación
     public function guardar($id, $d, $idColaborador, $ahora)
     {
         if ((int)$id > 0) {
@@ -186,6 +191,7 @@ class Comunicacion
         return $f ? $f : array();
     }
 
+    //Agrega una entrada a la conversación de una comunicación (respuesta, nota, etc.)
     public function agregarHilo($id, $idColaborador, $tipo, $texto, $ahora)
     {
         return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA)
@@ -201,11 +207,13 @@ class Comunicacion
                          'ssi', array($hoy, $ahora, (int)$id));
     }
 
+    //Quita la fecha de atención para que la comunicación vuelva a quedar abierta
     public function reabrir($id, $ahora)
     {
         return HanaDB::q("UPDATE comunicacion SET FECHA_ATENCION = NULL, FEC_MODIFICACION = ? WHERE ID_COMUNICACION = ?", 'si', array($ahora, (int)$id));
     }
 
+    //Anula una comunicación dejando el motivo
     public function anular($id, $motivo)
     {
         return HanaDB::q("UPDATE comunicacion SET ESTADO = 0, MOTIVO_ANULACION = ? WHERE ID_COMUNICACION = ? AND ESTADO = 1",

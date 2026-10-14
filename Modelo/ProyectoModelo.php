@@ -1,4 +1,10 @@
 <?php
+/*
+  HANA - Proyectos (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla proyectos (las concesiones) y su coordinador.
+  Lo usa Control/ProyectoControl.php.
+*/
 //Incluímos inicialmente la conexión a la base de datos
 require "../Conexion/ConexionDB.php";
 class Proyecto
@@ -51,7 +57,7 @@ class Proyecto
         {
                 $sql = "SELECT c.ID_COLABORADOR AS id, c.NOM_COLABORADOR AS nombre, g.NOM_CARGO_COLABORADORES AS cargo
                           FROM colaboradores c
-                          LEFT JOIN cargos_colaboladores g ON g.ID_CARGO_COLABORADORES = c.ID_CARGO_COLABORADORES_COLABORADORES
+                          LEFT JOIN cargos_colaboradores g ON g.ID_CARGO_COLABORADORES = c.ID_CARGO_COLABORADORES_COLABORADORES
                          WHERE c.ESTADO = 1
                          ORDER BY c.NOM_COLABORADOR";
                 return ejecutarConsulta($sql);
@@ -66,6 +72,7 @@ class Proyecto
                 return (bool)$f;
         }
 
+        //Proyectos activos para el buscador; si se escribió algo, filtra por el nombre
         public function select($search_term)
         {
                 if ($search_term === 0) {

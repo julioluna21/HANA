@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Modelo de "Hoy en qué estás" (Reporte diario, Fase 2)
+  HANA - Modelo de "Hoy en qué estás" (Reporte diario, Fase 2)
   ---------------------------------------------------------------------------
   El día de cada persona: dónde estuvo, a qué hora entró y salió, y qué hizo,
   en un solo texto (antes era un bloque por cada hora). Reemplaza la hoja
@@ -48,6 +48,7 @@ class Hoy
         }
     }
 
+    //Transacciones: guardar todo el reporte del día o nada
     public function iniciar()   { global $conexion; $conexion->begin_transaction(); }
     public function confirmar() { global $conexion; $conexion->commit(); }
     public function deshacer()  { global $conexion; $conexion->rollback(); }
@@ -102,6 +103,22 @@ class Hoy
                             WHERE h.ID_COLABORADOR = ? AND h.FECHA >= ? AND h.FECHA < ?
                             ORDER BY h.FECHA", 'iss', array((int)$idColaborador, $desde, $hasta));
         return $filas ? $filas : array();
+    }
+
+    //Los registros de un mes de todas las personas (o de una), para la administración (21M)
+    public function mesTodos($desde, $hasta, $idColaborador = 0)
+    {
+        $sql = "SELECT h.ID_COLABORADOR, col.NOM_COLABORADOR, h.FECHA, h.SITUACION, h.HORA_INGRESO, h.HORA_SALIDA, h.LUGAR_OTRO,
+                       h.OBSERVACION, h.FEC_REGISTRO, h.FEC_MODIFICACION,
+                       (SELECT GROUP_CONCAT(c.NOM_CENTRO_OP ORDER BY c.NOM_CENTRO_OP SEPARATOR ' - ')
+                          FROM reporte_hoy_centro hc INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = hc.ID_CENTRO_OP
+                         WHERE hc.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS LUGARES,
+                       h.ACTIVIDAD
+                  FROM reporte_hoy h INNER JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
+                 WHERE h.FECHA >= ? AND h.FECHA < ? AND (? = 0 OR h.ID_COLABORADOR = ?)
+                 ORDER BY h.FECHA DESC, col.NOM_COLABORADOR";
+        $f = $this->q($sql, 'ssii', array($desde, $hasta, (int)$idColaborador, (int)$idColaborador));
+        return $f ? $f : array();
     }
 
     //-----------------------------------------------------------------------

@@ -1,3 +1,6 @@
+//Configuración - Roles y permisos (Vista/RolesVista.php)
+//Tabla, formulario con las casillas de permisos y botones de activar/desactivar. Habla con Control/RolesControl.php
+
 var tabla;//variable global
 //Función que se ejecuta al inicio
 function init()
@@ -7,7 +10,7 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
 
 }
@@ -102,6 +105,7 @@ function guardar(e)
         }
     });
 }
+//Trae un rol y lo carga en el formulario con sus permisos marcados
 function mostrar(idrol)
 {
     hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
@@ -126,6 +130,7 @@ function mostrar(idrol)
         hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
+//Desactiva un rol (pregunta antes)
 function anular(idrol){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular este registro?", function(){
@@ -138,6 +143,7 @@ function anular(idrol){
         });
     });
 }
+//Vuelve a activar un rol (pregunta antes)
 function activar(idrol){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea activar este registro?", function(){

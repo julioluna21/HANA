@@ -1,7 +1,7 @@
 <?php
 session_start();//inicia la session, permite guardar variables de sesion
 require_once "../Modelo/ProyectoModelo.php";//Utilizará este archivo
-$Proyecto=new Proyecto();//crea un nuevo articulo
+$Proyecto=new Proyecto();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idProyecto=isset($_POST["idProyecto"])? limpiarCadena($_POST["idProyecto"]):"";
 $nombreproyecto=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
@@ -46,6 +46,7 @@ switch ($op)
                 }
                             
             break;
+            //Trae un proyecto para cargarlo en el formulario
             case 'mostrar':
                 try {
                         $rspta=$Proyecto->mostrar($idProyecto);
@@ -69,12 +70,14 @@ switch ($op)
                 echo json_encode($lista, JSON_UNESCAPED_UNICODE);
             break;
 
+            //Desactiva un proyecto (no se borra)
             case 'anular':
                        $rspta=$Proyecto->anular($idProyecto);
                         echo $rspta ? http_response_code(200):http_response_code(400);        
                             
             break;        
         
+            //Opciones del buscador de proyectos
             case 'select':
                 $search_term = isset($_GET['search'])? $_GET['search']:0;
                 try {
@@ -97,10 +100,10 @@ switch ($op)
             
             break;         
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://lo pide la tabla de la pantalla al cargar
         
                 try {
-                        $rspta=$Proyecto->listar();//Carga la rspta con lista de articulos
+                        $rspta=$Proyecto->listar();//trae los registros para la tabla
                         //Vamos a declarar un array
                         $data= Array();
             

@@ -1,3 +1,6 @@
+//Configuración - Centros operativos (Vista/centroOperativoVista.php)
+//Tabla, formulario para crear o editar y el botón de desactivar. Habla con Control/CentroOperativoControl.php
+
 var tabla;//variable global
 //Función para guardar o editar
 function guardar(e)
@@ -30,6 +33,7 @@ function guardar(e)
         }
     });
 }
+//Trae un centro operativo y lo carga en el formulario para editarlo
 function mostrar(idcentro)
 {
     hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
@@ -57,6 +61,7 @@ function mostrar(idcentro)
         hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
+//Desactiva un centro operativo (pregunta antes)
 function anular(idcentro){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular este registro?", function(){
@@ -69,6 +74,7 @@ function anular(idcentro){
         });
     });
 }
+//Vuelve a activar un centro operativo (pregunta antes)
 function activar(idcentro){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     //Nota: hoy ninguna pantalla muestra el botón Activar y el controlador no tiene la opción "activar"
@@ -83,11 +89,13 @@ function activar(idcentro){
     });
 }
 
+//Cierra el formulario sin guardar
 function cancelarform()
 {
     limpiar();
     mostrarform(false);
 }
+//Deja el formulario en blanco
 function limpiar()
 {
     $("#idcentro").val("");
@@ -109,6 +117,7 @@ function cargarJefes()
         $("#jefe").html(h).val(actual || "");
     });
 }
+//Muestra el formulario (true) o la tabla (false)
 function mostrarform(flag)
 {
     //limpia el formulario
@@ -181,6 +190,7 @@ function listar()
     }).DataTable();
     
 }
+//Lo que se hace al abrir la pantalla
 function init()
 {
     mostrarform(false)
@@ -189,7 +199,7 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
 }
 init();

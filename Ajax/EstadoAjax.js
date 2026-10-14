@@ -1,3 +1,6 @@
+//Configuración - Estados de prioridad de las novedades (Vista/EstadosVista.php)
+//Tabla, formulario y botones de activar/desactivar. Habla con Control/EstadoControl.php
+
 var tabla;//variable global
 //Función que se ejecuta al inicio
 function init()
@@ -7,7 +10,7 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
 
 }
@@ -101,6 +104,7 @@ function guardar(e)
         }
     });
 }
+//Trae un estado de prioridad y lo carga en el formulario para editarlo
 function mostrar(idestado)
 {
     hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
@@ -120,6 +124,7 @@ function mostrar(idestado)
         hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
+//Desactiva un estado de prioridad (pregunta antes)
 function anular(idestado){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular este registro?", function(){
@@ -132,6 +137,7 @@ function anular(idestado){
         });
     });
 }
+//Vuelve a activar un estado de prioridad (pregunta antes)
 function activar(idestado){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea activar este registro?", function(){
@@ -145,6 +151,7 @@ function activar(idestado){
     });
 }
 
+//Deja solo números en el campo de días
 function puntosNumero() {
     num=$("#dias").val();
     num=num.toString()

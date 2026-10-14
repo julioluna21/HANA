@@ -1,5 +1,5 @@
 <?php
-//Administración del reporte diario — Arqueos (consulta)
+//Administración del reporte diario - Arqueos (consulta)
 //Lo que llenan TODOS los coordinadores, para el administrador (permiso 21M).
 //Es de solo lectura: cada coordinador sigue llenando lo suyo en su pantalla
 session_start();
@@ -9,7 +9,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array("21M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -51,7 +51,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
 <script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=6"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }

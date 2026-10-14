@@ -1,17 +1,20 @@
 <?php
 /*
-  HANA — Parámetros del sistema y catálogos de ausentismo
+  HANA - Parámetros del sistema y catálogos de ausentismo
   Permiso 24M (el administrador técnico). Aquí se cambian las decisiones del
   negocio sin tocar el código.
 */
 session_start();
 require_once __DIR__ . "/../Modelo/HanaConfig.php";
 require_once __DIR__ . "/../Modelo/HanaFechas.php"; //el día de hoy en la hora de Colombia
-require_once __DIR__ . "/AccesoHelper.php";
+require_once __DIR__ . "/../Modelo/ParametrosModelo.php";
+require_once __DIR__ . "/../Modelo/BitacoraModelo.php";
+require_once __DIR__ . "/AccesoHelper.php"; //incluye OrganizacionModelo
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function parError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -23,13 +26,15 @@ if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { parError(401,
 if (!hanaTienePermiso('24M')) { parError(403, 'No tienes permiso para los parámetros del sistema.'); }
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $ahora = date('Y-m-d H:i:s');
+$P = new Parametros();
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
+    //Todos los parámetros, más los cargos y novedades de ausentismo, para la pantalla de Parámetros
     case 'listar':
         $par = HanaConfig::lista();
-        $cargos = HanaDB::q("SELECT * FROM aus_cargo ORDER BY ORDEN, NOMBRE");
-        $novedades = HanaDB::q("SELECT n.*, c.NOMBRE AS CARGO FROM aus_novedad n LEFT JOIN aus_cargo c ON c.ID_CARGO_AUS = n.ID_CARGO_AUS ORDER BY n.ORDEN, n.NOMBRE");
+        $cargos = $P->cargos();
+        $novedades = $P->novedades();
         echo json_encode(array('parametros' => $par ? $par : array(), 'cargos' => $cargos ? $cargos : array(),
                                'novedades' => $novedades ? $novedades : array()), JSON_UNESCAPED_UNICODE);
         break;
@@ -52,11 +57,11 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             }
             //Prioridad y observador de las novedades automáticas: el número tiene que existir en su catálogo
             if ($clave === 'NOV_AUTO_PRIORIDAD'
-                && !HanaDB::fila("SELECT 1 AS ok FROM estados_relevancia WHERE ID_ESTADOS_RELEVANCIA = ?", 'i', array((int)$valor))) {
+                && !$P->existePrioridad((int)$valor)) {
                 parError(400, 'No existe una prioridad con el número ' . (int)$valor . ' (Configuración → Estados de relevancia).');
             }
             if ($clave === 'NOV_AUTO_OBSERVADOR'
-                && !HanaDB::fila("SELECT 1 AS ok FROM observador_novedades_hallazgos WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS = ?", 'i', array((int)$valor))) {
+                && !$P->existeObservador((int)$valor)) {
                 parError(400, 'No existe un observador con el número ' . (int)$valor . ' (Configuración → Observadores).');
             }
             if ($valor === (string)HanaConfig::valor($clave, $d['DEFECTO'])) { continue; }
@@ -79,20 +84,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($nombre === null) { parError(400, 'Escribe el nombre.'); }
         $orden = isset($_POST['orden']) ? (int)$_POST['orden'] : 0;
         $estado = isset($_POST['estado']) && $_POST['estado'] === '0' ? 0 : 1;
-        $tabla = $esCargo ? 'aus_cargo' : 'aus_novedad';
-        $pk = $esCargo ? 'ID_CARGO_AUS' : 'ID_NOVEDAD_AUS';
-        $rep = HanaDB::fila("SELECT $pk AS ID FROM $tabla WHERE NOMBRE = ? AND $pk <> ?", 'si', array($nombre, $id));
-        if ($rep) { parError(400, 'Ya existe uno con ese nombre.'); }
+        if ($P->nombreRepetido($esCargo, $nombre, $id)) { parError(400, 'Ya existe uno con ese nombre.'); }
         if ($esCargo) {
             $aplica = isset($_POST['aplica']) ? $_POST['aplica'] : 'PEAJE';
             if (!in_array($aplica, array('PEAJE', 'BASCULA', 'AMBOS'), true)) { parError(400, 'Elige en qué centros aplica.'); }
-            $ok = $id ? HanaDB::q("UPDATE aus_cargo SET NOMBRE = ?, APLICA = ?, ORDEN = ?, ESTADO = ? WHERE ID_CARGO_AUS = ?", 'ssiii', array($nombre, $aplica, $orden, $estado, $id))
-                      : HanaDB::q("INSERT INTO aus_cargo (NOMBRE, APLICA, ORDEN, ESTADO) VALUES (?, ?, ?, ?)", 'ssii', array($nombre, $aplica, $orden, $estado));
+            $ok = $P->guardarCargo($id, $nombre, $aplica, $orden, $estado);
         } else {
             $cuenta = isset($_POST['cuenta']) && $_POST['cuenta'] === '0' ? 0 : 1;
             $cargo = isset($_POST['cargo']) && (int)$_POST['cargo'] > 0 ? (int)$_POST['cargo'] : null;
-            $ok = $id ? HanaDB::q("UPDATE aus_novedad SET NOMBRE = ?, CUENTA_AUSENCIA = ?, ID_CARGO_AUS = ?, ORDEN = ?, ESTADO = ? WHERE ID_NOVEDAD_AUS = ?", 'siiiii', array($nombre, $cuenta, $cargo, $orden, $estado, $id))
-                      : HanaDB::q("INSERT INTO aus_novedad (NOMBRE, CUENTA_AUSENCIA, ID_CARGO_AUS, ORDEN, ESTADO) VALUES (?, ?, ?, ?, ?)", 'siiii', array($nombre, $cuenta, $cargo, $orden, $estado));
+            $ok = $P->guardarNovedad($id, $nombre, $cuenta, $cargo, $orden, $estado);
         }
         if (!$ok) { parError(500, 'No se pudo guardar.'); }
         $msg = $esCargo ? ($id ? 'Cargo actualizado.' : 'Cargo creado.') : ($id ? 'Novedad actualizada.' : 'Novedad creada.');
@@ -150,9 +150,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     //Los últimos envíos de correo, con su resultado
     case 'correoLog':
-        $f = HanaDB::q("SELECT FECHA, MODULO, QUIEN AS PARA, ASUNTO, DETALLE AS METODO, OK, ERROR
-                          FROM bitacora_sistema WHERE TIPO = 'CORREO'
-                         ORDER BY FECHA DESC, ID_BITACORA DESC LIMIT 60");
+        $f = Bitacora::ultimosCorreos(60);
         echo json_encode($f ? $f : array(), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -163,22 +161,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //-----------------------------------------------------------------------
     case 'diasHabilitados':
         //Las personas a las que se les puede abrir un día: primero quienes coordinan un proyecto
-        $personas = HanaDB::q("SELECT c.ID_COLABORADOR, c.NOM_COLABORADOR,
-                                      (SELECT GROUP_CONCAT(p.NOM_PROYECTO ORDER BY p.NOM_PROYECTO SEPARATOR ', ')
-                                         FROM proyectos p
-                                        WHERE p.Estado = '1' AND p.ID_COLABORADOR_COORDINADOR = c.ID_COLABORADOR) AS COORDINA
-                                 FROM colaboradores c
-                                WHERE c.ESTADO = 1
-                                ORDER BY (COORDINA IS NULL), c.NOM_COLABORADOR");
+        $personas = Organizacion::personasConProyectos();
         //Los días: arriba los que siguen abiertos; debajo los ya cerrados, para que quede el rastro
-        $dias = HanaDB::q("SELECT d.ID_DIA_HABILITADO, d.FECHA, d.MOTIVO, d.ESTADO, d.FEC_HABILITA, d.FEC_DESHABILITA,
-                                  c.NOM_COLABORADOR AS PERSONA, h.NOM_COLABORADOR AS HABILITO, x.NOM_COLABORADOR AS DESHABILITO
-                             FROM dia_habilitado d
-                             INNER JOIN colaboradores c ON c.ID_COLABORADOR = d.ID_COLABORADOR
-                             LEFT  JOIN colaboradores h ON h.ID_COLABORADOR = d.ID_COLABORADOR_HABILITA
-                             LEFT  JOIN colaboradores x ON x.ID_COLABORADOR = d.ID_COLABORADOR_DESHABILITA
-                            ORDER BY d.ESTADO DESC, d.FECHA DESC, d.ID_DIA_HABILITADO DESC
-                            LIMIT 200");
+        $dias = $P->diasHabilitados();
         if ($dias === false) { parError(500, 'Falta la tabla de días habilitados. Corre el script 15_DIA_HABILITADO_Y_HOY.sql.'); }
         echo json_encode(array('hoy' => HanaFechas::hoy(), 'personas' => $personas ? $personas : array(), 'dias' => $dias),
                          JSON_UNESCAPED_UNICODE);
@@ -189,7 +174,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $persona = isset($_POST['persona']) ? (int)$_POST['persona'] : 0;
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         $motivo = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 200);
-        if (!HanaDB::fila("SELECT 1 AS ok FROM colaboradores WHERE ID_COLABORADOR = ? AND ESTADO = 1", 'i', array($persona))) {
+        if (!Organizacion::colaboradorActivo($persona)) {
             parError(400, 'Elige a quién se le habilita el día.');
         }
         if ($fecha === '') { parError(400, 'Elige el día que se va a habilitar.'); }
@@ -199,14 +184,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($fecha < date('Y-m-d', strtotime("$hoyCol -366 days")) || $fecha > date('Y-m-d', strtotime("$hoyCol +31 days"))) {
             parError(400, 'El día debe estar entre un año atrás y un mes adelante.');
         }
-        $ya = HanaDB::fila("SELECT ESTADO FROM dia_habilitado WHERE ID_COLABORADOR = ? AND FECHA = ?", 'is', array($persona, $fecha));
-        if ($ya && (int)$ya['ESTADO'] === 1) { parError(400, 'Esa persona ya tiene habilitado ese día.'); }
-        $ok = HanaDB::q("INSERT INTO dia_habilitado (ID_COLABORADOR, FECHA, MOTIVO, ESTADO, ID_COLABORADOR_HABILITA, FEC_HABILITA)
-                         VALUES (?, ?, ?, 1, ?, ?)
-                         ON DUPLICATE KEY UPDATE ESTADO = 1, MOTIVO = VALUES(MOTIVO),
-                             ID_COLABORADOR_HABILITA = VALUES(ID_COLABORADOR_HABILITA), FEC_HABILITA = VALUES(FEC_HABILITA),
-                             ID_COLABORADOR_DESHABILITA = NULL, FEC_DESHABILITA = NULL",
-                        'issis', array($persona, $fecha, $motivo, $idColaborador, $ahora));
+        if ($P->estadoDia($persona, $fecha) === 1) { parError(400, 'Esa persona ya tiene habilitado ese día.'); }
+        $ok = $P->habilitarDia($persona, $fecha, $motivo, $idColaborador, $ahora);
         if (!$ok) { parError(500, 'No se pudo habilitar el día.'); }
         echo json_encode(array('ok' => true, 'mensaje' => 'Día habilitado. La persona ya puede registrar o corregir ese día.'), JSON_UNESCAPED_UNICODE);
         break;
@@ -214,11 +193,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //Cierra un día que estaba abierto. La fila se conserva con quién y cuándo lo cerró
     case 'deshabilitarDia':
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-        $d = HanaDB::fila("SELECT ESTADO FROM dia_habilitado WHERE ID_DIA_HABILITADO = ?", 'i', array($id));
-        if (!$d) { parError(404, 'Ese día habilitado no existe.'); }
-        if ((int)$d['ESTADO'] === 0) { parError(400, 'Ese día ya estaba deshabilitado.'); }
-        $ok = HanaDB::q("UPDATE dia_habilitado SET ESTADO = 0, ID_COLABORADOR_DESHABILITA = ?, FEC_DESHABILITA = ? WHERE ID_DIA_HABILITADO = ?",
-                        'isi', array($idColaborador, $ahora, $id));
+        $d = $P->estadoDiaPorId($id);
+        if ($d === null) { parError(404, 'Ese día habilitado no existe.'); }
+        if ($d === 0) { parError(400, 'Ese día ya estaba deshabilitado.'); }
+        $ok = $P->deshabilitarDia($id, $idColaborador, $ahora);
         if (!$ok) { parError(500, 'No se pudo deshabilitar el día.'); }
         echo json_encode(array('ok' => true, 'mensaje' => 'Día deshabilitado. Vuelve a quedar solo de consulta.'), JSON_UNESCAPED_UNICODE);
         break;

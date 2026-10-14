@@ -14,6 +14,7 @@ class Campana
     //entrara vería todo su histórico como "nuevo"
     const DIAS_VENTANA = 30;
 
+    //No necesita preparar nada al crearse
     public function __construct() {}
 
     //Prioridad de una novedad según su relevancia: por nombre (ALTA, MEDIA,
@@ -80,7 +81,7 @@ class Campana
                        q.ID_RQ AS id,
                        CONCAT(IF(q.TIPO_RQ = 'U', 'RQ U-', 'RQ-'), q.NUMERO_RQ, ' · ', " . RqEstado::sqlCampo('q.ID_RQ_ESTADO', 'NOM_RQ_ESTADO') . ") AS titulo,
                        c.NOM_CENTRO_OP AS estacion,
-                       q.FEC_ESTADO AS fecha,
+                       " . RqEstado::sqlDesde('q.ID_RQ') . " AS fecha,
                        CASE WHEN q.ID_RQ_ESTADO <> $solicitada THEN 'baja'
                             WHEN q.TIPO_RQ = 'U'     THEN 'alta'
                             ELSE 'media' END AS prioridad,
@@ -94,7 +95,7 @@ class Campana
                   INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = q.ID_CENTRO_OP
                   LEFT  JOIN notificacion_leida l ON l.TIPO = 'RQ' AND l.ID_REGISTRO = q.ID_RQ AND l.ID_USUARIO = $u
                  WHERE q.ID_RQ_ESTADO <> " . RqEstado::ANULADA . "
-                   AND q.FEC_ESTADO >= DATE_SUB(NOW(), INTERVAL $dias DAY)
+                   AND " . RqEstado::sqlDesde('q.ID_RQ') . " >= DATE_SUB(NOW(), INTERVAL $dias DAY)
                    AND ($pendientes
                         OR (q.ID_COLABORADOR_SOLICITA = $c AND q.ID_RQ_ESTADO IN ($decididas)))";
     }

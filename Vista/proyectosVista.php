@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Proyectos
+  ---------------------------------------------------------------------------
+  Pantalla de los proyectos (concesiones) y quién coordina cada uno.
+  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/ProyectoAjax.js
+  y los datos los entrega Control/ProyectoControl.php.
+  Permiso: 6M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
@@ -67,7 +75,7 @@ include('head.php');
              </div>
             <!-- Listado Registros-->
 
-            <!-- centro listado de articulos-->
+            <!-- tabla con el listado de registros -->
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">

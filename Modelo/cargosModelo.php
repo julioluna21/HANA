@@ -1,4 +1,10 @@
 <?php
+/*
+  HANA - Cargos (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla cargos_colaboradores.
+  Lo usa Control/cargosControl.php.
+*/
 //Incluímos inicialmente la conexión a la base de datos
 require "../Conexion/ConexionDB.php";
 Class Cargos
@@ -8,32 +14,32 @@ Class Cargos
 		{
 		}
 		//Implementamos un método para insertar registros
-		public function insertar($NombreCargos,$PermisoNovedad){
-			$sql="INSERT INTO `cargos_colaboladores`(`NOM_CARGO_COLABORADORES`,PERMISO_ASIGNAR_NOVEDAD,`ESTADO`)VALUES ('$NombreCargos',$PermisoNovedad,'1')";
+		public function insertar($NombreCargos){
+			$sql="INSERT INTO `cargos_colaboradores`(`NOM_CARGO_COLABORADORES`,`ESTADO`)VALUES ('$NombreCargos','1')";
 			return ejecutarConsulta($sql);
 		}
 		//Implementamos un método para editar registros
-		public function editar($IdCargos, $NombreCargos,$PermisoNovedad)
+		public function editar($IdCargos, $NombreCargos)
 		{
-			$sql="UPDATE cargos_colaboladores SET NOM_CARGO_COLABORADORES='$NombreCargos',PERMISO_ASIGNAR_NOVEDAD='$PermisoNovedad', ESTADO='1' WHERE ID_CARGO_COLABORADORES='$IdCargos'";
+			$sql="UPDATE cargos_colaboradores SET NOM_CARGO_COLABORADORES='$NombreCargos', ESTADO='1' WHERE ID_CARGO_COLABORADORES='$IdCargos'";
 			return ejecutarConsulta($sql);
 		}
 		//Implementar un método para listar los registros
 		public function listar()
 		{
-			$sql="SELECT cargos_colaboladores.* FROM cargos_colaboladores WHERE NOM_CARGO_COLABORADORES != 'Desarrollador'";
+			$sql="SELECT cargos_colaboradores.* FROM cargos_colaboradores WHERE NOM_CARGO_COLABORADORES != 'Desarrollador'";
 			return ejecutarConsulta($sql);
 		}
 		//Implementar un método para mostrar los registros
 		public function mostrar($IdCargos)
 		{
-			$sql="SELECT cargos_colaboladores.* FROM cargos_colaboladores WHERE ID_CARGO_COLABORADORES='$IdCargos'";
+			$sql="SELECT cargos_colaboradores.* FROM cargos_colaboradores WHERE ID_CARGO_COLABORADORES='$IdCargos'";
 			return ejecutarConsultaSimpleFila($sql);
 		}
 		//Implementamos un método para editar registros
 		public function desactivar($IdCargos)
 		{
-			$sql="UPDATE cargos_colaboladores SET ESTADO = '0' WHERE ID_CARGO_COLABORADORES='$IdCargos'";
+			$sql="UPDATE cargos_colaboradores SET ESTADO = '0' WHERE ID_CARGO_COLABORADORES='$IdCargos'";
 			return ejecutarConsulta($sql);
 		}
 		//Implementar un método para listar los registros
@@ -41,10 +47,10 @@ Class Cargos
 		{
 			
 			if ($search_term === 0) {
-				$sql="SELECT * FROM cargos_colaboladores WHERE NOM_CARGO_COLABORADORES != 'Desarrollador' AND ESTADO = 1";
+				$sql="SELECT * FROM cargos_colaboradores WHERE NOM_CARGO_COLABORADORES != 'Desarrollador' AND ESTADO = 1";
 				return ejecutarConsulta($sql);
 		} else {
-				$sql = "SELECT * FROM cargos_colaboladores WHERE NOM_CARGO_COLABORADORES LIKE '%".$search_term."%' AND NOM_CARGO_COLABORADORES != 'Desarrollador' AND Estado= '1' ORDER BY NOM_CARGO_COLABORADORES ASC";
+				$sql = "SELECT * FROM cargos_colaboradores WHERE NOM_CARGO_COLABORADORES LIKE '%".$search_term."%' AND NOM_CARGO_COLABORADORES != 'Desarrollador' AND Estado= '1' ORDER BY NOM_CARGO_COLABORADORES ASC";
 				return ejecutarConsulta($sql);
 		}
 		}

@@ -509,3 +509,6 @@ a.tb-chip.tb-enlace{ color: #1A1A1A; } a.tb-chip-pend.tb-enlace{ color: #8A5B0B;
 #rdModalRQ .dq-sub{ font-weight: 700; color: #6E1A1E; margin: 12px 0 4px; }
 #rdModalRQ .dq-items{ padding-left: 20px; margin-bottom: 6px; }
 #rdModalRQ .dq-just{ color: #5B524D; }
+
+/* Ausentismo: los días que todavía están muy adelante no se pueden llenar */
+.aus-futuro{ background: repeating-linear-gradient(135deg, #FAFAFA, #FAFAFA 4px, #F1F1F1 4px, #F1F1F1 8px); }

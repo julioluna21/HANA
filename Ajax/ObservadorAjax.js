@@ -1,3 +1,6 @@
+//Configuración - Observadores de las novedades (Vista/ObservadorVista.php)
+//Tabla, formulario y botones de activar/desactivar. Habla con Control/ObservadorControl.php
+
 var tabla;//variable global
 //Función que se ejecuta al inicio
 function init()
@@ -7,7 +10,7 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
     
 $("#miarchivo2").on("change",function(){
@@ -105,6 +108,7 @@ function guardar(e)
         }
     });
 }
+//Trae un observador y lo carga en el formulario para editarlo
 function mostrar(idobservador)
 {
     hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
@@ -123,6 +127,7 @@ function mostrar(idobservador)
         hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
+//Desactiva un observador (pregunta antes)
 function anular(idobservador){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular este registro?", function(){
@@ -135,6 +140,7 @@ function anular(idobservador){
         });
     });
 }
+//Vuelve a activar un observador (pregunta antes)
 function activar(idobservador){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea activar este registro?", function(){

@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Días hábiles y festivos de Colombia
+  HANA - Días hábiles y festivos de Colombia
   ---------------------------------------------------------------------------
   No depende de la extensión "calendar" de PHP (easter_date), que no siempre
   está activa en los servidores: la Semana Santa se calcula aquí mismo.
@@ -52,10 +52,9 @@ class HanaFechas
     }
 
     //Los días que la persona tiene habilitados en este momento, de más viejo a más nuevo.
-    //Sin $idColaborador se toma la persona que tiene la sesión
-    public static function habilitados($idColaborador = null)
+    //El controlador dice de quién (hanaEnVentana en AccesoHelper usa la persona de la sesión)
+    public static function habilitados($idColaborador = 0)
     {
-        if ($idColaborador === null) { $idColaborador = isset($_SESSION['Idcolaborador']) ? $_SESSION['Idcolaborador'] : 0; }
         $id = (int)$idColaborador;
         if ($id <= 0) { return array(); }
         if (isset(self::$habilitados[$id])) { return self::$habilitados[$id]; } //ya se consultó en esta petición
@@ -69,14 +68,14 @@ class HanaFechas
     }
 
     //¿La persona tiene habilitado ese día?
-    public static function habilitado($fecha, $idColaborador = null)
+    public static function habilitado($fecha, $idColaborador = 0)
     {
         return in_array(substr((string)$fecha, 0, 10), self::habilitados($idColaborador), true);
     }
 
     //¿Ese día se puede registrar o corregir? Hoy siempre; otro día, solo si
     //el administrador se lo habilitó a la persona
-    public static function enVentana($fecha, $idColaborador = null)
+    public static function enVentana($fecha, $idColaborador = 0)
     {
         $f = substr((string)$fecha, 0, 10);
         return $f === self::hoy() || self::habilitado($f, $idColaborador);
@@ -101,7 +100,15 @@ class HanaFechas
         return sprintf('%04d-%02d-%02d', $anio, $mes, $dia);
     }
 
-    //Los festivos de un año: ['AAAA-MM-DD' => true]
+    //Los festivos de Colombia de un año: ['AAAA-MM-DD' => true]
+    //  Fijos (no se mueven): 1 ene, 1 may, 20 jul, 7 ago, 8 dic y 25 dic.
+    //  Ley Emiliani (Ley 51 de 1983), pasan al lunes siguiente: Reyes (6 ene), San José (19 mar),
+    //  San Pedro y San Pablo (29 jun), Asunción (15 ago), Día de la Raza (12 oct), Todos los Santos (1 nov),
+    //  Independencia de Cartagena (11 nov) y, desde 2026, Nuestra Señora del Rosario de Chiquinquirá
+    //  (9 jul, Ley 2578 de 2026).
+    //  Según la Pascua: Jueves y Viernes Santo, Ascensión, Corpus Christi y Sagrado Corazón (al lunes).
+    //Comprobado contra la librería de referencia de festivos (holidays, Colombia), años 2020 a 2035: mismas fechas.
+    //Si una ley crea o quita un festivo, se agrega o se quita aquí
     public static function festivos($anio)
     {
         $anio = (int)$anio;
@@ -110,7 +117,9 @@ class HanaFechas
         foreach (array('01-01', '05-01', '07-20', '08-07', '12-08', '12-25') as $md) { $f["$anio-$md"] = true; }
 
         //Al lunes siguiente, si no cae en lunes
-        foreach (array('01-06', '03-19', '06-29', '08-15', '10-12', '11-01', '11-11') as $md) {
+        $emiliani = array('01-06', '03-19', '06-29', '08-15', '10-12', '11-01', '11-11');
+        if ($anio >= 2026) { $emiliani[] = '07-09'; } //Nuestra Señora del Rosario de Chiquinquirá (Ley 2578 de 2026)
+        foreach ($emiliani as $md) {
             $t = strtotime("$anio-$md");
             $dow = (int)date('N', $t); //1 = lunes
             if ($dow !== 1) { $t = strtotime('next monday', $t); }
@@ -124,6 +133,15 @@ class HanaFechas
         return $f;
     }
 
+    //¿Ese día es festivo en Colombia?
+    public static function esFestivo($fecha)
+    {
+        $t = strtotime($fecha);
+        $f = self::festivos((int)date('Y', $t));
+        return isset($f[date('Y-m-d', $t)]);
+    }
+
+    //¿Es día hábil? No lo es si cae sábado, domingo o festivo
     public static function esHabil($fecha)
     {
         $t = strtotime($fecha);

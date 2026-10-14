@@ -2,7 +2,7 @@
 //Listado con filtros por periodo, formulario con varios ítems y fotos, y
 //detalle con la aprobación. Todo el texto que viene del servidor se escapa
 //antes de pintarlo: lo escriben los usuarios
-//Fase 1: RQ normal (amarillo) y RQ U urgente (rojo); se solicita y se aprueba
+//RQ normal (amarillo) y RQ U urgente (rojo); se solicita y se aprueba
 //o se rechaza; solo aprueba quien tiene el permiso 18M
 
 var URL_RQ = '../Control/RQControl.php';
@@ -13,6 +13,7 @@ var rqAbierta = null;    //id de la RQ que se está viendo en el detalle
 var vistaRQ = 'mias';    //"mias" = Mis RQ; "todas" = lo que mi rol puede ver
 var detalleRQ = null;    //la última RQ abierta, para prellenar la edición
 var configRQ = { verTodas: false, puedeAprobar: false, anios: [] };
+var filasRQ = [];        //el listado del periodo, sin el filtro de estado
 
 //---------------------------------------------------------------------------
 // Utilidades
@@ -25,6 +26,7 @@ function fechaCorta(f) {
     var p = String(f).substring(0, 10).split('-');
     return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : esc(f);
 }
+//Fecha corta con la hora, por ejemplo "07/10/2026 14:30"
 function fechaHora(f) {
     if (!f) { return ''; }
     return fechaCorta(f) + ' ' + String(f).substring(11, 16);
@@ -36,6 +38,7 @@ function hoyLocal() {
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
 }
 
+//Etiqueta de color con el nombre del estado
 function badgeEstado(nombre, color) {
     return '<span class="rq-badge rq-badge-' + esc(color || 'gris') + '">' + esc(nombre) + '</span>';
 }
@@ -86,6 +89,8 @@ $(function () {
     //Los filtros se aplican solos
     $('#fProyecto').on('change', function () { llenarFiltroCentros(); listarRQ(); });
     $('#fCentro, #fMes').on('change', listarRQ);
+    //El filtro de estado no vuelve a pedir datos: filtra lo que ya está en pantalla
+    $('#fEstado').on('change', function () { pintarTabla(filasRQ); });
     //Con "Todos los años" el mes no aplica
     $('#fAnio').on('change', function () {
         $('#fMes').prop('disabled', $(this).val() === '0');
@@ -105,6 +110,11 @@ $(function () {
     $('#btnRqCamara').on('click', function () { $('#rqArchivosCamara').val('')[0].click(); });
     $('#btnRqArchivos').on('click', function () { $('#rqArchivos').val('')[0].click(); });
     $('#rqArchivosCamara, #rqArchivos').on('change', function () { agregarArchivos(this.files); });
+    //Ver el PDF elegido antes de enviarlo (las fotos ya se abren en grande al tocarlas, con VisorAjax.js)
+    $(document).on('click', '.rq-previa-pdf', function () {
+        var a = archivosRQ[parseInt($(this).data('i'), 10)];
+        if (a && window.hanaVerArchivoLocal) { window.hanaVerArchivoLocal(a); }
+    });
     $(document).on('click', '.rq-previa-quitar', function () {
         archivosRQ.splice(parseInt($(this).data('i'), 10), 1);
         pintarPrevias();
@@ -159,6 +169,12 @@ function cargarCatalogos() {
         .done(function (d) {
             configRQ = d;
             $('#vistaRQ .hana-vista-todas').text(d.verTodas ? 'Todas las RQ' : 'Las de mi rol');
+            //Quien no pide RQ y solo las revisa (el gerente de operaciones) abre directo en "Todas las RQ"
+            if (!d.puedePedir && d.verTodas) {
+                vistaRQ = 'todas';
+                $('#vistaRQ .hana-vista-btn').removeClass('activo');
+                $('#vistaRQ .hana-vista-btn[data-vista="todas"]').addClass('activo');
+            }
             var h = '', anios = d.anios || [];
             for (var i = 0; i < anios.length; i++) {
                 h += '<option value="' + parseInt(anios[i], 10) + '">' + parseInt(anios[i], 10) + '</option>';
@@ -171,7 +187,7 @@ function cargarCatalogos() {
         .done(function (filas) {
             centrosRQ = filas;
             if (!filas.length && $('#btnNuevaRQ').attr('data-puede') !== '0') { //solo le importa a quien puede pedir
-                avisoRQ('No tienes peajes para pedir RQ. Las pide el coordinador del proyecto.');
+                avisoRQ('No tienes peajes para pedir RQ. Pide que te asignen uno en Configuración → Usuarios, o que te pongan como coordinador del proyecto.');
                 $('#btnNuevaRQ').prop('disabled', true);
             }
 
@@ -252,12 +268,30 @@ function listarRQ() {
             $('#cntAprobadas').text(aprobadas);
             $('#cntRechazadas').text(rechazadas);
 
+            filasRQ = filas;
             pintarTabla(filas);
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el listado de RQ.'); });
 }
 
+//Filtro de estado: sin aprobar (pendientes), aprobadas, rechazadas o anuladas
+function filtrarEstadoRQ(filas) {
+    var f = $('#fEstado').val() || '';
+    if (!f) { return filas; }
+    return $.grep(filas, function (x) {
+        var anulada = parseInt(x.ESTADO, 10) !== 1, est = parseInt(x.ID_RQ_ESTADO, 10);
+        if (f === 'anuladas') { return anulada; }
+        if (anulada) { return false; }
+        if (f === 'pendientes') { return est === 1; }
+        if (f === 'aprobadas') { return est === 3; }
+        if (f === 'rechazadas') { return est === 7; }
+        return true;
+    });
+}
+
+//Pinta la tabla de RQ (con el filtro de estado aplicado)
 function pintarTabla(filas) {
+    filas = filtrarEstadoRQ(filas);
     if (tablaRQ) { tablaRQ.destroy(); $('#tblRQ tbody').empty(); }
 
     tablaRQ = $('#tblRQ').DataTable({
@@ -328,6 +362,7 @@ function mostrarFormulario(mostrar) {
     window.scrollTo(0, 0);
 }
 
+//Deja el formulario de nueva RQ en blanco (conserva el centro si solo hay uno)
 function limpiarFormulario() {
     var centro = $('#rqCentro').val();
     $('#formRQ')[0].reset();
@@ -378,6 +413,7 @@ function agregarItem() {
     $('#rqItems .rq-desc').last().focus();
 }
 
+//Vuelve a numerar los ítems después de agregar o quitar uno
 function renumerarItems() {
     var items = $('#rqItems .rq-item');
     items.each(function (i) { $(this).find('.rq-item-num').text('Ítem ' + (i + 1)); });
@@ -424,10 +460,12 @@ function agregarArchivos(lista) {
 function comprimirFoto(archivo, listo) {
     if (archivo.size < 400 * 1024) { listo(archivo); return; }
     var lector = new FileReader();
+    //Si el archivo no se puede leer como imagen, se sube tal como viene
     lector.onerror = function () { listo(archivo); };
     lector.onload = function (e) {
         var img = new Image();
         img.onerror = function () { listo(archivo); };
+        //La foto se achica a máximo 1600 px antes de subirla, para que no pese tanto
         img.onload = function () {
             try {
                 var w = img.width, h = img.height, mayor = Math.max(w, h);
@@ -448,6 +486,7 @@ function comprimirFoto(archivo, listo) {
     lector.readAsDataURL(archivo);
 }
 
+//Muestra las miniaturas de los archivos elegidos
 function pintarPrevias() {
     var cont = $('#rqPrevias').empty();
     for (var i = 0; i < archivosRQ.length; i++) {
@@ -457,7 +496,7 @@ function pintarPrevias() {
         if (a.type.indexOf('image/') === 0) {
             $('<img alt="">').attr('src', URL.createObjectURL(a)).appendTo(caja);
         } else {
-            caja.append('<div class="rq-previa-pdf"><i class="fa fa-file-pdf-o"></i></div>');
+            caja.append('<div class="rq-previa-pdf" data-i="' + i + '" title="Ver el PDF antes de enviarlo"><i class="fa fa-file-pdf-o"></i></div>');
         }
         caja.append('<div class="rq-previa-nombre">' + esc(a.name) + '<br><small>' + kb + ' KB</small></div>');
         caja.append('<button type="button" class="rq-previa-quitar" data-i="' + i + '" title="Quitar">&times;</button>');
@@ -518,6 +557,7 @@ function verRQ(id) {
         });
 }
 
+//Pinta la ventana de detalle de una RQ: datos, ítems, archivos e historial
 function pintarDetalle(d) {
     detalleRQ = d;
     var r = d.rq, anulada = parseInt(r.ESTADO, 10) === 0;
@@ -561,10 +601,10 @@ function pintarDetalle(d) {
         for (var j = 0; j < d.archivos.length; j++) {
             var a = d.archivos[j], url = esc(a.URL);
             if (/\.pdf$/i.test(a.RUTA)) {
-                h += '<a class="rq-det-archivo rq-det-pdf" href="' + url + '" target="_blank" rel="noopener">' +
+                h += '<a class="rq-det-archivo rq-det-pdf" href="' + url + '" data-visor-pdf data-nombre="' + esc(a.NOMBRE_ORIGINAL) + '">' + //se ve en el visor de la misma página
                      '<i class="fa fa-file-pdf-o"></i><span>' + esc(a.NOMBRE_ORIGINAL) + '</span></a>';
             } else {
-                h += '<a class="rq-det-archivo" href="' + url + '" target="_blank" rel="noopener" title="' +
+                h += '<a class="rq-det-archivo" href="' + url + '" data-visor="rq-' + parseInt(r.ID_RQ, 10) + '" title="' + //se abre en el visor de la misma página
                      esc(a.NOMBRE_ORIGINAL) + '"><img src="' + url + '" alt="' + esc(a.NOMBRE_ORIGINAL) + '"></a>';
             }
         }
@@ -594,12 +634,20 @@ function pintarDetalle(d) {
     }
 
     //Editar: en "Solicitada", quien la pidió o quien aprueba. Si fue rechazada,
-    //quien la pidió la corrige y la envía de nuevo
+    //quien la pidió la corrige y la envía de nuevo (máximo d.maxReintentos veces)
+    var reint = parseInt(d.reintentos, 10) || 0, maxR = parseInt(d.maxReintentos, 10) || 0;
+    var rechazada = !anulada && parseInt(r.ID_RQ_ESTADO, 10) === 7;
+    if (rechazada && !d.retrocede) {
+        h += '<div class="rq-det-editar"><p><i class="fa fa-ban"></i> <strong>Ya no se puede enviar de nuevo:</strong> ' +
+             (maxR > 0 ? 'se corrigió y se reenvió ' + reint + ' de ' + maxR + ' veces permitidas. '
+                       : 'las RQ rechazadas no se reenvían. ') +
+             'Queda rechazada; si todavía hace falta, hay que pedir una RQ nueva.</p></div>';
+    }
     if (d.puedeEditar) {
         h += '<div class="rq-det-editar">' +
              (d.retrocede
                 ? '<p><i class="fa fa-undo"></i> Fue rechazada. Si la corriges, <strong>vuelve a "Solicitada"</strong> ' +
-                  'y queda pendiente de aprobación otra vez.</p>'
+                  'y queda pendiente de aprobación otra vez. Reintento <strong>' + (reint + 1) + ' de ' + maxR + '</strong>.</p>'
                 : '') +
              '<button type="button" class="btn btn-default" id="btnEditarRQ"><i class="fa ' + (d.retrocede ? 'fa-undo' : 'fa-pencil') + '"></i> ' +
              (d.retrocede ? 'Corregir y enviar de nuevo' : 'Editar RQ') + '</button></div>';
@@ -620,6 +668,7 @@ function pintarDetalle(d) {
     $('#modalRQCuerpo').html(h);
 }
 
+//Cambia el estado de la RQ (rechazar exige la observación)
 function cambiarEstadoRQ(nuevo) {
     nuevo = parseInt(nuevo, 10);
     var rechaza = nuevo === 7;
@@ -627,7 +676,11 @@ function cambiarEstadoRQ(nuevo) {
     if (rechaza && !obs) { alert('Para rechazar una RQ hay que explicar el motivo en la observación.'); $('#rqObsEstado').focus(); return; }
 
     var boton = '.btn-estado-rq[data-estado="' + nuevo + '"]';
-    hanaConfirmar(rechaza ? '¿Rechazar esta RQ? Quien la pidió verá el motivo y podrá corregirla.' : '¿Aprobar esta RQ?', function () {
+    var sinReintentos = detalleRQ && (parseInt(detalleRQ.reintentos, 10) || 0) >= (parseInt(detalleRQ.maxReintentos, 10) || 0);
+    var textoRechazo = sinReintentos
+        ? '¿Rechazar esta RQ? Ya no le quedan reintentos: quedará rechazada y no se podrá enviar de nuevo.'
+        : '¿Rechazar esta RQ? Quien la pidió verá el motivo y podrá corregirla.';
+    hanaConfirmar(rechaza ? textoRechazo : '¿Aprobar esta RQ?', function () {
         hanaBoton(boton, true);
         $.ajax({ url: URL_RQ + '?op=cambiarEstado', type: 'POST', dataType: 'json',
                  data: { id: rqAbierta, estado: nuevo, observacion: obs } })
@@ -645,6 +698,7 @@ function cambiarEstadoRQ(nuevo) {
     }, { aceptar: rechaza ? 'Sí, rechazar' : 'Sí, aprobar', cancelar: 'No' });
 }
 
+//Anula la RQ (exige la observación y pregunta antes)
 function anularRQ() {
     var obs = $.trim($('#rqObsEstado').val());
     if (!obs) { alert('Para anular una RQ hay que explicar el motivo en la observación.'); $('#rqObsEstado').focus(); return; }
@@ -708,6 +762,7 @@ function abrirEdicionRQ() {
     $('#modalRQCuerpo').html(h);
 }
 
+//Revisa y guarda los cambios de una RQ
 function guardarEdicionRQ() {
     var form = $('#formEditarRQ');
     if (!form.find('[name="descripcion[]"]').filter(function () { return $.trim(this.value) !== ''; }).length) {
@@ -717,6 +772,7 @@ function guardarEdicionRQ() {
         alert('Explica qué se corrige: queda en el historial.'); form.find('[name="motivo"]').focus(); return;
     }
 
+    //Envía el formulario de edición con sus archivos
     var enviar = function () {
         var fd = new FormData(form[0]);
         fd.append('id', rqAbierta);

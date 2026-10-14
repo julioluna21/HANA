@@ -1,4 +1,11 @@
 <?php
+/*
+  HANA - Conexión a la base de datos
+  ---------------------------------------------------------------------------
+  Abre la conexión ($conexion) con los datos de Conexion/Global.php y deja las
+  funciones de consulta que usan los modelos viejos (ejecutarConsulta, limpiarCadena...).
+  Los módulos nuevos usan Modelo/HanaDB.php, que trabaja con consultas preparadas.
+*/
     /*
       Si falta Global.php o la base no responde, antes salía el error crudo de PHP
       ("<br /><b>Fatal error</b>...") y las pantallas se rompían al leerlo (por
@@ -7,6 +14,7 @@
       una página sencilla si se abrió directo en el navegador.
     */
     if (!function_exists('hanaFalloConexion')) {
+        //Registra el error en el log y responde un mensaje entendible (JSON o página) en vez del error de PHP
         function hanaFalloConexion($mensaje)
         {
             error_log('HANA - ' . $mensaje);
@@ -71,6 +79,8 @@
                     return $conexion->insert_id;
             }
 
+            //Limpia un dato que viene del formulario antes de meterlo en una consulta:
+            //quita espacios, escapa comillas y convierte < > en texto para que no se ejecute como HTML
             function limpiarCadena($str)
             {
                     global $conexion;

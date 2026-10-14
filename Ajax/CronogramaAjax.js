@@ -1,4 +1,4 @@
-//Reporte diario — Cronograma de visitas y vehículo
+//Reporte diario - Cronograma de visitas y vehículo
 //Pinta el calendario del mes y abre cada día en una ventana para planear,
 //marcar lo hecho y registrar el estado del vehículo
 
@@ -36,7 +36,7 @@ $(function () {
             var hp = '';
             for (var i = 0; i < c.proyectos.length; i++) {
                 hp += '<option value="' + parseInt(c.proyectos[i].ID_PROYECTO, 10) + '">' + rdEsc(c.proyectos[i].NOM_PROYECTO) +
-                      (c.proyectos[i].EDITABLE ? ' (el tuyo)' : '') + '</option>';
+                      (c.proyectos[i].PROPIO ? ' (el tuyo)' : '') + '</option>';
             }
             $('#cProyecto').html(hp || '<option value="">No tienes proyectos para ver</option>').val(String(c.proyectoInicial || ''));
             $('#btnVehiculos').toggle(!!c.adminVh);
@@ -97,6 +97,7 @@ function elegirProyecto() {
     cargarMes();
 }
 
+//Trae el mes del proyecto elegido (actividades, situación de cada día y vehículo)
 function cargarMes() {
     if (!proyActual) { return; }
     var q = '&proyecto=' + proyActual.ID_PROYECTO + '&anio=' + $('#cAnio').val() + '&mes=' + $('#cMes').val() + '&vehiculo=' + ($('#cVehiculo').val() || 0);
@@ -106,7 +107,7 @@ function cargarMes() {
             proyEditable = !!d.editable;
             $('#cQuien').html(d.coordinador
                 ? '<i class="fa fa-user"></i> Coordinador del proyecto: <strong>' + rdEsc(d.coordinador) + '</strong>' +
-                  (proyEditable ? '' : ' <span class="adm-sello">Solo consulta</span>')
+                  (!proyEditable ? ' <span class="adm-sello">Solo consulta</span>' : (d.propio ? '' : ' <span class="adm-sello">Lo editas como ADMIN TEC</span>'))
                 : '<span class="rd-ayuda" style="display:inline">Este proyecto no tiene coordinador asignado.</span>');
             pintarCalendario();
             if (diaAbierto && $('#modalDia').is(':visible')) { abrirDia(diaAbierto); }
@@ -139,6 +140,7 @@ function resumenCentro(datos, desde, hasta) {
         (planeadas.length ? ' · visita planeada: días ' + planeadas.join(', ') : '') + '</div>');
 }
 
+//Pinta el mes en la vista que esté activa: calendario o lista
 function pintarCalendario() {
     //Qué vista está activa
     $('.crono-vistas [data-vista]').removeClass('active').filter('[data-vista="' + vistaCrono + '"]').addClass('active');
@@ -183,12 +185,14 @@ function pintarCalendario() {
 //---------------------------------------------------------------------------
 var CORTO_VH = { OPERATIVO: 'Operativo', INOPERATIVO: 'Inoperativo', FALLA_FLOTA: 'Falla reportada' };
 
+//La placa del vehículo elegido en el filtro
 function placaElegida() {
     var id = +($('#cVehiculo').val() || 0), vs = proyActual ? proyActual.VEHICULOS : [];
     for (var i = 0; i < vs.length; i++) { if (+vs[i].ID_VEHICULO === id) { return vs[i].PLACA; } }
     return '';
 }
 
+//Línea con el lugar donde estuvo la persona ese día (si se sabe)
 function lineaLugar(f, datos) {
     var l = datos.lugares && datos.lugares[f];
     return l ? '<div class="crono-lugar" title="Estuvo en ' + rdEsc(l) + '"><i class="fa fa-map-marker"></i> ' + rdEsc(l) + '</div>' : '';
@@ -244,6 +248,7 @@ function pintarLista() {
     dibujarLista(datosMes, anio + '-' + rdDos(mes) + '-01', rdATexto(new Date(anio, mes, 0)));
 }
 
+//Vista de lista: las actividades agrupadas por día
 function dibujarLista(datos, desde, hasta) {
     var porDia = {};
     for (var i = 0; i < datos.items.length; i++) { (porDia[datos.items[i].FECHA] = porDia[datos.items[i].FECHA] || []).push(datos.items[i]); }
@@ -289,12 +294,26 @@ function fuenteDe(fecha) {
     return datosMes;
 }
 
+//¿Ese día es festivo? (la lista viene del servidor)
+function esFestivoC(f) { return (cfgC.festivos || []).indexOf(f) !== -1; }
+
+//¿Se puede registrar el estado del vehículo ese día? Hoy o un día habilitado; y los sábados,
+//domingos y festivos: por adelantado y también después, hasta donde digan los parámetros (la regla de verdad está en el servidor)
+function vhDiaPermitido(f) {
+    if (rdDiaPermitido(f, cfgC.hoy, cfgC.habilitados)) { return true; }
+    var dow = rdAFecha(f).getDay();
+    if (!(dow === 0 || dow === 6 || esFestivoC(f))) { return false; }
+    if (f > cfgC.hoy) { return !!cfgC.vhFindeHasta && f <= cfgC.vhFindeHasta; }
+    return !!cfgC.vhFindeDesde && f >= cfgC.vhFindeDesde;
+}
+
 //¿Ese día del cronograma se puede modificar? De hoy en adelante sí (se planea);
 //uno pasado, solo si el administrador lo habilitó
 function diaEditableC(f) {
     return f >= cfgC.primerEditable || (cfgC.habilitados || []).indexOf(f) !== -1;
 }
 
+//Abre la ventana de un día con sus actividades y el estado del vehículo
 function abrirDia(fecha) {
     diaAbierto = fecha;
     var d = rdAFecha(fecha);
@@ -349,12 +368,14 @@ function abrirDia(fecha) {
         }
     }
 
-    //Vehículo: solo hoy, o un día que el administrador habilitó
+    //Vehículo: hoy, o un día que el administrador habilitó. Los sábados, domingos y festivos
+    //también se pueden dejar registrados por adelantado (nunca un día que ya pasó)
     var idVh = +($('#cVehiculo').val() || 0);
     if (idVh > 0) {
         var vh = ds.vehiculo[fecha];
         h += '<h5 class="rd-subtitulo">Vehículo ' + rdEsc($('#cVehiculo option:selected').text()) + '</h5>';
-        if (proyEditable && rdDiaPermitido(fecha, cfgC.hoy, cfgC.habilitados)) {
+        if (proyEditable && vhDiaPermitido(fecha)) {
+            if (fecha > cfgC.hoy) { h += '<p class="rd-ayuda" style="margin-top:0;"><i class="fa fa-calendar-plus-o"></i> Es ' + (esFestivoC(fecha) ? 'festivo' : 'fin de semana') + ': puedes dejar registrado desde ya el estado del vehículo.</p>'; }
             var opV = '', opTr = '<option value="">¿Cómo te transportaste?</option>';
             $.each(cfgC.transportes, function (cod, nom) {
                 opTr += '<option value="' + rdEsc(cod) + '"' + (vh && vh.TRANSPORTE === cod ? ' selected' : '') + '>' + rdEsc(nom) + '</option>';
@@ -384,9 +405,11 @@ function abrirDia(fecha) {
     if (!$('#modalDia').is(':visible')) { $('#modalDia').modal('show'); }
 }
 
+//Agrega una actividad al día abierto
 function agregarItem() {
     var tipo = $('#nuevoTipo').val();
-    var datos = { fecha: diaAbierto, tipo: tipo, descripcion: $('#nuevoDesc').val() };
+    //El proyecto que se está viendo: el ADMIN TEC escribe en el cronograma de su coordinador
+    var datos = { fecha: diaAbierto, tipo: tipo, descripcion: $('#nuevoDesc').val(), proyecto: proyActual ? proyActual.ID_PROYECTO : '' };
     if (tipo === 'VISITA') { datos.centro = $('#nuevoCentro').val(); }
     hanaBoton('#btnAgregarCrono', true);
     $.post(URL_CRONO + '?op=agregar', datos, null, 'json')
@@ -394,6 +417,7 @@ function agregarItem() {
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo agregar.')); hanaBoton('#btnAgregarCrono', false); });
 }
 
+//Cambia el estado de una actividad (cumplida, no cumplida...) y pide la observación si hace falta
 function cambiarEstado() {
     var id = $(this).data('id'), estado = $(this).data('estado');
     var enviar = function (obs) {
@@ -411,6 +435,7 @@ function cambiarEstado() {
     }
 }
 
+//Quita una actividad del cronograma (pregunta antes)
 function quitarItem() {
     var id = $(this).data('id');
     hanaConfirmar('¿Quitar esta actividad del cronograma?', function () {
@@ -420,6 +445,7 @@ function quitarItem() {
     }, { aceptar: 'Sí, quitar', cancelar: 'No' });
 }
 
+//Guarda cómo estuvo el vehículo el día abierto y en qué se movió la persona si no estuvo operativo
 function guardarVhDia() {
     hanaBoton('#btnGuardarVhDia', true);
     $.post(URL_CRONO + '?op=vehiculoDia', { vehiculo: $('#cVehiculo').val(), fecha: diaAbierto,
@@ -434,6 +460,7 @@ function guardarVhDia() {
 //---------------------------------------------------------------------------
 var catalogoVh = [];
 
+//Muestra el panel de administración de vehículos
 function abrirVehiculos() {
     $('#panelCalendario').hide();
     $('#panelVehiculos').show();
@@ -449,6 +476,7 @@ function abrirVehiculos() {
     listarVehiculos();
 }
 
+//Trae los vehículos y los pinta en la tabla del panel
 function listarVehiculos() {
     $.getJSON(URL_CRONO + '?op=catalogo')
         .done(function (filas) {
@@ -465,6 +493,7 @@ function listarVehiculos() {
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron cargar los vehículos.')); });
 }
 
+//Carga un vehículo en el formulario para editarlo
 function editarVehiculo() {
     var v = catalogoVh[$(this).data('i')];
     $('#vhId').val(v.ID_VEHICULO); $('#vhPlaca').val(v.PLACA); $('#vhDesc').val(v.DESCRIPCION || '');
@@ -472,6 +501,7 @@ function editarVehiculo() {
     $('#vhPlaca').focus();
 }
 
+//Guarda el vehículo del formulario
 function guardarVehiculo(e) {
     e.preventDefault();
     hanaBoton('#btnGuardarVh', true);

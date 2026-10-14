@@ -1,0 +1,160 @@
+/* ==========================================================================
+   HANA — Promesa de valor (registro del día, mes del peaje y consolidado)
+   Va después de reporte.css y usa sus colores: vino #6E1A1E, menta #1ABB9C,
+   ámbar #D99C2B, negro #1A1A1A y blanco. Aquí solo está lo propio del módulo
+   ========================================================================== */
+
+/* Textos de apoyo, en gris suave */
+.pv-suave{ color: #9AA0A6; }
+.pv-alerta-gris{ background: #F3F4F5; color: #6B7076; border: 1px solid #E3E6EA; }
+.pv-quien{ clear: both; margin-top: 0; }                    /* debajo de los selectores, no al lado */
+.pv-quien .rd-tag{ margin-left: 6px; }
+
+/* --------------------------------------------------------------------------
+   El día: la barra para elegirlo y la tabla de cargos
+   -------------------------------------------------------------------------- */
+.pv-barra-dia{ display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 12px; }
+.pv-barra-dia .btn.active{ background: #6E1A1E; border-color: #6E1A1E; color: #FFFFFF; box-shadow: none; }
+.pv-otro-dia{ font-weight: normal; font-size: 13px; color: #6B7076; margin: 0; display: flex; align-items: center; gap: 6px; }
+.pv-otro-dia input{ width: 150px; }
+
+.pv-dia{ border: 1px solid #ECE6E1; border-radius: 12px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+.pv-dia thead th{ background: #FBF8F6; color: #6B7076; font-size: 12px; font-weight: 700; border-bottom: 1px solid #ECE6E1 !important; }
+.pv-dia td, .pv-dia th{ border-top: 1px solid #F3EFEB !important; }
+.pv-dia .pv-cargo{ font-weight: 700; }
+.pv-dia .pv-prom{ font-size: 16px; }
+.pv-col-eje{ width: 120px; text-align: center; }
+.pv-eje{ width: 84px; margin: 0 auto; text-align: center; font-size: 16px; font-weight: 700; height: 38px; }
+.pv-eje:focus{ border-color: #1ABB9C; box-shadow: 0 0 0 3px rgba(26, 187, 156, .18); }
+.pv-eje.pv-sugerido{ background: #FDF3E0; }                 /* número puesto por "Llenar según el ausentismo", sin revisar */
+.pv-eje-ver{ font-size: 16px; font-weight: 700; }
+.pv-aus{ font-size: 13px; color: #1A1A1A; }
+.pv-explica{ font-size: 12px; color: #8A5B0B; margin-top: 2px; }
+.pv-explica:empty{ display: none; }
+.pv-dia tfoot th{ background: #FBF8F6; font-size: 14px; }
+.pv-ayuda-llenar{ margin: 0 auto 0 0; max-width: 520px; }
+.pv-pie{ margin-top: 10px; }
+
+/* La diferencia: en negativo (faltó gente) vino; en positivo menta; en cero gris */
+.pv-difn{ display: inline-block; min-width: 38px; text-align: center; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+.pv-difn.pv-menos{ background: #F5E4E5; color: #6E1A1E; }
+.pv-difn.pv-mas{ background: #E4F6F2; color: #0F7A64; }
+.pv-difn.pv-igual{ background: #F3F4F5; color: #6B7076; }
+
+/* --------------------------------------------------------------------------
+   El mes del peaje (usa la tabla del ausentismo: .aus-tabla)
+   -------------------------------------------------------------------------- */
+.pv-mes td.pv-plan{ color: #B5BABF; }                       /* promesa de un día que todavía no tiene ejecutado */
+.pv-mes .pv-f-eje td{ font-weight: 700; }
+.pv-mes td.pv-menos{ color: #6E1A1E; font-weight: 700; background: #FBF1F1; }
+.pv-mes td.pv-mas{ color: #0F7A64; font-weight: 700; background: #EEF9F6; }
+.pv-mes td.pv-igual{ color: #B5BABF; }
+.pv-mes .pv-sem{ min-width: 74px; white-space: nowrap; font-size: 11px; }
+.pv-mes .aus-fija{ width: 180px; min-width: 180px; max-width: 180px; }
+
+/* --------------------------------------------------------------------------
+   Definir la promesa: una cajita por cargo
+   -------------------------------------------------------------------------- */
+.pv-cargos{ display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.pv-cargo-caja{ background: #FFFFFF; border: 1px solid #ECE6E1; border-radius: 10px; padding: 8px 10px; margin: 0; font-weight: normal; }
+.pv-cargo-caja span{ display: block; font-size: 12px; font-weight: 700; color: #6E1A1E; min-height: 34px; overflow-wrap: anywhere; }
+.pv-cargo-caja input{ text-align: center; font-size: 16px; font-weight: 700; }
+.pv-cargo-caja small{ display: block; text-align: center; color: #9AA0A6; margin-top: 3px; }
+
+/* --------------------------------------------------------------------------
+   Consolidado: las cifras de arriba y las tablas
+   -------------------------------------------------------------------------- */
+.pv-filtros{ background: #FBF8F6; border: 1px solid #ECE6E1; border-radius: 12px; padding: 14px 16px 2px; margin-bottom: 14px; }
+.pv-kpis{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 6px; }
+.pv-kpi{ border: 1px solid #ECE6E1; border-radius: 12px; padding: 10px 14px; background: #FFFFFF; }
+.pv-kpi span{ display: block; font-size: 12px; color: #6B7076; }
+.pv-kpi strong{ display: block; font-size: 24px; line-height: 1.2; color: #1A1A1A; }
+.pv-kpi small{ display: block; font-size: 11px; color: #9AA0A6; }
+.pv-kpi.pv-kpi-menos strong{ color: #6E1A1E; }
+.pv-kpi.pv-kpi-mas strong{ color: #0F7A64; }
+.pv-kpi.pv-kpi-texto strong{ font-size: 15px; padding: 6px 0 5px; }
+.pv-kpi.pv-kpi-medio strong{ font-size: 19px; padding: 3px 0 3px; white-space: nowrap; }   /* "600 de 600" en un renglón */
+
+.pv-cons{ font-size: 12px; margin-bottom: 4px; border-collapse: separate; border-spacing: 0; }
+.pv-cons thead th{ background: #6E1A1E; color: #FFFFFF; font-weight: 700; text-align: center; vertical-align: middle !important; border-color: #8C3A3E !important; white-space: normal; line-height: 1.15; padding: 6px 4px !important; font-size: 11px; }
+.pv-cons thead th.pv-g-aus{ background: #8C3A3E; }           /* el grupo de columnas de ausencias */
+.pv-cons thead th.pv-g-nocuenta{ background: #9C8587; font-style: italic; }
+.pv-cons td{ text-align: right; white-space: nowrap; padding: 5px 6px !important; vertical-align: middle !important; }
+.pv-cons td.pv-nombre, .pv-cons th.pv-nombre{ text-align: left; position: sticky; left: 0; z-index: 1; background: #FFFFFF; font-weight: 700; min-width: 120px; white-space: normal; }
+.pv-cons thead th.pv-nombre{ background: #5A1417; z-index: 2; }
+.pv-cons td.pv-sub{ text-align: left; color: #6B7076; }
+.pv-cons td.pv-txt{ text-align: left; white-space: normal; line-height: 1.15; }   /* textos: pueden ir en dos renglones */
+.pv-cons td.pv-cero{ color: #C9CDD1; }
+.pv-cons td.pv-menos{ color: #6E1A1E; font-weight: 700; }
+.pv-cons td.pv-mas{ color: #0F7A64; font-weight: 700; }
+.pv-cons td.pv-nocuenta{ font-style: italic; color: #6B7076; }
+.pv-cons tr.pv-total td{ background: #F5E4E5 !important; font-weight: 700; border-top: 2px solid #6E1A1E !important; }
+.pv-cons tr.pv-total td.pv-nombre{ background: #F5E4E5 !important; }
+.pv-cons tr.pv-corte td{ border-top: 2px solid #E3E6EA !important; }   /* empieza otro peaje en el detalle por cargo */
+.pv-cons a{ color: #6E1A1E; text-decoration: underline; }
+
+/* El % de ejecución con su barrita */
+.pv-pct{ display: inline-flex; align-items: center; gap: 6px; }
+.pv-pct i{ display: inline-block; width: 30px; height: 6px; border-radius: 3px; background: #EEF0F2; overflow: hidden; }
+.pv-pct i b{ display: block; height: 100%; background: #1ABB9C; }
+.pv-pct.pv-bajo i b{ background: #D99C2B; }
+.pv-pct.pv-muy-bajo i b{ background: #6E1A1E; }
+
+/* El resultado: MÁS, MENOS, IGUAL o SIN DATOS */
+.pv-res{ display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+.pv-res-MAS{ background: #E4F6F2; color: #0F7A64; }
+.pv-res-MENOS{ background: #F5E4E5; color: #6E1A1E; }
+.pv-res-IGUAL{ background: #EEF0F2; color: #1A1A1A; }
+.pv-res-SIN_DATOS{ background: #F3F4F5; color: #9AA0A6; font-weight: normal; }
+
+/* Días registrados frente a los que se esperaban */
+.pv-dias-falta{ color: #8A5B0B; font-weight: 700; }
+
+/* En el celular la tabla del día se vuelve una tarjeta por cargo: el nombre arriba; la promesa, el ejecutado
+   y la diferencia en un renglón; y las ausencias debajo. Así no hay que correr la tabla hacia los lados */
+@media (max-width: 767px){
+    .pv-dia thead{ display: none; }
+    .pv-dia, .pv-dia tbody, .pv-dia tfoot{ display: block; width: 100%; }
+    .pv-dia tr{ display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "cargo cargo cargo" "prom eje dif" "aus aus aus";
+                gap: 4px 12px; align-items: center; padding: 10px 12px; border-top: 1px solid #F3EFEB; }
+    .pv-dia tbody tr:first-child{ border-top: 0; }
+    .pv-dia td, .pv-dia th{ display: block; border: 0 !important; padding: 0 !important; background: transparent !important; }
+    .pv-dia .pv-cargo{ grid-area: cargo; }
+    .pv-dia .pv-prom{ grid-area: prom; text-align: left; }
+    .pv-dia .pv-prom::before{ content: "Promesa "; font-size: 12px; font-weight: normal; color: #6B7076; }
+    .pv-dia .pv-col-eje{ grid-area: eje; width: auto; }
+    .pv-dia .pv-dif{ grid-area: dif; min-width: 44px; }
+    .pv-dia .pv-aus{ grid-area: aus; }
+    .pv-dia tfoot tr{ background: #FBF8F6; }
+    .pv-eje{ width: 76px; }
+    .pv-ayuda-llenar{ display: none; }                      /* la barra de guardar queda pegada abajo: sin el texto largo */
+    .pv-kpi strong{ font-size: 20px; }
+    .pv-otro-dia{ flex: 1 1 100%; }
+}
+
+/* Al imprimir el consolidado: sin filtros ni botones, y las tablas completas */
+@media print{
+    .pv-filtros, .rd-botones-titulo{ display: none !important; }
+    .pv-cons td.pv-nombre, .pv-cons th.pv-nombre{ position: static; }
+    .pv-cons{ font-size: 9px; }
+    .pv-seccion{ page-break-inside: auto; }
+    @page{ size: landscape; }
+}
+
+/* Filtro por cargo (día, mes y consolidado): una fila de botoncitos que se prenden y apagan */
+.pv-filtro-cargos{ display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px; }
+.pv-filtro-cargos > span{ font-size: 12px; font-weight: 700; color: #6B7076; margin-right: 2px; }
+.pv-fc{ font-size: 12px; padding: 4px 11px; border-radius: 14px; background: #F3F4F5; color: #6B7076; border: 1px solid transparent; cursor: pointer; line-height: 1.4; }
+.pv-fc:hover{ border-color: #D9CFC8; }
+.pv-fc.activo{ background: #6E1A1E; color: #FFFFFF; }
+.pv-fc-todos.activo{ background: #F5E4E5; color: #6E1A1E; border-color: #E2C3C5; font-weight: 700; }
+.pv-fc-nota{ font-size: 12px; color: #8C3A3E; }
+
+/* Días que se repiten: los días de la semana como casillas grandes, fáciles de tocar en el celular */
+.pv-semana{ display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.pv-semana label{ margin: 0; font-weight: normal; }
+.pv-semana input{ position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pv-semana span{ display: inline-block; min-width: 44px; text-align: center; padding: 8px 10px; border-radius: 8px; border: 1px solid #D9CFC8; background: #FFFFFF; color: #3C3F43; cursor: pointer; font-size: 13px; }
+.pv-semana input:checked + span{ background: #6E1A1E; border-color: #6E1A1E; color: #FFFFFF; font-weight: 700; }
+.pv-semana input:focus-visible + span{ outline: 2px solid #8C3A3E; outline-offset: 2px; }
+.pv-dias-txt{ font-size: 12px; color: #6B7076; }

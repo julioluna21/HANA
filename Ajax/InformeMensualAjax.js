@@ -1,4 +1,4 @@
-//Reporte diario — Informe de gestión (mensual o por rango de fechas)
+//Reporte diario - Informe de gestión (mensual o por rango de fechas)
 //La pantalla solo elige el periodo: el PDF lo arma el servidor (Vista/InformeMensualPdfVista.php)
 
 var hoyInf = ''; //"2026-10-06": lo manda el servidor, en la hora de Colombia

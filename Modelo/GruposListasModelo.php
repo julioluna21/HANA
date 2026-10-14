@@ -1,4 +1,10 @@
 <?php
+/*
+  HANA - Listas de chequeo (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla grupo_lista_chequeo: cada tipo de lista (el "grupo" de preguntas).
+  Lo usa Control/GruposListasControl.php.
+*/
 require "../Conexion/ConexionDB.php";
 class grupos{
      //Implementamos el super constructor 
@@ -37,6 +43,7 @@ class grupos{
              $sql = "UPDATE grupo_lista_chequeo SET ESTADO=0 WHERE ID_GRUPO_LISTA_CHEQUEO=$id";
              return ejecutarConsulta($sql);
      }
+     //Listas activas para el buscador; si se escribió algo, filtra por el nombre
      public function select($search_term)
      {
              if ($search_term === 0) {

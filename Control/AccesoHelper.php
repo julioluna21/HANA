@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Quién puede ver qué
+  HANA - Quién puede ver qué
   ---------------------------------------------------------------------------
   Una sola regla para novedades, RQ y la campana. Si mañana cambia la regla,
   se cambia aquí y aplica en todas partes a la vez.
@@ -25,28 +25,37 @@
 */
 
 require_once __DIR__ . '/../Conexion/ConexionDB.php';
+require_once __DIR__ . '/../Modelo/AccesoModelo.php';       //las consultas de esta regla viven en el modelo
+require_once __DIR__ . '/../Modelo/OrganizacionModelo.php';
+require_once __DIR__ . '/../Modelo/HanaConfig.php';
+require_once __DIR__ . '/../Modelo/HanaFechas.php';
 
-//Permisos que se marcan en Configuración → Roles
+
+//Casillas que se marcan en Configuración → Permisos de usuario
 define('PERMISO_VER_TODAS_NOVEDADES', '16M');
 define('PERMISO_VER_TODAS_RQ',        '17M');
-define('PERMISO_APROBAR_RQ',          '18M'); //aprobar o rechazar RQ (Fase 1)
-define('PERMISO_TABLERO',             '19M'); //entrar al tablero del reporte diario (Fase 2)
-define('PERMISO_TABLERO_TODOS',       '20M'); //ver todos los proyectos en el tablero (jefe mayor)
+define('PERMISO_APROBAR_RQ',          '18M'); //aprobar o rechazar RQ
+define('PERMISO_TABLERO',             '19M'); //entrar al tablero del reporte diario
+define('PERMISO_TABLERO_TODOS',       '20M'); //ver todos los proyectos en el tablero (gerente de operaciones)
 define('PERMISO_ADMIN_REPORTE',       '21M'); //administración: consultar todo lo que llenan los coordinadores
 define('PERMISO_VER_PROYECTOS',       '22M'); //consultar todos los proyectos (cronograma y ausentismo)
 define('PERMISO_AUS_REABRIR',         '23M'); //ausentismo: reabrir un mes cerrado
-define('PERMISO_PARAMETROS',          '24M'); //parámetros del sistema y catálogos de ausentismo
+define('PERMISO_PARAMETROS',          '24M'); //parámetros del sistema; además es el control total del ADMIN TEC:
+                                                //crea, corrige y anula en todos los módulos y proyectos
+define('PERMISO_PEDIR_RQ',            '41M'); //pedir RQ en sus peajes
+define('PERMISO_ASIGNAR_NOVEDAD',     '42M'); //asignar una novedad a una persona
+
+//La persona que tiene la sesión
+function hanaIdColaborador() { return isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0; }
+//Id del usuario que inició sesión (0 si no hay sesión)
+function hanaIdUsuario()     { return isset($_SESSION['IdUsuarios']) ? (int)$_SESSION['IdUsuarios'] : 0; }
 
 //Rol del usuario que inició sesión. La sesión no lo guardaba, así que se
 //consulta una vez y queda guardado en la sesión
 function hanaIdRol()
 {
     if (isset($_SESSION['IdRol'])) { return (int)$_SESSION['IdRol']; }
-    $idUsuario = isset($_SESSION['IdUsuarios']) ? intval($_SESSION['IdUsuarios']) : 0;
-    $fila = ejecutarConsultaSimpleFila("SELECT ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA AS rol
-                                          FROM usuarios_sistema
-                                         WHERE ID_USUARIO_SISTEMA = $idUsuario LIMIT 1");
-    $rol = $fila ? (int)$fila['rol'] : 0;
+    $rol = Acceso::rolDeUsuario(hanaIdUsuario());
     $_SESSION['IdRol'] = $rol;
     return $rol;
 }
@@ -66,69 +75,129 @@ function hanaVista($valor)
 }
 
 //---------------------------------------------------------------------------
+// El reporte del coordinador. Lo llena quien coordina un proyecto. El ADMIN
+// TEC (24M) puede usar esas pantallas en todos los proyectos, y cada pantalla
+// tiene su casilla en Permisos de usuario: quien la tenga la usa en todos los proyectos.
+// La pantalla dice a qué módulo pertenece con hanaUsarModulo('ARQUEOS')
+//---------------------------------------------------------------------------
+function hanaPermisosModulo()
+{
+    return array(
+        'HOY' => '28M', 'ARQUEOS' => '29M', 'CRONOGRAMA' => '30M', 'VACANTES' => '31M', 'COMUNICACIONES' => '32M',
+        'PROMESA' => '38M' //promesa de valor: registrar el ejecutado
+        //33M, 34M y 35M quedan libres: no se usan en el sistema
+    );
+}
+
+//Deja anotado en qué módulo está trabajando la pantalla, para revisar los permisos de ese módulo
+function hanaUsarModulo($modulo) { $GLOBALS['hanaModuloActual'] = (string)$modulo; }
+
+//¿La persona de la sesión usa la pantalla del módulo actual en TODOS los proyectos?
+//(solo aplica a ella misma: no cambia cómo se ve a los demás en el tablero o en los reportes)
+function hanaVeTodo($idColaborador = null)
+{
+    $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
+    if ($id <= 0 || $id !== hanaIdColaborador() || !isset($_SESSION['Modulos'])) { return false; }
+    if (hanaTienePermiso('24M')) { return true; }
+    $m = isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : '';
+    $p = hanaPermisosModulo();
+    return $m !== '' && isset($p[$m]) && hanaTienePermiso($p[$m]);
+}
+
+//¿Esta persona coordina algún proyecto? (si no se pasa nadie, se pregunta por quien tiene la sesión)
+function hanaEsCoordinador($idColaborador = null)
+{
+    $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
+    return HanaDB::esCoordinador($id, hanaVeTodo($id));
+}
+
+//Los proyectos que coordina la persona (o todos, si su rol ve todo)
+function hanaProyectosCoordinados($idColaborador = null)
+{
+    $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
+    return HanaDB::proyectosCoordinados($id, hanaVeTodo($id));
+}
+
+//Los peajes de los proyectos que coordina la persona
+function hanaCentrosCoordinador($idColaborador = null)
+{
+    $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
+    return HanaDB::centrosCoordinador($id, hanaVeTodo($id));
+}
+
+//¿La persona de la sesión puede usar la pantalla de ese módulo? (coordinador, ADMIN TEC o su casilla)
+function hanaPuedeModulo($modulo)
+{
+    if (hanaIdColaborador() <= 0) { return false; }
+    $antes = isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : '';
+    hanaUsarModulo($modulo);
+    $si = hanaEsCoordinador();
+    hanaUsarModulo($antes);
+    return $si;
+}
+
+//¿Ese día lo puede registrar o corregir la persona de la sesión? (hoy, o un día habilitado)
+function hanaEnVentana($fecha) { return HanaFechas::enVentana($fecha, hanaIdColaborador()); }
+
+//---------------------------------------------------------------------------
+// Promesa de valor: quién entra (lo usan el menú, los mosaicos y las pantallas)
+//---------------------------------------------------------------------------
+function hanaPromesaEntrar()
+{
+    if (hanaIdColaborador() <= 0 || !isset($_SESSION['Modulos']) || !HanaConfig::modulo('PROMESA')) { return false; }
+    foreach (array('20M', '21M', '22M', '39M', '40M') as $p) { if (hanaTienePermiso($p)) { return true; } } //consultan o definen en todos los proyectos
+    if (hanaPuedeModulo('PROMESA')) { return true; }                                                           //coordinador, ADMIN TEC o casilla 38M
+    //El jefe de peaje, solo si el administrador deja que registre el ejecutado de su peaje
+    return HanaConfig::si('PV_JEFES_REGISTRAN', false) && Organizacion::esJefeDePeaje(hanaIdColaborador());
+}
+
+//¿Puede abrir el consolidado del mes? (casilla 40M)
+function hanaPromesaConsolidado()
+{
+    return isset($_SESSION['Modulos']) && HanaConfig::modulo('PROMESA') && hanaTienePermiso('40M');
+}
+
+//Los proyectos del consolidado: todos con 20M (gerente de operaciones) o 24M (ADMIN TEC); si no, los que coordina.
+//Devuelve [lista de proyectos, ¿son todos?]
+function hanaProyectosConsolidado()
+{
+    $todos = hanaTienePermiso('20M') || hanaTienePermiso('24M');
+    return array(HanaDB::proyectosCoordinados(hanaIdColaborador(), $todos), $todos);
+}
+
+//---------------------------------------------------------------------------
 // Novedades
 //---------------------------------------------------------------------------
 
-//Condición SQL sobre la tabla novedades_hallazgos
+//Condición SQL sobre la tabla novedades_hallazgos (la arma el modelo)
 function hanaCondNovedades($vista)
 {
-    $col = isset($_SESSION['Idcolaborador']) ? intval($_SESSION['Idcolaborador']) : 0;
-    $mias = "(novedades_hallazgos.ID_COLABORADOR_NOVEDADES_HALLAZGOS = $col
-              OR novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS = $col)";
-
-    if (hanaVista($vista) === 'mias') { return $mias; }
-    if (hanaTienePermiso(PERMISO_VER_TODAS_NOVEDADES)) { return '1 = 1'; }
-
-    $rol = hanaIdRol();
-    return "($mias OR novedades_hallazgos.ID_ROL_DESTINO = $rol)";
+    return Acceso::condNovedades(hanaVista($vista), hanaIdColaborador(), hanaTienePermiso(PERMISO_VER_TODAS_NOVEDADES), hanaIdRol());
 }
 
 //¿Puede abrir esta novedad concreta? Se usa al mostrar el detalle, para que
 //nadie la abra escribiendo su número a mano
 function hanaPuedeVerNovedad($idNovedad)
 {
-    $id = intval($idNovedad);
-    $fila = ejecutarConsultaSimpleFila("SELECT 1 AS ok FROM novedades_hallazgos
-                                          WHERE ID_NOVEDADES_HALLAZGOS = $id
-                                            AND " . hanaCondNovedades('todas') . " LIMIT 1");
-    return (bool)$fila;
+    return Acceso::puedeVerNovedad($idNovedad, hanaCondNovedades('todas'));
 }
 
 //---------------------------------------------------------------------------
 // RQ
 //---------------------------------------------------------------------------
 
-//Condición SQL sobre la tabla rq (con el alias que use la consulta)
+//Condición SQL sobre la tabla rq (con el alias que use la consulta).
+//Quien aprueba tiene que poder ver todas: no se aprueba lo que no se ve
 function hanaCondRQ($vista, $alias = 'r')
 {
-    $col = isset($_SESSION['Idcolaborador']) ? intval($_SESSION['Idcolaborador']) : 0;
-    $mias = "($alias.ID_COLABORADOR_SOLICITA = $col)";
-
-    if (hanaVista($vista) === 'mias') { return $mias; }
-    //Quien aprueba tiene que poder ver todas: no se aprueba lo que no se ve
-    if (hanaTienePermiso(PERMISO_VER_TODAS_RQ) || hanaTienePermiso(PERMISO_APROBAR_RQ)) { return '1 = 1'; }
-
-    //Sin esos permisos, cada quien ve las que pidió (el rol destino de las RQ viejas ya no existe)
-    return $mias;
+    return Acceso::condRQ(hanaVista($vista), hanaIdColaborador(),
+                          hanaTienePermiso(PERMISO_VER_TODAS_RQ) || hanaTienePermiso(PERMISO_APROBAR_RQ), $alias);
 }
 
 //---------------------------------------------------------------------------
 // Roles disponibles para el selector "Rol a notificar"
 //---------------------------------------------------------------------------
-function hanaRolesActivos()
-{
-    return ejecutarConsulta("SELECT ID_ROL_USUARIO_SISTEMA AS id, NOM_ROL_USUARIO_SISTEMA AS nombre
-                               FROM rol_usuarios_sistemas
-                              WHERE ESTADO = 1
-                              ORDER BY NOM_ROL_USUARIO_SISTEMA");
-}
+function hanaRolesActivos() { return Acceso::rolesActivos(); }
 
 //¿Existe ese rol y está activo? Evita guardar un rol inventado
-function hanaRolValido($idRol)
-{
-    $id = intval($idRol);
-    if ($id <= 0) { return false; }
-    $fila = ejecutarConsultaSimpleFila("SELECT 1 AS ok FROM rol_usuarios_sistemas
-                                          WHERE ID_ROL_USUARIO_SISTEMA = $id AND ESTADO = 1 LIMIT 1");
-    return (bool)$fila;
-}
+function hanaRolValido($idRol) { return Acceso::rolValido($idRol); }

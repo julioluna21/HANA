@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Observadores
+  ---------------------------------------------------------------------------
+  Pantalla de los observadores que se pueden poner a una novedad.
+  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/ObservadorAjax.js
+  y los datos los entrega Control/ObservadorControl.php.
+  Permiso: 9M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
@@ -59,7 +67,7 @@ include('head.php');
              </div>
             <!-- Listado Registros-->
 
-            <!-- centro listado de articulos-->
+            <!-- tabla con el listado de registros -->
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">

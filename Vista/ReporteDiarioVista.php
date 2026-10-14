@@ -1,29 +1,25 @@
 <?php
-//Reporte diario — pantalla principal
-//Reúne todo lo que antes iba en el Excel del reporte diario, en mosaicos:
+//Reporte diario - pantalla principal
+//Reúne en mosaicos lo que se registra en el reporte diario:
 //Hoy en qué estás, listas de chequeo y las secciones que se van sumando
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
+    require_once __DIR__ . '/../Control/PaginaControl.php'; //lo que la pantalla necesita saber de quien entra
 
     //El reporte del coordinador (Hoy en qué estás, arqueos, cronograma, vacantes y
     //comunicaciones) es solo de quien coordina un proyecto. En los mosaicos se
     //marca con el código "COORD"
-    require_once __DIR__ . '/../Modelo/HanaDB.php';
-    $esCoordinador = isset($_SESSION['Idcolaborador']) && HanaDB::esCoordinador((int)$_SESSION['Idcolaborador']);
+    $esCoordinador = pagEsCoordinador();
     if ($esCoordinador) { $modulosAcceso[] = 'COORD'; }
-    //Listas de chequeo: las llena el coordinador (con 11M), o cualquiera con 11M si el
-    //administrador apagó LISTAS_SOLO_COORDINADOR; las ven también 12M y 21M
-    require_once __DIR__ . '/../Modelo/HanaConfig.php';
-    if ((($esCoordinador || !HanaConfig::si('LISTAS_SOLO_COORDINADOR')) && in_array('11M', $modulosAcceso)) || in_array('12M', $modulosAcceso) || in_array('21M', $modulosAcceso)) { $modulosAcceso[] = 'LISTAS'; }
+    //Listas de chequeo: las llena quien tenga 11M; las ven también 12M y 21M
+    if (in_array('11M', $modulosAcceso) || in_array('12M', $modulosAcceso) || in_array('21M', $modulosAcceso)) { $modulosAcceso[] = 'LISTAS'; }
     if (in_array('22M', $modulosAcceso)) { $modulosAcceso[] = 'VER_TODO'; }
-    //Cada pantalla del coordinador: coordinador, ADMIN TEC o su casilla en Roles
-    foreach (array_keys(HanaDB::$PERMISO_MODULO) as $mm) { if (HanaDB::puedeModulo($mm)) { $modulosAcceso[] = 'P_' . $mm; } }
+    //Cada pantalla del coordinador: coordinador, ADMIN TEC o su casilla en Permisos de usuario
+    foreach (pagModulosCoordinador() as $mm) { if (pagPuedeModulo($mm)) { $modulosAcceso[] = 'P_' . $mm; } }
     //Oficios: también quien tenga peajes asignados (jefe de peaje o en Usuarios)
-    if (isset($_SESSION['Idcolaborador'], $_SESSION['IdUsuarios']) && HanaDB::fila("SELECT 1 AS ok FROM centros_operacion c WHERE c.Estado = '1' AND (c.ID_COLABORADOR_JEFE = ? OR c.ID_CENTRO_OP IN
-           (SELECT ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP FROM asoc_usuarios_sistemas_x_cop WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = ?)) LIMIT 1",
-        'ii', array((int)$_SESSION['Idcolaborador'], (int)$_SESSION['IdUsuarios']))) { $modulosAcceso[] = 'P_COMUNICACIONES'; }
+    if (pagTienePeajes()) { $modulosAcceso[] = 'P_COMUNICACIONES'; }
     //Módulos que el administrador apagó en Parámetros del sistema: su mosaico no sale
     //OJO: head.php vuelve a leer $modulosAcceso de la sesión y borra las marcas de
     //arriba (COORD, LISTAS, VER_TODO). Por eso los mosaicos usan su propia copia
@@ -31,19 +27,19 @@ if (isset($_SESSION['IdUsuarios'])) {
     $apagados = array('HoyVista.php' => 'HOY', 'ListasVista.php' => 'LISTAS', 'ArqueosVista.php' => 'ARQUEOS',
                       'CronogramaVista.php' => 'CRONOGRAMA', 'VacantesVista.php' => 'VACANTES',
                       'ComunicacionesVista.php' => 'COMUNICACIONES', 'AusentismoVista.php' => 'AUSENTISMO');
+    //La promesa de valor está en el menú de Ausentismo
 
     //Entra quien diligencia listas (11M), las edita (12M), administra centros (5M),
     //controla (19M) o coordina un proyecto
-    if (in_array("11M", $modulosAcceso) || in_array("12M", $modulosAcceso) || in_array("5M", $modulosAcceso) || in_array("19M", $modulosAcceso) || in_array("15M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("37M", $modulosAcceso) || $esCoordinador
+    if (in_array("11M", $modulosAcceso) || in_array("12M", $modulosAcceso) || in_array("5M", $modulosAcceso) || in_array("19M", $modulosAcceso) || in_array("15M", $modulosAcceso) || in_array("41M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("37M", $modulosAcceso) || $esCoordinador
         || count(preg_grep('/^P_/', $modulosAcceso)) > 0) { //o alguna casilla de las pantallas del coordinador
 
         //Alertas pequeñas del día en los mosaicos: ya registrado (verde) o falta (ámbar)
         date_default_timezone_set('America/Bogota');
         $alerta = array('hoy' => '', 'listas' => '', 'arqueos' => '', 'cronograma' => '');
         if (isset($_SESSION['Idcolaborador'])) {
-            require_once __DIR__ . '/../Modelo/EstadoDiaModelo.php';
-            $ED = new EstadoDia();
-            $e = $ED->resumen((int)$_SESSION['Idcolaborador'], date('Y-m-d'));
+            $rd = pagResumenDelDia(); //lo calcula el controlador (Control/PaginaControl.php)
+            $e = $rd['estado'];
             $ok   = function ($t) { return '<span class="rd-tag rd-tag-ok"><i class="fa fa-check"></i> ' . $t . '</span>'; };
             $falta = function ($t) { return '<span class="rd-tag rd-tag-pend"><i class="fa fa-clock-o"></i> ' . $t . '</span>'; };
             if ($e) {
@@ -65,8 +61,8 @@ if (isset($_SESSION['IdUsuarios'])) {
         $mosaicos = array(
             array(array('P_HOY'), 'HoyVista.php', 'fa-map-marker', 'Hoy en qué estás',
                   'Dónde estás, tu horario y lo que hiciste hoy', true, $esCoordinador ? $alerta['hoy'] : ''),
-            array(array('15M'), 'RQVista.php', 'fa-wrench', 'Requisiciones (RQ)',
-                  $esCoordinador ? 'Las RQ de tus peajes' : 'Pide lo que necesita tu peaje', true, ''),
+            array(array('15M', '41M'), 'RQVista.php', 'fa-wrench', 'Requisiciones (RQ)',
+                  !in_array('41M', $modulosAcceso) ? 'Consulta las RQ' : ($esCoordinador ? 'Las RQ de tus peajes' : 'Pide lo que necesita tu peaje'), true, ''),
             array(array('LISTAS'), 'ListasVista.php', 'fa-check-square-o', 'Listas de chequeo',
                   'Diligencia las preguntas de cada lista', true, $esCoordinador ? $alerta['listas'] : ''),
             array(array('12M'), 'GruposListasVista.php', 'fa-list-ul', 'Editar listas',
@@ -98,9 +94,9 @@ if (isset($_SESSION['IdUsuarios'])) {
         $nombre = isset($_SESSION['Nombre']) ? trim(explode(' ', html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8'))[0]) : '';
         $faltan = array();
         if ($esCoordinador && !empty($e)) {
-            if (HanaConfig::modulo('HOY') && !$e['hoy']['ok']) { $faltan[] = 'contar en qué estás hoy'; }
-            if (HanaConfig::modulo('LISTAS') && !$e['listas']['ok']) { $faltan[] = 'las listas de chequeo'; }
-            if (HanaConfig::modulo('CRONOGRAMA') && !$e['cronograma']['ok']) { $faltan[] = 'darle una mirada al cronograma'; }
+            if (pagModuloActivo('HOY') && !$e['hoy']['ok']) { $faltan[] = 'contar en qué estás hoy'; }
+            if (pagModuloActivo('LISTAS') && !$e['listas']['ok']) { $faltan[] = 'las listas de chequeo'; }
+            if (pagModuloActivo('CRONOGRAMA') && !$e['cronograma']['ok']) { $faltan[] = 'darle una mirada al cronograma'; }
         }
         if (!$esCoordinador) { $resumen = 'Aquí tienes todo lo del reporte diario.'; }
         elseif (!count($faltan)) { $resumen = 'Vas al día con todo lo de hoy. ¡Buen trabajo!'; }
@@ -109,7 +105,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             $resumen = 'Para hoy te falta ' . (count($faltan) ? implode(', ', $faltan) . ' y ' : '') . $ultimo . '.';
         }
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -130,7 +126,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         foreach ($mosaicos as $m) {
             //Se muestra si tiene al menos uno de los permisos del mosaico
             if (!count(array_intersect($m[0], $accesoMosaicos))) { continue; }
-            if (isset($apagados[$m[1]]) && !HanaConfig::modulo($apagados[$m[1]])) { continue; } //apagado por el administrador
+            if (isset($apagados[$m[1]]) && !pagModuloActivo($apagados[$m[1]])) { continue; } //apagado por el administrador
             if ($m[5]) {
 ?>
             <a href="<?php echo $m[1]; ?>" class="rd-mosaico">

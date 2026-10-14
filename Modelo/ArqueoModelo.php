@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Arqueos (Reporte diario, Fase 2)
+  HANA - Arqueos (Reporte diario, Fase 2)
   Caja menor y recambio, con la misma forma de los formatos en PDF.
   Se guardan las líneas contadas, el fondo autorizado de ese momento y los
   subtotales de efectivo y de documentos. El total del arqueo y la diferencia
@@ -16,14 +16,16 @@ class Arqueo
     public static $ROLES = array('ESPERADO' => 'Valor esperado (recaudo de la caseta)', 'SUMA' => 'Suma al total recaudo',
                                  'RESTA' => 'Resta del total recaudo', 'INFO' => 'Informativo (no entra en la cuenta)');
 
-    //Qué se cuenta en cada tipo. Efectivo: una línea fija por concepto.
-    //Documentos (solo caja menor): tantas líneas como haya, con fecha
+    //Qué se cuenta en cada tipo. Efectivo: un campo por concepto.
+    //Documentos (solo caja menor): tantas líneas como haya, con fecha.
+    //El efectivo (billetes y monedas juntos) NO se guarda como línea: queda solo en
+    //arqueo.TOTAL_EFECTIVO, y al leer el arqueo se saca restándole los demás conceptos
+    //(ver mostrar()). Los otros conceptos del recambio sí se guardan en arqueo_linea
     public static $EFECTIVO = array(
-        'CAJA_MENOR' => array('BILLETES' => 'Billetes', 'MONEDAS' => 'Monedas'),
+        'CAJA_MENOR' => array('EFECTIVO' => 'Efectivo (billetes y monedas)'),
         'RECAMBIO'   => array('BASES_CASETAS'    => 'Dinero para bases en casetas',
                               'BASE_SUPERVISORA' => 'Dinero base supervisora',
-                              'MONEDAS'          => 'Dinero en monedas',
-                              'BILLETES'         => 'Dinero en billetes',
+                              'EFECTIVO'         => 'Dinero en efectivo (billetes y monedas)',
                               'CAJA_FUERTE'      => 'Dinero custodiado en caja fuerte')
     );
     public static $DOCUMENTOS = array('FACTURA' => 'Factura', 'REINTEGRO' => 'Reintegro de fondo',
@@ -36,6 +38,7 @@ class Arqueo
         return "($a.TOTAL_EFECTIVO + $a.TOTAL_DOCUMENTOS)";
     }
 
+    //La diferencia del arqueo en SQL: lo contado menos el fondo autorizado (negativo es faltante)
     public static function sqlDiferencia($a = 'a')
     {
         return "($a.TOTAL_EFECTIVO + $a.TOTAL_DOCUMENTOS - $a.FONDO_AUTORIZADO)";
@@ -57,6 +60,7 @@ class Arqueo
         return $res;
     }
 
+    //El fondo autorizado de un peaje para un tipo de arqueo (caja menor o recambio)
     public function fondo($idCentro, $tipo)
     {
         $f = HanaDB::fila("SELECT VALOR_AUTORIZADO FROM arqueo_fondo WHERE ID_CENTRO_OP = ? AND TIPO = ?",
@@ -131,11 +135,35 @@ class Arqueo
                              LEFT JOIN colaboradores col ON col.ID_COLABORADOR = a.ID_COLABORADOR_ARQUEA
                             WHERE a.ID_ARQUEO = ?", 'i', array((int)$idArqueo));
         if (!$a) { return null; }
-        $a['LINEAS'] = HanaDB::q("SELECT CLASE, CONCEPTO, NOMBRE, FECHA, VALOR, OBSERVACION FROM arqueo_linea
+        $a['LINEAS'] = HanaDB::q("SELECT CLASE, CONCEPTO, ID_CONCEPTO, NOMBRE, FECHA, VALOR, OBSERVACION FROM arqueo_linea
                                    WHERE ID_ARQUEO = ? ORDER BY CLASE DESC, ID_ARQUEO_LINEA",
                                   'i', array((int)$idArqueo));
         if (!$a['LINEAS']) { $a['LINEAS'] = array(); }
+        $a['LINEAS'] = self::conEfectivo($a);
         return $a;
+    }
+
+    //Las líneas del arqueo con el efectivo (billetes y monedas) en su lugar, en el orden del formato.
+    //El efectivo no se guarda como línea: es el total de efectivo menos los demás conceptos guardados
+    private static function conEfectivo($a)
+    {
+        if (!isset(self::$EFECTIVO[$a['TIPO']])) { return $a['LINEAS']; } //casetas: sus campos van tal cual
+        $porConcepto = array(); $otros = 0.0; $resto = array();
+        foreach ($a['LINEAS'] as $l) {
+            if ($l['CLASE'] !== 'EFECTIVO') { $resto[] = $l; continue; }
+            if (in_array($l['CONCEPTO'], array('EFECTIVO', 'BILLETES', 'MONEDAS'), true)) { continue; } //de antes del script 23: se recalcula
+            $porConcepto[$l['CONCEPTO']] = $l; $otros += (float)$l['VALOR'];
+        }
+        $lineas = array();
+        foreach (self::$EFECTIVO[$a['TIPO']] as $codigo => $nombre) {
+            if ($codigo === 'EFECTIVO') {
+                $lineas[] = array('CLASE' => 'EFECTIVO', 'CONCEPTO' => 'EFECTIVO', 'ID_CONCEPTO' => null, 'NOMBRE' => null, 'FECHA' => null,
+                                  'VALOR' => round((float)$a['TOTAL_EFECTIVO'] - $otros, 2), 'OBSERVACION' => null);
+            } elseif (isset($porConcepto[$codigo])) {
+                $lineas[] = $porConcepto[$codigo];
+            }
+        }
+        return array_merge($lineas, $resto);
     }
 
     //Guarda un arqueo nuevo con sus líneas (dentro de una transacción).
@@ -153,9 +181,11 @@ class Arqueo
         if (!$ok) { return 0; }
         $id = HanaDB::id();
         foreach ($lineas as $l) {
-            if (!HanaDB::q("INSERT INTO arqueo_linea (ID_ARQUEO, CLASE, CONCEPTO, NOMBRE, FECHA, VALOR, OBSERVACION)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)",
-                           'issssds', array($id, $l['clase'], $l['concepto'], isset($l['nombre']) ? $l['nombre'] : null, $l['fecha'], $l['valor'], $l['obs']))) {
+            //ID_CONCEPTO solo en las casetas: el campo configurable que se llenó
+            if (!HanaDB::q("INSERT INTO arqueo_linea (ID_ARQUEO, CLASE, CONCEPTO, ID_CONCEPTO, NOMBRE, FECHA, VALOR, OBSERVACION)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                           'ississds', array($id, $l['clase'], $l['concepto'], isset($l['idConcepto']) ? (int)$l['idConcepto'] : null,
+                                             isset($l['nombre']) ? $l['nombre'] : null, $l['fecha'], $l['valor'], $l['obs']))) {
                 return 0;
             }
         }
@@ -191,6 +221,7 @@ class Arqueo
         return $f ? $f : array();
     }
 
+    //Crea o edita un campo de documento del arqueo de un peaje
     public function guardarConcepto($id, $idCentro, $nombre, $rol, $orden, $estado)
     {
         if ($id > 0) {
@@ -210,6 +241,7 @@ class Arqueo
         return HanaDB::q("DELETE FROM arqueo_concepto_oculto WHERE ID_CONCEPTO = ? AND ID_CENTRO_OP = ?", 'ii', array((int)$idConcepto, (int)$idCentro));
     }
 
+    //Anula un arqueo dejando el motivo (solo si estaba activo)
     public function anular($idArqueo, $motivo)
     {
         return HanaDB::q("UPDATE arqueo SET ESTADO = 0, MOTIVO_ANULACION = ? WHERE ID_ARQUEO = ? AND ESTADO = 1",

@@ -1,4 +1,12 @@
 <?php
+/*
+  HANA - Novedades y hallazgos
+  ---------------------------------------------------------------------------
+  Pantalla para registrar novedades, asignarlas, seguirlas y cerrarlas con su foto.
+  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/novedadnuevoAjax.js
+  y los datos los entrega Control/NovedadesControl.php.
+  Permiso: 10M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+*/
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
@@ -74,7 +82,7 @@ include('head.php');
                           
                           <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                               
-                              <?php if($_SESSION['NovedadesAS']==1){ ?>
+                              <?php if(in_array("42M", explode(",", $_SESSION['Modulos']))){ //casilla 42M: asignar novedades ?>
                                 <label>Asignación Novedad:</label>
                                 <select name="colaborador" id="colaborador" class="form-control"  required>     
                               </select> <?php } ?>
@@ -142,10 +150,7 @@ include('head.php');
                             </div>
                              
                              <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                             <!-- La foto es obligatoria, pero antes su campo estaba escondido
-                                  por CSS y solo se veia un iconito: si faltaba, parecia que el
-                                  boton Guardar no hacia nada. Ahora se ve que es obligatoria,
-                                  se puede tomar con la camara y queda una vista previa -->
+                             <!-- La foto es obligatoria: se puede tomar con la cámara y queda una vista previa -->
                              <label for="miarchivo2">Foto de evidencia: <span style="color:#6E1A1E;">*</span></label>
                              <SPAN class="miarchivo2">
                                  <!-- accept: solo imagenes. El atributo capture NO se pone aqui:
@@ -193,7 +198,7 @@ include('head.php');
              </div>
             <!-- Listado Registros-->
 
-            <!-- centro listado de articulos-->
+            <!-- tabla con el listado de registros -->
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
@@ -276,9 +281,7 @@ include('head.php');
                     <table id="tbllistado" class="table table-striped table-bordered tabla-novedades" style="width:100%; text-align: center">
                     <thead>
                   <th>ID</th>          
-                  <!-- Los anchos minimos se pasaron a la hoja de estilos (public/css/comun.css).
-                       Escritos aqui sumaban unos 2.400px y la tabla no cabia en el celular:
-                       ahora solo se aplican en pantallas grandes -->
+                  <!-- Los anchos mínimos de las columnas están en public/css/comun.css y solo se aplican en pantallas grandes, para que la tabla quepa en el celular -->
                   <th>Título de la novedad</th>
                   <th>Fecha registro</th>
                   <th>Colaborador registro</th>
@@ -342,18 +345,13 @@ include('head.php');
                     </div>
                     <!--end card header-->
                     <div class="card-body overflow-auto" id="contenido">
-                        <!-- Este bloque lo llena el sistema con la novedad real.
-                             Antes traia una conversacion de ejemplo escrita a mano
-                             ("BRYAN CAJIA OCAMPO 2024/01/12"), que se alcanzaba a ver
-                             mientras cargaba y confundia -->
+                        <!-- Este bloque lo llena el sistema con la conversación de la novedad -->
                     </div>
 
                     <div class="card-footer bg-secondary">
                         <form enctype="multipart/form-data" name="respuesta" id="respuesta" method="post">
 
-                            <!-- El estado ya no se elige dentro de un menu escondido detras de un
-                                 reloj de arena: ahora se ve cual esta seleccionado, y el boton de
-                                 enviar quedo despues del texto, que es el orden natural -->
+                            <!-- El estado se elige con botones a la vista; el botón de enviar va después del texto -->
                             <!-- El asterisco solo para quien SI esta obligado a elegir estado:
                                  el servidor permite responder sin estado a quien tiene permiso
                                  de auditoria, que a veces solo deja un comentario -->
@@ -375,8 +373,7 @@ include('head.php');
 <?php } ?>
                             </div>
 
-                            <!-- Al marcar "Finalizada" aparece este campo: antes el sistema abria
-                                 el selector de archivos sin decir para que -->
+                            <!-- Al marcar "Finalizada" aparece este campo para la foto del cierre -->
                             <div class="hana-resp-foto" id="respFoto" style="display:none;">
                                 <label for="miarchivo">Foto de evidencia del cierre (opcional):</label>
                                 <input type="file" name="miarchivo" id="miarchivo" accept="image/*">

@@ -1,0 +1,98 @@
+/*
+  HANA — Cómo salen las pantallas al imprimir (o al guardar como PDF desde el navegador)
+  ---------------------------------------------------------------------------
+  Lo carga head.php en todas las pantallas, al final, para que mande sobre lo demás.
+  Lo que arregla:
+    - Chrome parte un renglón por la mitad (media letra en una hoja y la otra
+      media en la siguiente) cuando el texto está dentro de una caja con barra
+      de desplazamiento (.table-responsive, las matrices del mes). Al imprimir
+      esas cajas se abren completas.
+    - Las filas de las tablas, las tarjetas y los avisos no se parten entre
+      dos hojas: si no caben, pasan enteras a la siguiente. Los títulos no
+      quedan solos al final de una hoja y el encabezado de las tablas se
+      repite en cada hoja.
+    - Bootstrap escribe la dirección de cada enlace al lado del texto al
+      imprimir; eso se montaba sobre las tablas. Se quita.
+    - Menús, botones, avisos flotantes y ventanas no salen en el papel.
+*/
+@media print{
+    @page{ margin: 12mm 10mm; }
+    html, body{ background: #FFFFFF !important; }
+    *{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* Lo que no va en el papel */
+    .left_col, .top_nav, .nav_menu, footer, .rd-migas, .rd-no-imprimir, .rd-avisos, .modal, .modal-backdrop,
+    .rd-acciones-fijas, .dataTables_filter, .dataTables_length, .dataTables_paginate, .dataTables_info,
+    .btn, .nav-tabs, .pv-filtro-cargos .pv-fc:not(.activo){ display: none !important; }
+    .right_col{ margin-left: 0 !important; padding: 0 !important; min-height: 0 !important; }
+    .x_panel{ box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+    /* La causa de las letras partidas por la mitad: la plantilla pone los paneles (.x_panel)
+       como inline-block, y Chrome no sabe pasar un inline-block a la hoja siguiente: lo corta
+       como si fuera una foto, por donde caiga. Al imprimir, todo va como bloque normal y sin
+       columnas flotantes; así Chrome sí puede llevar cada renglón entero a la hoja siguiente */
+    .x_panel{ display: block !important; }
+    .x_content{ float: none !important; }
+
+    /* Las cajas con desplazamiento se abren completas: así Chrome no corta renglones por la mitad */
+    .table-responsive, .aus-scroll, .x_content, .x_panel, .tab-content, .tab-pane, .cd-contenido{
+        overflow: visible !important; max-height: none !important; height: auto !important;
+    }
+    .tab-content > .tab-pane{ display: block !important; }
+    th, td{ position: static !important; }                   /* las columnas fijas de las matrices */
+
+    /* Nada se parte entre dos hojas; los títulos van con lo que sigue */
+    tr, td, th, img, li, .cd-tarjeta, .cd-proy, .pv-kpi, .rd-mosaico, .rd-alerta-dia, .rd-tag,
+    .crono-fila, .hoy-tarjeta, .tb-proyecto, .tb-persona, .rd-saludo, .hana-saludo{ break-inside: avoid; page-break-inside: avoid; }
+    h1, h2, h3, h4, h5, .rd-subtitulo, .cd-sub-imprimir{ break-after: avoid; page-break-after: avoid; }
+    p{ orphans: 3; widows: 3; }
+    thead{ display: table-header-group; }                    /* el encabezado se repite en cada hoja */
+    tfoot{ display: table-footer-group; }
+    table{ width: 100% !important; }
+    td, th{ overflow-wrap: break-word; word-break: normal; } /* un texto largo baja de renglón, no se sale */
+    .rd-tabla, .pv-cons, .aus-tabla{ font-size: 10px !important; }
+    .rd-tabla td, .rd-tabla th{ padding: 3px 4px !important; }
+
+    /* Bootstrap imprime la dirección de cada enlace: se quita */
+    a[href]:after, abbr[title]:after{ content: none !important; }
+}
+
+/* Un texto que en la pantalla sale recortado ("…") sale completo en el papel */
+.rd-solo-papel{ display: none; }
+@media print{
+    .rd-solo-pantalla{ display: none !important; }
+    .rd-solo-papel{ display: inline !important; }
+}
+
+/* Las tablas anchas (consolidado, matrices del mes con sus 31 días) se ajustan al ancho de la hoja:
+   ninguna columna queda por fuera del papel */
+@media print{
+    .pv-cons, .aus-tabla{ table-layout: fixed !important; width: 100% !important; font-size: 7.5px !important; }
+    .pv-cons td, .pv-cons th, .aus-tabla td, .aus-tabla th{ overflow-wrap: anywhere !important; padding: 2px 1px !important; white-space: normal !important; }
+    .pv-cons th.pv-nombre, .pv-cons th.pv-prim{ width: 11%; }
+    .aus-tabla .aus-fija{ width: 11%; }
+    .aus-tabla input{ width: 100% !important; padding: 0 !important; border: 0 !important; font-size: 7.5px !important; text-align: center; background: transparent !important; }
+    .aus-tabla small{ display: block; }
+}
+@media print{
+    .pv-cons .pv-res, .pv-cons .pv-pct{ font-size: 6.5px !important; white-space: nowrap !important; padding: 1px 2px !important; }
+    .pv-cons .pv-pct i{ display: none !important; }            /* la barrita del %: en el papel basta el número */
+    .pv-cons td, .pv-cons th{ overflow-wrap: break-word !important; hyphens: auto; }
+}
+
+/* Un tema por hoja: en el Reporte general cada pestaña (Hoy, listas, arqueos, cronograma...)
+   y en el consolidado de promesa cada parte (por proyecto, por semana, por cargo) empiezan
+   en una hoja nueva, con una franja de título numerada para saber de qué tratan esas hojas.
+   Si un tema no cabe en una hoja, sigue en la siguiente (las tablas repiten su encabezado) */
+@media print{
+    .cd-contenido{ counter-reset: tema; }
+    .cd-contenido > .tab-pane + .tab-pane, .pv-seccion + .pv-seccion{ break-before: page; page-break-before: always; }
+    .cd-sub-imprimir, .pv-seccion > .rd-subtitulo{
+        display: block !important; counter-increment: tema;
+        background: #6E1A1E !important; color: #FFFFFF !important;
+        font-size: 17px !important; font-weight: bold; line-height: 1.3;
+        padding: 9px 14px !important; margin: 0 0 12px 0 !important; border-radius: 6px;
+        break-after: avoid; page-break-after: avoid;
+    }
+    .cd-sub-imprimir::before{ content: counter(tema) "  ·  "; color: #FFFFFF !important; }
+    .cd-titulo-imprimir{ margin-bottom: 8px; }
+}

@@ -1,3 +1,6 @@
+//Configuración - Colaboradores (Vista/ColaboradoresVista.php)
+//Tabla, formulario para crear o editar y el botón de desactivar. Habla con Control/ColaboradoresControl.php
+
 var tabla;//variable global
 //Función para guardar o editar
 function guardar(e)
@@ -31,6 +34,7 @@ function guardar(e)
         }
     });
 }
+//Trae un colaborador y lo carga en el formulario para editarlo
 function mostrar(idColaborador)
 {
     hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
@@ -61,6 +65,7 @@ function mostrar(idColaborador)
         hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
     });
 }
+//Desactiva un colaborador (pregunta antes)
 function anular(idColaborador){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular este registro?", function(){
@@ -73,6 +78,7 @@ function anular(idColaborador){
         });
     });
 }
+//Vuelve a activar un colaborador (pregunta antes)
 function activar(idColaborador){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     //Nota: hoy ninguna pantalla muestra el botón Activar y el controlador no tiene la opción "activar"
@@ -87,11 +93,13 @@ function activar(idColaborador){
     });
 }
 
+//Cierra el formulario sin guardar
 function cancelarform()
 {
     limpiar();
     mostrarform(false);
 }
+//Deja el formulario en blanco
 function limpiar()
 {
     $("#idColaborador").val('');
@@ -102,6 +110,7 @@ function limpiar()
     
   
 }
+//Muestra el formulario (true) o la tabla (false)
 function mostrarform(flag)
 {
     //limpia el formulario
@@ -174,6 +183,7 @@ function listar()
     }).DataTable();
     
 }
+//Lo que se hace al abrir la pantalla
 function init()
 {
     mostrarform(false)
@@ -181,7 +191,7 @@ function init()
 //al oprimir el boton del formulario
     $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(e);//guarda o edita el registro
     });
 }
 init();

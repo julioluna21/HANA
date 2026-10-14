@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA — Reporte general del día (control del reporte diario)
+  HANA - Reporte general del día (control del reporte diario)
   Permiso 19M (el del tablero). Con 20M se ve todo; sin él, cada quien ve lo
   que tiene a cargo: el coordinador su proyecto y el jefe de peaje lo suyo.
 */
@@ -12,6 +12,7 @@ require_once __DIR__ . "/AccesoHelper.php";
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Bogota');
 
+//Responde con un código de error y un mensaje en JSON, y corta la ejecución
 function cdError($codigo, $mensaje)
 {
     http_response_code($codigo);
@@ -58,6 +59,7 @@ $puedeVer = function ($idPersona, $idProyecto) use ($verTodos, $idColaborador, $
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
+    //El control del día: qué registró cada persona y quién falta por registrar
     case 'dia':
         $personas = $CD->personas($proyectos, $centros, $puedeVer);
         $hoyReg = $CD->hoy(array_keys($personas), $fecha);
@@ -96,9 +98,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'puedeAprobar' => hanaTienePermiso('18M'),
             //Ausencias del día por proyecto (para la pestaña de vacantes)
             'ausentismoDia' => (object)$CD->ausentismoDia($idsCentros, $fecha),
+            //Pestaña Ausentismo: cada ausencia del día y, dentro, la promesa de valor contra lo ejecutado
+            'ausentismo' => HanaConfig::modulo('AUSENTISMO') ? $CD->ausenciasDetalle($idsCentros, $fecha) : array(),
+            'promesa' => HanaConfig::modulo('PROMESA') ? (object)$CD->promesaDetalle($idsCentros, $fecha) : new stdClass(),
+            'modAusentismo' => HanaConfig::modulo('AUSENTISMO'), 'modPromesa' => HanaConfig::modulo('PROMESA'),
+            'cargosAus' => HanaConfig::modulo('AUSENTISMO') || HanaConfig::modulo('PROMESA') ? $CD->cargos() : array(),
             //Cada centro con su jefe y si hizo la lista de chequeo ese día
             'centros'    => array_map(function ($c) {
-                return array('NOM_CENTRO_OP' => $c['NOM_CENTRO_OP'], 'NOM_PROYECTO' => $c['NOM_PROYECTO'], 'TIPO_CENTRO' => $c['TIPO_CENTRO'],
+                return array('ID_CENTRO_OP' => (int)$c['ID_CENTRO_OP'], 'ID_PROYECTO' => (int)$c['ID_PROYECTO'],
+                             'NOM_CENTRO_OP' => $c['NOM_CENTRO_OP'], 'NOM_PROYECTO' => $c['NOM_PROYECTO'], 'TIPO_CENTRO' => $c['TIPO_CENTRO'],
                              'JEFE' => $c['JEFE'], 'LISTAS' => (int)$c['LISTAS'], 'RQ_PENDIENTES' => (int)$c['RQ_PENDIENTES']);
             }, $centros)
         ), JSON_UNESCAPED_UNICODE);

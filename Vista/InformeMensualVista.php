@@ -1,5 +1,5 @@
 <?php
-//Reporte diario — Informe mensual de gestión
+//Reporte diario - Informe mensual de gestión
 //Se elige el periodo (un mes, varios meses, una quincena o las fechas que se
 //quieran) y se genera un PDF con todo lo que pasó: primero el resumen general
 //y luego una hoja por proyecto. Permiso 37M
@@ -8,14 +8,14 @@ session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     if (in_array("37M", $modulosAcceso)) {
-        require_once __DIR__ . '/../Modelo/InformeMensualModelo.php';
+        require_once __DIR__ . '/../Control/PaginaControl.php';
         //Los proyectos que van a salir: todos (20M o 24M) o solo los que coordina
         $todosInf = in_array('20M', $modulosAcceso) || in_array('24M', $modulosAcceso);
-        $proyectosInf = (new InformeMensual())->proyectos(isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0, $todosInf);
-        $hoyInf = HanaFechas::hoy();
+        $proyectosInf = pagProyectosInforme($todosInf);
+        $hoyInf = pagHoy();
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=15" rel="stylesheet">
+<link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -103,7 +103,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
 <script type="text/javascript" src="../Ajax/InformeMensualAjax.js?v=2"></script>
 <?php
     } else {
