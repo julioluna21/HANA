@@ -365,7 +365,8 @@ $(document).on('click', '.adj-borrar', function () {
 // Requisiciones: el detalle de una RQ con sus fotos, para verlo donde se
 // aprueba (Reporte general, Tablero) sin tener que ir a otra pantalla
 //===========================================================================
-var RD_RUTA_RQ = '../public/rq/'; //donde quedan los archivos de las RQ
+//Cada foto o soporte de una RQ se pide por su número (está guardado en la base)
+function rdUrlArchivoRq(n) { return '../Control/AdjuntoControl.php?op=ver&id=' + parseInt(n, 10); }
 
 function rdEsFoto(nombre) { return /\.(jpe?g|png|gif|webp)$/i.test(nombre || ''); }
 
@@ -459,7 +460,7 @@ function rdRqMinisFila(idRq, archivos) {
     if (!lista.length) { return ''; }
     var fotos = lista.filter(rdEsFoto), h = '<div class="cd-rq-fotos">';
     fotos.slice(0, 3).forEach(function (f) {
-        h += '<a href="#" class="btn-ver-rq" data-id="' + parseInt(idRq, 10) + '" title="Ver las fotos de la RQ"><img src="' + RD_RUTA_RQ + rdEsc(f) + '" alt="Foto de la RQ" loading="lazy"></a>';
+        h += '<a href="#" class="btn-ver-rq" data-id="' + parseInt(idRq, 10) + '" title="Ver las fotos de la RQ"><img src="' + rdUrlArchivoRq(f) + '" alt="Foto de la RQ" loading="lazy"></a>';
     });
     var mas = lista.length - Math.min(3, fotos.length);
     if (mas > 0) { h += '<a href="#" class="btn-ver-rq cd-rq-mas" data-id="' + parseInt(idRq, 10) + '">+' + mas + '</a>'; }

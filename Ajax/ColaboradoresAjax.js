@@ -179,7 +179,7 @@ function listar()
                             },
             "bDestroy": true,
             "iDisplayLength": 10,//Paginación
-        "order": [[ 0, "desc" ]]//Ordenar (columna,orden). Antes decia "des", que no es un valor valido
+        "order": [[ 0, "desc" ]]//Ordenar (columna,orden)
     }).DataTable();
     
 }

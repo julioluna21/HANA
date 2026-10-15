@@ -46,10 +46,8 @@ function mostrar(idcentro)
         $("#nombre").val(data.NOM_CENTRO_OP);
         $("#tipo").val(data.TIPO_CENTRO || "PEAJE");
         $("#jefe").val(data.ID_COLABORADOR_JEFE ? String(data.ID_COLABORADOR_JEFE) : "");
-        //Antes se escribia en #idProyecto y #nombreProyecto, campos que NO existen
-        //en la vista. El proyecto quedaba vacio y el UPDATE fallaba en silencio.
-        //El campo real es #selectProyecto, y como es un select2 que carga por AJAX
-        //hay que crearle la opcion actual antes de seleccionarla.
+        //El proyecto va en #selectProyecto, que es un select2 que carga por AJAX:
+        //hay que crearle la opción actual antes de seleccionarla.
         if (data.ID_PROYECTO) {
             $("#selectProyecto").empty()
                                 .append(new Option(data.NOM_PROYECTO, data.ID_PROYECTO, true, true))
@@ -186,7 +184,7 @@ function listar()
                             },
             "bDestroy": true,
             "iDisplayLength": 10,//Paginación
-        "order": [[ 0, "desc" ]]//Ordenar (columna,orden). Antes decia "des", que no es un valor valido
+        "order": [[ 0, "desc" ]]//Ordenar (columna,orden)
     }).DataTable();
     
 }

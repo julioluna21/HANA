@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA - Controlador de vacantes (Reporte diario, Fase 2)
+  HANA - Controlador de vacantes (Reporte diario)
   Permiso 11M, y solo en los centros asignados al usuario.
 */
 session_start();

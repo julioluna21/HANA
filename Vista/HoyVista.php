@@ -76,7 +76,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                        placeholder="Ej: reunión con el cliente, capacitación, oficina regional">
               </div>
 
-              <!-- Un solo texto para todo el día (antes era un bloque por cada hora) -->
+              <!-- Un solo texto para todo el día -->
               <h4 class="rd-subtitulo">Qué hiciste hoy <span class="rd-req">*</span></h4>
               <div class="form-group">
                 <textarea id="hoyActividad" name="actividad" class="form-control" rows="5" maxlength="3000"

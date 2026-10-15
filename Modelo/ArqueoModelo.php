@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA - Arqueos (Reporte diario, Fase 2)
+  HANA - Arqueos (Reporte diario)
   Caja menor y recambio, con la misma forma de los formatos en PDF.
   Se guardan las líneas contadas, el fondo autorizado de ese momento y los
   subtotales de efectivo y de documentos. El total del arqueo y la diferencia

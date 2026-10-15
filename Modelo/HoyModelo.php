@@ -1,9 +1,9 @@
 <?php
 /*
-  HANA - Modelo de "Hoy en qué estás" (Reporte diario, Fase 2)
+  HANA - Modelo de "Hoy en qué estás" (Reporte diario)
   ---------------------------------------------------------------------------
   El día de cada persona: dónde estuvo, a qué hora entró y salió, y qué hizo,
-  en un solo texto (antes era un bloque por cada hora). Reemplaza la hoja
+  en un solo texto. Reemplaza la hoja
   "Hoy en qué estás" del Excel del reporte diario.
 
   Todas las consultas son preparadas (los datos viajan aparte del SQL): no se

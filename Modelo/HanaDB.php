@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA - Consultas preparadas para los módulos nuevos (Fase 2 en adelante)
+  HANA - Consultas preparadas (HanaDB)
   ---------------------------------------------------------------------------
   Los datos viajan aparte del SQL, así que no hace falta limpiarCadena(): el
   texto se guarda tal cual y cada pantalla lo escapa al mostrarlo.

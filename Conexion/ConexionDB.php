@@ -3,15 +3,14 @@
   HANA - Conexión a la base de datos
   ---------------------------------------------------------------------------
   Abre la conexión ($conexion) con los datos de Conexion/Global.php y deja las
-  funciones de consulta que usan los modelos viejos (ejecutarConsulta, limpiarCadena...).
-  Los módulos nuevos usan Modelo/HanaDB.php, que trabaja con consultas preparadas.
+  funciones de consulta que usan los modelos de configuración, listas y novedades (ejecutarConsulta, limpiarCadena...).
+  El reporte diario y el ausentismo usan Modelo/HanaDB.php, que trabaja con consultas preparadas.
 */
     /*
-      Si falta Global.php o la base no responde, antes salía el error crudo de PHP
-      ("<br /><b>Fatal error</b>...") y las pantallas se rompían al leerlo (por
-      ejemplo el login: "Unexpected token '<' ... is not valid JSON"). Ahora se
-      responde un mensaje claro: en JSON si lo pidió una pantalla (AJAX), o en
-      una página sencilla si se abrió directo en el navegador.
+      Si falta Global.php o la base no responde, no se muestra el error crudo de PHP
+      ("<br /><b>Fatal error</b>..."), que rompería las pantallas que esperan JSON
+      (por ejemplo el login). Se responde un mensaje claro: en JSON si lo pidió una
+      pantalla (AJAX), o en una página sencilla si se abrió directo en el navegador.
     */
     if (!function_exists('hanaFalloConexion')) {
         //Registra el error en el log y responde un mensaje entendible (JSON o página) en vez del error de PHP

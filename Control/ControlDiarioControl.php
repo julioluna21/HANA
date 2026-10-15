@@ -28,7 +28,7 @@ $verTodos = hanaTienePermiso(PERMISO_TABLERO_TODOS);
 $hoy = date('Y-m-d');
 $fecha = HanaVal::fecha(isset($_GET['fecha']) ? $_GET['fecha'] : $hoy);
 if ($fecha === '') { $fecha = $hoy; }
-$ultimo = $hoy; //el reporte se consulta hasta hoy: ya no se adelanta el día de mañana
+$ultimo = $hoy; //el reporte se consulta hasta hoy: no se adelanta el día de mañana
 if ($fecha > $ultimo) { $fecha = $ultimo; }
 
 $T  = new Tablero();

@@ -51,9 +51,7 @@ include('head.php');
                     </div>
                     <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                       <label for="">Email del colaborador:</label>
-                      <!-- Se quito el atributo pattern: estaba mal escrito y bloqueaba el guardado
-                           en silencio (rechazaba mayusculas, @regencysa.net y dominios externos).
-                           La validacion de correo la hace type="email". -->
+                      <!-- La validación del correo la hace type="email" (acepta mayúsculas y cualquier dominio) -->
                       <input type="email" class="form-control" name="email" id="email" required>
                     </div>
                       <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">

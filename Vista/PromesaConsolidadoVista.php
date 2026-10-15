@@ -1,7 +1,8 @@
 <?php
 //Ausentismo - Consolidado de promesa de valor, ejecutado y ausentismo
-//Lo que ve el gerente de operaciones: el mes completo de todos los proyectos (como la hoja
-//MAIN del Excel consolidado) y, al entrar a un proyecto, sus peajes y cargos.
+//Lo que ve el gerente de operaciones: el mes de todos los proyectos (como la hoja MAIN del
+//Excel consolidado), un proyecto con sus peajes y cargos, o un solo peaje con sus cargos.
+//Todo el mes o un rango de días (desde, hasta).
 //Permiso 40M; con 20M o 24M salen todos los proyectos, si no, los que coordina
 session_start();
 
@@ -12,7 +13,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         $hoyCons = pagHoy();                 //el día de hoy en hora de Colombia
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=16" rel="stylesheet">
+<link href="../public/css/reporte.css?v=17" rel="stylesheet">
 <link href="../public/css/promesa.css?v=3" rel="stylesheet">
 
 <div class="right_col" role="main">
@@ -26,8 +27,8 @@ if (isset($_SESSION['IdUsuarios'])) {
         <div class="x_title">
           <h2><i class="fa fa-bar-chart"></i> Promesa de valor, ejecutado y ausentismo</h2>
           <div class="pull-right rd-botones-titulo">
-            <!-- El enlace del Excel lo arma PromesaConsolidadoAjax.js con el mes elegido -->
-            <a class="btn btn-default" id="btnExcelCons" href="#"><i class="fa fa-file-excel-o"></i> Descargar Excel</a>
+            <!-- El enlace del Excel lo arma PromesaConsolidadoAjax.js con lo que se está viendo: el mes, los días, el proyecto o el peaje y los cargos -->
+            <a class="btn btn-default" id="btnExcelCons" href="#" title="Baja lo que estás viendo, con los mismos días y cargos"><i class="fa fa-file-excel-o"></i> Descargar Excel</a>
             <button type="button" class="btn btn-default" id="btnImprimirCons"><i class="fa fa-print"></i> Imprimir</button>
           </div>
           <div class="clearfix"></div>
@@ -45,6 +46,19 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select></div>
               <div class="form-group col-md-2 col-sm-3 col-xs-5"><label for="cAnio">Año:</label><select id="cAnio" class="form-control"></select></div>
               <div class="form-group col-md-4 col-sm-5 col-xs-12"><label for="cProyecto">Qué ver:</label><select id="cProyecto" class="form-control"></select></div>
+            </div>
+            <!-- De qué día a qué día del mes se suma (sin escoger, todo el mes) -->
+            <div class="row">
+              <div class="form-group col-md-2 col-sm-3 col-xs-6"><label for="cDesde">Desde el día:</label><select id="cDesde" class="form-control"></select></div>
+              <div class="form-group col-md-2 col-sm-3 col-xs-6"><label for="cHasta">Hasta el día:</label><select id="cHasta" class="form-control"></select></div>
+              <div class="form-group col-md-8 col-sm-6 col-xs-12">
+                <label class="hidden-xs">&nbsp;</label>
+                <div class="aus-rangos" id="cRangos">
+                  <button type="button" class="btn btn-default btn-sm" data-rango="mes">Todo el mes</button>
+                  <button type="button" class="btn btn-default btn-sm" data-rango="q1">Días 1 a 14</button>
+                  <button type="button" class="btn btn-default btn-sm" data-rango="q2">Del 15 al final</button>
+                </div>
+              </div>
             </div>
             <!-- Filtro por cargo: todas las cifras (y el Excel) se cuentan solo con los cargos elegidos -->
             <div class="pv-filtro-cargos" id="cFiltroCargos"></div>
@@ -64,7 +78,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/PromesaConsolidadoAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/PromesaConsolidadoAjax.js?v=4"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

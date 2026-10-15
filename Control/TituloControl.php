@@ -9,7 +9,7 @@
   Permiso: 7M. El desplegable (select) también lo usan Novedades y Listas.
 */
 session_start();//inicia la session, permite guardar variables de sesion
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('7M'), array('select')); //Títulos: 7M. El selector lo usan novedades y listas
 require_once "../Modelo/TituloModelo.php";//Utilizará este archivo
 $Titulo=new Titulo();//objeto del modelo: con él se hacen las consultas

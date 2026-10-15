@@ -18,7 +18,7 @@ class preguntas{
         $t = intval($titulo);
         return ((string)$genera === '1' && $t > 0) ? (string)$t : 'NULL';
      }
-     //Las columnas de la pregunta más GENERA_NOVEDAD (1/0), que ahora se deduce del título
+     //Las columnas de la pregunta más GENERA_NOVEDAD (1/0), que se deduce del título
      const SQL_CAMPOS = "detalle_grupo_lista_chequeo.*, (detalle_grupo_lista_chequeo.TITULO_NOVEDAD IS NOT NULL) AS GENERA_NOVEDAD";
      //Implementamos un método para insertar registros
      public function insertar($nombreLista,$preguntas,$tiposRespuesta,$genera,$titulo,$orden)

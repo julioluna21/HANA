@@ -49,7 +49,7 @@ include('head.php');
                     //Página con la que abre: la primera, "Consolidado". Sin esto, Power
                     //BI abre en la página que estaba activa al publicar (la última).
                     //Si algún día se republica con otro nombre interno de página, Power
-                    //BI ignora este dato y abre como antes: no se rompe nada
+                    //BI ignora este dato y abre en la página de siempre: no se rompe nada
                     $paginaInicial = 'p0_consol';
                     $urlFinal = $urlInforme . ($paginaInicial !== '' ? '&pageName=' . rawurlencode($paginaInicial) : '');
                     ?>

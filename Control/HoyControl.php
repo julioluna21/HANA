@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA - Controlador de "Hoy en qué estás" (Reporte diario, Fase 2)
+  HANA - Controlador de "Hoy en qué estás" (Reporte diario)
   Cada persona registra su propio día. Nadie registra el día de otro: el
   colaborador sale siempre de la sesión, nunca de lo que envíe la pantalla.
 */
@@ -138,7 +138,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'ingreso'     => null,
             'salida'      => null,
             'lugarOtro'   => null,
-            'actividad'   => null, //lo que hizo en el día: un solo texto (antes era un bloque por hora)
+            'actividad'   => null, //lo que hizo en el día: un solo texto
             'observacion' => hoyTexto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 2000),
             'centros'     => array()
         );

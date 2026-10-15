@@ -1,8 +1,8 @@
 <?php
 /*
-  Archivo viejo del sistema original: ninguna pantalla lo usa. La versión vigente es ListasControl.php.
-  No revisaba la sesión ni los permisos, así que ahora responde "ya no existe" (410) y no
-  ejecuta nada. El código original se conserva debajo, sin cambios.
+  Archivo sin uso: ninguna pantalla lo llama. El controlador vigente es ListasControl.php.
+  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
+  abajo se conserva solo como referencia.
 */
 http_response_code(410);
 header('Content-Type: application/json; charset=utf-8');

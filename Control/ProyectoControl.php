@@ -8,8 +8,7 @@ $nombreproyecto=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
 $coordinador=isset($_POST["coordinador"])? intval($_POST["coordinador"]):0;
 
 /*
-  Quién puede usar cada operación (Fase 2).
-  Antes ninguna revisaba la sesión. Ahora:
+  Quién puede usar cada operación:
     - Sin sesión, nada.
     - Crear, editar, anular, ver y listar proyectos: permiso 6M.
       Las listas de colaboradores y la de proyectos (select) las usan otras

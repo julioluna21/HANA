@@ -8,9 +8,9 @@
     Solicitada (1) -> Aprobada (3) o Rechazada (7)
     Anulada (8): la RQ queda fuera de circulación, sin borrarse.
 
-  Los estados 2, 4, 5 y 6 son del flujo largo que se usaba antes (revisión SST,
-  compra, instalación y recibido). Ya no se asignan, pero las RQ y el historial
-  de esa época los siguen mostrando con su nombre.
+  Los estados 2, 4, 5 y 6 (revisión SST, compra, instalación y recibido) no se
+  asignan en el flujo actual, pero las RQ y el historial que los tienen los siguen
+  mostrando con su nombre.
 
   El plazo para aprobar una RQ es el parámetro RQ_DIAS_APROBACION
   (Configuración → Parámetros del sistema).

@@ -9,7 +9,7 @@
   Permiso: 3M. El desplegable (select) lo pueden pedir otras pantallas.
 */
 session_start(); //inicia la session, permite guardar variables de sesion
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('3M'), array('select')); //Colaboradores: 3M
 require_once "../Modelo/colaboradoresModelo.php"; //Utilizará este archivo
 require_once __DIR__ . '/../Modelo/HanaConfig.php';

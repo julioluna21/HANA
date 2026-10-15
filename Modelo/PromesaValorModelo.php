@@ -373,13 +373,26 @@ class PromesaValor
 
     //$proyectos: [[ID_PROYECTO, NOM_PROYECTO], ...] los que la persona puede ver. $hoy: 'AAAA-MM-DD'.
     //$soloCargos: ids de los cargos a mirar (por ejemplo, solo los recolectores); vacío = todos.
-    //Con el filtro, todo (totales, semanas, días registrados y ausencias) se cuenta solo con esos cargos
-    public function consolidado($anio, $mes, $proyectos, $hoy, $soloCargos = array())
+    //Con el filtro, todo (totales, semanas, días registrados y ausencias) se cuenta solo con esos cargos.
+    //$diaDesde y $diaHasta: los días del mes que se suman (sin ellos, todo el mes).
+    //$soloCentro: un solo peaje de esos proyectos (0 = todos sus peajes)
+    public function consolidado($anio, $mes, $proyectos, $hoy, $soloCargos = array(), $diaDesde = 1, $diaHasta = 31, $soloCentro = 0)
     {
-        list($desde, $hasta) = self::rango($anio, $mes);
-        $diasMes = (int)date('t', strtotime($desde));
+        list($inicioMes, $finMes) = self::rango($anio, $mes);
+        $diasMes = (int)date('t', strtotime($inicioMes));
         //Hasta qué día se cuenta: si el mes va en curso, hasta hoy; si ya pasó, completo; si no ha llegado, nada
-        $corte = $hoy < $desde ? 0 : ($hoy >= $hasta ? $diasMes : (int)substr($hoy, 8, 2));
+        $corte = $hoy < $inicioMes ? 0 : ($hoy >= $finMes ? $diasMes : (int)substr($hoy, 8, 2));
+        //Los días pedidos, ajustados a los que tiene el mes: se suma de $desde a antes de $hasta
+        $d1 = max(1, min($diasMes, (int)$diaDesde));
+        $d2 = max($d1, min($diasMes, (int)$diaHasta));
+        $desde = sprintf('%04d-%02d-%02d', $anio, $mes, $d1);
+        $hasta = date('Y-m-d', strtotime(sprintf('%04d-%02d-%02d', $anio, $mes, $d2) . ' +1 day'));
+        //Las semanas que tocan esos días (con todo el mes, todas las que tiene el mes)
+        $semanasRango = array();
+        for ($s = 0; $s < 5; $s++) {
+            $ini = $s * 7 + 1; $fin = $s === 4 ? $diasMes : $ini + 6;
+            if ($ini <= $diasMes && $ini <= $d2 && $fin >= $d1) { $semanasRango[] = $s; }
+        }
 
         $A = new Ausentismo();
         $motivos = array();                                                          //las columnas de ausencias, en el orden del catálogo
@@ -392,8 +405,8 @@ class PromesaValor
         $mira = array(); foreach ($cargos as $k) { $mira[(int)$k['ID_CARGO_AUS']] = true; }   //los cargos que entran en las cuentas
 
         $idsProy = array_map(function ($p) { return (int)$p['ID_PROYECTO']; }, $proyectos);
-        $vacio = array('periodo' => array('anio' => (int)$anio, 'mes' => (int)$mes, 'diasMes' => $diasMes, 'corte' => $corte),
-                       'semanas' => self::$SEMANAS, 'motivos' => $motivos, 'proyectos' => array(), 'roles' => array(), 'total' => self::fila(self::ceros(), $motivos),
+        $vacio = array('periodo' => array('anio' => (int)$anio, 'mes' => (int)$mes, 'diasMes' => $diasMes, 'corte' => $corte, 'desde' => $d1, 'hasta' => $d2),
+                       'semanas' => self::$SEMANAS, 'semanasRango' => $semanasRango, 'motivos' => $motivos, 'proyectos' => array(), 'roles' => array(), 'total' => self::fila(self::ceros(), $motivos),
                        'cargos' => array_map(function ($k) { return array('id' => (int)$k['ID_CARGO_AUS'], 'nombre' => $k['NOMBRE']); }, $todosCargos),
                        'filtroCargos' => $filtro);
         if (!count($idsProy)) { return $vacio; }
@@ -403,6 +416,7 @@ class PromesaValor
                                WHERE c.Estado = '1' AND c.ID_PROYECTO_CENTRO_OP IN (" . $this->marcas($idsProy) . ")
                                ORDER BY c.TIPO_CENTRO = 'BASCULA', c.NOM_CENTRO_OP", str_repeat('i', count($idsProy)), $idsProy);
         $centros = $centros ? $centros : array();
+        if ((int)$soloCentro > 0) { $centros = array_values(array_filter($centros, function ($c) use ($soloCentro) { return (int)$c['ID_CENTRO_OP'] === (int)$soloCentro; })); }
         $idsCentros = array_map(function ($c) { return (int)$c['ID_CENTRO_OP']; }, $centros);
         if (!count($idsCentros)) { return $vacio; }
         $reglas = $this->reglas($idsCentros);
@@ -425,7 +439,7 @@ class PromesaValor
             $acum[$ce][$ca]['eje'] += (int)$x['CANTIDAD']; $acum[$ce][$ca]['semEje'][$s] += (int)$x['CANTIDAD'];
             $diasCentro[$ce][$d] = true;
         }
-        //El ausentismo del mismo mes: el porqué
+        //El ausentismo de los mismos días: el porqué
         $aus = HanaDB::q("SELECT ID_CENTRO_OP, ID_CARGO_AUS, ID_NOVEDAD_AUS, DAY(FECHA) AS DIA, CANTIDAD FROM aus_registro
                            WHERE FECHA >= ? AND FECHA < ? AND ID_CENTRO_OP IN ($m)", $tipos, $params);
         foreach ((array)$aus as $x) {
@@ -454,10 +468,10 @@ class PromesaValor
                 self::sumar($porRol[$ca]['acum'], $a);
                 $filasCargo[] = array('id' => $ca, 'nombre' => $k['NOMBRE'], 'fila' => self::fila($a, $motivos));
             }
-            //Días: cuántos se registraron y cuántos se esperaban (los que ya pasaron y tenían promesa)
+            //Días: cuántos se registraron y cuántos se esperaban (los que ya pasaron, dentro de los días pedidos, y tenían promesa)
             $aCentro['diasReg'] = isset($diasCentro[$ce]) ? count($diasCentro[$ce]) : 0;
             if ($conPromesa) {
-                for ($d = 1; $d <= $corte; $d++) {
+                for ($d = $d1; $d <= min($d2, $corte); $d++) {
                     $hay = 0; $f = sprintf('%04d-%02d-%02d', $anio, $mes, $d);
                     foreach ($reglas[$ce] as $idCa => $lista) { if (isset($mira[(int)$idCa])) { $hay += (int)self::resolver($lista, $f); } }
                     if ($hay > 0) { $aCentro['diasEsp']++; }

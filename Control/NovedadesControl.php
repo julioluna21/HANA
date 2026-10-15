@@ -14,6 +14,7 @@ require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('10M'), array('select', 'roles', 'mostrarnovedad', 'foto')); //Novedades: 10M. Ver una novedad o su foto (desde la campana) solo pide sesión
 require_once "../Modelo/NovedadModelo.php";//Utilizará este archivo
 require_once "AccesoHelper.php"; //quién puede ver qué: la misma regla para novedades, RQ y campana
+require_once __DIR__ . '/ArchivoHelper.php'; //las fotos se guardan en la base como texto base64
 require '../public/PHPMailer-master/src/Exception.php';
                 require '../public/PHPMailer-master/src/PHPMailer.php';
                 require '../public/PHPMailer-master/src/SMTP.php';
@@ -43,33 +44,32 @@ if(!hanaTienePermiso(PERMISO_ASIGNAR_NOVEDAD)){
 $idcolaborador=$_SESSION['Idcolaborador'];   
 }
 
-//Fotos de las novedades: cada una es un archivo en archivos/novedades/AAAA/MM/ y en la
-//base queda solo su ruta. Esa carpeta no se abre desde el navegador (archivos/.htaccess):
-//las fotos se entregan con op=foto, que revisa si la persona puede ver la novedad.
-//Las fotos registradas antes de este cambio siguen guardadas como texto base64 y se muestran igual
-define('NOV_CARPETA_FOTOS', __DIR__ . '/../archivos/novedades/');
+//Fotos de las novedades: se guardan dentro del registro, como texto base64
+//("data:image/...;base64,..."), en NOM_FOTO_INI (la del reporte) y NOM_FOTO_FIN (la del cierre).
+//La pantalla las pide con op=foto, que revisa si la persona puede ver la novedad
 $NOV_TIPOS_FOTO = array(IMAGETYPE_GIF => array('gif', 'image/gif'), IMAGETYPE_JPEG => array('jpg', 'image/jpeg'),
-                        IMAGETYPE_PNG => array('png', 'image/png'), IMAGETYPE_BMP => array('bmp', 'image/bmp'));
+                        IMAGETYPE_PNG => array('png', 'image/png'), IMAGETYPE_BMP => array('bmp', 'image/bmp'),
+                        IMAGETYPE_WEBP => array('webp', 'image/webp'));
 
-//Guarda la foto que llegó en $_FILES[$campo]. Devuelve la ruta relativa, '' si no llegó
-//foto o no es una imagen válida (la novedad se guarda sin foto) y false si no se pudo
-//escribir en el servidor
+//La foto que llegó en $_FILES[$campo], como texto base64 (si pesa mucho, se achica antes).
+//Devuelve '' si no llegó foto o no es una imagen válida (la novedad se guarda sin foto)
+//y false si es demasiado pesada para guardarla en la base
 function novGuardarFoto($campo)
 {
     global $NOV_TIPOS_FOTO;
     if (!isset($_FILES[$campo]) || !$_FILES[$campo]['name'] || $_FILES[$campo]['error'] !== UPLOAD_ERR_OK) { return ''; }
     $info = @getimagesize($_FILES[$campo]['tmp_name']);
     if (!$info || !isset($NOV_TIPOS_FOTO[$info[2]])) { return ''; }
-    $sub = date('Y/m');
-    if (!is_dir(NOV_CARPETA_FOTOS . $sub) && !@mkdir(NOV_CARPETA_FOTOS . $sub, 0755, true)) { return false; }
-    $ruta = $sub . '/' . bin2hex(random_bytes(12)) . '.' . $NOV_TIPOS_FOTO[$info[2]][0];
-    return move_uploaded_file($_FILES[$campo]['tmp_name'], NOV_CARPETA_FOTOS . $ruta) ? $ruta : false;
+    $bytes = @file_get_contents($_FILES[$campo]['tmp_name']);
+    if ($bytes === false) { return ''; }
+    $a = hanaArchivoTexto($bytes, $NOV_TIPOS_FOTO[$info[2]][1]);
+    return hanaArchivoCabe($a['texto']) ? $a['texto'] : false;
 }
 
-//Lo que va en el src de la imagen: la foto guardada dentro del registro (data:) tal cual, o la dirección que la entrega
+//Lo que va en el src de la imagen: la dirección que entrega la foto (no el texto de la foto,
+//para que la respuesta no cargue con todo ese peso)
 function novFotoSrc($valor, $idNovedad, $cual)
 {
-    if (strpos((string)$valor, 'data:') === 0) { return $valor; }
     return '../Control/NovedadesControl.php?op=foto&amp;id=' . intval($idNovedad) . '&amp;f=' . $cual;
 }
 
@@ -117,7 +117,7 @@ switch ($_GET["op"])
                     $date_past = date ('Y-m-j H:i:s' ,$date_past);
                     $imagen = novGuardarFoto('miarchivo2');
                     if ($imagen === false) {
-                        echo 'Error: no se pudo guardar la foto en el servidor. Revisa los permisos de la carpeta archivos/novedades.';
+                        echo 'Error: ' . hanaArchivoMuyGrande('La foto');
                         break;
                     }
                     if($rspta=$Novedades->insertar($fecha,$_SESSION['Idcolaborador'],$idcentroOP,$idcolaborador,$idobservador,$idtitulo,$novedad,$imagen,$validez,$idestado,$date_past,$rolDestino)){
@@ -147,7 +147,6 @@ switch ($_GET["op"])
 						}
 
 					}else{
-						if ($imagen !== '') { @unlink(NOV_CARPETA_FOTOS . $imagen); } //la foto no queda suelta en la carpeta
 						echo 'Error: no se pudo guardar la novedad';
 					}
 					
@@ -163,10 +162,10 @@ switch ($_GET["op"])
                     if($estadonovedad==3){
                         $imagen = novGuardarFoto('miarchivo');
                         if ($imagen === false) {
-                            echo 'Error: no se pudo guardar la foto en el servidor. Revisa los permisos de la carpeta archivos/novedades.';
+                            echo 'Error: ' . hanaArchivoMuyGrande('La foto del cierre');
                             break;
                         }
-                        if ($imagen !== '' && !$Novedades->imagencierre($idnovedad,$imagen)) { @unlink(NOV_CARPETA_FOTOS . $imagen); }
+                        if ($imagen !== '') { $Novedades->imagencierre($idnovedad,$imagen); }
                         $rspta=$Novedades->editarfecha($idnovedad,$fecha);
                     }
                     
@@ -608,19 +607,14 @@ switch ($_GET["op"])
                     $idFoto = isset($_GET['id']) ? intval($_GET['id']) : 0;
                     if (!hanaPuedeVerNovedad($idFoto)) { http_response_code(403); echo 'No tienes permiso para ver esta foto.'; break; }
                     $fotos = $Novedades->fotos($idFoto);
-                    $valor = $fotos ? (string)$fotos[(isset($_GET['f']) && $_GET['f'] === 'fin') ? 'FIN' : 'INI'] : '';
-                    $ruta = ($valor !== '' && strpos($valor, 'data:') !== 0) ? realpath(NOV_CARPETA_FOTOS . $valor) : false;
-                    $base = realpath(NOV_CARPETA_FOTOS);
-                    $info = $ruta ? @getimagesize($ruta) : false;
-                    if (!$ruta || !$base || strpos($ruta, $base . DIRECTORY_SEPARATOR) !== 0 || !$info || !isset($NOV_TIPOS_FOTO[$info[2]])) {
+                    $cual = (isset($_GET['f']) && $_GET['f'] === 'fin') ? 'FIN' : 'INI';
+                    $valor = $fotos ? (string)$fotos[$cual] : '';
+                    $partes = hanaArchivoPartes($valor);
+                    if (!$partes || strpos($partes[0], 'image/') !== 0) {
                         http_response_code(404); echo 'La foto ya no está en el servidor.'; break;
                     }
-                    while (ob_get_level() > 0) { ob_end_clean(); }
-                    header('Content-Type: ' . $NOV_TIPOS_FOTO[$info[2]][1]);
-                    header('Content-Length: ' . filesize($ruta));
-                    header('X-Content-Type-Options: nosniff');
-                    header('Cache-Control: private, max-age=86400');
-                    readfile($ruta);
+                    list($tipo, $bytes) = $partes;
+                    hanaArchivoEntregar($bytes, $tipo, 'novedad-' . $idFoto . ($cual === 'FIN' ? '-cierre' : '') . '.' . (explode('/', $tipo)[1] === 'jpeg' ? 'jpg' : explode('/', $tipo)[1]), true);
             break;
 
 		     //Opciones del filtro de proyectos (todas, las asignadas a mí o un proyecto)

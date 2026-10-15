@@ -1,7 +1,7 @@
 <?php
 //Controlador de la pantalla de notificaciones automaticas por correo
 session_start();
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('12M'), array(), array('resumenDiario', 'resumenSemanal')); //Correos de listas: 12M. Los resúmenes programados usan su token
 require_once "../Modelo/NotificacionesModelo.php";
 $Notif = new Notificaciones();
@@ -145,7 +145,7 @@ switch ($_GET["op"]) {
      .../Control/NotificacionesControl.php?op=resumenDiario&token=EL_TOKEN
      .../Control/NotificacionesControl.php?op=resumenSemanal&token=EL_TOKEN
      El token evita que cualquiera dispare envios masivos entrando por el navegador.
-     Ya no va escrito aquí: se define en Conexion/Global.php (HANA_TOKEN_TAREAS).
+     El token se define en Conexion/Global.php (HANA_TOKEN_TAREAS).
      Si no está definido, los resúmenes no se envían. */
   case 'resumenDiario':
   case 'resumenSemanal':

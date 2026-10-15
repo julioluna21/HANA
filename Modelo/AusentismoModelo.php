@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA - Ausentismo (Fase 3)
+  HANA - Ausentismo
   ---------------------------------------------------------------------------
   El "Reporte nacional de ausentismo" dentro de HANA. Cada hoja del Excel es un
   centro (peaje o báscula); cada bloque, un cargo; cada fila, una novedad; cada
@@ -139,23 +139,44 @@ class Ausentismo
     }
 
     //-----------------------------------------------------------------------
-    // Consolidado del proyecto (la última hoja del Excel)
-    //   porCargo:  [idCargo][idNovedad][dia] = suma de todos los centros
-    //   porCentro: [idCentro][idNovedad] = total del mes
+    // Consolidado (la última hoja del Excel): la suma de los centros de uno o
+    // varios proyectos, del día $diaDesde al día $diaHasta del mes (sin días, todo el mes).
+    // Con $soloCentro, solo ese peaje
+    //   porCargo:    [idCargo][idNovedad][dia] = suma de todos los centros
+    //   porCentro:   [idCentro][idNovedad] = total de esos días
+    //   porProyecto: [idProyecto][idNovedad] = total de esos días
     //-----------------------------------------------------------------------
-    public function consolidado($idProyecto, $anio, $mes)
+    public function consolidado($proyectos, $anio, $mes, $diaDesde = 1, $diaHasta = 31, $soloCentro = 0)
     {
-        list($desde, $hasta) = self::rango($anio, $mes);
-        $f = HanaDB::q("SELECT r.ID_CENTRO_OP, r.ID_CARGO_AUS, r.ID_NOVEDAD_AUS, DAY(r.FECHA) AS DIA, r.CANTIDAD
+        $ids = array_values(array_unique(array_map('intval', (array)$proyectos)));
+        $porCargo = array(); $porCentro = array(); $porProyecto = array();
+        if (!count($ids)) { return array('porCargo' => $porCargo, 'porCentro' => $porCentro, 'porProyecto' => $porProyecto); }
+        list($desde, $hasta) = self::rangoDias($anio, $mes, $diaDesde, $diaHasta);
+        $marcas = implode(', ', array_fill(0, count($ids), '?'));
+        $tipos = str_repeat('i', count($ids)) . 'ss';
+        $params = array_merge($ids, array($desde, $hasta));
+        $centro = '';
+        if ((int)$soloCentro > 0) { $centro = ' AND r.ID_CENTRO_OP = ?'; $tipos .= 'i'; $params[] = (int)$soloCentro; }
+        $f = HanaDB::q("SELECT c.ID_PROYECTO_CENTRO_OP AS ID_PROYECTO, r.ID_CENTRO_OP, r.ID_CARGO_AUS, r.ID_NOVEDAD_AUS, DAY(r.FECHA) AS DIA, r.CANTIDAD
                           FROM aus_registro r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                         WHERE c.ID_PROYECTO_CENTRO_OP = ? AND r.FECHA >= ? AND r.FECHA < ?", 'iss', array((int)$idProyecto, $desde, $hasta));
-        $porCargo = array(); $porCentro = array();
+                         WHERE c.ID_PROYECTO_CENTRO_OP IN ($marcas) AND r.FECHA >= ? AND r.FECHA < ?$centro", $tipos, $params);
         foreach ((array)$f as $x) {
-            $c = (int)$x['ID_CARGO_AUS']; $n = (int)$x['ID_NOVEDAD_AUS']; $d = (int)$x['DIA']; $ce = (int)$x['ID_CENTRO_OP'];
-            $porCargo[$c][$n][$d] = (isset($porCargo[$c][$n][$d]) ? $porCargo[$c][$n][$d] : 0) + (int)$x['CANTIDAD'];
-            $porCentro[$ce][$n] = (isset($porCentro[$ce][$n]) ? $porCentro[$ce][$n] : 0) + (int)$x['CANTIDAD'];
+            $c = (int)$x['ID_CARGO_AUS']; $n = (int)$x['ID_NOVEDAD_AUS']; $d = (int)$x['DIA'];
+            $ce = (int)$x['ID_CENTRO_OP']; $p = (int)$x['ID_PROYECTO']; $v = (int)$x['CANTIDAD'];
+            $porCargo[$c][$n][$d] = (isset($porCargo[$c][$n][$d]) ? $porCargo[$c][$n][$d] : 0) + $v;
+            $porCentro[$ce][$n] = (isset($porCentro[$ce][$n]) ? $porCentro[$ce][$n] : 0) + $v;
+            $porProyecto[$p][$n] = (isset($porProyecto[$p][$n]) ? $porProyecto[$p][$n] : 0) + $v;
         }
-        return array('porCargo' => $porCargo, 'porCentro' => $porCentro);
+        return array('porCargo' => $porCargo, 'porCentro' => $porCentro, 'porProyecto' => $porProyecto);
+    }
+
+    //Del día $d1 al día $d2 del mes, ajustados a los días que tiene: [primer día, día siguiente al último]
+    private static function rangoDias($anio, $mes, $d1, $d2)
+    {
+        $dias = (int)date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes)));
+        $d1 = max(1, min($dias, (int)$d1));
+        $d2 = max($d1, min($dias, (int)$d2));
+        return array(sprintf('%04d-%02d-%02d', $anio, $mes, $d1), date('Y-m-d', strtotime(sprintf('%04d-%02d-%02d', $anio, $mes, $d2) . ' +1 day')));
     }
 
     //Los centros de un proyecto con lo registrado en el mes (para saber cuáles faltan)

@@ -1,5 +1,5 @@
 <?php
-//Ausentismo - Promesa de valor (antes estaba en el reporte diario)
+//Ausentismo - Promesa de valor
 //Por cada peaje y cada cargo: cuántas personas se prometieron para el día
 //(promesa de valor) y cuántas trabajaron (ejecutado). Reemplaza las hojas
 //"(PROMESA DE VALOR)" del Excel del reporte diario

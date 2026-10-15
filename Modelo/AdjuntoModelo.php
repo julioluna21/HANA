@@ -4,6 +4,9 @@
   ---------------------------------------------------------------------------
   Las consultas de los adjuntos. Quién puede ver o cambiar cada archivo lo
   decide el controlador (Control/AdjuntoControl.php).
+  El archivo va dentro de la base, en ARCHIVO, como texto base64
+  ("data:tipo;base64,..."). Por eso los listados no traen esa columna: solo se
+  lee cuando alguien abre el archivo (contenido()).
 */
 require_once __DIR__ . '/HanaDB.php';
 
@@ -16,6 +19,13 @@ class Adjunto
         return $r ? (int)$r['ID_PROYECTO'] : 0;
     }
 
+    //El peaje de una RQ (0 si no existe)
+    public function centroDeRq($idRq)
+    {
+        $r = HanaDB::fila("SELECT ID_CENTRO_OP FROM rq WHERE ID_RQ = ?", 'i', array((int)$idRq));
+        return $r ? (int)$r['ID_CENTRO_OP'] : 0;
+    }
+
     //Centro, fecha, proyecto y dueño de una lista de chequeo (o null)
     public function datosLista($idLista)
     {
@@ -25,10 +35,18 @@ class Adjunto
                               WHERE l.ID_LISTA_CHEQUEO = ?", 'i', array((int)$idLista));
     }
 
-    //Un adjunto activo (o null)
+    //Los datos de un adjunto activo, sin el archivo (o null)
     public function porId($id)
     {
-        return HanaDB::fila("SELECT * FROM adjunto WHERE ID_ADJUNTO = ? AND ESTADO = 1", 'i', array((int)$id));
+        return HanaDB::fila("SELECT ID_ADJUNTO, MODULO, ID_REGISTRO, NOMBRE, DESCRIPCION, TIPO, TAMANO, ID_COLABORADOR, FEC_REGISTRO
+                               FROM adjunto WHERE ID_ADJUNTO = ? AND ESTADO = 1", 'i', array((int)$id));
+    }
+
+    //El archivo de un adjunto: el texto base64 guardado
+    public function contenido($id)
+    {
+        $f = HanaDB::fila("SELECT ARCHIVO FROM adjunto WHERE ID_ADJUNTO = ? AND ESTADO = 1", 'i', array((int)$id));
+        return $f ? (string)$f['ARCHIVO'] : '';
     }
 
     //Los adjuntos activos de un registro, con quién los subió
@@ -40,12 +58,12 @@ class Adjunto
         return $f ? $f : array();
     }
 
-    //Registra un archivo subido (el archivo ya quedó guardado en la carpeta del servidor)
-    public function guardar($modulo, $idRegistro, $nombre, $ruta, $tipo, $tamano, $idColaborador)
+    //Guarda un archivo subido: $texto es el archivo completo en base64 ("data:tipo;base64,...")
+    public function guardar($modulo, $idRegistro, $nombre, $texto, $tipo, $tamano, $idColaborador)
     {
         return HanaDB::q("INSERT INTO adjunto (MODULO, ID_REGISTRO, NOMBRE, ARCHIVO, TIPO, TAMANO, ID_COLABORADOR, FEC_REGISTRO, ESTADO)
                           VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 1)", 'sisssii',
-                         array((string)$modulo, (int)$idRegistro, $nombre, $ruta, $tipo, (int)$tamano, (int)$idColaborador));
+                         array((string)$modulo, (int)$idRegistro, $nombre, $texto, $tipo, (int)$tamano, (int)$idColaborador));
     }
 
     //Cambia la descripción de un adjunto

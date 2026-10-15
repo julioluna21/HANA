@@ -12,7 +12,7 @@ function init()
 
     //Modo "Cambiar clave" del menú: solo se muestra el formulario de la clave propia.
     //No se piden la lista de usuarios ni los centros: eso es de administración (1M)
-    //y el servidor ya no se lo entrega a quien no tiene ese permiso
+    //y el servidor solo se lo entrega a quien tiene ese permiso
     if(vrca=="canvu"){
         mostrarform(false);
         mostrarformcalve(true);
@@ -250,8 +250,7 @@ function mostrar(idusuario)
 {
     hanaCargando(true); //aviso de carga mientras llegan los datos y los centros del usuario
 
-    //Se piden los dos datos a la vez y se espera a que ambos lleguen.
-    //Antes esto eran dos esperas fijas (1 y 1,3 segundos) que no consultaban nada
+    //Se piden los dos datos a la vez y se espera a que ambos lleguen
     var pideUsuario = $.post("../Control/UsuariosControl.php?op=mostrar",{idusuario : idusuario});
     var pideCentros = $.post("../Control/UsuariosControl.php?op=centroslista",{idusuario : idusuario});
 

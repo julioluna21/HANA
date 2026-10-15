@@ -4,6 +4,9 @@
   Con la misma forma del archivo "CONSOLIDADO" que se armaba a mano: una hoja
   RESUMEN con todos los proyectos (por proyecto, por semana, por cargo y por
   peaje) y una hoja por proyecto (por peaje, por semana y por peaje y cargo).
+  Con un solo proyecto, el RESUMEN y su hoja; con un solo peaje, una hoja con
+  el peaje, sus semanas y sus cargos. Con un rango de días, todas las cifras
+  son de esos días y las semanas, solo las que los tocan.
   Sale de la misma consulta que la pantalla, así que las cifras son iguales.
   Los números van como valores: es una foto del mes, no una plantilla.
 */
@@ -96,34 +99,40 @@ function subtitulo($h, $fila, $texto, $VINO)
     $h->getStyle('A' . $fila)->getFont()->setBold(true)->setSize(12)->getColor()->setRGB($VINO);
 }
 
-//La tabla "por semana": la diferencia de cada semana y, al lado, las ausencias. Devuelve la siguiente fila libre
+//La tabla "por semana": la diferencia de cada semana y, al lado, las ausencias. Solo las semanas que
+//tocan los días pedidos ($D['semanasRango']). Devuelve la siguiente fila libre
 function tablaSemanas($h, $fila, $titulo, $filas, $total, $nombreTotal, $D, $VINO, $VINO2, $ROSA)
 {
+    $sems = $D['semanasRango']; $k = count($sems);
+    $ultima = 1 + 2 * $k;                                                   //A = nombre; luego las diferencias y las ausencias
     $h->setCellValue('A' . $fila, $titulo);
-    $h->setCellValue('B' . $fila, 'DIFERENCIA (EJECUTADO − PROMESA DE VALOR)'); $h->mergeCells('B' . $fila . ':F' . $fila);
-    $h->setCellValue('G' . $fila, 'AUSENCIAS (sin las que no cuentan)');         $h->mergeCells('G' . $fila . ':K' . $fila);
-    foreach ($D['semanas'] as $i => $s) { $h->setCellValue(col(2 + $i) . ($fila + 1), mb_strtoupper($s)); $h->setCellValue(col(7 + $i) . ($fila + 1), mb_strtoupper($s)); }
+    $h->setCellValue('B' . $fila, 'DIFERENCIA (EJECUTADO − PROMESA DE VALOR)'); if ($k > 1) { $h->mergeCells('B' . $fila . ':' . col(1 + $k) . $fila); }
+    $h->setCellValue(col(2 + $k) . $fila, 'AUSENCIAS (sin las que no cuentan)'); if ($k > 1) { $h->mergeCells(col(2 + $k) . $fila . ':' . col($ultima) . $fila); }
+    foreach ($sems as $j => $s) {
+        $h->setCellValue(col(2 + $j) . ($fila + 1), mb_strtoupper($D['semanas'][$s]));
+        $h->setCellValue(col(2 + $k + $j) . ($fila + 1), mb_strtoupper($D['semanas'][$s]));
+    }
     $h->mergeCells('A' . $fila . ':A' . ($fila + 1));
-    $h->getStyle('A' . $fila . ':K' . ($fila + 1))->applyFromArray(array(
+    $h->getStyle('A' . $fila . ':' . col($ultima) . ($fila + 1))->applyFromArray(array(
         'font' => array('bold' => true, 'color' => array('rgb' => 'FFFFFF'), 'size' => 9),
         'fill' => array('fillType' => Fill::FILL_SOLID, 'startColor' => array('rgb' => $VINO)),
-        'alignment' => array('horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER)));
-    $h->getStyle('G' . $fila . ':K' . ($fila + 1))->getFill()->getStartColor()->setRGB($VINO2);
+        'alignment' => array('horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true)));
+    $h->getStyle(col(2 + $k) . $fila . ':' . col($ultima) . ($fila + 1))->getFill()->getStartColor()->setRGB($VINO2);
     $r = $fila + 2;
-    $una = function ($nombre, $f) use ($h, &$r) {
+    $una = function ($nombre, $f) use ($h, &$r, $sems, $k, $ultima) {
         $h->setCellValue('A' . $r, $nombre);
-        for ($i = 0; $i < 5; $i++) {
-            $h->setCellValue(col(2 + $i) . $r, $f['res'] === 'SIN_DATOS' ? null : $f['sem'][$i]);
-            $h->setCellValue(col(7 + $i) . $r, $f['ausSem'][$i]);
+        foreach ($sems as $j => $s) {
+            $h->setCellValue(col(2 + $j) . $r, $f['res'] === 'SIN_DATOS' ? null : $f['sem'][$s]);
+            $h->setCellValue(col(2 + $k + $j) . $r, $f['ausSem'][$s]);
         }
-        $h->getStyle('B' . $r . ':F' . $r)->getNumberFormat()->setFormatCode('+#,##0;-#,##0;0');   //la diferencia, con su signo
-        $h->getStyle('G' . $r . ':K' . $r)->getNumberFormat()->setFormatCode('#,##0');
+        $h->getStyle('B' . $r . ':' . col(1 + $k) . $r)->getNumberFormat()->setFormatCode('+#,##0;-#,##0;0');   //la diferencia, con su signo
+        $h->getStyle(col(2 + $k) . $r . ':' . col($ultima) . $r)->getNumberFormat()->setFormatCode('#,##0');
         $r++;
     };
     foreach ($filas as $x) { $una($x['nombre'], $x['fila']); }
     $una($nombreTotal, $total);
-    filaTotal($h, $r - 1, 11, $ROSA);
-    cerrarTabla($h, $fila, $r - 1, 11);
+    filaTotal($h, $r - 1, $ultima, $ROSA);
+    cerrarTabla($h, $fila, $r - 1, $ultima);
     return $r + 1;
 }
 
@@ -134,6 +143,9 @@ function encabezado($h, $titulo, $D, $MESES, $VINO)
     $h->setCellValue('A1', $titulo);
     $h->getStyle('A1')->getFont()->setBold(true)->setSize(14)->getColor()->setRGB($VINO);
     $corte = $p['corte'] === 0 ? 'el mes todavía no empieza' : ($p['corte'] < $p['diasMes'] ? 'va en curso: cifras hasta el día ' . $p['corte'] : 'mes completo');
+    //Los días que se suman: todo el mes, un día o un rango
+    $todoMes = $p['desde'] === 1 && $p['hasta'] === $p['diasMes'];
+    $rango = $todoMes ? '' : ($p['desde'] === $p['hasta'] ? ', solo el día ' . $p['desde'] : ', del día ' . $p['desde'] . ' al ' . $p['hasta']);
     //Si se filtró por cargo, se dice cuáles entran en las cifras
     $solo = '';
     if (!empty($D['filtroCargos'])) {
@@ -141,8 +153,8 @@ function encabezado($h, $titulo, $D, $MESES, $VINO)
         foreach ($D['cargos'] as $k) { if (in_array($k['id'], $D['filtroCargos'], true)) { $nombres[] = $k['nombre']; } }
         $solo = ' Solo los cargos: ' . implode(', ', $nombres) . '.';
     }
-    $h->setCellValue('A2', ucfirst($MESES[$p['mes']]) . ' de ' . $p['anio'] . ' (' . $corte . ').' . $solo . ' Generado por HANA el ' . date('d/m/Y') . ' a las ' . date('H:i') . '.');
-    $h->setCellValue('A3', 'DIFERENCIA = EJECUTADO − PROMESA DE VALOR (positivo = se ejecutó MÁS de lo prometido; negativo = MENOS). El porqué se lee en las ausencias del mismo mes. '
+    $h->setCellValue('A2', ucfirst($MESES[$p['mes']]) . ' de ' . $p['anio'] . $rango . ' (' . $corte . ').' . $solo . ' Generado por HANA el ' . date('d/m/Y') . ' a las ' . date('H:i') . '.');
+    $h->setCellValue('A3', 'DIFERENCIA = EJECUTADO − PROMESA DE VALOR (positivo = se ejecutó MÁS de lo prometido; negativo = MENOS). El porqué se lee en las ausencias de los mismos días. '
                          . 'La promesa y el ejecutado se comparan solo en los días con ejecutado registrado.');
     $h->getStyle('A2:A3')->getFont()->setSize(9)->getColor()->setRGB('6B7076');
 }
@@ -167,71 +179,104 @@ $libro->getProperties()->setCreator('HANA - Grupo Regency')->setTitle('Consolida
 $libro->getDefaultStyle()->getFont()->setName('Calibri')->setSize(10);
 
 //---------------------------------------------------------------------------
-// Hoja RESUMEN: todos los proyectos
+// Un solo peaje: una hoja con el peaje, sus semanas y sus cargos
 //---------------------------------------------------------------------------
-$h = $libro->createSheet()->setTitle('RESUMEN');
-encabezado($h, 'INFORME CONSOLIDADO: PROMESA DE VALOR, EJECUTADO Y AUSENTISMO — ' . count($D['proyectos']) . (count($D['proyectos']) === 1 ? ' PROYECTO' : ' PROYECTOS'), $D, $MESES, $VINO);
+$pc = null; $cc = null;                                                   //el proyecto y el peaje pedidos
+if ($soloCentro && count($D['proyectos']) && count($D['proyectos'][0]['centros'])) { $pc = $D['proyectos'][0]; $cc = $pc['centros'][0]; }
+if ($cc) {
+    $h = $libro->createSheet()->setTitle(nombreHoja($cc['nombre']));
+    encabezado($h, ($cc['tipo'] === 'BASCULA' ? 'BÁSCULA ' : 'PEAJE ') . $cc['nombre'] . ' (' . $pc['nombre'] . '): PROMESA DE VALOR, EJECUTADO Y AUSENTISMO', $D, $MESES, $VINO);
 
-//1. Resumen por proyecto
-$r = 5; subtitulo($h, $r, '1. RESUMEN POR PROYECTO', $VINO); $r++;
-$ini = $r; $ultima = titulos($h, $r, array('PROYECTO', ''), $D, true, $VINO, $VINO2); $h->mergeCells('A' . $r . ':B' . $r); $r++;
-foreach ($D['proyectos'] as $p) { nombre($h, $r, $p['nombre']); datos($h, $r, 3, $p['fila'], $D, true, $RES); $r++; }
-nombre($h, $r, 'TOTAL'); datos($h, $r, 3, $D['total'], $D, true, $RES); filaTotal($h, $r, $ultima, $ROSA);
-cerrarTabla($h, $ini, $r, $ultima); $anchoMax = $ultima; $r += 2;
-
-//2. Por semana
-subtitulo($h, $r, '2. POR SEMANA (semana 1 = días 1 a 7, semana 2 = 8 a 14, semana 3 = 15 a 21, semana 4 = 22 a 28)', $VINO); $r++;
-$r = tablaSemanas($h, $r, 'PROYECTO', $D['proyectos'], $D['total'], 'TOTAL', $D, $VINO, $VINO2, $ROSA);
-
-//3. Resumen por cargo
-subtitulo($h, $r, '3. RESUMEN POR CARGO (todos los proyectos)', $VINO); $r++;
-$ini = $r; $ult = titulos($h, $r, array('CARGO', ''), $D, false, $VINO, $VINO2); $h->mergeCells('A' . $r . ':B' . $r); $r++;
-foreach ($D['roles'] as $x) { nombre($h, $r, $x['nombre']); datos($h, $r, 3, $x['fila'], $D, false, $RES); $r++; }
-nombre($h, $r, 'TOTAL'); datos($h, $r, 3, $D['total'], $D, false, $RES); filaTotal($h, $r, $ult, $ROSA);
-cerrarTabla($h, $ini, $r, $ult); $r += 2;
-
-//4. Detalle por peaje
-subtitulo($h, $r, '4. DETALLE POR PEAJE', $VINO); $r++;
-$ini = $r; titulos($h, $r, array('PROYECTO', 'PEAJE'), $D, true, $VINO, $VINO2); $r++;
-foreach ($D['proyectos'] as $p) {
-    foreach ($p['centros'] as $c) { $h->setCellValue('A' . $r, $p['nombre']); $h->setCellValue('B' . $r, $c['nombre']); datos($h, $r, 3, $c['fila'], $D, true, $RES); $r++; }
-}
-$h->setCellValue('A' . $r, 'TOTAL'); datos($h, $r, 3, $D['total'], $D, true, $RES); filaTotal($h, $r, $ultima, $ROSA);
-cerrarTabla($h, $ini, $r, $ultima);
-formatoHoja($h, $anchoMax, 24, $colCausa);
-
-//---------------------------------------------------------------------------
-// Una hoja por proyecto
-//---------------------------------------------------------------------------
-foreach ($D['proyectos'] as $p) {
-    $h = $libro->createSheet()->setTitle(nombreHoja($p['nombre']));
-    encabezado($h, $p['nombre'] . ': PROMESA DE VALOR, EJECUTADO Y AUSENTISMO', $D, $MESES, $VINO);
-
-    //1. Resumen por peaje
-    $r = 5; subtitulo($h, $r, '1. RESUMEN POR PEAJE', $VINO); $r++;
+    //1. Resumen del peaje
+    $r = 5; subtitulo($h, $r, '1. RESUMEN DEL PEAJE', $VINO); $r++;
     $ini = $r; $ultima = titulos($h, $r, array('PEAJE', ''), $D, true, $VINO, $VINO2); $h->mergeCells('A' . $r . ':B' . $r); $r++;
-    foreach ($p['centros'] as $c) { nombre($h, $r, $c['nombre']); datos($h, $r, 3, $c['fila'], $D, true, $RES); $r++; }
-    nombre($h, $r, 'TOTAL ' . $p['nombre']); datos($h, $r, 3, $p['fila'], $D, true, $RES); filaTotal($h, $r, $ultima, $ROSA);
+    nombre($h, $r, $cc['nombre']); datos($h, $r, 3, $cc['fila'], $D, true, $RES); filaTotal($h, $r, $ultima, $ROSA);
     cerrarTabla($h, $ini, $r, $ultima); $r += 2;
 
-    //2. Por semana
+    //2. Por semana, cargo por cargo
     subtitulo($h, $r, '2. POR SEMANA', $VINO); $r++;
-    $r = tablaSemanas($h, $r, 'PEAJE', $p['centros'], $p['fila'], 'TOTAL ' . $p['nombre'], $D, $VINO, $VINO2, $ROSA);
+    $r = tablaSemanas($h, $r, 'CARGO', $cc['cargos'], $cc['fila'], 'TOTAL ' . $cc['nombre'], $D, $VINO, $VINO2, $ROSA);
 
-    //3. Detalle por peaje y cargo
-    subtitulo($h, $r, '3. DETALLE POR PEAJE Y CARGO', $VINO); $r++;
-    $ini = $r; $ult = titulos($h, $r, array('PEAJE', 'CARGO'), $D, false, $VINO, $VINO2); $r++;
-    foreach ($p['centros'] as $c) {
-        foreach ($c['cargos'] as $k) { $h->setCellValue('A' . $r, $c['nombre']); $h->setCellValue('B' . $r, $k['nombre']); datos($h, $r, 3, $k['fila'], $D, false, $RES); $r++; }
-    }
-    $h->setCellValue('A' . $r, 'TOTAL ' . $p['nombre']); datos($h, $r, 3, $p['fila'], $D, false, $RES); filaTotal($h, $r, $ult, $ROSA);
+    //3. Por cargo
+    subtitulo($h, $r, '3. DETALLE POR CARGO', $VINO); $r++;
+    $ini = $r; $ult = titulos($h, $r, array('CARGO', ''), $D, false, $VINO, $VINO2); $h->mergeCells('A' . $r . ':B' . $r); $r++;
+    foreach ($cc['cargos'] as $k) { nombre($h, $r, $k['nombre']); datos($h, $r, 3, $k['fila'], $D, false, $RES); $r++; }
+    nombre($h, $r, 'TOTAL ' . $cc['nombre']); datos($h, $r, 3, $cc['fila'], $D, false, $RES); filaTotal($h, $r, $ult, $ROSA);
     cerrarTabla($h, $ini, $r, $ult);
-    formatoHoja($h, $ultima, 22, $colCausa);
+    formatoHoja($h, $ultima, 30, $colCausa);
+} else {
+
+    //---------------------------------------------------------------------------
+    // Hoja RESUMEN: todos los proyectos
+    //---------------------------------------------------------------------------
+    $h = $libro->createSheet()->setTitle('RESUMEN');
+    encabezado($h, 'INFORME CONSOLIDADO: PROMESA DE VALOR, EJECUTADO Y AUSENTISMO — ' . count($D['proyectos']) . (count($D['proyectos']) === 1 ? ' PROYECTO' : ' PROYECTOS'), $D, $MESES, $VINO);
+
+    //1. Resumen por proyecto
+    $r = 5; subtitulo($h, $r, '1. RESUMEN POR PROYECTO', $VINO); $r++;
+    $ini = $r; $ultima = titulos($h, $r, array('PROYECTO', ''), $D, true, $VINO, $VINO2); $h->mergeCells('A' . $r . ':B' . $r); $r++;
+    foreach ($D['proyectos'] as $p) { nombre($h, $r, $p['nombre']); datos($h, $r, 3, $p['fila'], $D, true, $RES); $r++; }
+    nombre($h, $r, 'TOTAL'); datos($h, $r, 3, $D['total'], $D, true, $RES); filaTotal($h, $r, $ultima, $ROSA);
+    cerrarTabla($h, $ini, $r, $ultima); $anchoMax = $ultima; $r += 2;
+
+    //2. Por semana
+    subtitulo($h, $r, '2. POR SEMANA (semana 1 = días 1 a 7, semana 2 = 8 a 14, semana 3 = 15 a 21, semana 4 = 22 a 28)', $VINO); $r++;
+    $r = tablaSemanas($h, $r, 'PROYECTO', $D['proyectos'], $D['total'], 'TOTAL', $D, $VINO, $VINO2, $ROSA);
+
+    //3. Resumen por cargo
+    subtitulo($h, $r, '3. RESUMEN POR CARGO (todos los proyectos)', $VINO); $r++;
+    $ini = $r; $ult = titulos($h, $r, array('CARGO', ''), $D, false, $VINO, $VINO2); $h->mergeCells('A' . $r . ':B' . $r); $r++;
+    foreach ($D['roles'] as $x) { nombre($h, $r, $x['nombre']); datos($h, $r, 3, $x['fila'], $D, false, $RES); $r++; }
+    nombre($h, $r, 'TOTAL'); datos($h, $r, 3, $D['total'], $D, false, $RES); filaTotal($h, $r, $ult, $ROSA);
+    cerrarTabla($h, $ini, $r, $ult); $r += 2;
+
+    //4. Detalle por peaje
+    subtitulo($h, $r, '4. DETALLE POR PEAJE', $VINO); $r++;
+    $ini = $r; titulos($h, $r, array('PROYECTO', 'PEAJE'), $D, true, $VINO, $VINO2); $r++;
+    foreach ($D['proyectos'] as $p) {
+        foreach ($p['centros'] as $c) { $h->setCellValue('A' . $r, $p['nombre']); $h->setCellValue('B' . $r, $c['nombre']); datos($h, $r, 3, $c['fila'], $D, true, $RES); $r++; }
+    }
+    $h->setCellValue('A' . $r, 'TOTAL'); datos($h, $r, 3, $D['total'], $D, true, $RES); filaTotal($h, $r, $ultima, $ROSA);
+    cerrarTabla($h, $ini, $r, $ultima);
+    formatoHoja($h, $anchoMax, 24, $colCausa);
+
+    //---------------------------------------------------------------------------
+    // Una hoja por proyecto
+    //---------------------------------------------------------------------------
+    foreach ($D['proyectos'] as $p) {
+        $h = $libro->createSheet()->setTitle(nombreHoja($p['nombre']));
+        encabezado($h, $p['nombre'] . ': PROMESA DE VALOR, EJECUTADO Y AUSENTISMO', $D, $MESES, $VINO);
+
+        //1. Resumen por peaje
+        $r = 5; subtitulo($h, $r, '1. RESUMEN POR PEAJE', $VINO); $r++;
+        $ini = $r; $ultima = titulos($h, $r, array('PEAJE', ''), $D, true, $VINO, $VINO2); $h->mergeCells('A' . $r . ':B' . $r); $r++;
+        foreach ($p['centros'] as $c) { nombre($h, $r, $c['nombre']); datos($h, $r, 3, $c['fila'], $D, true, $RES); $r++; }
+        nombre($h, $r, 'TOTAL ' . $p['nombre']); datos($h, $r, 3, $p['fila'], $D, true, $RES); filaTotal($h, $r, $ultima, $ROSA);
+        cerrarTabla($h, $ini, $r, $ultima); $r += 2;
+
+        //2. Por semana
+        subtitulo($h, $r, '2. POR SEMANA', $VINO); $r++;
+        $r = tablaSemanas($h, $r, 'PEAJE', $p['centros'], $p['fila'], 'TOTAL ' . $p['nombre'], $D, $VINO, $VINO2, $ROSA);
+
+        //3. Detalle por peaje y cargo
+        subtitulo($h, $r, '3. DETALLE POR PEAJE Y CARGO', $VINO); $r++;
+        $ini = $r; $ult = titulos($h, $r, array('PEAJE', 'CARGO'), $D, false, $VINO, $VINO2); $r++;
+        foreach ($p['centros'] as $c) {
+            foreach ($c['cargos'] as $k) { $h->setCellValue('A' . $r, $c['nombre']); $h->setCellValue('B' . $r, $k['nombre']); datos($h, $r, 3, $k['fila'], $D, false, $RES); $r++; }
+        }
+        $h->setCellValue('A' . $r, 'TOTAL ' . $p['nombre']); datos($h, $r, 3, $p['fila'], $D, false, $RES); filaTotal($h, $r, $ult, $ROSA);
+        cerrarTabla($h, $ini, $r, $ult);
+        formatoHoja($h, $ultima, 22, $colCausa);
+    }
 }
 
 $libro->setActiveSheetIndex(0);
 
-$nombre = 'Consolidado promesa de valor y ausentismo ' . $MESES[$mes] . ' ' . $anio . '.xlsx';
+//El nombre del archivo dice qué se bajó: el peaje o el proyecto, el mes y los días
+$p = $D['periodo'];
+$quien = $cc ? ' ' . $cc['nombre'] : (count($D['proyectos']) === 1 && !empty($_GET['proyecto']) ? ' ' . $D['proyectos'][0]['nombre'] : '');
+$textoDias = ($p['desde'] === 1 && $p['hasta'] === $p['diasMes']) ? '' : ($p['desde'] === $p['hasta'] ? ' dia ' . $p['desde'] : ' del ' . $p['desde'] . ' al ' . $p['hasta']);
+$nombre = 'Consolidado promesa de valor y ausentismo' . $quien . ' ' . $MESES[$mes] . ' ' . $anio . $textoDias . '.xlsx';
 while (ob_get_level() > 0) { ob_end_clean(); }
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $nombre . '"');

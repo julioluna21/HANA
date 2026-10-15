@@ -10,7 +10,8 @@
     - Consultan todos los proyectos, sin editar: 20M, 21M, 22M y 40M.
     - Se registra HOY. Otro día, solo si el administrador lo habilitó o si
       PV_DIAS_ATRAS deja llenar días anteriores.
-    - El consolidado del mes (op=consolidado) pide la casilla 40M.
+    - El consolidado del mes (op=consolidado) pide la casilla 40M. Se puede pedir
+      de todo el mes o de un rango de días (desde, hasta).
   Todo lo que es decisión del negocio se cambia en Parámetros o en Roles.
 */
 session_start();
@@ -128,6 +129,17 @@ function pvPeriodo()
     return array($anio, $mes);
 }
 
+//Los días del mes que se suman en el consolidado (?desde=&hasta=). Sin ellos, todo el mes
+function pvDias($anio, $mes)
+{
+    $dias = (int)date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes)));
+    $d1 = isset($_REQUEST['desde']) && $_REQUEST['desde'] !== '' ? (string)$_REQUEST['desde'] : '1';
+    $d2 = isset($_REQUEST['hasta']) && $_REQUEST['hasta'] !== '' ? (string)$_REQUEST['hasta'] : (string)$dias;
+    if (!ctype_digit($d1) || !ctype_digit($d2) || (int)$d1 < 1 || (int)$d2 > $dias) { pvError(400, 'Los días deben estar entre el 1 y el ' . $dias . '.'); }
+    if ((int)$d1 > (int)$d2) { pvError(400, 'El primer día no puede ser después del último.'); }
+    return array((int)$d1, (int)$d2);
+}
+
 //El filtro de cargos (?cargos=1,3): una lista de ids; vacía = todos
 function pvFiltroCargos()
 {
@@ -176,13 +188,14 @@ $op = isset($_GET['op']) ? $_GET['op'] : '';
 if ($op === 'consolidado') {
     if (!hanaTienePermiso('40M')) { pvError(403, 'El consolidado necesita la casilla 40M en tu rol.'); }
     list($anio, $mes) = pvPeriodo();
+    list($d1, $d2) = pvDias($anio, $mes);
     list($lista, $todosCons) = hanaProyectosConsolidado();    //la misma regla que usa el Excel
     $uno = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;         //0 = todos los que puede ver
     if ($uno > 0) {
         $lista = array_values(array_filter($lista, function ($p) use ($uno) { return (int)$p['ID_PROYECTO'] === $uno; }));
         if (!count($lista)) { pvError(403, 'Ese proyecto no está entre los que puedes ver.'); }
     }
-    $r = $PV->consolidado($anio, $mes, $lista, $hoy, pvFiltroCargos());
+    $r = $PV->consolidado($anio, $mes, $lista, $hoy, pvFiltroCargos(), $d1, $d2);
     $r['hoy'] = $hoy; $r['todos'] = $todosCons;
     echo json_encode($r, JSON_UNESCAPED_UNICODE);
     exit;

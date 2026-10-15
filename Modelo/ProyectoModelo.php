@@ -14,7 +14,7 @@ class Proyecto
         {
         }
         //Implementamos un método para insertar registros
-        //$coordinador: id del colaborador que coordina el proyecto, o 0 si no tiene (Fase 2)
+        //$coordinador: id del colaborador que coordina el proyecto, o 0 si no tiene
         public function insertar($nombreproyecto, $coordinador = 0)
         {
                 $coord = intval($coordinador) > 0 ? intval($coordinador) : 'NULL';

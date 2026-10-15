@@ -9,7 +9,7 @@
   Permiso: 9M. El desplegable (select) también lo usa Novedades.
 */
 session_start();//inicia la session, permite guardar variables de sesion
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('9M'), array('select')); //Observador: 9M. El selector lo usan novedades
 require_once "../Modelo/ObservadorModelo.php";//Utilizará este archivo
 $Observador=new Observador();//objeto del modelo: con él se hacen las consultas

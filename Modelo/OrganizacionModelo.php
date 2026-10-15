@@ -5,7 +5,7 @@
   Las consultas de la organización que comparten varios controladores:
   quién coordina qué proyecto, los centros de cada proyecto, de qué peajes es
   jefe una persona y cuáles tiene asignados en Usuarios.
-  Antes estaban escritas dentro de los controladores y de algunas vistas.
+  Así no se repiten dentro de los controladores ni de las vistas.
 */
 require_once __DIR__ . '/HanaDB.php';
 

@@ -1,9 +1,9 @@
 <?php
 /*
-  HANA - Vacantes y comunicaciones (Reporte diario, Fase 2)
+  HANA - Vacantes y comunicaciones (Reporte diario)
   Las hojas "Vacantes" y "Comunicaciones y SOLIC" del Excel del reporte diario.
   Los resultados que en Excel eran fórmulas (días, cumple / no cumple, abierto
-  o cerrado) se calculan aquí, bien: una vacante abierta ya no da días
+  o cerrado) se calculan aquí: una vacante abierta no da días
   negativos ni "CUMPLE" por error.
 */
 require_once __DIR__ . "/HanaDB.php";
@@ -98,7 +98,7 @@ class Comunicacion
     public static function diasRespuesta() { return max(0, HanaConfig::num('COMUNICACION_DIAS_RESPUESTA', 2)); }
 
     public static $TIPOS = array('POR_ATENDER' => 'Por atender', 'POR_ENVIAR' => 'Por enviar');
-    //WhatsApp se quitó de la lista (los oficios que lo tenían pasaron a "Otro" con el script 15)
+    //Medios de un oficio. WhatsApp no está en la lista (el script 15 deja esos oficios como "Otro")
     public static $MEDIOS = array('CORREO' => 'Correo electrónico', 'OFICIO' => 'Oficio físico',
                                   'LLAMADA' => 'Llamada', 'OTRO' => 'Otro');
     public static $PENDIENTE = array('COORDINADOR_OP' => 'Coordinador operativo', 'DIRECCION' => 'Dirección',

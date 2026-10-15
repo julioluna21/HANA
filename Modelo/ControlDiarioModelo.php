@@ -256,8 +256,9 @@ class ControlDiario
         $f = HanaDB::q("SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO,
                                col.NOM_COLABORADOR AS SOLICITA, DATEDIFF(NOW(), " . RqEstado::sqlDesde('r.ID_RQ') . ") AS DIAS,
                                (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ', ') FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS,
-                               -- Los archivos de la RQ (fotos y soportes), separados por |, para mostrarlos donde se aprueba
-                               (SELECT GROUP_CONCAT(a.ARCHIVO ORDER BY a.ID_ADJUNTO SEPARATOR '|') FROM adjunto a
+                               -- Los archivos de la RQ (fotos y soportes), separados por |, para mostrarlos donde se aprueba:
+                               -- el número de cada uno con .jpg si es foto o .pdf si es soporte (el contenido se pide aparte)
+                               (SELECT GROUP_CONCAT(CONCAT(a.ID_ADJUNTO, IF(a.TIPO = 'soporte', '.pdf', '.jpg')) ORDER BY a.ID_ADJUNTO SEPARATOR '|') FROM adjunto a
                                  WHERE a.MODULO = 'RQ' AND a.ESTADO = 1 AND a.ID_REGISTRO = r.ID_RQ) AS ARCHIVOS
                           FROM rq r
                           INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP

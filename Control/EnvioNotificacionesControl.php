@@ -187,7 +187,6 @@ function hanaNotificarInmediato($idLista)
         $cab = $Notif->cabeceraLista($idLista);
         if (!$cab) { return false; } //la lista no existe
         //La consulta devuelve un arreglo; se pasa a objeto para leer $cab->CAMPO.
-        //(Antes se leía como objeto y el aviso "al guardar" nunca salía, sin mostrar error)
         $cab = (object)$cab;
 
         //Se buscan las configuraciones inmediatas de esa lista de chequeo

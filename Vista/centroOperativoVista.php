@@ -52,7 +52,7 @@ include('head.php');
                         </select>
                       </div>
                   </div>
-                  <!-- Fase 2: tipo de centro y su jefe. El jefe es la persona cuyo
+                  <!-- Tipo de centro y su jefe. El jefe es la persona cuyo
                        reporte diario aparece en el tablero, dentro de su proyecto -->
                   <div class="row">
                       <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">

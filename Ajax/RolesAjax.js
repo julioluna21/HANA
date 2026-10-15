@@ -112,8 +112,7 @@ function mostrar(idrol)
     $.post("../Control/RolesControl.php?op=mostrar",{idrol : idrol}, function(data)
     {
         hanaCargando(false);
-        //Antes aqui habia una espera fija de 1 segundo con "Consultando la base de datos...".
-        //Ahora el aviso de carga dura solo lo que tarda el servidor en responder
+        //El aviso de carga dura solo lo que tarda el servidor en responder
         data = JSON.parse(data);
         mostrarform(true);
         $("#idrol").val(data.ID_ROL_USUARIO_SISTEMA );

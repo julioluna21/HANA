@@ -22,8 +22,7 @@ function guardar(e)
             mostrarform(false);
             alert("Lista guardada con éxito");
         },
-        //Antes decia "errro" en vez de "error", asi que este bloque nunca se ejecutaba
-        //y un fallo del servidor pasaba inadvertido
+        //Si el servidor falla, se muestra el motivo
         error: function(xhr)
         {
             hanaErrorAjax(xhr, "No se pudo guardar la lista.");
@@ -70,8 +69,8 @@ function mostrarPregunta(idPregunta)
         $("#tipo-respuesta").val(data.TIPO_RESPUESTA);
 
         //Si la pregunta SÍ genera novedad se muestran los campos con sus valores.
-        //Si no, hay que limpiarlos y ocultarlos: antes se quedaban con lo de la
-        //pregunta abierta anteriormente y esa configuración se guardaba sin querer
+        //Si no, se limpian y se ocultan, para que no se guarde la configuración
+        //de la pregunta que se abrió antes
         if(data.GENERA_NOVEDAD==1){
             $("#titulo").show();
             $("#novedad").show();
@@ -123,8 +122,8 @@ function anularPregunta(idPregunta, idGrupo) {
 //Vuelve a activar una lista de chequeo (pregunta antes)
 function activar(idLista){
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
-    //Nota: el controlador de grupos no tiene la opción "activar"; hoy una lista
-    //anulada se reactiva editándola. Queda anotado en el informe de pendientes
+    //Nota: el controlador de listas no tiene la opción "activar"; una lista
+    //anulada se vuelve a activar editándola
     hanaConfirmar("¿Desea activar esta lista?", function(){
         $.post("../Control/GruposListasControl.php?op=activar",{idLista : idLista}, function(data){
             alert(data); //el servidor responde con el mensaje exacto: éxito o motivo del error
@@ -263,8 +262,7 @@ function agregarPregunta(e){
             mostrarform(false);
             alert("Pregunta guardada con éxito");
         },
-        //Antes no habia manejador de error: si la pregunta no se guardaba,
-        //igual aparecia el mensaje de exito
+        //Si la pregunta no se guarda, se muestra el error (no el mensaje de éxito)
         error: function(xhr)
         {
             hanaErrorAjax(xhr, "No se pudo guardar la pregunta.");
@@ -502,8 +500,8 @@ function init()
         var file = this.files && this.files[0];
         if (!file) { limpiarCsv(); return; }
 
-        //Si la pantalla no tiene los elementos nuevos, el archivo no se veria por
-        //ningun lado y pareceria que no pasa nada. Mejor decirlo
+        //Si la pantalla no tiene la zona de vista previa, el archivo no se vería por
+        //ningún lado y parecería que no pasa nada. Mejor decirlo
         if (!$("#csvPrevia").length || !$("#csvNombre").length) {
             alert('La pantalla de carga masiva está desactualizada.\n\n' +
                   'Copia también el archivo Vista/GruposListasVista.php y vuelve a abrir con Ctrl + F5.');
@@ -569,9 +567,8 @@ function init()
 }
 init();
 
-//Descarga la plantilla. Antes se hacia con window.location.href, que si el archivo
-//no esta lleva al usuario a una pagina de error y lo saca de la pantalla.
-//Aqui se comprueba primero que exista y, si falta, se dice exactamente que copiar
+//Descarga la plantilla. Primero se comprueba que el archivo exista: si falta,
+//se dice exactamente qué copiar, en vez de llevar al usuario a una página de error
 function descargarPlantilla() {
     var ruta = '../public/preguntasExcel.xlsx';
 

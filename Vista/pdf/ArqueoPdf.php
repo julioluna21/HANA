@@ -10,8 +10,8 @@
   El recuadro del logo queda en blanco a propósito: el formato lo usan varias
   concesiones y cada una pondrá el suyo.
 
-  Usa FPDF 1.9 (public/fpdf). Las copias viejas del proyecto (public/Gpdf,
-  versión 1.81) no funcionan con PHP 8. FPDF escribe en
+  Usa FPDF 1.9 (public/fpdf). La versión de public/Gpdf
+  (1.81) no funciona con PHP 8. FPDF escribe en
   Windows-1252: todo texto pasa por txt() para que las tildes salgan bien.
 */
 require_once __DIR__ . '/../../public/fpdf/fpdf.php';
@@ -54,8 +54,8 @@ class ArqueoPdf extends FPDF
         return strtr(strtoupper((string)$t), array('á' => 'Á', 'é' => 'É', 'í' => 'Í', 'ó' => 'Ó', 'ú' => 'Ú', 'ñ' => 'Ñ', 'ü' => 'Ü'));
     }
 
-    //Escribe un texto. $top es el borde superior de la letra (como en el
-    //original); FPDF necesita la línea base, que queda 0,905 × tamaño más abajo.
+    //Escribe un texto. $top es el borde superior de la letra (como se midió en el
+    //formato PDF); FPDF necesita la línea base, que queda 0,905 × tamaño más abajo.
     //$alin: L (desde $x), R (terminando en $x) o C (centrado entre $x y $x2)
     private function t($x, $top, $texto, $tam, $negrita = false, $alin = 'L', $x2 = 0)
     {
@@ -103,8 +103,8 @@ class ArqueoPdf extends FPDF
         $this->Text($x, $top + 0.905 * $tam, $s);
     }
 
-    //Antes recortaba con "..." un texto que no cabía. Ahora no se recorta nada: solo se anota
-    //el ancho de su casilla, y al escribirlo t() achica la letra o lo pasa a otro renglón
+    //No se recorta ningún texto: solo se anota el ancho de su casilla, y al escribirlo
+    //t() achica la letra o lo pasa a otro renglón
     private $limites = array();
     private function cabe($texto, $ancho, $tam, $negrita = false)
     {
@@ -164,7 +164,7 @@ class ArqueoPdf extends FPDF
         $this->Rect($x1, $y1, $x2 - $x1, $y2 - $y1, 'F');
     }
 
-    //Formato contable del original: "320,000"; el cero se muestra como "-"
+    //Formato contable del formato en papel: "320,000"; el cero se muestra como "-"
     private static function num($n)
     {
         $n = round((float)$n);
@@ -280,7 +280,7 @@ class ArqueoPdf extends FPDF
                       'RECIBO_CAJA' => array(254, 271, 'RC'), 'FALTANTE' => array(271, 287, 'FR'));
         foreach ($cols as $c) { $this->t($c[0], 295, $c[2], 7.3, true, 'C', $c[1]); }
 
-        //15 renglones como el original. Si hay más documentos, los renglones
+        //15 renglones como el formato en papel. Si hay más documentos, los renglones
         //se hacen más bajos para que todo quepa en el mismo espacio
         $n = max(15, count($docs));
         $alto = (463 - 304) / $n;
@@ -383,7 +383,7 @@ class ArqueoPdf extends FPDF
             $fila = $c[2];
             $this->t(95, $fila + 4, $c[1], 7.5);
             $l = isset($ef[$c[0]]) ? $ef[$c[0]] : null;
-            //Como en el original: un concepto sin valor queda en blanco
+            //Como en el formato en papel: un concepto sin valor queda en blanco
             if ($l && (float)$l['VALOR'] != 0) { $this->pesos(289, 370, $fila + 1, $l['VALOR'], 7.5); }
             if ($l && $l['OBSERVACION']) { $this->t(378, $fila + 4, $this->cabe($l['OBSERVACION'], 134, 6.6), 6.6); }
         }

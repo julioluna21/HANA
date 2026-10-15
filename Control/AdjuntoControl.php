@@ -1,13 +1,13 @@
 <?php
 /*
-  HANA - Archivos adjuntos (comunicaciones y oficios, listas de chequeo)
+  HANA - Archivos adjuntos (comunicaciones y oficios, listas de chequeo, RQ)
   ---------------------------------------------------------------------------
   Cómo funciona:
-    - El archivo se guarda en archivos/adjuntos/AAAA/MM/ con un nombre al azar
-      (nadie puede adivinar la ruta de otro). Esa carpeta tiene un .htaccess
-      que no deja abrirla por la dirección: los archivos solo salen por aquí,
-      después de revisar quién los pide.
-    - En la tabla `adjunto` queda el nombre original, quién lo subió y cuándo.
+    - El archivo se guarda dentro de la base, en adjunto.ARCHIVO, como texto
+      base64 ("data:tipo;base64,..."), con su nombre original, quién lo subió
+      y cuándo (ver Control/ArchivoHelper.php). Las fotos muy pesadas se achican.
+    - Los archivos solo salen por aquí (op=ver), después de revisar quién los
+      pide. También las fotos y soportes de las RQ, que se suben desde RQControl.php.
     - Borrar deja el registro con ESTADO 0 (se puede recuperar si hace falta).
 
   Quién puede qué:
@@ -16,6 +16,8 @@
     LISTA         subir, cambiar y borrar: solo quien llenó esa lista,
                   y solo el día de la lista (hoy o un día habilitado). Ver: además 12M,
                   20M, 21M y quien ve ese peaje en el tablero (19M).
+    RQ            solo ver: quien puede abrir esa RQ en Requisiciones, quien ve su
+                  peaje en el reporte general (19M), 20M, 21M, 22M y el ADMIN TEC.
   Y el administrador puede apagar los adjuntos de cada módulo en Parámetros.
 
   Operaciones: listar, subir, describir, borrar, ver (entrega el archivo).
@@ -24,11 +26,11 @@ session_start();
 require_once __DIR__ . "/../Modelo/HanaConfig.php";
 require_once __DIR__ . "/../Modelo/HanaFechas.php";
 require_once __DIR__ . "/../Modelo/AdjuntoModelo.php";
+require_once __DIR__ . "/../Modelo/RQModelo.php";
+require_once __DIR__ . "/../Modelo/TableroModelo.php";
 require_once __DIR__ . "/AccesoHelper.php";
+require_once __DIR__ . "/ArchivoHelper.php";
 date_default_timezone_set('America/Bogota');
-
-//La carpeta donde viven los archivos (fuera del alcance del navegador)
-define('ADJ_CARPETA', __DIR__ . '/../archivos/adjuntos/');
 
 //Tipos de archivo permitidos: extensión => tipo que se le dice al navegador
 $ADJ_TIPOS = array(
@@ -88,13 +90,29 @@ function adjAcceso($modulo, $idRegistro, $idUsuario, $idColaborador)
         }
         return array('ver' => $ver, 'editar' => $editar);
     }
+
+    if ($modulo === 'RQ') {
+        //Las fotos y soportes de una RQ: los ve quien puede abrir esa RQ (la misma regla de Requisiciones)
+        $m = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
+        $conRq = (bool)array_intersect(array('15M', '17M', '18M', '41M'), $m);
+        $ver = ($conRq && (new Rq())->mostrar(hanaCondRQ('todas'), $idRegistro)) || $verTodos || hanaTienePermiso('24M');
+        //También quien ve el peaje de la RQ en el reporte general, donde salen las fotos de las RQ por aprobar
+        if (!$ver && hanaTienePermiso('19M')) {
+            $centro = (new Adjunto())->centroDeRq($idRegistro);
+            $alcance = (new Tablero())->alcance($idColaborador, false);
+            $ver = $centro > 0 && isset($alcance['centros'][$centro]);
+        }
+        return array('ver' => (bool)$ver, 'editar' => false);
+    }
     return null;
 }
 
-//Revisa que el módulo sea válido y que la persona pueda ver (o editar) el registro antes de tocar sus adjuntos
-function adjCargar($modulo, $id, $idUsuario, $idColaborador, $paraEditar)
+//Revisa que el módulo sea válido y que la persona pueda ver (o editar) el registro antes de tocar sus adjuntos.
+//Los de las RQ solo se abren desde aquí ($conRq); se suben con la RQ en RQControl.php
+function adjCargar($modulo, $id, $idUsuario, $idColaborador, $paraEditar, $conRq = false)
 {
-    $m = in_array($modulo, array('COMUNICACION', 'LISTA'), true) ? $modulo : '';
+    $validos = $conRq ? array('COMUNICACION', 'LISTA', 'RQ') : array('COMUNICACION', 'LISTA');
+    $m = in_array($modulo, $validos, true) ? $modulo : '';
     if ($m === '') { adjError(400, 'Módulo no válido.'); }
     $a = adjAcceso($m, $id, $idUsuario, $idColaborador);
     if (!$a || !$a['ver']) { adjError(404, 'No se encontró el registro, o no tienes acceso a él.'); }
@@ -103,11 +121,11 @@ function adjCargar($modulo, $id, $idUsuario, $idColaborador, $paraEditar)
 }
 
 //Un adjunto por su id, con el acceso de su registro
-function adjPorId($id, $idUsuario, $idColaborador, $paraEditar)
+function adjPorId($id, $idUsuario, $idColaborador, $paraEditar, $conRq = false)
 {
     $x = (new Adjunto())->porId($id);
     if (!$x) { adjError(404, 'No se encontró el archivo.'); }
-    adjCargar($x['MODULO'], $x['ID_REGISTRO'], $idUsuario, $idColaborador, $paraEditar);
+    adjCargar($x['MODULO'], $x['ID_REGISTRO'], $idUsuario, $idColaborador, $paraEditar, $conRq);
     return $x;
 }
 
@@ -135,10 +153,6 @@ switch ($op) {
             adjError(400, 'No llegó ningún archivo. Si es muy grande, puede que el servidor lo haya rechazado antes (upload_max_filesize).');
         }
         $maxBytes = max(1, HanaConfig::num('ADJUNTOS_MAX_MB', 10)) * 1024 * 1024;
-        $sub = date('Y/m');
-        if (!is_dir(ADJ_CARPETA . $sub) && !@mkdir(ADJ_CARPETA . $sub, 0755, true)) {
-            adjError(500, 'No se pudo crear la carpeta de archivos en el servidor. Revisa los permisos de archivos/adjuntos.');
-        }
         $guardados = 0; $avisos = array();
         foreach ($_FILES['archivos']['name'] as $i => $nombre) {
             $err = $_FILES['archivos']['error'][$i];
@@ -150,12 +164,19 @@ switch ($op) {
             $tam = (int)$_FILES['archivos']['size'][$i];
             if ($tam > $maxBytes) { $avisos[] = $nombre . ': pasa de ' . HanaConfig::num('ADJUNTOS_MAX_MB', 10) . ' MB.'; continue; }
             //Una imagen tiene que ser de verdad una imagen (no un programa con otra extensión)
-            if (in_array($ext, array('jpg', 'jpeg', 'png', 'webp', 'gif'), true) && @getimagesize($_FILES['archivos']['tmp_name'][$i]) === false) {
-                $avisos[] = $nombre . ': no parece una imagen válida.'; continue;
+            $esFoto = in_array($ext, array('jpg', 'jpeg', 'png', 'webp', 'gif'), true);
+            $info = $esFoto ? @getimagesize($_FILES['archivos']['tmp_name'][$i]) : null;
+            if ($esFoto && $info === false) { $avisos[] = $nombre . ': no parece una imagen válida.'; continue; }
+            $bytes = @file_get_contents($_FILES['archivos']['tmp_name'][$i]);
+            if ($bytes === false) { $avisos[] = $nombre . ': no se pudo leer.'; continue; }
+            //El archivo va dentro de la base como texto base64 (las fotos pesadas se achican antes)
+            $a = hanaArchivoTexto($bytes, $esFoto ? $info['mime'] : $ADJ_TIPOS[$ext]);
+            if (!hanaArchivoCabe($a['texto'])) { $avisos[] = hanaArchivoMuyGrande($nombre); continue; }
+            if ($a['achicada']) { $nombre = hanaArchivoNombreJpg($nombre); }
+            $nombre = function_exists('mb_substr') ? mb_substr($nombre, 0, 200) : substr($nombre, 0, 200);
+            if (!(new Adjunto())->guardar($modulo, $id, $nombre, $a['texto'], $a['tipo'], $a['tamano'], $idColaborador)) {
+                $avisos[] = $nombre . ': no se pudo guardar en la base de datos.'; continue;
             }
-            $ruta = $sub . '/' . bin2hex(random_bytes(12)) . '.' . $ext;
-            if (!move_uploaded_file($_FILES['archivos']['tmp_name'][$i], ADJ_CARPETA . $ruta)) { $avisos[] = $nombre . ': no se pudo guardar en el servidor.'; continue; }
-            (new Adjunto())->guardar($modulo, $id, function_exists('mb_substr') ? mb_substr($nombre, 0, 200) : substr($nombre, 0, 200), $ruta, $ADJ_TIPOS[$ext], $tam, $idColaborador);
             $guardados++;
         }
         if (!$guardados) { adjError(400, $avisos ? implode(' ', $avisos) : 'No se guardó ningún archivo.'); }
@@ -177,19 +198,15 @@ switch ($op) {
         echo json_encode(array('ok' => true, 'mensaje' => 'Archivo quitado.'), JSON_UNESCAPED_UNICODE);
         break;
 
-    //Entrega el archivo: en el navegador si es PDF o imagen; si no, se descarga
+    //Entrega el archivo: en el navegador si es PDF o imagen; si no, se descarga.
+    //Sirve también para las fotos y soportes de las RQ
     case 'ver':
-        $x = adjPorId(isset($_GET['id']) ? (int)$_GET['id'] : 0, $idUsuario, $idColaborador, false);
-        $ruta = realpath(ADJ_CARPETA . $x['ARCHIVO']);
-        if (!$ruta || strpos($ruta, realpath(ADJ_CARPETA)) !== 0 || !is_file($ruta)) { adjError(404, 'El archivo ya no está en el servidor.'); }
-        $enLinea = !isset($_GET['descargar']) && (strpos($x['TIPO'], 'image/') === 0 || $x['TIPO'] === 'application/pdf');
-        $nombre = str_replace(array('"', "\r", "\n"), '', $x['NOMBRE']);
-        while (ob_get_level() > 0) { ob_end_clean(); }
-        header('Content-Type: ' . $x['TIPO']);
-        header('Content-Length: ' . filesize($ruta));
-        header('X-Content-Type-Options: nosniff');
-        header('Content-Disposition: ' . ($enLinea ? 'inline' : 'attachment') . '; filename="' . $nombre . '"; filename*=UTF-8\'\'' . rawurlencode($x['NOMBRE']));
-        readfile($ruta);
+        $x = adjPorId(isset($_GET['id']) ? (int)$_GET['id'] : 0, $idUsuario, $idColaborador, false, true);
+        $partes = hanaArchivoPartes((new Adjunto())->contenido((int)$x['ID_ADJUNTO']));
+        if (!$partes) { adjError(404, 'El archivo ya no está en el servidor.'); }
+        list($tipo, $bytes) = $partes;
+        $enLinea = !isset($_GET['descargar']) && (strpos($tipo, 'image/') === 0 || $tipo === 'application/pdf');
+        hanaArchivoEntregar($bytes, $tipo, $x['NOMBRE'], $enLinea);
         break;
 
     default:

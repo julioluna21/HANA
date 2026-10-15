@@ -14,7 +14,7 @@ class Centro
         {
         }
         //Implementamos un método para insertar registros
-        //Tipos de centro (Fase 2). El tipo y el jefe los usa el reporte diario
+        //Tipos de centro. El tipo y el jefe los usa el reporte diario
         public static $TIPOS = array('PEAJE' => 'Peaje', 'BASCULA' => 'Báscula', 'BASE' => 'Base', 'OFICINA' => 'Oficina');
 
         public function insertar($nombrecentro, $proyecto, $tipo = 'PEAJE', $jefe = 0)

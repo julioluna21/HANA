@@ -2,10 +2,10 @@
 /*
   HANA - Guardia de sesión y permisos para los controladores
   ---------------------------------------------------------------------------
-  Antes, los controladores de Roles, Colaboradores, Cargos, Títulos, Estados,
-  Observador, Listas, Preguntas, Novedades y Notificaciones respondían a
-  cualquiera, aunque no hubiera iniciado sesión: se podían cambiar los
-  permisos de un rol o crear registros sin entrar al sistema.
+  Los controladores de Roles, Colaboradores, Cargos, Títulos, Estados, Observador,
+  Listas, Preguntas, Novedades y Notificaciones pasan por aquí: sin sesión o sin
+  el permiso de la pantalla no se atiende la petición (nadie cambia permisos ni
+  crea registros sin haber entrado al sistema).
 
   Uso, justo después de session_start():
       require_once __DIR__ . '/Guardia.php';
@@ -44,8 +44,8 @@ function hanaGuardia($permisos, $opsLectura = array(), $opsLibres = array(), $pe
     exit;
 }
 
-//Para los archivos que quedaron de versiones anteriores y ya no usa ninguna
-//pantalla: no se borran, pero dejan de responder
+//Para los archivos que no usa ninguna pantalla: se conservan, pero no atienden
+//peticiones
 function hanaArchivoRetirado()
 {
     http_response_code(410);

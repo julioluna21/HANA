@@ -1,6 +1,7 @@
 <?php
 //Ausentismo - el "Reporte nacional de ausentismo" dentro de HANA.
-//Registra el coordinador de cada proyecto; consultan 20M, 21M y 22M
+//Registra el coordinador de cada proyecto; consultan 20M, 21M y 22M.
+//El consolidado se ve de todo el mes o de un rango de días; del proyecto, de un solo peaje o, con 20M, 21M, 22M o 25M, de todos los proyectos juntos
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -13,7 +14,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if ($esCoordinador || $esJefe || in_array("20M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("22M", $modulosAcceso) || in_array("25M", $modulosAcceso)) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=16" rel="stylesheet">
+<link href="../public/css/reporte.css?v=17" rel="stylesheet">
 <style media="print">@page{ size: landscape; }</style> <!-- la matriz del mes (31 días) cabe mejor a lo ancho -->
 
 <div class="right_col" role="main">
@@ -98,7 +99,36 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <button type="button" class="btn btn-success" id="btnGuardarAus"><i class="fa fa-save"></i> Guardar</button>
               </div>
             </div>
-            <div class="tab-pane" id="tabConsolidado"><div id="ausConsolidado"><p class="rd-vacio">Cargando...</p></div></div>
+            <div class="tab-pane" id="tabConsolidado">
+              <!-- Qué se suma: el proyecto elegido, solo el peaje elegido o todos los proyectos, y de qué día a qué día del mes -->
+              <div class="aus-rapido aus-filtro-cons">
+                <div class="row">
+                  <div class="form-group col-md-3 col-sm-12 col-xs-12" id="consAlcanceGrupo">
+                    <label for="consAlcance">Ver:</label>
+                    <!-- "Todos los proyectos" lo quita AusentismoAjax.js a quien no los consulta -->
+                    <select id="consAlcance" class="form-control"><option value="proyecto">El proyecto elegido</option><option value="centro">Solo el peaje elegido</option><option value="todos">Todos los proyectos</option></select>
+                  </div>
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                    <label for="consDesde">Desde el día:</label>
+                    <select id="consDesde" class="form-control"></select>
+                  </div>
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                    <label for="consHasta">Hasta el día:</label>
+                    <select id="consHasta" class="form-control"></select>
+                  </div>
+                  <div class="form-group col-md-5 col-sm-6 col-xs-12">
+                    <label class="hidden-xs">&nbsp;</label>
+                    <div class="aus-rangos">
+                      <button type="button" class="btn btn-default btn-sm" data-rango="mes">Todo el mes</button>
+                      <button type="button" class="btn btn-default btn-sm" data-rango="q1">Días 1 a 14</button>
+                      <button type="button" class="btn btn-default btn-sm" data-rango="q2">Del 15 al final</button>
+                      <a class="btn btn-default btn-sm" id="btnExcelCons" href="#"><i class="fa fa-file-excel-o"></i> Excel de lo que ves</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div id="ausConsolidado"><p class="rd-vacio">Cargando...</p></div>
+            </div>
             <!-- Quién cambió qué y cuándo (lo necesita el auditor: varias personas pueden editar) -->
             <details class="aus-historial" id="ausHistorial">
               <summary><i class="fa fa-history"></i> Historial de cambios de este peaje en el mes</summary>
@@ -113,7 +143,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=5"></script>
+<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=7"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

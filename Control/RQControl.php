@@ -2,10 +2,12 @@
 //Controlador del módulo de Requisiciones (RQ)
 //Dos tipos (normal y urgente), flujo de un solo paso (Solicitada -> Aprobada
 //o Rechazada), permiso 18M para aprobar y filtro por periodo. Las RQ no
-//generan novedades
+//generan novedades. Las fotos y soportes van dentro de la base (tabla adjunto,
+//como texto base64) y se abren con Control/AdjuntoControl.php?op=ver
 session_start();
 require_once __DIR__ . "/../Modelo/RQModelo.php";
 require_once __DIR__ . "/AccesoHelper.php"; //quién puede ver qué: la misma regla de novedades y campana
+require_once __DIR__ . "/ArchivoHelper.php"; //fotos y soportes guardados en la base
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -38,9 +40,8 @@ $idColaborador = (int)$_SESSION['Idcolaborador'];
 $puedeAprobar  = hanaTienePermiso(PERMISO_APROBAR_RQ);
 $Rq            = new Rq();
 
-//Carpeta de los archivos de las RQ, dentro de public/
-define('CARPETA_RQ', __DIR__ . '/../public/rq/');
-define('RUTA_WEB_RQ', '../public/rq/');
+//Dónde se abre cada foto o soporte de una RQ (revisa que la persona pueda ver la RQ)
+define('URL_ARCHIVO_RQ', '../Control/AdjuntoControl.php?op=ver&id=');
 define('MAX_ARCHIVOS', 10);
 define('MAX_BYTES', 8 * 1024 * 1024); //8 MB por archivo
 
@@ -135,25 +136,6 @@ function hanaTipoArchivo($ruta)
     return ($cabecera === '%PDF-') ? 'pdf' : '';
 }
 
-//Deja la carpeta lista, con la protección que impide ejecutar código ahí
-function hanaPrepararCarpeta()
-{
-    if (!is_dir(CARPETA_RQ) && !@mkdir(CARPETA_RQ, 0755, true)) { return false; }
-    $ht = CARPETA_RQ . '.htaccess';
-    if (!file_exists($ht)) {
-        @file_put_contents($ht,
-            "# Carpeta de archivos de las RQ: aquí solo hay imágenes y PDF.\n" .
-            "# Nada se ejecuta, aunque alguien lograra subir un archivo de código.\n" .
-            "php_flag engine off\n" .
-            "RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phps\n" .
-            "<FilesMatch \"\\.(php|phtml|phps|pl|py|cgi|sh)$\">\n" .
-            "  Require all denied\n" .
-            "</FilesMatch>\n" .
-            "Options -Indexes\n");
-    }
-    return is_writable(CARPETA_RQ);
-}
-
 //---------------------------------------------------------------------------
 // Operaciones
 //---------------------------------------------------------------------------
@@ -205,7 +187,11 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!$cab) { hanaError(404, 'No se encontró la RQ, o no pertenece a tus peajes.'); }
 
         $archivos = hanaFilas($Rq->soportes($idRq));
-        foreach ($archivos as $i => $a) { $archivos[$i]['URL'] = RUTA_WEB_RQ . $a['RUTA']; }
+        //URL abre el archivo; RUTA solo le dice a la pantalla si es foto o PDF (por su terminación)
+        foreach ($archivos as $i => $a) {
+            $archivos[$i]['URL']  = URL_ARCHIVO_RQ . (int)$a['ID_RQ_SOPORTE'];
+            $archivos[$i]['RUTA'] = ($a['TIPO'] === 'soporte') ? 'soporte.pdf' : 'foto.jpg';
+        }
 
         $acc = hanaAccionesRQ($cab, $idColaborador, $puedeAprobar, $maxReintentos);
         echo json_encode(array(
@@ -292,15 +278,17 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                 if ($_FILES['archivos']['size'][$i] > MAX_BYTES) { hanaError(400, "\"$nom\" pesa más de 8 MB."); }
                 $ext = hanaTipoArchivo($_FILES['archivos']['tmp_name'][$i]);
                 if ($ext === '') { hanaError(400, "\"$nom\" no es una imagen ni un PDF."); }
-                $aSubir[] = array('tmp' => $_FILES['archivos']['tmp_name'][$i], 'nombre' => $nom, 'ext' => $ext);
+                //Cada archivo se vuelve texto base64 para guardarlo en la base (las fotos pesadas se achican)
+                $bytes = @file_get_contents($_FILES['archivos']['tmp_name'][$i]);
+                if ($bytes === false) { hanaError(400, "No se pudo leer \"$nom\". Intenta de nuevo."); }
+                $a = hanaArchivoTexto($bytes, hanaArchivoMime($bytes));
+                if (!hanaArchivoCabe($a['texto'])) { hanaError(400, hanaArchivoMuyGrande($nom)); }
+                $aSubir[] = array('texto' => $a['texto'], 'tamano' => $a['tamano'],
+                                  'nombre' => $a['achicada'] ? hanaArchivoNombreJpg($nom) : $nom, 'ext' => $ext);
             }
-        }
-        if (count($aSubir) > 0 && !hanaPrepararCarpeta()) {
-            hanaError(500, 'El servidor no permite guardar archivos en public/rq/. Revisa los permisos de esa carpeta.');
         }
 
         //--- Todo o nada: si algo falla, no queda una RQ a medias ---
-        $movidos = array();
         $Rq->iniciar();
         $idRq = $Rq->insertar($numero, $idProyecto, $idCentro, $fecha, $idColaborador, $observacion, $tipo);
         $ok = $idRq > 0;
@@ -313,20 +301,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         foreach ($aSubir as $a) {
             if (!$ok) { break; }
-            //Nombre al azar: el original no se usa en el disco, así no se puede adivinar
-            $destino = 'rq' . $idRq . '_' . bin2hex(random_bytes(10)) . '.' . $a['ext'];
-            if (move_uploaded_file($a['tmp'], CARPETA_RQ . $destino)) {
-                $movidos[] = CARPETA_RQ . $destino;
-                $tipo = ($a['ext'] === 'pdf') ? 'soporte' : 'evidencia';
-                $ok = $Rq->insertarSoporte($idRq, $destino, $a['nombre'], $tipo) > 0;
-            } else {
-                $ok = false;
-            }
+            //Un PDF es un soporte; una imagen, una evidencia
+            $ok = $Rq->insertarSoporte($idRq, $a['texto'], $a['nombre'], $a['ext'] === 'pdf' ? 'soporte' : 'evidencia', $a['tamano']) > 0;
         }
 
         if (!$ok) {
             $Rq->deshacer();
-            foreach ($movidos as $m) { @unlink($m); } //no quedan archivos huérfanos
             hanaError(500, 'No se pudo guardar la RQ. No quedó nada registrado; intenta de nuevo.');
         }
         $Rq->confirmar();

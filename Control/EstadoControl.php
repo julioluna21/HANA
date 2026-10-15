@@ -9,7 +9,7 @@
   Permiso: 8M. El desplegable (select) también lo usa Novedades.
 */
 session_start();//inicia la session, permite guardar variables de sesion
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('8M'), array('select')); //Estados: 8M. El selector lo usan novedades
 require_once "../Modelo/EstadosModelo.php";//Utilizará este archivo
 $Estados=new Estados();//objeto del modelo: con él se hacen las consultas
@@ -17,7 +17,7 @@ $Estados=new Estados();//objeto del modelo: con él se hacen las consultas
 $idestado=isset($_POST["idestado"])? limpiarCadena($_POST["idestado"]):"";
 $nombreestado=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
 //Días para atender una novedad de esta prioridad: un número entero sin signos ni
-//decimales. Antes llegaba sin revisar a la consulta
+//decimales (se revisa antes de que llegue a la consulta)
 $dias=isset($_POST["dias"])? trim((string)$_POST["dias"]):"";
 
 

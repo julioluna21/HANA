@@ -111,8 +111,7 @@ function mostrar(idtitulo)
     $.post("../Control/TituloControl.php?op=mostrar",{idtitulo : idtitulo}, function(data)
     {
         hanaCargando(false);
-        //Antes aqui habia una espera fija de 1 segundo con "Consultando la base de datos...".
-        //Ahora el aviso de carga dura solo lo que tarda el servidor en responder
+        //El aviso de carga dura solo lo que tarda el servidor en responder
         data = JSON.parse(data);
         mostrarform(true);
         $("#idtitulo").val(data.ID_TITULO_NOVEDADES_HALLAZGOS);

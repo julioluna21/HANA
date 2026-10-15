@@ -129,8 +129,7 @@ $('#validador').select2({
         campo[0].click();
     });
 
-    //Al marcar "Finalizada" se muestra el campo de la foto de cierre.
-    //Antes el sistema abria el selector de archivos sin decir para que
+    //Al marcar "Finalizada" se muestra el campo de la foto de cierre
     $("input[name='estadoNovedad']").on("change", function () {
         $("#respFoto").toggle($(this).val() === "3");
     });
@@ -183,8 +182,8 @@ function limpiar()
 {
     document.getElementById("demo-form2").reset();
     $('#titulo,#centroop,#observador,#prioridad,#colaborador').val("").trigger('change');
-    //Se usa limpiarFoto para que el boton, la vista previa y el archivo
-    //queden todos en el mismo estado. Antes aqui solo se reponia el icono
+    //Se usa limpiarFoto para que el botón, la vista previa y el archivo
+    //queden todos en el mismo estado
     limpiarFoto("#miarchivo2", "#imagenbt", "#fotoPrevia");
   
 }
@@ -250,8 +249,7 @@ function guardar(e)
                 tabla.ajax.reload();
             }
         },
-        //Antes no habia manejador de error: una novedad que no se guardaba
-        //igual mostraba el mensaje del servidor y se perdia la foto cargada
+        //Si la novedad no se guarda, se muestra el error y la foto cargada se conserva
         error: function(xhr)
         {
             hanaErrorAjax(xhr, "No se pudo guardar la novedad.");
@@ -268,8 +266,7 @@ function respuesta(e)
 {
     e.preventDefault(); //No se activará la acción predeterminada del evento
 
-    //El estado se lee del boton marcado. Antes era un campo oculto que llenaba
-    //el menu escondido detras del reloj de arena
+    //El estado se lee del botón marcado
     var estado=$("input[name='estadoNovedad']:checked").val() || "";
     var permisoau=$("#esdaoauditoria").val();
     var id=$("#IDnovedad").val();
@@ -296,8 +293,7 @@ function respuesta(e)
                 tabla.ajax.reload();
             }
         },
-        //Antes no habia manejador de error: si la respuesta no se guardaba,
-        //el botón quedaba bloqueado y había que recargar la pantalla
+        //Si la respuesta no se guarda, se muestra el error; el botón se vuelve a habilitar al terminar
         error: function(xhr)
         {
             hanaErrorAjax(xhr, "No se pudo enviar la respuesta.");
@@ -319,8 +315,7 @@ function mostrar(IDnovedad)
     hanaCargando(true); //aviso de carga mientras llega la novedad
     $.post("../Control/NovedadesControl.php?op=mostrarnovedad",{IDnovedad : IDnovedad}, function(data)
     {
-        //Antes aqui habia una espera fija de 1 segundo con "Consultando la base de datos...",
-        //aunque los datos ya hubieran llegado. Ahora la ventana dura solo lo que tarda el servidor
+        //El aviso de carga dura solo lo que tarda el servidor
         hanaCargando(false);
         data = JSON.parse(data);
         mostrarcontenedor(false);
@@ -342,7 +337,7 @@ function solover(IDnovedad)
     hanaCargando(true); //aviso de carga mientras llega la novedad
     $.post("../Control/NovedadesControl.php?op=mostrarnovedad",{IDnovedad : IDnovedad}, function(data)
     {
-        //Antes aqui habia una espera fija de 1 segundo con "Consultando la base de datos..."
+        //El aviso de carga dura solo lo que tarda el servidor
         hanaCargando(false);
         data = JSON.parse(data);
         mostrarcontenedor(false);
@@ -418,10 +413,9 @@ init();//ejecuta la función init
 
 //=================================================================
 //  Fotos de las novedades
-//  Antes el campo estaba escondido y la foto del celular se subia tal
-//  cual: entre 3 y 8 MB, lenta con datos moviles y a veces por encima
-//  del limite de subida del servidor. Ahora se ve lo que se cargo y la
-//  imagen se reduce en el propio telefono antes de enviarla.
+//  Se muestra la foto elegida y se reduce en el propio teléfono antes de
+//  enviarla: una foto de celular pesa entre 3 y 8 MB, es lenta con datos
+//  móviles y puede pasar el límite de subida del servidor.
 //=================================================================
 
 var FOTO_LADO_MAX = 1600; //lado mayor de la imagen enviada, en pixeles
@@ -551,9 +545,9 @@ function comprimirImagen(archivo, alTerminar) {
 
 //Decide con que filtro abre la pantalla.
 //Lo normal es "Asignadas a mi usuario", para no soltar de entrada las novedades de
-//todas las concesiones. Pero hay personas que no tienen ninguna asignada: a ellas
-//antes les quedaba la tabla vacia y parecia que el sistema fallaba. Por eso primero
-//se pregunta cuantas tiene, y si no tiene ninguna se abre en "Todos" con un aviso
+//todas las concesiones. Hay personas que no tienen ninguna asignada: para que no
+//vean la tabla vacía, primero se pregunta cuántas tiene y, si no tiene ninguna,
+//se abre en "Todos" con un aviso
 function decidirFiltroInicial() {
     //Se abre en "Mis registros" (lo que la persona creó o tiene asignado).
     //Si no tiene ninguno, se pasa a lo que su rol puede ver, con un aviso,

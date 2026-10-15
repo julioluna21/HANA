@@ -210,10 +210,10 @@
         mostrarSiguiente();
     };
 
-    //Todo alert() del sistema usa ahora la ventana personalizada
-    //Se pasan también el callback y las opciones. Antes solo se pasaba el mensaje,
-    //así que alert(texto, function(){...}) mostraba el aviso pero nunca ejecutaba
-    //lo de después (por ejemplo, volver al login tras recuperar la contraseña).
+    //Todo alert() del sistema usa la ventana personalizada
+    //Se pasan también el callback y las opciones: así alert(texto, function(){...})
+    //ejecuta lo de después al cerrar el aviso (por ejemplo, volver al login tras
+    //recuperar la contraseña).
     //El alert nativo recibe un solo argumento, así que los extra no estorban
     window.alert = function (mensaje, alCerrar, opciones) {
         window.hanaAlerta(arguments.length === 0 ? '' : mensaje, alCerrar, opciones);

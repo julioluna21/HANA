@@ -158,15 +158,16 @@ class Rq
         return $this->insertarId($sql);
     }
 
-    //Registra un archivo de la RQ: un soporte o una evidencia
-    public function insertarSoporte($idRq, $ruta, $nombreOriginal, $tipo)
+    //Registra un archivo de la RQ: un soporte (PDF) o una evidencia (foto)
+    public function insertarSoporte($idRq, $texto, $nombreOriginal, $tipo, $tamano = 0)
     {
+        global $conexion;
         $tipo = ($tipo === 'soporte') ? 'soporte' : 'evidencia';
-        //Los soportes de las RQ se guardan en "adjunto", la tabla de archivos de todos los
-        //módulos (MODULO = 'RQ'). El archivo sigue en la misma carpeta de siempre
+        //Los archivos de las RQ se guardan en "adjunto", la tabla de archivos de todos los
+        //módulos (MODULO = 'RQ'). El archivo va completo en ARCHIVO, como texto base64
         $sql = "INSERT INTO adjunto (MODULO, ID_REGISTRO, NOMBRE, ARCHIVO, TIPO, TAMANO, ID_COLABORADOR, FEC_REGISTRO, ESTADO)
-                VALUES ('RQ', " . intval($idRq) . ", " . $this->txt(mb_substr((string)$nombreOriginal, 0, 200)) . ", " . $this->txt($ruta) . ",
-                        '$tipo', 0, COALESCE((SELECT ID_COLABORADOR_SOLICITA FROM rq WHERE ID_RQ = " . intval($idRq) . "), 0), NOW(), 1)";
+                VALUES ('RQ', " . intval($idRq) . ", " . $this->txt(mb_substr((string)$nombreOriginal, 0, 200)) . ", '" . $conexion->real_escape_string((string)$texto) . "',
+                        '$tipo', " . intval($tamano) . ", COALESCE((SELECT ID_COLABORADOR_SOLICITA FROM rq WHERE ID_RQ = " . intval($idRq) . "), 0), NOW(), 1)";
         return $this->insertarId($sql);
     }
 
@@ -276,11 +277,11 @@ class Rq
         return $this->ejecutar($sql);
     }
 
-    //Los archivos de una RQ
+    //Los archivos de una RQ, sin el contenido (cada uno se abre aparte con AdjuntoControl.php?op=ver)
     public function soportes($idRq)
     {
-        //Con los nombres de columna que usa la pantalla (ID_RQ_SOPORTE, RUTA, NOMBRE_ORIGINAL...)
-        return $this->ejecutar("SELECT ID_ADJUNTO AS ID_RQ_SOPORTE, ID_REGISTRO AS ID_RQ, ARCHIVO AS RUTA, NOMBRE AS NOMBRE_ORIGINAL,
+        //Con los nombres de columna que usa la pantalla (ID_RQ_SOPORTE, NOMBRE_ORIGINAL...)
+        return $this->ejecutar("SELECT ID_ADJUNTO AS ID_RQ_SOPORTE, ID_REGISTRO AS ID_RQ, NOMBRE AS NOMBRE_ORIGINAL,
                                        TIPO, FEC_REGISTRO AS FECHA
                                   FROM adjunto WHERE MODULO = 'RQ' AND ESTADO = 1 AND ID_REGISTRO = " . intval($idRq) . " ORDER BY ID_ADJUNTO");
     }

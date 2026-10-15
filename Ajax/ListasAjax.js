@@ -127,8 +127,7 @@ function guardar(e) {
                 terminar("Lista guardada con éxito");
             }
         },
-        //Antes decia "errro" en vez de "error", asi que este bloque nunca se ejecutaba:
-        //si el guardado fallaba, igual aparecia el mensaje de exito y se perdia lo respondido
+        //Si el guardado falla, se muestra el error y lo respondido sigue en pantalla
         error: function (xhr) {
             hanaErrorAjax(xhr, "No se pudo guardar la lista. Lo que respondiste sigue en pantalla, revisa e intenta de nuevo.");
         },
@@ -153,7 +152,7 @@ function guardarEditarRespuesta(e) {
             mostrarRespuestas(idLista);
             alert("Respuesta guardada con éxito");
         },
-        //Antes decia "errro" en vez de "error" y el fallo pasaba inadvertido
+        //Si el servidor falla, se muestra el motivo
         error: function (xhr) {
             hanaErrorAjax(xhr, "No se pudo guardar la respuesta.");
         },
@@ -170,7 +169,7 @@ function mostrarPreguntas(idGrupo) {
         hanaCargando(false);
         data = JSON.parse(data);
         mostrarform(true);
-        generateDynamicForm(data); //antes se esperaba 200 ms de más para dibujar el formulario
+        generateDynamicForm(data); //se dibuja apenas llegan los datos
     })
     .fail(function (xhr) {
         hanaCargando(false);
@@ -185,7 +184,7 @@ function mostrarRespuestas(idLista) {
         hanaCargando(false);
         data = JSON.parse(data);
         mostrarform(true);
-        mostrarRespuestasForm(data); //antes se esperaba 200 ms de más para dibujar el formulario
+        mostrarRespuestasForm(data); //se dibuja apenas llegan los datos
     })
     .fail(function (xhr) {
         hanaCargando(false);
@@ -227,8 +226,7 @@ function generateDynamicForm(data) {
             questionHtml += '  <label class="hana-opcion hana-opcion-no"><input type="radio" name="answer_' + idP + '" value="2"><span>No</span></label>';
             questionHtml += '  <label class="hana-opcion hana-opcion-na"><input type="radio" name="answer_' + idP + '" value="3"><span>No aplica</span></label>';
             questionHtml += '</div>';
-            //Ya no hace falta el <script> que desmarcaba las otras opciones: los radio
-            //con el mismo name lo hacen solos, y ese script apuntaba a un campo que no existia
+            //Los radio con el mismo name se desmarcan solos entre sí: no hace falta más código
         } else if (question.TIPO_RESPUESTA === 'lista') {
             questionHtml += '<select class="form-control" name="answer_' + idP + '">';
             questionHtml += '<option value="">Seleccione...</option>';
@@ -244,8 +242,7 @@ function generateDynamicForm(data) {
         } else if (question.TIPO_RESPUESTA === 'datetime') {
             questionHtml += '<input class="form-control" type="time" name="answer_' + idP + '">';
         } else if (question.TIPO_RESPUESTA === 'firma') {
-            //Se firma con el dedo sobre la pantalla. Antes habia que tener la firma
-            //guardada como archivo de imagen en el telefono y subirla
+            //Se firma con el dedo (o con el mouse) sobre la pantalla
             questionHtml += construirFirma(idP, '');
         }
 
@@ -532,9 +529,8 @@ function selectCentroId(sel) {
 function mostrarRespuestasForm(data) {
     $("#listadoRespuestas").hide();
 
-    //Fecha de hoy en la zona horaria del equipo. Antes se usaba toISOString(), que
-    //devuelve la fecha en UTC: despues de las 7 p.m. en Colombia ya marcaba el dia
-    //siguiente y la lista de hoy dejaba de poder editarse
+    //Fecha de hoy en la zona horaria del equipo (con toISOString() saldría en UTC
+    //y después de las 7 p. m. en Colombia ya marcaría el día siguiente)
     date = new Date();
     hoy = date.getFullYear() + '-' +
           ('0' + (date.getMonth() + 1)).slice(-2) + '-' +
@@ -632,8 +628,8 @@ function mostrarRespuestasForm(data) {
         formContainer.append(questionHtml);
     });
 
-    //El manejador se registra UNA sola vez, sobre el contenedor. Antes se registraba
-    //dentro del recorrido, asi que con 20 preguntas quedaba repetido 20 veces
+    //El manejador se registra UNA sola vez, sobre el contenedor (dentro del recorrido
+    //quedaría repetido una vez por cada pregunta)
     formContainer.off('click.modalResp').on('click.modalResp', '.btnEditaRespuesta', function () {
         construirModalRespuesta($(this));
     });
@@ -655,8 +651,7 @@ function activarEdicionTotal(activar) {
     $('#formDinamico [name^="answer_"]').prop('disabled', !activar).prop('readonly', !activar);
 
     //El centro operativo: al consultar se ve como texto fijo; al editar se cambia
-    //por el selector real, con el centro actual ya elegido. Antes el selector
-    //nunca aparecía y el centro no se podía corregir
+    //por el selector real, con el centro actual ya elegido, para poder corregirlo
     editandoLista = activar;
     if (activar) {
         if (!$('#selectCentro').hasClass('select2-hidden-accessible')) { selectCentro(); }
@@ -811,7 +806,7 @@ function checkTime(i) {//función para anteponer cero a mes, dia, minutos y segu
 }
 function controlarStartTime() {//agrega fecha hora en real time
     if (scriptActivo) {
-        // Tu código original de startTime aquí
+        //Reloj del formulario: fecha y hora de la lista
         today = new Date();
         if (diaListaFecha) { var pf = diaListaFecha.split('-'); today.setFullYear(+pf[0], +pf[1] - 1, +pf[2]); } //un día habilitado, con la hora de ahora
         Y = today.getFullYear();
@@ -963,7 +958,6 @@ function mostrarform(flag) {
         $("#demo-form2").show();
 
         scriptActivo = true;
-        //Lista nueva: los archivos se adjuntan después de guardarla (al corregirla)
         adjnPreparar(); //lista nueva: se pueden elegir archivos mientras se llena
         //Lista nueva: es de hoy; solo si el administrador habilitó otro día se puede escoger
         diaListaFecha = '';
@@ -1148,8 +1142,7 @@ function agregarPregunta(e) {
             mostrarform(false);
             alert("Pregunta guardada con éxito");
         },
-        //Antes no habia manejador de error: si la pregunta no se guardaba,
-        //igual aparecia el mensaje de exito
+        //Si la pregunta no se guarda, se muestra el error (no el mensaje de éxito)
         error: function (xhr) {
             hanaErrorAjax(xhr, "No se pudo guardar la pregunta.");
         },
@@ -1238,10 +1231,9 @@ init();
 
 //=================================================================
 //  Borrador automatico
-//  En campo la senal se cae, la sesion vence o se cierra el navegador
-//  por error. Antes eso significaba perder toda la lista respondida.
-//  Ahora lo respondido se guarda en el mismo telefono mientras se
-//  diligencia, y al volver a abrir la lista se ofrece recuperarlo.
+//  En campo la señal se cae, la sesión vence o se cierra el navegador
+//  por error. Para no perder lo respondido, se guarda en el mismo teléfono
+//  mientras se diligencia y, al volver a abrir la lista, se ofrece recuperarlo.
 //  No viaja a ningun lado: se queda en el dispositivo.
 //=================================================================
 

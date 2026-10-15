@@ -111,8 +111,7 @@ function mostrar(idestado)
     $.post("../Control/EstadoControl.php?op=mostrar",{idestado : idestado}, function(data)
     {
         hanaCargando(false);
-        //Antes aqui habia una espera fija de 1 segundo con "Consultando la base de datos...".
-        //Ahora el aviso de carga dura solo lo que tarda el servidor en responder
+        //El aviso de carga dura solo lo que tarda el servidor en responder
         data = JSON.parse(data);
         mostrarform(true);
         $("#idestado").val(data.ID_ESTADOS_RELEVANCIA );

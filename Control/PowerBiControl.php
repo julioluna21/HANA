@@ -20,7 +20,7 @@
   Qué entrega: solo el ausentismo (vw_pbi_ausentismo), la tabla "Consulta" del
   reporte AUSENTISMO_NACIONAL: Periodo ("2026-08"), PeriodoOrden, Concesion,
   Estacion, TipoEstacion, Cargo, Novedad, Fecha, Anio, Mes, Dia, DiaTxt ("01"),
-  Quincena, Cantidad. Las novedades ya no van a Power BI (se quitó vw_novedades_bi).
+  Quincena, Cantidad. Las novedades no van a Power BI.
   Filtros opcionales: &desde=2026-08 &hasta=2026-09 (año-mes)
 
   Seguridad extra: cada acceso queda en bitacora_sistema (TIPO = 'POWERBI'); con 10 intentos fallidos

@@ -1,8 +1,8 @@
 <?php
 /*
-  Archivo viejo del sistema original: ninguna pantalla lo usa. La versión vigente es NovedadesControl.php.
-  No revisaba la sesión ni los permisos, así que ahora responde "ya no existe" (410) y no
-  ejecuta nada. El código original se conserva debajo, sin cambios.
+  Archivo sin uso: ninguna pantalla lo llama. El controlador vigente es NovedadesControl.php.
+  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
+  abajo se conserva solo como referencia.
 */
 http_response_code(410);
 header('Content-Type: application/json; charset=utf-8');
@@ -12,7 +12,7 @@ exit;
 <?php
 session_start();//inicia la session, permite guardar variables de sesion
 require_once "../Modelo/NovedadModelo.php";//Utilizará este archivo
-$Novedades=new Novedades();//crea un nuevo articulo
+$Novedades=new Novedades();//objeto del modelo: con él se hacen las consultas
 setlocale(LC_ALL,'es-Es');// Activa la localización con el sistema para mostrar en español
 date_default_timezone_set("America/Lima");
 //carga las variables con los valores recibidos y limpia los que no se usaran

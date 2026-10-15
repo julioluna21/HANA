@@ -11,7 +11,7 @@ $tipo = isset($_POST["tipo"]) ? strtoupper(trim($_POST["tipo"])) : "PEAJE";
 $jefe = isset($_POST["jefe"]) ? intval($_POST["jefe"]) : 0;
 
 /*
-  Quién puede usar cada operación (Fase 2).
+  Quién puede usar cada operación:
     - Sin sesión, nada.
     - Crear, editar, anular, ver y listar centros: permiso 5M.
     - La lista de centros (select) la usan otras pantallas: basta con la sesión.

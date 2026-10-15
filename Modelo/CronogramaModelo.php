@@ -1,6 +1,6 @@
 <?php
 /*
-  HANA - Cronograma de visitas y vehículo (Reporte diario, Fase 2)
+  HANA - Cronograma de visitas y vehículo (Reporte diario)
   Es la hoja "Cronograma visitas y vehículo" del Excel: a la izquierda lo que
   la persona planea cada día, a la derecha el estado del vehículo.
 */

@@ -113,7 +113,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         //1. Lo que se puede revisar sin enviar nada
         $rev = array();
-        $cta = hanaCorreoDatos(); //la cuenta que se usa: la de Global.php si es real; si no, la del sistema original
+        $cta = hanaCorreoDatos(); //la cuenta que se usa: la de Global.php si es real; si no, la de respaldo
         $host = $cta['host'];
         $rev[] = array('Cuenta de correo', true, 'Servidor ' . $host . ':' . $cta['port'] . ' (' . $cta['secure'] . '), cuenta ' . $cta['user']
                        . ($cta['pass'] === HANA_CORREO_PASSWORD ? ' (la del sistema original)' : ' (la de Global.php)'));

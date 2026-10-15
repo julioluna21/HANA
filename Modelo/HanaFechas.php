@@ -37,7 +37,7 @@ class HanaFechas
         return $h;
     }
 
-    //Se conserva para lo que todavía la consulta: ya no hay días de margen
+    //Días de margen para registrar fuera de fecha: siempre 0 (algunas partes la consultan)
     public static function margen()
     {
         return 0;

@@ -45,7 +45,7 @@ include('head.php');
                                 <input type="hidden" class="form-control" name="idProyecto" id="idProyecto">
                               <input type="text" class="form-control" name="nombre" id="nombre" required="" autofocus>
                               </div>
-                              <!-- Fase 2: quién coordina el proyecto. Es quien aparece en el
+                              <!-- Quién coordina el proyecto. Es quien aparece en el
                                    tablero del reporte diario, en el mosaico del proyecto -->
                               <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                 <label for="coordinador">Coordinador del proyecto:</label>

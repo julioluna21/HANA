@@ -61,8 +61,7 @@ class listas{
    }
 
      //Las cuentas del avance de una lista, calculadas al momento: preguntas activas de su
-     //grupo y respuestas guardadas. Antes eran dos columnas (CANT_PREGUNTAS_GRUPO y
-     //CANT_RESPUESTAS_LISTA) que había que ir sumando a mano y se podían descuadrar
+     //grupo y respuestas guardadas. Se cuentan en la misma consulta, así nunca se descuadran
      const SQL_NPREGUNTAS = "(SELECT COUNT(*) FROM detalle_grupo_lista_chequeo p WHERE p.ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO = lista_chequeo.ID_GRUPO_LISTA_CHEQUEO AND p.ESTADO = 1)";
      const SQL_NRESPUESTAS = "(SELECT COUNT(*) FROM detalle_lista_chequeo d WHERE d.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO = lista_chequeo.ID_LISTA_CHEQUEO)";
 
@@ -128,7 +127,7 @@ class listas{
      //Implementar un método para listar los registros
      public function listarRespuestas($idLista)
      {
-             //Trae de una vez las cuentas del avance (antes era una consulta más por cada lista)
+             //Trae de una vez las cuentas del avance (una sola consulta para todas las listas)
              $sql = "SELECT lista_chequeo.ID_LISTA_CHEQUEO, lista_chequeo.FEC_REGISTRO_LISTA_CHEQUEO, centros_operacion.ID_CENTRO_OP, centros_operacion.NOM_CENTRO_OP, colaboradores.NOM_COLABORADOR, grupo_lista_chequeo.NOM_GRUPO_LISTA_CHEQUEO, " . self::SQL_NPREGUNTAS . " AS npreguntas, " . self::SQL_NRESPUESTAS . " AS nrespuestas FROM lista_chequeo INNER JOIN centros_operacion ON lista_chequeo.ID_CENTRO_OP_LISTA_CHEQUEO=centros_operacion.ID_CENTRO_OP JOIN colaboradores ON lista_chequeo.ID_COLABORADOR_LISTA_CHEQUEO = colaboradores.ID_COLABORADOR JOIN grupo_lista_chequeo ON lista_chequeo.ID_GRUPO_LISTA_CHEQUEO=grupo_lista_chequeo.ID_GRUPO_LISTA_CHEQUEO WHERE lista_chequeo.ID_GRUPO_LISTA_CHEQUEO='$idLista'";
              return ejecutarConsulta($sql);
      }
@@ -201,9 +200,8 @@ class listas{
              
      }
      //Trae SOLO los centros de operacion asignados al usuario que tiene la sesion abierta.
-     //Antes se ofrecian todos los centros activos: alguien podia diligenciar una lista en un
-     //centro que no le corresponde y despues no la veia en "Mostrar respuestas", porque ese
-     //listado si filtra por los centros asignados
+     //Así nadie diligencia una lista en un centro que no le corresponde (y que después
+     //no vería en "Mostrar respuestas", que también filtra por los centros asignados)
      public function selectCentroUsuario($search_term, $idUsuario, $todos = false) //$todos: el ADMIN TEC ve todos los centros
      {
              $idUsuario = intval($idUsuario); //solo numero, nunca texto del usuario

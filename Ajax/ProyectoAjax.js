@@ -87,8 +87,8 @@ function cancelarform()
 //Deja el formulario en blanco
 function limpiar()
 {
-    //Antes decía #idproyecto (en minúscula) y el campo real es #idProyecto: el id
-    //no se borraba, y al crear un proyecto después de ver otro, se editaba el anterior
+    //Se borra el id (#idProyecto) para que, al crear un proyecto después de ver otro,
+    //no se edite el anterior
     $("#idProyecto").val("");
     $("#nombre").val("");
     $("#coordinador").val("");

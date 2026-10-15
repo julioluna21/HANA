@@ -9,7 +9,7 @@
   Permiso: 12M para cambiarlas; con 11M solo se consultan.
 */
 session_start();
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('12M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M')); //Cambiar listas: 12M; verlas: 11M o 12M
 require_once "../Modelo/GruposListasModelo.php";
 require_once "../Modelo/PreguntasListasModelo.php";

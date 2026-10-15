@@ -47,7 +47,7 @@ class Acceso
         return $verTodas ? '1 = 1' : $mias;
     }
 
-    //Los roles activos, para el selector "Rol a notificar" (resultado de mysqli, como antes)
+    //Los roles activos, para el selector "Rol a notificar" (devuelve el resultado de mysqli)
     public static function rolesActivos()
     {
         return ejecutarConsulta("SELECT ID_ROL_USUARIO_SISTEMA AS id, NOM_ROL_USUARIO_SISTEMA AS nombre

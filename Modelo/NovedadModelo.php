@@ -53,7 +53,7 @@ class Novedades
                 return ejecutarConsulta($sql);
         }
         //Listados: todas las columnas menos las fotos, que no se muestran en la tabla
-        //y en las novedades viejas son texto base64 muy pesado
+        //y son texto base64 muy pesado
         public function listar()
         {
                 $sql = "SELECT novedades_hallazgos.ID_NOVEDADES_HALLAZGOS,novedades_hallazgos.FEC_CREACION_NOVEDADES_HALLAZGOS,novedades_hallazgos.ID_COLABORADOR_NOVEDADES_HALLAZGOS,novedades_hallazgos.ID_CENTRO_OP_NOVEDADES_HALLAZGOS,novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS,novedades_hallazgos.ID_OBSERVADOR_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,novedades_hallazgos.ID_TITULO_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS,novedades_hallazgos.DESCR_NOVEDADES_HALLAZGOS,novedades_hallazgos.VALIDEZ_NOVEDADES_HALLAZGOS,novedades_hallazgos.FEC_CIERRE_NOVEDAD_HALLAZGOS,novedades_hallazgos.ID_ESTADO_RELEVANCIA_NOVEDADES_HALLAZGOS,novedades_hallazgos.ESTADO_NOVEDAD,novedades_hallazgos.FECHA_LIMITE_NOVEDAD,novedades_hallazgos.ID_ROL_DESTINO,titulo_novedades_hallazgos.NOM_TITULO_NOVEDADES_HALLAZGOS,colaboradores.NOM_COLABORADOR, T2.NOM_COLABORADOR as asignado,estados_relevancia.NOMBRE_ESTADOS_RELEVANCIA,estados_relevancia.DIAS_ESTADOS_RELEVANCIAS,centros_operacion.NOM_CENTRO_OP,centros_operacion.ID_CENTRO_OP, observador_novedades_hallazgos.NOM_OBSERVADOR_NOVEDADES_HALLAZGOS,proyectos.NOM_PROYECTO FROM novedades_hallazgos INNER JOIN titulo_novedades_hallazgos on titulo_novedades_hallazgos.ID_TITULO_NOVEDADES_HALLAZGOS=novedades_hallazgos.ID_TITULO_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS INNER JOIN colaboradores on colaboradores.ID_COLABORADOR=novedades_hallazgos.ID_COLABORADOR_NOVEDADES_HALLAZGOS INNER JOIN colaboradores T2 on T2.ID_COLABORADOR=novedades_hallazgos.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS INNER JOIN centros_operacion on centros_operacion.ID_CENTRO_OP=novedades_hallazgos.ID_CENTRO_OP_NOVEDADES_HALLAZGOS INNER JOIN proyectos ON proyectos.ID_PROYECTO=centros_operacion.ID_PROYECTO_CENTRO_OP INNER JOIN estados_relevancia on estados_relevancia.ID_ESTADOS_RELEVANCIA=novedades_hallazgos.ID_ESTADO_RELEVANCIA_NOVEDADES_HALLAZGOS INNER JOIN observador_novedades_hallazgos on observador_novedades_hallazgos.ID_OBSERVADOR_NOVEDADES_HALLAZGOS=novedades_hallazgos.ID_OBSERVADOR_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS";
@@ -111,7 +111,7 @@ class Novedades
         }
     
     
-           //Guarda el nombre de la foto con la que se cerró la novedad
+           //Guarda la foto con la que se cerró la novedad (texto base64)
            public function imagencierre($IDnovedad,$imagen)
         {
                 $IDnovedad = intval($IDnovedad); //solo números en la consulta
@@ -119,7 +119,7 @@ class Novedades
                 return ejecutarConsulta($sql);
         }
 
-        //Las fotos de una novedad: ruta del archivo (o texto base64 en las viejas)
+        //Las fotos de una novedad, como texto base64 (data:image/...;base64,...)
         public function fotos($IDnovedad)
         {
                 $sql = "SELECT NOM_FOTO_INI_NOVEDADES_HALLAZGOS AS INI, NOM_FOTO_FIN_NOVEDADES_HALLAZGOS AS FIN FROM novedades_hallazgos WHERE ID_NOVEDADES_HALLAZGOS=" . intval($IDnovedad);

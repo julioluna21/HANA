@@ -7,7 +7,10 @@
     - Con 25M (ADMIN TEC, auditor) se edita el de todos los proyectos,
       incluso con el mes cerrado. Cada cambio queda en el historial (aus_cambio).
     - Consultan todos los proyectos: 20M (gerente de operaciones), 21M (administración)
-      y 22M (consultar todos los proyectos).
+      y 22M (consultar todos los proyectos). Ellos y 25M ven también el consolidado
+      de todos los proyectos juntos.
+    - El consolidado se puede pedir de todo el mes o de un rango de días (desde, hasta),
+      y de todo el proyecto o de un solo peaje (centro).
     - Se corrige el mes actual y los anteriores que diga el parámetro
       AUS_MESES_CORREGIBLES, mientras el mes no esté cerrado.
     - El coordinador cierra el mes al entregarlo; lo reabre quien tenga 23M.
@@ -92,6 +95,17 @@ function ausPeriodo()
     $mes  = isset($_REQUEST['mes'])  ? (int)$_REQUEST['mes']  : (int)date('n');
     if ($anio < 2020 || $anio > 2100 || $mes < 1 || $mes > 12) { ausError(400, 'El mes no es válido.'); }
     return array($anio, $mes);
+}
+
+//Los días pedidos del mes para el consolidado (desde y hasta). Sin ellos, todo el mes
+function ausDias($anio, $mes)
+{
+    $dias = (int)date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes)));
+    $d1 = isset($_GET['desde']) && $_GET['desde'] !== '' ? (string)$_GET['desde'] : '1';
+    $d2 = isset($_GET['hasta']) && $_GET['hasta'] !== '' ? (string)$_GET['hasta'] : (string)$dias;
+    if (!ctype_digit($d1) || !ctype_digit($d2) || (int)$d1 < 1 || (int)$d2 > $dias) { ausError(400, 'Los días deben estar entre el 1 y el ' . $dias . '.'); }
+    if ((int)$d1 > (int)$d2) { ausError(400, 'El primer día no puede ser después del último.'); }
+    return array((int)$d1, (int)$d2);
 }
 
 //El último mes que se puede tocar: el de hoy, o el siguiente si los días hacia adelante llegan hasta él
@@ -191,6 +205,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             //Todos los motivos: los que ya no se usan (ESTADO 0) solo salen en los meses que tienen datos con ellos
             'cargos' => $A->cargos(), 'novedades' => $A->todasNovedades(),
             'mesesCorregibles' => HanaConfig::num('AUS_MESES_CORREGIBLES', 1), 'puedeReabrir' => $puedeReabrir,
+            'veTodos' => $verTodos || $editaTodo, //puede ver el consolidado de todos los proyectos juntos
             'diasFuturo' => $diasFuturo, 'limiteFuturo' => $limiteFuturo
         ), JSON_UNESCAPED_UNICODE);
         break;
@@ -340,7 +355,6 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode(array('ok' => true, 'mensaje' => 'Mes reabierto: el coordinador ya puede corregirlo.'), JSON_UNESCAPED_UNICODE);
         break;
 
-    //El consolidado del proyecto (la última hoja del Excel)
     //El historial de cambios de un centro en un mes (quién cambió qué y cuándo)
     case 'historial':
         $proy = ausProyecto($proyectos);
@@ -349,16 +363,27 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode($A->historial($centro['ID_CENTRO_OP'], $anio, $mes), JSON_UNESCAPED_UNICODE);
         break;
 
-    //Resumen del mes de todo el proyecto (lo ve el coordinador o la administración)
+    //El consolidado (la última hoja del Excel): todo el proyecto o uno de sus peajes (centro), que
+    //lo ven el coordinador y la administración, o todos los proyectos juntos (todos=1, con 20M,
+    //21M, 22M o 25M). Del día "desde" al día "hasta" del mes; sin días, todo el mes
     case 'consolidado':
-        $proy = ausProyecto($proyectos);
-        if (!$proy['VE_PROYECTO']) { ausError(403, 'El consolidado del proyecto lo ven el coordinador y la administración.'); }
         list($anio, $mes) = ausPeriodo();
-        $c = $A->consolidado($proy['ID_PROYECTO'], $anio, $mes);
-        $cierre = $A->cierre($proy['ID_PROYECTO'], $anio, $mes);
+        list($d1, $d2) = ausDias($anio, $mes);
+        $cierre = null; $soloCentro = 0;
+        if (isset($_GET['todos']) && $_GET['todos'] === '1') {
+            if (!$verTodos && !$editaTodo) { ausError(403, 'El consolidado de todos los proyectos lo ven quienes consultan todos los proyectos.'); }
+            $ids = array_keys($proyectos);
+        } else {
+            $proy = ausProyecto($proyectos);
+            if (!$proy['VE_PROYECTO']) { ausError(403, 'El consolidado del proyecto lo ven el coordinador y la administración.'); }
+            $ids = array($proy['ID_PROYECTO']);
+            if (!empty($_GET['centro'])) { $c = ausCentro($proy); $soloCentro = (int)$c['ID_CENTRO_OP']; }  //solo ese peaje
+            $cierre = $A->cierre($proy['ID_PROYECTO'], $anio, $mes);
+        }
+        $c = $A->consolidado($ids, $anio, $mes, $d1, $d2, $soloCentro);
         echo json_encode(array(
-            'porCargo' => (object)$c['porCargo'], 'porCentro' => (object)$c['porCentro'],
-            'diasMes' => (int)date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes))),
+            'porCargo' => (object)$c['porCargo'], 'porCentro' => (object)$c['porCentro'], 'porProyecto' => (object)$c['porProyecto'],
+            'diasMes' => (int)date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes))), 'desde' => $d1, 'hasta' => $d2,
             'cerrado' => $cierre && (int)$cierre['CERRADO'] === 1, 'cierre' => $cierre,
             'puedeReabrir' => $puedeReabrir
         ), JSON_UNESCAPED_UNICODE);

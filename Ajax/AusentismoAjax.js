@@ -1,4 +1,4 @@
-//Ausentismo (Fase 3): la matriz novedades × días de cada cargo, como en el Excel,
+//Ausentismo:la matriz novedades × días de cada cargo, como en el Excel,
 //y el registro rápido: una ausencia a la vez (día, cargo, motivo y personas)
 var URL_AUS = '../Control/AusentismoControl.php';
 var cfgAus = null, proyAus = null, centroAus = null, datosAus = null;
@@ -10,6 +10,7 @@ $(function () {
         .done(function (c) {
             cfgAus = c;
             rdPeriodo('#aMes', '#aAnio', c.hoy);
+            if (!c.veTodos) { $('#consAlcance option[value="todos"]').remove(); } //el consolidado de todos los proyectos: 20M, 21M, 22M y 25M
             var h = '';
             c.proyectos.forEach(function (p) {
                 h += '<option value="' + parseInt(p.ID_PROYECTO, 10) + '">' + rdEsc(p.NOM_PROYECTO) + (p.COORDINA ? ' (el tuyo)' : (p.EDITABLE && !p.VE_PROYECTO ? ' (tu peaje)' : '')) + '</option>';
@@ -31,6 +32,19 @@ $(function () {
     $('#btnCerrar').on('click', function () { cierreAus('cerrar', '¿Cerrar el ausentismo de este mes? Después ya no se podrá corregir, salvo que lo reabra quien tenga el permiso.'); });
     $('#btnReabrir').on('click', function () { cierreAus('reabrir', '¿Reabrir este mes para que el coordinador lo pueda corregir?'); });
     $('#tabConsLink').on('shown.bs.tab', cargarConsolidado);
+    //Consolidado: el proyecto elegido, solo el peaje elegido o todos, y de qué día a qué día
+    $('#consAlcance').on('change', cargarConsolidado);
+    $('#consDesde, #consHasta').on('change', function () {
+        var d1 = +$('#consDesde').val(), d2 = +$('#consHasta').val();
+        if (d1 > d2) { if (this.id === 'consDesde') { $('#consHasta').val(String(d1)); } else { $('#consDesde').val(String(d2)); } }
+        cargarConsolidado();
+    });
+    $('.aus-rangos [data-rango]').on('click', function () {
+        var dias = $('#consHasta option').length, r = $(this).data('rango');
+        $('#consDesde').val(String(r === 'q2' ? 15 : 1));
+        $('#consHasta').val(String(r === 'q1' ? 14 : dias));
+        cargarConsolidado();
+    });
     $('#ausHistorial').on('toggle', function () { if (this.open) { cargarHistorial(); } });
 
     //Registro rápido: registrar, cambiar y borrar una ausencia
@@ -67,8 +81,13 @@ function elegirProyectoAus() {
 //Al elegir un peaje: carga su mes
 function elegirCentroAus(id) {
     centroAus = proyAus.CENTROS.filter(function (c) { return +c.ID_CENTRO_OP === id; })[0] || null;
+    //En el consolidado, la opción de ver solo este peaje lleva su nombre
+    $('#consAlcance option[value="centro"]').text(centroAus ? 'Solo ' + nombreCentro(centroAus) : 'Solo el peaje elegido');
     cargarAus();
 }
+
+//"Báscula X" o el nombre del peaje
+function nombreCentro(c) { return (c.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + c.NOM_CENTRO_OP; }
 
 //Proyecto, año y mes elegidos, listos para la URL
 function periodoAus() { return '&proyecto=' + proyAus.ID_PROYECTO + '&anio=' + $('#aAnio').val() + '&mes=' + $('#aMes').val(); }
@@ -127,10 +146,11 @@ function conDatos(vals) { for (var k in (vals || {})) { if (+vals[k]) { return t
 //El nombre de un motivo; si ya no se usa, lo dice
 function nombreMotivo(n) { return rdEsc(n.NOMBRE) + (+n.ESTADO === 1 ? '' : ' <small style="color:#6B7076;font-weight:normal;">(motivo anterior)</small>'); }
 
-//Encabezado de días: número y letra del día de la semana; fines de semana y hoy marcados
-function cabeceraDias(dias, titulo, extra) {
+//Encabezado de días: número y letra del día de la semana; fines de semana y hoy marcados.
+//Va del día "desde" (1 si no se dice) al día "dias"
+function cabeceraDias(dias, titulo, extra, desde) {
     var anio = +$('#aAnio').val(), mes = +$('#aMes').val(), h = '<thead><tr><th class="aus-fija">' + titulo + '</th>';
-    for (var d = 1; d <= dias; d++) {
+    for (var d = desde || 1; d <= dias; d++) {
         var f = new Date(anio, mes - 1, d), hoy = rdATexto(f) === cfgAus.hoy;
         h += '<th class="aus-dia' + (f.getDay() === 0 || f.getDay() === 6 ? ' aus-finde' : '') + (hoy ? ' aus-hoy' : '') + '">' + d + '<small>' + DIA_SEMANA[f.getDay()] + '</small></th>';
     }
@@ -266,56 +286,153 @@ function cargarHistorial() {
 }
 
 //---------------------------------------------------------------------------
-// Consolidado del proyecto: la suma de todos sus centros (la última hoja del Excel)
+// Consolidado: la suma de todos los centros del proyecto (la última hoja del Excel),
+// de un solo peaje o de todos los proyectos juntos, del día "desde" al día "hasta" del mes
 //---------------------------------------------------------------------------
+var consPedido = 0; //si se cambian los días muy rápido, solo se pinta la última respuesta
+
+//Llena "desde" y "hasta" con los días del mes elegido. Si se estaba viendo todo el mes, sigue todo el mes
+function diasConsolidado() {
+    var dias = new Date(+$('#aAnio').val(), +$('#aMes').val(), 0).getDate();
+    var antes = $('#consHasta option').length, d1 = +$('#consDesde').val() || 1, d2 = +$('#consHasta').val() || dias;
+    if (!antes || (d1 === 1 && d2 === antes)) { d1 = 1; d2 = dias; }
+    if (antes !== dias) {
+        var h = '';
+        for (var d = 1; d <= dias; d++) { h += '<option value="' + d + '">' + d + '</option>'; }
+        $('#consDesde, #consHasta').html(h);
+    }
+    d2 = Math.min(d2, dias); d1 = Math.min(d1, d2);
+    $('#consDesde').val(String(d1)); $('#consHasta').val(String(d2));
+    //El botón del rango que se está viendo queda marcado
+    $('.aus-rangos [data-rango]').removeClass('active');
+    $('.aus-rangos [data-rango="' + (d1 === 1 && d2 === dias ? 'mes' : (d1 === 1 && d2 === 14 ? 'q1' : (d1 === 15 && d2 === dias ? 'q2' : ''))) + '"]').addClass('active');
+}
+
+//¿Se está viendo el consolidado de todos los proyectos? ¿O solo el del peaje elegido?
+function consTodos() { return !!cfgAus.veTodos && $('#consAlcance').val() === 'todos'; }
+function consCentro() { return !!centroAus && $('#consAlcance').val() === 'centro'; }
+
+//Lo que se pide al servidor (y al Excel): el proyecto, el peaje o todos, el mes y los días
+function filtroConsolidado() {
+    return (consTodos() ? '&todos=1' : '&proyecto=' + proyAus.ID_PROYECTO + (consCentro() ? '&centro=' + centroAus.ID_CENTRO_OP : '')) +
+           '&anio=' + $('#aAnio').val() + '&mes=' + $('#aMes').val() + '&desde=' + $('#consDesde').val() + '&hasta=' + $('#consHasta').val();
+}
+
+//Los días elegidos, en palabras: "todo el mes", "solo el día 1" o "del día 1 al 15"
+function textoDias(d1, d2, dias) {
+    if (d1 === 1 && d2 === dias) { return 'todo el mes'; }
+    return d1 === d2 ? 'solo el día ' + d1 : 'del día ' + d1 + ' al ' + d2;
+}
+
 function cargarConsolidado() {
     if (!proyAus) { return; }
-    $.getJSON(URL_AUS + '?op=consolidado' + periodoAus())
+    diasConsolidado();
+    var d1 = +$('#consDesde').val(), d2 = +$('#consHasta').val(), todos = consTodos(), soloCentro = consCentro(), filtro = filtroConsolidado(), pedido = ++consPedido;
+    $('#btnExcelCons').attr('href', 'AusentismoExcelVista.php?' + filtro.substring(1));
+    $.getJSON(URL_AUS + '?op=consolidado' + filtro)
         .done(function (d) {
-            var dias = d.diasMes, h = '', totNov = {}, quiNov = {};
+            if (pedido !== consPedido) { return; } //llegó tarde: ya se pidió otro rango
+            var todoMes = d1 === 1 && d2 === d.diasMes, h = '', totNov = {}, quiNov = {}, diarias = {};
+            //Por cargo, día por día: una fila por motivo, una columna por día del rango y el total de cada día
             cfgAus.cargos.forEach(function (c) {
-                var reg = d.porCargo[c.ID_CARGO_AUS];
+                var reg = d.porCargo[c.ID_CARGO_AUS], totDia = {}, totBloque = 0;
                 if (!reg) { return; } //solo los cargos con datos
-                h += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla">' + cabeceraDias(dias, rdEsc(c.NOMBRE)) + '<tbody>';
+                h += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla">' + cabeceraDias(d2, rdEsc(c.NOMBRE), null, d1) + '<tbody>';
                 novedadesDe(c.ID_CARGO_AUS, reg).forEach(function (n) {
-                    var vals = reg[n.ID_NOVEDAD_AUS] || {}, suma = 0;
-                    h += '<tr class="' + (+n.CUENTA_AUSENCIA ? '' : 'aus-no-cuenta') + '"><th class="aus-fija">' + nombreMotivo(n) + '</th>';
-                    for (var dd = 1; dd <= dias; dd++) {
+                    var vals = reg[n.ID_NOVEDAD_AUS] || {}, suma = 0, cuenta = +n.CUENTA_AUSENCIA === 1;
+                    h += '<tr class="' + (cuenta ? '' : 'aus-no-cuenta') + '"><th class="aus-fija">' + nombreMotivo(n) + '</th>';
+                    for (var dd = d1; dd <= d2; dd++) {
                         var v = vals[dd] || 0; suma += v;
-                        if (+n.CUENTA_AUSENCIA) { totNov[n.ID_NOVEDAD_AUS] = (totNov[n.ID_NOVEDAD_AUS] || 0) + v; if (dd <= 14) { quiNov[n.ID_NOVEDAD_AUS] = (quiNov[n.ID_NOVEDAD_AUS] || 0) + v; } }
+                        if (cuenta) {
+                            totNov[n.ID_NOVEDAD_AUS] = (totNov[n.ID_NOVEDAD_AUS] || 0) + v;
+                            if (dd <= 14) { quiNov[n.ID_NOVEDAD_AUS] = (quiNov[n.ID_NOVEDAD_AUS] || 0) + v; }
+                            totDia[dd] = (totDia[dd] || 0) + v; diarias[dd] = (diarias[dd] || 0) + v;
+                        }
                         h += '<td class="' + (v ? 'aus-hay' : '') + '">' + (v || '') + '</td>';
                     }
+                    if (cuenta) { totBloque += suma; }
                     h += '<td class="aus-tot">' + suma + '</td></tr>';
                 });
-                h += '</tbody></table></div></div>';
+                h += '</tbody><tfoot><tr><th class="aus-fija">Total del día</th>';
+                for (var d3 = d1; d3 <= d2; d3++) { h += '<td class="' + (totDia[d3] ? 'aus-hay' : '') + '">' + (totDia[d3] || 0) + '</td>'; }
+                h += '<td class="aus-tot">' + totBloque + '</td></tr></tfoot></table></div></div>';
             });
-            //TOTAL por novedad: el mes y la primera quincena, como la columna AI del Excel
-            var t = '<table class="table table-bordered rd-tabla rd-tabla-compacta aus-total"><thead><tr><th>Novedad</th><th class="rd-num-col">Total del mes</th><th class="rd-num-col">1ª quincena (días 1 a 14)</th></tr></thead><tbody>';
+            //Ausencias diarias: la suma de todos los cargos, día por día
+            if (h) {
+                var tr = 0, tq = 0;
+                h += '<div class="aus-bloque aus-resumen"><div class="table-responsive aus-scroll"><table class="aus-tabla">' +
+                     cabeceraDias(d2, 'Ausencias diarias', '<th class="aus-tot">Total</th>' + (todoMes ? '<th class="aus-tot">1ª quincena</th>' : ''), d1) + '<tbody><tr><th class="aus-fija">Todos los cargos</th>';
+                for (var d4 = d1; d4 <= d2; d4++) { var vd = diarias[d4] || 0; tr += vd; if (d4 <= 14) { tq += vd; } h += '<td>' + vd + '</td>'; }
+                h += '<td class="aus-tot">' + tr + '</td>' + (todoMes ? '<td class="aus-tot">' + tq + '</td>' : '') + '</tr></tbody></table></div></div>';
+            }
+            //TOTAL por novedad. Todo el mes: el mes y la primera quincena, como la columna AI del Excel
+            var t = '<table class="table table-bordered rd-tabla rd-tabla-compacta aus-total"><thead><tr><th>Novedad</th><th class="rd-num-col">' +
+                    (todoMes ? 'Total del mes' : (d1 === d2 ? 'Día ' + d1 : 'Días ' + d1 + ' a ' + d2)) + '</th>' + (todoMes ? '<th class="rd-num-col">1ª quincena (días 1 a 14)</th>' : '') + '</tr></thead><tbody>';
             var gm = 0, gq = 0;
             cfgAus.novedades.filter(function (n) { return +n.CUENTA_AUSENCIA && (+n.ESTADO === 1 || totNov[n.ID_NOVEDAD_AUS]); }).forEach(function (n) {
                 var m = totNov[n.ID_NOVEDAD_AUS] || 0, qq = quiNov[n.ID_NOVEDAD_AUS] || 0; gm += m; gq += qq;
-                t += '<tr><td>' + rdEsc(n.NOMBRE) + '</td><td class="rd-num-col">' + m + '</td><td class="rd-num-col">' + qq + '</td></tr>';
+                t += '<tr><td>' + rdEsc(n.NOMBRE) + '</td><td class="rd-num-col">' + m + '</td>' + (todoMes ? '<td class="rd-num-col">' + qq + '</td>' : '') + '</tr>';
             });
-            t += '</tbody><tfoot><tr><th>TOTAL</th><th class="rd-num-col">' + gm + '</th><th class="rd-num-col">' + gq + '</th></tr></tfoot></table>';
-            //Por centro
-            //Las columnas: los motivos de hoy y los anteriores que ese mes tienen datos en algún centro
+            t += '</tbody><tfoot><tr><th>TOTAL</th><th class="rd-num-col">' + gm + '</th>' + (todoMes ? '<th class="rd-num-col">' + gq + '</th>' : '') + '</tr></tfoot></table>';
+            //Los proyectos y los centros que se suman (con todos los proyectos, cada centro con su proyecto)
+            var proys = todos ? cfgAus.proyectos : [proyAus], filasCentro = [];
+            proys.forEach(function (p) { p.CENTROS.forEach(function (c) { if (!soloCentro || +c.ID_CENTRO_OP === +centroAus.ID_CENTRO_OP) { filasCentro.push({ p: p, c: c }); } }); });
+            //Las columnas: los motivos de hoy y los anteriores que en esos días tienen datos en algún centro
             var nov = cfgAus.novedades.filter(function (n) {
-                return +n.ESTADO === 1 || proyAus.CENTROS.some(function (c) { return +((d.porCentro[c.ID_CENTRO_OP] || {})[n.ID_NOVEDAD_AUS] || 0); });
+                return +n.ESTADO === 1 || Object.keys(d.porCentro).some(function (k) { return +((d.porCentro[k] || {})[n.ID_NOVEDAD_AUS] || 0); });
             });
-            var pc = '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr><th>Centro</th>';
-            nov.forEach(function (n) { pc += '<th class="rd-num-col">' + rdEsc(n.NOMBRE) + '</th>'; });
-            pc += '<th class="rd-num-col">Ausencias</th></tr></thead><tbody>';
-            proyAus.CENTROS.forEach(function (c) {
-                var r = d.porCentro[c.ID_CENTRO_OP] || {}, aus = 0;
-                pc += '<tr><td>' + rdEsc(c.NOM_CENTRO_OP) + '</td>';
-                nov.forEach(function (n) { var v = r[n.ID_NOVEDAD_AUS] || 0; if (+n.CUENTA_AUSENCIA) { aus += v; } pc += '<td class="rd-num-col">' + (v || '') + '</td>'; });
-                pc += '<td class="rd-num-col"><strong>' + aus + '</strong></td></tr>';
+            var cab = function (primeras) {
+                var x = '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr>' + primeras;
+                nov.forEach(function (n) { x += '<th class="rd-num-col">' + rdEsc(n.NOMBRE) + '</th>'; });
+                return x + '<th class="rd-num-col">Ausencias</th></tr></thead><tbody>';
+            };
+            //Una fila de la tabla: el valor de cada motivo y las ausencias (solo los motivos que cuentan); suma en "tot" para la fila TOTAL
+            var fila = function (primeras, r, tot) {
+                var aus = 0, x = '<tr>' + primeras;
+                nov.forEach(function (n) {
+                    var v = r[n.ID_NOVEDAD_AUS] || 0;
+                    tot[n.ID_NOVEDAD_AUS] = (tot[n.ID_NOVEDAD_AUS] || 0) + v;
+                    if (+n.CUENTA_AUSENCIA) { aus += v; }
+                    x += '<td class="rd-num-col">' + (v || '') + '</td>';
+                });
+                tot.aus = (tot.aus || 0) + aus;
+                return x + '<td class="rd-num-col"><strong>' + aus + '</strong></td></tr>';
+            };
+            var pie = function (colspan, tot) {
+                var x = '</tbody><tfoot><tr><th' + (colspan > 1 ? ' colspan="' + colspan + '"' : '') + '>TOTAL</th>';
+                nov.forEach(function (n) { x += '<th class="rd-num-col">' + (tot[n.ID_NOVEDAD_AUS] || '') + '</th>'; });
+                return x + '<th class="rd-num-col">' + (tot.aus || 0) + '</th></tr></tfoot></table></div>';
+            };
+            //Por proyecto (solo con todos los proyectos)
+            var pp = '';
+            if (todos) {
+                var totP = {};
+                pp = cab('<th>Proyecto</th>');
+                cfgAus.proyectos.forEach(function (p) { pp += fila('<td>' + rdEsc(p.NOM_PROYECTO) + '</td>', d.porProyecto[p.ID_PROYECTO] || {}, totP); });
+                pp += pie(1, totP);
+            }
+            //Por centro. Si hay datos de centros que ya no están activos, van juntos en una fila para que la suma cuadre
+            var totC = {}, vistos = {}, pc = cab((todos ? '<th>Proyecto</th>' : '') + '<th>Centro</th>');
+            filasCentro.forEach(function (x) {
+                vistos[x.c.ID_CENTRO_OP] = 1;
+                pc += fila((todos ? '<td>' + rdEsc(x.p.NOM_PROYECTO) + '</td>' : '') + '<td>' + rdEsc(x.c.NOM_CENTRO_OP) + '</td>', d.porCentro[x.c.ID_CENTRO_OP] || {}, totC);
             });
-            pc += '</tbody></table></div>';
-            $('#ausConsolidado').html('<h4 class="rd-subtitulo" style="margin-top:0">Total del proyecto</h4>' + t +
-                '<h4 class="rd-subtitulo">Por centro</h4>' + pc + '<h4 class="rd-subtitulo">Por cargo, día por día</h4>' + (h || '<p class="rd-vacio">Sin datos en este mes.</p>'));
+            var otros = {}, hayOtros = false;
+            Object.keys(d.porCentro).forEach(function (k) {
+                if (vistos[k]) { return; }
+                hayOtros = true;
+                Object.keys(d.porCentro[k]).forEach(function (n) { otros[n] = (otros[n] || 0) + (+d.porCentro[k][n] || 0); });
+            });
+            if (hayOtros) { pc += fila('<td' + (todos ? ' colspan="2"' : '') + '><em>Centros que ya no están activos</em></td>', otros, totC); }
+            pc += pie(todos ? 2 : 1, totC);
+            //Con un solo peaje no hace falta la tabla por centro: sería una sola fila igual al total
+            var nombre = todos ? 'todos los proyectos' : (soloCentro ? rdEsc(nombreCentro(centroAus)) + ' <small>(' + rdEsc(proyAus.NOM_PROYECTO) + ')</small>' : rdEsc(proyAus.NOM_PROYECTO));
+            $('#ausConsolidado').html('<h4 class="rd-subtitulo" style="margin-top:0">Total de ' + nombre + ' <small>· ' + textoDias(d1, d2, d.diasMes) + '</small></h4>' + t +
+                (todos ? '<h4 class="rd-subtitulo">Por proyecto</h4>' + pp : '') +
+                (soloCentro ? '' : '<h4 class="rd-subtitulo">Por centro</h4>' + pc) +
+                '<h4 class="rd-subtitulo">Por cargo, día por día</h4>' + (h || '<p class="rd-vacio">Sin datos en esos días.</p>'));
         })
-        .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el consolidado.'); });
+        .fail(function (xhr) { if (pedido === consPedido) { hanaErrorAjax(xhr, 'No se pudo cargar el consolidado.'); } });
 }
 
 //===========================================================================

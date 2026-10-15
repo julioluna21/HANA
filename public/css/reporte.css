@@ -1,5 +1,5 @@
 /* ==========================================================================
-   HANA — Reporte diario (Fase 2)
+   HANA — Reporte diario
    Paleta del sistema: vino #6E1A1E, verde #1ABB9C, ámbar #D99C2B, negro #1A1A1A
    ========================================================================== */
 
@@ -449,6 +449,11 @@ a.rd-mosaico:hover{ color: #1A1A1A; } a.rd-mosaico:hover .rd-mosaico-titulo{ col
 .aus-hay{ color: #6E1A1E; font-weight: bold; }
 .aus-resumen .aus-tabla tbody th, .aus-resumen .aus-tabla tbody td{ background: #F5E4E5; font-weight: bold; }
 .aus-total{ max-width: 560px; }
+/* Consolidado: los botones de rangos de días, en una fila que se acomoda en el celular */
+.aus-filtro-cons{ padding-bottom: 0; }
+.aus-rangos{ display: flex; flex-wrap: wrap; gap: 6px; }
+.aus-rangos .btn{ margin: 0; }
+.aus-rangos .btn.active{ background: #6E1A1E; border-color: #6E1A1E; color: #FFFFFF; box-shadow: none; }
 #ausAcciones{ display: flex; align-items: center; gap: 10px; }
 /* Mismo ancho de primera columna en todos los bloques: los días quedan alineados */
 .aus-tabla .aus-fija{ width: 210px; min-width: 210px; max-width: 210px; }

@@ -10,7 +10,7 @@
   Permiso: 12M para cambiarlas; con 11M solo se consultan.
 */
 session_start();
-require_once __DIR__ . '/Guardia.php'; //sesión y permisos (antes no se revisaban)
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('12M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M')); //Cambiar preguntas: 12M; verlas: 11M o 12M
 require_once "../Modelo/PreguntasListasModelo.php";
 $Preguntas = new preguntas();
@@ -34,7 +34,7 @@ $generaNovedad=isset($_POST['genera-novedad'])? limpiarCadena($_POST['genera-nov
 $titulo=isset($_POST['Titulo-novedad'])? limpiarCadena($_POST['Titulo-novedad']):'';
 $posicion=isset($_POST['posicion'])? limpiarCadena($_POST['posicion']):'final';
 
-//¿La pregunta genera novedad? 1 o 0 (vacío = 0). En la base ya no hay una columna
+//¿La pregunta genera novedad? 1 o 0 (vacío = 0). En la base no hay una columna
 //aparte: genera novedad la pregunta que tiene título de novedad (TITULO_NOVEDAD)
 $generaNovedad = ($generaNovedad === '1' || $generaNovedad === 1) ? 1 : 0;
 
@@ -58,8 +58,7 @@ switch ($_GET["op"]) {
         }
         $rspta1 = $Preguntas->insertar($idLista, $pregunta, $tiposRespuesta,$generaNovedad,$titulo,$orden);
         if ($rspta1 == '') {
-          //Antes, si el insert fallaba, no se respondia nada y la pantalla
-          //lo tomaba como exito
+          //Si el insert falla, se responde con error para que la pantalla no lo tome como éxito
           http_response_code(400);
           echo "No se pudo guardar la pregunta.";
         }
@@ -189,8 +188,8 @@ switch ($_GET["op"]) {
         'firma'    => array('firma', 'signature')
       );
 
-      //Preguntas que la lista YA tiene, para no importar duplicados.
-      //Antes se podia subir el mismo archivo dos veces y quedaba todo repetido
+      //Preguntas que la lista YA tiene, para no importar duplicados
+      //(subir el mismo archivo dos veces no repite nada)
       $yaExisten = array();
       $rsptaPrev = $Preguntas->listar($idLista);
       if ($rsptaPrev) {
@@ -276,8 +275,7 @@ switch ($_GET["op"]) {
       $fallaron  = 0;
       foreach ($preguntasOk as $p) {
         $orden++;
-        //insertar() espera 6 datos. Antes se le enviaban 3 y la importacion
-        //moria con un error fatal que no se veia en pantalla.
+        //insertar() espera 6 datos: lista, texto, tipo, si genera novedad, título y orden.
         //Las preguntas importadas no generan novedad (0, sin título)
         $rspta1 = $Preguntas->insertar($idLista, limpiarCadena($p['pregunta']), $p['tipo'], 0, '', $orden);
         if ($rspta1 != '') { $guardadas++; } else { $fallaron++; }
@@ -315,8 +313,7 @@ switch ($_GET["op"]) {
   case 'anular':
     $rspta1=$Preguntas->anular($idPregunta);
     if ($rspta1 == '') {
-      //Antes, si la anulacion fallaba, no se respondia nada y la pantalla
-      //lo tomaba como exito
+      //Si la anulación falla, se responde con error para que la pantalla no lo tome como éxito
       http_response_code(400);
       echo "No se pudo anular la pregunta.";
     }

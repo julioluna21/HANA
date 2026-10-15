@@ -1,8 +1,8 @@
 <?php
 /*
-  Archivo viejo del sistema original: ninguna pantalla lo usa. La versión vigente es UsuariosControl.php.
-  No revisaba la sesión ni los permisos, así que ahora responde "ya no existe" (410) y no
-  ejecuta nada. El código original se conserva debajo, sin cambios.
+  Archivo sin uso: ninguna pantalla lo llama. El controlador vigente es UsuariosControl.php.
+  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
+  abajo se conserva solo como referencia.
 */
 http_response_code(410);
 header('Content-Type: application/json; charset=utf-8');
@@ -18,7 +18,7 @@ require '../public/PHPMailer-master/src/Exception.php';
                 use PHPMailer\PHPMailer\PHPMailer;
                 use PHPMailer\PHPMailer\Exception;
 
-$Usuarios=new Usuarios();//crea un nuevo articulo
+$Usuarios=new Usuarios();//objeto del modelo: con él se hacen las consultas
 //carga las variables con los valores recibidos y limpia los que no se usaran
 $idusuario=isset($_POST["idusuario"])? limpiarCadena($_POST["idusuario"]):"";
 $nombreususrio=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
@@ -39,8 +39,8 @@ function correoenvio($correo,$mensaje,$asunto){
                          $mail->SMTPAuth = true;
                          $mail->Host = "regencysa.net";
                          $mail->Port = 465;
-                         $mail->Username = ""; // dato quitado: la cuenta de correo vive en Conexion/Global.php
-                         $mail->Password = ""; // dato quitado: la contraseña vive en Conexion/Global.php
+                         $mail->Username = ""; // la cuenta de correo está en Conexion/Global.php
+                         $mail->Password = ""; // la contraseña está en Conexion/Global.php
                          $mail->SMTPSecure = "ssl";
                          $mail->From     = 'no-reply@regencysa.net';
                          $mail->FromName = utf8_decode('HANA LISTA DE CHEQUEO');
