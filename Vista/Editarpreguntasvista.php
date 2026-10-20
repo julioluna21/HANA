@@ -1,30 +1,30 @@
 <?php
 //Pantalla dedicada para editar y reordenar TODAS las preguntas de una lista de chequeo
-//Se llega aqui desde el boton "Editar todas las preguntas" de GruposListasVista.php
+//Se llega aquí desde el botón "Editar todas las preguntas" de GruposListasVista.php
 
-session_start(); //se necesita la sesion para validar usuario y permisos
+session_start(); //se necesita la sesión para validar usuario y permisos
 
-//Sin sesion activa se manda al login (al final del archivo)
+//Sin sesión activa se manda al login (al final del archivo)
 if (isset($_SESSION['IdUsuarios'])) {
 
-    $modulosAcceso = explode(",", $_SESSION['Modulos']); //modulos autorizados del usuario
+    $modulosAcceso = explode(",", $_SESSION['Modulos']); //módulos autorizados del usuario
 
     //12M es el modulo de Listas de Chequeo
-    if (in_array("12M", $modulosAcceso) or isset($_GET["op"])) {
+    if (in_array("12M", $modulosAcceso)) {
 
-        include('head.php'); //cabecera comun: menu lateral, CSS, topbar
+        include('head.php'); //cabecera comun: menú lateral, CSS, topbar
 
-        //Lista sobre la que se va a trabajar. Se castea a int como proteccion basica
+        //Lista sobre la que se va a trabajar. Se castea a int como protección básica
         $idGrupo = isset($_GET['idGrupo']) ? (int)$_GET['idGrupo'] : 0;
 ?>
-        <!-- Contenido de la pagina -->
+        <!-- Contenido de la página -->
         <div class="right_col" role="main">
             <div class="">
                 <div class="clearfix"></div>
                 <div class="row">
                     <div class="col-md-12 col-xs-12">
 
-                        <!-- El borde amarillo arriba avisa visualmente que se esta en modo edicion -->
+                        <!-- El borde amarillo arriba avisa visualmente que se esta en modo edición -->
                         <div class="x_panel" style="border-top:4px solid #D99C2B;">
 
                             <div class="x_title">
@@ -48,8 +48,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
                             <div class="x_content">
 
-                                <!-- Formulario para agregar una pregunta, o editarla completa
-                                     (incluido si genera novedad y con qué título) -->
+                                <!-- Formulario para agregar una pregunta, o editarla completa -->
                                 <div id="panelPregunta" class="panel-pregunta" style="display:none;">
                                     <h4 id="panelPreguntaTitulo">Nueva pregunta</h4>
                                     <input type="hidden" id="fpId" value="">
@@ -65,17 +64,6 @@ if (isset($_SESSION['IdUsuarios'])) {
                                         </div>
                                     </div>
                                     <div class="row">
-                                        <div class="form-group col-md-4 col-xs-12" id="fpGeneraGrupo">
-                                            <label for="fpGenera">¿Genera novedad?</label>
-                                            <select id="fpGenera" class="form-control">
-                                                <option value="0">No</option>
-                                                <option value="1">Sí, si la respuesta es negativa</option>
-                                            </select>
-                                        </div>
-                                        <div class="form-group col-md-4 col-xs-12" id="fpTituloGrupo" style="display:none;">
-                                            <label for="fpTitulo">Título de la novedad: <span style="color:#6E1A1E;">*</span></label>
-                                            <select id="fpTitulo" class="form-control"></select>
-                                        </div>
                                         <div class="form-group col-md-4 col-xs-12" id="fpPosicionGrupo">
                                             <label for="fpPosicion">Ubicación:</label>
                                             <select id="fpPosicion" class="form-control"></select>
@@ -102,14 +90,14 @@ if (isset($_SESSION['IdUsuarios'])) {
                                      porque las filas de abajo son elementos arrastrables de un <ul> -->
                                 <div class="editor-head">
                                     <span class="c-handle"></span> <!-- columna de la manito, sin titulo -->
-                                    <span class="c-orden">#</span> <!-- numero de la pregunta; se renumera solo al guardar -->
+                                    <span class="c-orden">#</span> <!-- número de la pregunta; se renumera solo al guardar -->
                                     <span class="c-id">ID</span> <!-- ID real en la BD -->
                                     <span class="c-pregunta">PREGUNTA</span>
                                     <span class="c-tipo">TIPO DE RESPUESTA</span>
                                     <span class="c-accion">ACCIONES</span>
                                 </div>
 
-                                <!-- Aqui EditarPreguntasAjax.js inyecta una fila por pregunta -->
+                                <!-- Aquí EditarPreguntasAjax.js inyecta una fila por pregunta -->
                                 <ul class="list-group" id="listaEditor"></ul>
 
                                 <div style="margin-top:15px;">
@@ -133,8 +121,8 @@ if (isset($_SESSION['IdUsuarios'])) {
             </div>
         </div>
 
-        <!-- El JS lee de aqui la lista a editar. Se usa un campo oculto y no una
-             variable porque el valor sobrevive a recargas de la pagina -->
+        <!-- El JS lee de aquí la lista a editar. Se usa un campo oculto y no una
+             variable porque el valor sobrevive a recargas de la página -->
         <input type="hidden" id="idGrupoEditar" value="<?php echo $idGrupo; ?>">
 
         <style>
@@ -169,7 +157,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             #listaEditor .handle{ cursor:grab; color:#888; font-size:20px; user-select:none; }
             #listaEditor .handle:active{ cursor:grabbing; color:#D99C2B; }
 
-            /* Insignia con la posicion, recalculada en vivo por el JS */
+            /* Insignia con la posición, recalculada en vivo por el JS */
             #listaEditor .badge-orden{
                 background:#5A738E; color:#fff; border-radius:12px;
                 padding:3px 0; font-weight:bold; font-size:12px;
@@ -185,14 +173,14 @@ if (isset($_SESSION['IdUsuarios'])) {
         include('footer.php'); //pie comun: carga jQuery, Bootstrap, etc.
         ?>
 
-        <!-- Logica de esta pantalla. El ?v= obliga al navegador a bajar la version
+        <!-- Lógica de esta pantalla. El ?v= obliga al navegador a bajar la versión
              nueva y no una vieja guardada en cache -->
-        <script type="text/javascript" src="../Ajax/Editarpreguntasajax.js?v=7"></script>
+        <script type="text/javascript" src="../Ajax/Editarpreguntasajax.js?v=8"></script>
 <?php
     } else {
-        //Hay sesion pero el usuario no tiene el modulo: se devuelve a la pagina anterior
+        //Hay sesión pero el usuario no tiene el modulo: va al inicio (volver atrás dejaba la página en blanco si se abrió desde un enlace)
         echo "<script>
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     }
 } else {

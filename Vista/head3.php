@@ -1,4 +1,9 @@
 <?php
+/*
+  Cabecera sin uso: la versión anterior de head.php. Ninguna pantalla la incluye;
+  si alguien la abre por la dirección, va al inicio. Se conserva como referencia.
+*/
+if (realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) { header('Location: InicioVista.php'); exit; }
 $modulosAcceso=explode(",",$_SESSION['Modulos']);
 ?>
 <!DOCTYPE html>
@@ -104,7 +109,7 @@ $modulosAcceso=explode(",",$_SESSION['Modulos']);
     </li><?php } ?>  
 
 
-    <!--<li><a href="javascript:void(0)"><i class="fa fa-laptop"></i> Graficas <span
+    <!--<li><a href="javascript:void(0)"><i class="fa fa-laptop"></i> Gráficas <span
           class="label label-success pull-right">Muy pronto...</span></a>
     </li>-->
 

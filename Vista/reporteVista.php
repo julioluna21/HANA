@@ -4,18 +4,18 @@
   ---------------------------------------------------------------------------
   Muestra dentro de HANA el tablero publicado en Power BI (en un iframe).
   La dirección del tablero se arma más abajo en $urlFinal.
-  Permiso: 13M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+  Permiso: 13M (sin sesión va al inicio de sesión; sin el permiso, a la pantalla de inicio).
 */
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
-if(in_array("13M",$modulosAcceso) or isset($_GET["op"])){    
+if(in_array("13M",$modulosAcceso)){    
     
 include('head.php');
 ?>
 
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -48,7 +48,7 @@ include('head.php');
 
                     //Página con la que abre: la primera, "Consolidado". Sin esto, Power
                     //BI abre en la página que estaba activa al publicar (la última).
-                    //Si algún día se republica con otro nombre interno de página, Power
+                    //Si algún día se república con otro nombre interno de página, Power
                     //BI ignora este dato y abre en la página de siempre: no se rompe nada
                     $paginaInicial = 'p0_consol';
                     $urlFinal = $urlInforme . ($paginaInicial !== '' ? '&pageName=' . rawurlencode($paginaInicial) : '');
@@ -81,7 +81,7 @@ include('footer.php');
 
 }else{   
   echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     
 }

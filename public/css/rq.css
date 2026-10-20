@@ -168,6 +168,9 @@
 .rq-hist-fecha{ font-size: 11px; color: #6B7076; }
 .rq-hist-texto{ font-size: 13px; }
 .rq-hist-obs{ color: #6B7076; margin-top: 2px; }
+.rq-hist-quien{ margin-top: 2px; }
+.rq-hist-quien .fa{ color: #6B7076; }
+.rq-hist-quien span{ color: #6B7076; font-size: 12px; }
 
 /* --------------------------------------------------------------------------
    Celular

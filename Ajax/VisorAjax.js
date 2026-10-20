@@ -21,7 +21,7 @@
 
 (function () {
     var capa = null, foto = null, marco = null, hoja = null, hojas = null, pie = null, cuenta = null, btnAnt = null, btnSig = null, bajar = null, aviso = null;
-    var lista = [], nombres = [], pos = 0, foco = null, modo = 'imagen', blobs = [];
+    var lista = [], nombres = [], posicionActual = 0, foco = null, modo = 'imagen', blobs = [];
     var turnoPdf = 0;                                  //cambia con cada PDF que se abre: así un dibujo viejo no pisa al nuevo
     var RUTA_PDFJS = '../public/js/pdfjs/';            //las pantallas están en Vista/
 
@@ -54,12 +54,12 @@
         bajar = capa.querySelector('.hana-visor-bajar');
         aviso = capa.querySelector('.hana-visor-aviso');
         capa.querySelector('.hana-visor-cerrar').addEventListener('click', cerrar);
-        btnAnt.addEventListener('click', function (e) { e.stopPropagation(); mover(-1); });
-        btnSig.addEventListener('click', function (e) { e.stopPropagation(); mover(1); });
-        bajar.addEventListener('click', function (e) { e.stopPropagation(); }); //descargar no cierra el visor
+        btnAnt.addEventListener('click', function (evento) { evento.stopPropagation(); mover(-1); });
+        btnSig.addEventListener('click', function (evento) { evento.stopPropagation(); mover(1); });
+        bajar.addEventListener('click', function (evento) { evento.stopPropagation(); }); //descargar no cierra el visor
         //Tocar fuera de la foto cierra; tocar la foto cambia entre ajustada y tamaño real
-        capa.addEventListener('click', function (e) { if (e.target === capa || e.target === marco || e.target === hojas) { cerrar(); } });
-        foto.addEventListener('click', function (e) { e.stopPropagation(); capa.classList.toggle('hana-visor-real'); });
+        capa.addEventListener('click', function (evento) { if (evento.target === capa || evento.target === marco || evento.target === hojas) { cerrar(); } });
+        foto.addEventListener('click', function (evento) { evento.stopPropagation(); capa.classList.toggle('hana-visor-real'); });
         foto.addEventListener('error', function () { if (modo === 'imagen' && foto.getAttribute('src')) { pie.textContent = 'No se pudo cargar la imagen.'; } });
     }
 
@@ -67,7 +67,7 @@
     function descargaDe(url) {
         url = String(url || '');
         if (/^blob:/.test(url)) { return url; }
-        if (/[?&]ver=1(&|$)/.test(url)) { return url.replace(/([?&])ver=1(&|$)/, function (m, a, b) { return b ? a : ''; }); } //los PDF del sistema: sin ver=1 se descargan
+        if (/[?&]ver=1(&|$)/.test(url)) { return url.replace(/([?&])ver=1(&|$)/, function (coincidencia, separador, resto) { return resto ? separador : ''; }); } //los PDF del sistema: sin ver=1 se descargan
         if (/AdjuntoControl\.php\?op=ver/.test(url)) { return url + '&descargar=1'; }
         return url;
     }
@@ -78,28 +78,28 @@
         if (window.pdfjsLib) { listo(window.pdfjsLib); return; }
         if (pdfjsPendientes) { pdfjsPendientes.push(listo); return; }
         pdfjsPendientes = [listo];
-        var sc = document.createElement('script');
-        sc.src = RUTA_PDFJS + 'pdf.min.js';
-        sc.onload = function () {
-            var lib = window.pdfjsLib || null;
-            if (lib) { lib.GlobalWorkerOptions.workerSrc = RUTA_PDFJS + 'pdf.worker.min.js'; }
+        var etiquetaScript = document.createElement('script');
+        etiquetaScript.src = RUTA_PDFJS + 'pdf.min.js';
+        etiquetaScript.onload = function () {
+            var pdfjs = window.pdfjsLib || null;
+            if (pdfjs) { pdfjs.GlobalWorkerOptions.workerSrc = RUTA_PDFJS + 'pdf.worker.min.js'; }
             var esperando = pdfjsPendientes; pdfjsPendientes = null;
-            esperando.forEach(function (f) { f(lib); });
+            esperando.forEach(function (avisar) { avisar(pdfjs); });
         };
-        sc.onerror = function () {
+        etiquetaScript.onerror = function () {
             var esperando = pdfjsPendientes; pdfjsPendientes = null;
-            esperando.forEach(function (f) { f(null); });
+            esperando.forEach(function (avisar) { avisar(null); });
         };
-        document.head.appendChild(sc);
+        document.head.appendChild(etiquetaScript);
     }
 
     //Un aviso dentro del visor (cargando, o por qué no se pudo abrir)
     function avisoPdf(texto, esError) {
         hojas.innerHTML = '';
-        var p = document.createElement('div');
-        p.className = 'hana-visor-mensaje' + (esError ? ' hana-visor-mensaje-error' : '');
-        p.textContent = texto;
-        hojas.appendChild(p);
+        var cajaAviso = document.createElement('div');
+        cajaAviso.className = 'hana-visor-mensaje' + (esError ? ' hana-visor-mensaje-error' : '');
+        cajaAviso.textContent = texto;
+        hojas.appendChild(cajaAviso);
     }
 
     //Si pdf.js no carga, se usa el visor del navegador como antes
@@ -117,48 +117,48 @@
         capa.classList.remove('hana-visor-pdf-marco');
         hoja.removeAttribute('src');
         avisoPdf('Cargando el PDF...', false);
-        conPdfJs(function (lib) {
+        conPdfJs(function (pdfjs) {
             if (turno !== turnoPdf) { return; }
-            if (!lib || !window.fetch) { pdfEnMarco(url); return; }
+            if (!pdfjs || !window.fetch) { pdfEnMarco(url); return; }
             fetch(url, { credentials: 'same-origin' })
-                .then(function (r) {
-                    var tipo = (r.headers.get('Content-Type') || '').toLowerCase();
-                    if (r.ok && (tipo.indexOf('pdf') !== -1 || /^blob:/.test(url))) { return r.arrayBuffer(); }
-                    return r.text().then(function (t) {
-                        var sesion = /LoginUsuarios|frmAcceso/.test(t) || /login\.php/.test(r.url || '');
-                        var limpio = String(t).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
+                .then(function (respuesta) {
+                    var tipo = (respuesta.headers.get('Content-Type') || '').toLowerCase();
+                    if (respuesta.ok && (tipo.indexOf('pdf') !== -1 || /^blob:/.test(url))) { return respuesta.arrayBuffer(); }
+                    return respuesta.text().then(function (texto) {
+                        var sesion = /LoginUsuarios|frmAcceso/.test(texto) || /login\.php/.test(respuesta.url || '');
+                        var limpio = String(texto).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
                         throw new Error(sesion ? 'Tu sesión terminó. Vuelve a iniciar sesión para ver el PDF.'
-                                               : (limpio || 'El servidor no entregó el PDF (código ' + r.status + ').'));
+                                               : (limpio || 'El servidor no entregó el PDF (código ' + respuesta.status + ').'));
                     });
                 })
-                .then(function (datos) { return lib.getDocument({ data: datos }).promise; })
-                .then(function (doc) {
+                .then(function (datos) { return pdfjs.getDocument({ data: datos }).promise; })
+                .then(function (documento) {
                     if (turno !== turnoPdf) { return; }
                     hojas.innerHTML = '';
                     var ancho = Math.min(hojas.clientWidth - 16, 1100);
-                    var maxHojas = Math.min(doc.numPages, 60);
-                    var dibujar = function (n) {
-                        if (n > maxHojas || turno !== turnoPdf) { return; }
-                        doc.getPage(n).then(function (pag) {
+                    var maxHojas = Math.min(documento.numPages, 60);
+                    var dibujar = function (numHoja) {
+                        if (numHoja > maxHojas || turno !== turnoPdf) { return; }
+                        documento.getPage(numHoja).then(function (pagina) {
                             if (turno !== turnoPdf) { return; }
-                            var base = pag.getViewport({ scale: 1 });
+                            var base = pagina.getViewport({ scale: 1 });
                             var escala = Math.max(0.5, ancho / base.width);
                             var nitidez = Math.min(window.devicePixelRatio || 1, 2);
-                            var vista = pag.getViewport({ scale: escala * nitidez });
+                            var vista = pagina.getViewport({ scale: escala * nitidez });
                             var lienzo = document.createElement('canvas');
                             lienzo.className = 'hana-visor-hoja';
                             lienzo.width = Math.floor(vista.width); lienzo.height = Math.floor(vista.height);
                             lienzo.style.width = Math.floor(vista.width / nitidez) + 'px';
-                            lienzo.setAttribute('aria-label', 'Hoja ' + n + ' de ' + doc.numPages);
+                            lienzo.setAttribute('aria-label', 'Hoja ' + numHoja + ' de ' + documento.numPages);
                             hojas.appendChild(lienzo);
-                            pag.render({ canvasContext: lienzo.getContext('2d'), viewport: vista }).promise.then(function () { dibujar(n + 1); });
+                            pagina.render({ canvasContext: lienzo.getContext('2d'), viewport: vista }).promise.then(function () { dibujar(numHoja + 1); });
                         });
                     };
                     dibujar(1);
                 })
-                .catch(function (e) {
+                .catch(function (error) {
                     if (turno !== turnoPdf) { return; }
-                    avisoPdf('No se pudo abrir el PDF. ' + (e && e.message ? e.message : ''), true);
+                    avisoPdf('No se pudo abrir el PDF. ' + (error && error.message ? error.message : ''), true);
                 });
         });
     }
@@ -169,28 +169,28 @@
         capa.classList.toggle('hana-visor-modo-pdf', modo === 'pdf');
         if (modo === 'pdf') {
             foto.removeAttribute('src');
-            mostrarPdf(lista[pos]);
+            mostrarPdf(lista[posicionActual]);
         } else {
             turnoPdf++;
             hoja.removeAttribute('src');
             hojas.innerHTML = '';
-            foto.src = lista[pos];
-            foto.alt = nombres[pos] || 'Imagen';
+            foto.src = lista[posicionActual];
+            foto.alt = nombres[posicionActual] || 'Imagen';
         }
-        pie.textContent = nombres[pos] || '';
+        pie.textContent = nombres[posicionActual] || '';
         var varias = modo === 'imagen' && lista.length > 1;
-        cuenta.textContent = varias ? (pos + 1) + ' de ' + lista.length : '';
+        cuenta.textContent = varias ? (posicionActual + 1) + ' de ' + lista.length : '';
         btnAnt.style.display = varias ? '' : 'none';
         btnSig.style.display = varias ? '' : 'none';
-        bajar.href = descargaDe(lista[pos]);
-        bajar.setAttribute('download', nombres[pos] || '');
+        bajar.href = descargaDe(lista[posicionActual]);
+        bajar.setAttribute('download', nombres[posicionActual] || '');
         aviso.style.display = 'none';
     }
 
     //Pasa a la imagen anterior o siguiente (da la vuelta al llegar al final)
     function mover(paso) {
         if (lista.length < 2 || modo !== 'imagen') { return; }
-        pos = (pos + paso + lista.length) % lista.length;
+        posicionActual = (posicionActual + paso + lista.length) % lista.length;
         pintar();
     }
 
@@ -199,7 +199,7 @@
         if (!urls || !urls.length) { return; }
         crear();
         modo = tipo === 'pdf' ? 'pdf' : 'imagen';
-        lista = urls; nombres = textos || []; pos = Math.max(0, Math.min(urls.length - 1, indice || 0));
+        lista = urls; nombres = textos || []; posicionActual = Math.max(0, Math.min(urls.length - 1, indice || 0));
         foco = document.activeElement;
         pintar();
         capa.classList.add('abierto');
@@ -216,16 +216,16 @@
         hoja.removeAttribute('src');
         turnoPdf++;
         if (hojas) { hojas.innerHTML = ''; }
-        blobs.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} }); //las vistas previas de archivos sin subir
+        blobs.forEach(function (urlTemporal) { try { URL.revokeObjectURL(urlTemporal); } catch (error) {} }); //las vistas previas de archivos sin subir
         blobs = [];
-        if (foco && foco.focus) { try { foco.focus(); } catch (e) {} }
+        if (foco && foco.focus) { try { foco.focus(); } catch (error) {} }
     }
 
-    document.addEventListener('keydown', function (e) {
+    document.addEventListener('keydown', function (evento) {
         if (!capa || !capa.classList.contains('abierto')) { return; }
-        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrar(); }
-        else if (e.key === 'ArrowLeft') { e.preventDefault(); mover(-1); }
-        else if (e.key === 'ArrowRight') { e.preventDefault(); mover(1); }
+        if (evento.key === 'Escape') { evento.preventDefault(); evento.stopPropagation(); cerrar(); }
+        else if (evento.key === 'ArrowLeft') { evento.preventDefault(); mover(-1); }
+        else if (evento.key === 'ArrowRight') { evento.preventDefault(); mover(1); }
     }, true);
 
     //¿Esta dirección es de una imagen? ¿de un PDF?
@@ -233,48 +233,48 @@
     //¿La dirección es de un PDF? (también los PDF que genera HANA)
     function esPdf(url) { return /\.pdf(\?|#|$)/i.test(url || '') || /PdfVista\.php\?/i.test(url || ''); }
     //El nombre que se muestra para un archivo: data-nombre, title, alt o el texto del enlace
-    function nombreDe(el) {
-        var img = el.tagName === 'IMG' ? el : el.querySelector('img');
-        return (el.getAttribute('data-nombre') || el.getAttribute('title') || (img && img.getAttribute('alt')) || el.textContent || '').trim();
+    function nombreDe(elemento) {
+        var img = elemento.tagName === 'IMG' ? elemento : elemento.querySelector('img');
+        return (elemento.getAttribute('data-nombre') || elemento.getAttribute('title') || (img && img.getAttribute('alt')) || elemento.textContent || '').trim();
     }
 
     //Un clic en algo que es una imagen o un PDF: se abre aquí y no en otra pestaña
-    document.addEventListener('click', function (e) {
-        if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) { return; }
-        var el = e.target.closest ? e.target.closest('a[data-visor], a[data-visor-pdf], .rq-visor-grande, .rd-firma, .firma-guardada img, .modal img.img-rounded, .hana-foto-previa img, .rq-previa img, a[target="_blank"]') : null;
-        if (!el || (capa && capa.contains(el))) { return; }
+    document.addEventListener('click', function (evento) {
+        if (evento.defaultPrevented || evento.button !== 0 || evento.ctrlKey || evento.metaKey || evento.shiftKey) { return; }
+        var elemento = evento.target.closest ? evento.target.closest('a[data-visor], a[data-visor-pdf], .rq-visor-grande, .rd-firma, .firma-guardada img, .modal img.img-rounded, .hana-foto-previa img, .rq-previa img, a[target="_blank"]') : null;
+        if (!elemento || (capa && capa.contains(elemento))) { return; }
 
         var urls = [], textos = [], i = 0, tipo = 'imagen';
-        if (el.classList.contains('rq-visor-grande')) {
+        if (elemento.classList.contains('rq-visor-grande')) {
             //La foto grande de una RQ: el grupo son sus miniaturas
-            var minis = el.closest('.rq-visor') ? el.closest('.rq-visor').querySelectorAll('.rq-mini[data-url]') : [];
-            var actual = el.getAttribute('href');
+            var minis = elemento.closest('.rq-visor') ? elemento.closest('.rq-visor').querySelectorAll('.rq-mini[data-url]') : [];
+            var actual = elemento.getAttribute('href');
             if (minis.length) {
-                Array.prototype.forEach.call(minis, function (m, k) { urls.push(m.getAttribute('data-url')); textos.push(m.getAttribute('title') || ''); if (m.getAttribute('data-url') === actual) { i = k; } });
-            } else { urls = [actual]; textos = [nombreDe(el)]; }
-        } else if (el.hasAttribute('data-visor-pdf')) {
-            urls = [el.getAttribute('href')]; textos = [nombreDe(el)]; tipo = 'pdf';
-        } else if (el.hasAttribute('data-visor')) {
-            var grupo = el.getAttribute('data-visor');
-            var todos = grupo ? document.querySelectorAll('a[data-visor="' + grupo.replace(/"/g, '') + '"]') : [el];
+                Array.prototype.forEach.call(minis, function (miniatura, posicion) { urls.push(miniatura.getAttribute('data-url')); textos.push(miniatura.getAttribute('title') || ''); if (miniatura.getAttribute('data-url') === actual) { i = posicion; } });
+            } else { urls = [actual]; textos = [nombreDe(elemento)]; }
+        } else if (elemento.hasAttribute('data-visor-pdf')) {
+            urls = [elemento.getAttribute('href')]; textos = [nombreDe(elemento)]; tipo = 'pdf';
+        } else if (elemento.hasAttribute('data-visor')) {
+            var grupo = elemento.getAttribute('data-visor');
+            var todos = grupo ? document.querySelectorAll('a[data-visor="' + grupo.replace(/"/g, '') + '"]') : [elemento];
             var vistos = {};
-            Array.prototype.forEach.call(todos, function (a) {
-                var u = a.getAttribute('href');
-                if (vistos[u] === undefined) { vistos[u] = urls.length; urls.push(u); textos.push(nombreDe(a)); }
+            Array.prototype.forEach.call(todos, function (enlace) {
+                var url = enlace.getAttribute('href');
+                if (vistos[url] === undefined) { vistos[url] = urls.length; urls.push(url); textos.push(nombreDe(enlace)); }
             });
-            i = vistos[el.getAttribute('href')] || 0;
-        } else if (el.tagName === 'IMG') {
-            if (!el.getAttribute('src')) { return; }
-            urls = [el.getAttribute('src')]; textos = [el.getAttribute('alt') || ''];
+            i = vistos[elemento.getAttribute('href')] || 0;
+        } else if (elemento.tagName === 'IMG') {
+            if (!elemento.getAttribute('src')) { return; }
+            urls = [elemento.getAttribute('src')]; textos = [elemento.getAttribute('alt') || ''];
         } else {
             //Un enlace a otra pestaña: solo si es una imagen o un PDF (lo demás sigue igual)
-            var href = el.getAttribute('href') || '';
+            var href = elemento.getAttribute('href') || '';
             if (esImagen(href)) { tipo = 'imagen'; }
             else if (esPdf(href)) { tipo = 'pdf'; }
             else { return; }
-            urls = [el.href || href]; textos = [nombreDe(el)];
+            urls = [elemento.href || href]; textos = [nombreDe(elemento)];
         }
-        e.preventDefault();
+        evento.preventDefault();
         abrir(urls, i, textos, tipo);
     }, false);
 

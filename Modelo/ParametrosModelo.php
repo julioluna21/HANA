@@ -14,15 +14,15 @@ class Parametros
     //-----------------------------------------------------------------------
     public function cargos()
     {
-        $f = HanaDB::q("SELECT * FROM aus_cargo ORDER BY ORDEN, NOMBRE");
-        return $f ? $f : array();
+        $filas = HanaDB::q("SELECT * FROM aus_cargo ORDER BY ORDEN, NOMBRE");
+        return $filas ? $filas : array();
     }
 
     //Novedades de ausentismo con el cargo al que pertenecen
     public function novedades()
     {
-        $f = HanaDB::q("SELECT n.*, c.NOMBRE AS CARGO FROM aus_novedad n LEFT JOIN aus_cargo c ON c.ID_CARGO_AUS = n.ID_CARGO_AUS ORDER BY n.ORDEN, n.NOMBRE");
-        return $f ? $f : array();
+        $filas = HanaDB::q("SELECT n.*, c.NOMBRE AS CARGO FROM aus_novedad n LEFT JOIN aus_cargo c ON c.ID_CARGO_AUS = n.ID_CARGO_AUS ORDER BY n.ORDEN, n.NOMBRE");
+        return $filas ? $filas : array();
     }
 
     //¿Ya hay otro cargo (o novedad) con ese nombre?
@@ -47,18 +47,6 @@ class Parametros
                    : HanaDB::q("INSERT INTO aus_novedad (NOMBRE, CUENTA_AUSENCIA, ID_CARGO_AUS, ORDEN, ESTADO) VALUES (?, ?, ?, ?, ?)", 'siiii', array($nombre, $cuenta, $cargo, $orden, $estado));
     }
 
-    //¿Existe esa prioridad (estados de relevancia)?
-    public function existePrioridad($id)
-    {
-        return (bool)HanaDB::fila("SELECT 1 AS ok FROM estados_relevancia WHERE ID_ESTADOS_RELEVANCIA = ?", 'i', array((int)$id));
-    }
-
-    //¿Existe ese observador?
-    public function existeObservador($id)
-    {
-        return (bool)HanaDB::fila("SELECT 1 AS ok FROM observador_novedades_hallazgos WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS = ?", 'i', array((int)$id));
-    }
-
     //-----------------------------------------------------------------------
     // Días habilitados (tabla dia_habilitado)
     //-----------------------------------------------------------------------
@@ -78,15 +66,15 @@ class Parametros
     //El estado (1 abierto, 0 cerrado) de ese día para esa persona, o null si nunca se abrió
     public function estadoDia($idColaborador, $fecha)
     {
-        $f = HanaDB::fila("SELECT ESTADO FROM dia_habilitado WHERE ID_COLABORADOR = ? AND FECHA = ?", 'is', array((int)$idColaborador, $fecha));
-        return $f ? (int)$f['ESTADO'] : null;
+        $fila = HanaDB::fila("SELECT ESTADO FROM dia_habilitado WHERE ID_COLABORADOR = ? AND FECHA = ?", 'is', array((int)$idColaborador, $fecha));
+        return $fila ? (int)$fila['ESTADO'] : null;
     }
 
     //El estado de un día habilitado por su id, o null si no existe
     public function estadoDiaPorId($id)
     {
-        $f = HanaDB::fila("SELECT ESTADO FROM dia_habilitado WHERE ID_DIA_HABILITADO = ?", 'i', array((int)$id));
-        return $f ? (int)$f['ESTADO'] : null;
+        $fila = HanaDB::fila("SELECT ESTADO FROM dia_habilitado WHERE ID_DIA_HABILITADO = ?", 'i', array((int)$id));
+        return $fila ? (int)$fila['ESTADO'] : null;
     }
 
     //Abre un día. Si ya se le había abierto y cerrado, se vuelve a abrir la misma fila

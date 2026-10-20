@@ -1,5 +1,7 @@
 <?php
 //Ausentismo - el "Reporte nacional de ausentismo" dentro de HANA.
+//Las ausencias con su motivo están en la marcación de turnos: aquí se anota cómo se cubrió
+//cada falta (NO SE CUBRIÓ, CUBRIENDO A... o un apoyo a otro peaje o proyecto).
 //Registra el coordinador de cada proyecto; consultan 20M, 21M y 22M.
 //El consolidado se ve de todo el mes o de un rango de días; del proyecto, de un solo peaje o, con 20M, 21M, 22M o 25M, de todos los proyectos juntos
 session_start();
@@ -52,8 +54,10 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="tab-content cd-contenido">
             <!-- Registro rápido: una ausencia a la vez. Escribe en las mismas celdas de la matriz del mes -->
             <div class="tab-pane active" id="tabRapido">
-              <p class="rd-ayuda" style="margin-top:0;">Elige el día, el cargo y el motivo, y cuántas personas faltaron. Queda anotado en la matriz del mes,
-                así que el consolidado, el Excel y el dashboard se actualizan solos. Si la ausencia dura varios días (una incapacidad de hoy al sábado),
+              <p class="rd-ayuda" style="margin-top:0;">Aquí se anota <strong>cómo se cubrió cada falta</strong> del peaje; la ausencia con su motivo ya está en la marcación de turnos.
+                Elige el día, el cargo del puesto que quedó sin cubrir, qué pasó y cuántas personas: <em>NO SE CUBRIÓ</em> (faltó la persona y nadie ocupó su puesto),
+                <em>CUBRIENDO A…</em> (la persona dejó su cargo para cubrir otro, que quedó cubierto) o un <em>APOYO</em> a otro peaje o proyecto.
+                Queda anotado en la matriz del mes, así que el consolidado, el Excel y el dashboard se actualizan solos. Si pasó varios días seguidos,
                 escribe también el último día: se anota en cada día del rango. <span id="ausFuturoAyuda"></span></p>
               <div id="ausNotaRapido"></div>
               <form id="ausRapido" class="aus-rapido" autocomplete="off">
@@ -64,14 +68,14 @@ if (isset($_SESSION['IdUsuarios'])) {
                   </div>
                   <div class="form-group col-md-2 col-sm-3 col-xs-6">
                     <label for="rHasta">Hasta (opcional):</label>
-                    <input type="date" id="rHasta" name="hasta" class="form-control" title="El último día de la ausencia. Vacío = solo un día">
+                    <input type="date" id="rHasta" name="hasta" class="form-control" title="El último día. Vacío = solo un día">
                   </div>
                   <div class="form-group col-md-2 col-sm-6 col-xs-12">
                     <label for="rCargo">Cargo: <span class="rd-req">*</span></label>
                     <select id="rCargo" name="cargo" class="form-control"></select>
                   </div>
                   <div class="form-group col-md-2 col-sm-6 col-xs-12">
-                    <label for="rNovedad">Motivo de la ausencia: <span class="rd-req">*</span></label>
+                    <label for="rNovedad">¿Qué pasó?: <span class="rd-req">*</span></label>
                     <select id="rNovedad" name="novedad" class="form-control"></select>
                   </div>
                   <div class="form-group col-md-2 col-sm-6 col-xs-6">
@@ -86,12 +90,13 @@ if (isset($_SESSION['IdUsuarios'])) {
               </form>
               <h4 class="rd-subtitulo">Ausencias registradas en el mes <span id="ausTotalMes"></span></h4>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>Día</th><th>Cargo</th><th>Motivo</th><th class="rd-num-col">Personas</th><th></th></tr></thead>
+                <thead><tr><th>Día</th><th>Cargo</th><th>Qué pasó</th><th class="rd-num-col">Personas</th><th></th></tr></thead>
                 <tbody id="ausLista"><tr><td colspan="5" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabRegistrar">
-              <p class="rd-ayuda" style="margin-top:0;">En cada celda, cuántas personas del cargo tuvieron esa novedad ese día. Se escribe y se pasa de celda con las flechas del teclado.
-                Las filas <em>CUBRIENDO A…</em> son ausencia del cargo de quien cubre: esa persona dejó su puesto para cubrir el otro cargo, que quedó cubierto.</p>
+              <p class="rd-ayuda" style="margin-top:0;">En cada celda, cuántos puestos del cargo quedaron sin cubrir ese día y por qué. Se escribe y se pasa de celda con las flechas del teclado.
+                <em>NO SE CUBRIÓ</em>: faltó la persona y nadie ocupó su puesto. <em>CUBRIENDO A…</em>: la persona de este cargo dejó su puesto para cubrir el otro, que quedó cubierto.
+                <em>APOYO…</em>: salió a apoyar otro peaje o proyecto. Los motivos anteriores (incapacidad, licencias…) solo salen en los meses que los tienen.</p>
               <div id="ausNota"></div>
               <form id="ausForm" onsubmit="return false;"><div id="ausGrid"><p class="rd-vacio">Cargando...</p></div></form>
               <div class="rd-acciones rd-acciones-fijas" id="ausAcciones">
@@ -143,7 +148,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=7"></script>
+<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=8"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

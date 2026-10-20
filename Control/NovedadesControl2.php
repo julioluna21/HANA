@@ -10,7 +10,7 @@ echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAP
 exit;
 ?>
 <?php
-session_start();//inicia la session, permite guardar variables de sesion
+session_start();//inicia la session, permite guardar variables de sesión
 require_once "../Modelo/NovedadModelo.php";//Utilizará este archivo
 $Novedades=new Novedades();//objeto del modelo: con él se hacen las consultas
 setlocale(LC_ALL,'es-Es');// Activa la localización con el sistema para mostrar en español
@@ -346,17 +346,17 @@ switch ($_GET["op"])
                    
                     $arreglo['contenido']=$contenido;
                     $arreglo['estado']=$estadon;
-                    $arreglo['permiso']=$_SESSION['Audititoria'];
+                    $arreglo['permiso']=$_SESSION['Auditoria'];
                     //Codificar el resultado utilizando json
                     echo json_encode($arreglo);
             break;        
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://activado por el ajax en el scrip artículos
         
         
                    
         
-                    $rspta=$Novedades->centrosOP($_SESSION['IdUsuarios']);//Carga la rspta con lista de articulos
+                    $rspta=$Novedades->centrosOP($_SESSION['IdUsuarios']);//Carga la rspta con lista de artículos
                      $centrosoperativos= Array();
                      while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
                      {
@@ -366,7 +366,7 @@ switch ($_GET["op"])
         
                     if($_GET['validador']=='todo' and $_GET['validador2']==0 and $_GET['fechai']=='' and $_GET['fechaf']==''){
                       
-                         $rspta=$Novedades->listar();//Carga la rspta con lista de articulos 
+                         $rspta=$Novedades->listar();//Carga la rspta con lista de artículos 
                     }else{
 						$condicional="WHERE ";
 						
@@ -398,7 +398,7 @@ switch ($_GET["op"])
 							
 						}
 
-                         $rspta=$Novedades->listarCondicional($condicional);//Carga la rspta con lista de articulos
+                         $rspta=$Novedades->listarCondicional($condicional);//Carga la rspta con lista de artículos
                     }
                      
                     
@@ -419,11 +419,11 @@ switch ($_GET["op"])
                                             <button class="btn btn-success" onclick="mostrar('.$reg->ID_NOVEDADES_HALLAZGOS.')">
                                                     <i class="fa fa-eye" style="color:white;"></i></button></SPAN>';     
                             
-                        }else if($reg->ESTADO_NOVEDAD==3 and $_SESSION['Audititoria']==1){
+                        }else if($reg->ESTADO_NOVEDAD==3 and $_SESSION['Auditoria']==1){
                         $bot='<SPAN title="Editar">
                                             <button class="btn btn-success" onclick="mostrar('.$reg->ID_NOVEDADES_HALLAZGOS.')">
                                                     <i class="fa fa-eye" style="color:white;"></i></button></SPAN>';     
-                        }else if(($reg->ESTADO_NOVEDAD==3 and $_SESSION['Audititoria']==0) or $reg->ESTADO_NOVEDAD==4){
+                        }else if(($reg->ESTADO_NOVEDAD==3 and $_SESSION['Auditoria']==0) or $reg->ESTADO_NOVEDAD==4){
                             $bot='<SPAN title="Editar">
                                             <button class="btn btn-success" onclick="solover('.$reg->ID_NOVEDADES_HALLAZGOS.')">
                                                     <i class="fa fa-eye" style="color:white;"></i></button></SPAN>'; 

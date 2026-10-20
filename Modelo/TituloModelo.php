@@ -2,58 +2,68 @@
 /*
   HANA - Títulos de novedades (modelo)
   ---------------------------------------------------------------------------
-  Consultas de la tabla titulo_novedades_hallazgos.
-  Lo usa Control/TituloControl.php.
+  Consultas de la tabla titulo_novedades_hallazgos: los títulos que se escogen al
+  reportar una novedad. Lo usa Control/TituloControl.php.
+  El nombre se guarda como lo dejan los módulos de siempre, ya convertido para
+  HTML (ver Modelo/HanaTexto.php).
 */
 require "../Conexion/ConexionDB.php";
+require_once __DIR__ . '/HanaDB.php';
+
 class Titulo
 {
-        //Implementamos el super constructor 
+        //Constructor vacío: la clase no guarda datos propios
         public function __construct()
         {
         }
-        //Implementamos un método para insertar registros 	
-        public function insertar($NOMBRE)
+
+        //Crea un título activo
+        public function insertar($nombre)
         {
-                $sql = "INSERT INTO titulo_novedades_hallazgos(NOM_TITULO_NOVEDADES_HALLAZGOS,ESTADO)
-                            VALUES ('$NOMBRE','1')";
-                return ejecutarConsulta($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
+                return (bool)HanaDB::q("INSERT INTO titulo_novedades_hallazgos (NOM_TITULO_NOVEDADES_HALLAZGOS, ESTADO) VALUES (?, '1')", 's', array((string)$nombre));
         }
-        //Implementamos un método para editar registros
-        public function editar($IDETITULO,$NOMBRE)
+
+        //Cambia el nombre
+        public function editar($idTitulo, $nombre)
         {
-                $sql = "UPDATE titulo_novedades_hallazgos SET NOM_TITULO_NOVEDADES_HALLAZGOS='$NOMBRE' where ID_TITULO_NOVEDADES_HALLAZGOS=$IDETITULO";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::q("UPDATE titulo_novedades_hallazgos SET NOM_TITULO_NOVEDADES_HALLAZGOS = ? WHERE ID_TITULO_NOVEDADES_HALLAZGOS = ?",
+                                       'si', array((string)$nombre, (int)$idTitulo));
         }
-        //Implementar un método para mostrar los datos de un registro a modificar
-        public function mostrar($IDETITULO)
+
+        //Un título, para cargarlo en el formulario
+        public function mostrar($idTitulo)
         {
-                $sql = "SELECT * FROM titulo_novedades_hallazgos WHERE ID_TITULO_NOVEDADES_HALLAZGOS='$IDETITULO'";
-                return ejecutarConsultaSimpleFila($sql);
+                return HanaDB::fila("SELECT * FROM titulo_novedades_hallazgos WHERE ID_TITULO_NOVEDADES_HALLAZGOS = ?", 'i', array((int)$idTitulo));
         }
-        //Implementar un método para listar los registros
+
+        //¿Otro título ya tiene ese nombre? (sin importar mayúsculas ni tildes)
+        public function nombreExiste($nombre, $excepto = 0)
+        {
+                return (bool)HanaDB::fila("SELECT 1 AS ok FROM titulo_novedades_hallazgos WHERE NOM_TITULO_NOVEDADES_HALLAZGOS = ? AND ID_TITULO_NOVEDADES_HALLAZGOS <> ?",
+                                          'si', array((string)$nombre, (int)$excepto));
+        }
+
+        //Todos los títulos (tabla de la pantalla)
         public function listar()
         {
-                $sql = "SELECT * FROM titulo_novedades_hallazgos";
-                return ejecutarConsulta($sql);
+                return ejecutarConsulta("SELECT * FROM titulo_novedades_hallazgos");
         }
-        //Implementar un método para listar los registros
+
+        //Los títulos activos (desplegable de Novedades)
         public function select()
         {
-                $sql = "SELECT * FROM titulo_novedades_hallazgos WHERE ESTADO=1";
-                return ejecutarConsulta($sql);
+                return ejecutarConsulta("SELECT * FROM titulo_novedades_hallazgos WHERE ESTADO=1");
         }
-        //Desactiva un título de novedad (no se borra)
-        public function desactivar($IDETITULO)
+
+        //Desactiva un título (no se borra: las novedades viejas lo siguen mostrando)
+        public function desactivar($idTitulo)
         {
-                $sql = "UPDATE titulo_novedades_hallazgos SET ESTADO=0 WHERE ID_TITULO_NOVEDADES_HALLAZGOS=$IDETITULO";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::q("UPDATE titulo_novedades_hallazgos SET ESTADO = 0 WHERE ID_TITULO_NOVEDADES_HALLAZGOS = ?", 'i', array((int)$idTitulo));
         }
-        //Vuelve a activar un título de novedad
-        public function activar($IDETITULO)
+
+        //Vuelve a activar un título
+        public function activar($idTitulo)
         {
-               $sql = "UPDATE titulo_novedades_hallazgos SET ESTADO=1 WHERE ID_TITULO_NOVEDADES_HALLAZGOS=$IDETITULO";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::q("UPDATE titulo_novedades_hallazgos SET ESTADO = 1 WHERE ID_TITULO_NOVEDADES_HALLAZGOS = ?", 'i', array((int)$idTitulo));
         }
-		
 }

@@ -58,15 +58,15 @@ if (isset($_SESSION['IdUsuarios'])) {
 (function ($) {
 
     //Escapa el texto para pintarlo como HTML sin riesgo
-    function seguro(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
+    function seguro(texto) { return $('<div>').text(texto == null ? '' : String(texto)).html(); }
 
     //Fecha legible: "17/09/2026 10:30"
-    function fechaLegible(f) {
-        var d = new Date(String(f).replace(' ', 'T'));
-        if (isNaN(d.getTime())) { return seguro(f); }
-        function dos(n) { return ('0' + n).slice(-2); }
-        return dos(d.getDate()) + '/' + dos(d.getMonth() + 1) + '/' + d.getFullYear() +
-               ' ' + dos(d.getHours()) + ':' + dos(d.getMinutes());
+    function fechaLegible(fecha) {
+        var momento = new Date(String(fecha).replace(' ', 'T'));
+        if (isNaN(momento.getTime())) { return seguro(fecha); }
+        function dos(numero) { return ('0' + numero).slice(-2); }
+        return dos(momento.getDate()) + '/' + dos(momento.getMonth() + 1) + '/' + momento.getFullYear() +
+               ' ' + dos(momento.getHours()) + ':' + dos(momento.getMinutes());
     }
 
     //Trae los avisos de los últimos 30 días y los pinta como tarjetas
@@ -81,16 +81,16 @@ if (isset($_SESSION['IdUsuarios'])) {
                 }
                 var html = '';
                 for (var i = 0; i < filas.length; i++) {
-                    var f = filas[i];
-                    var leida = parseInt(f.leida, 10) === 1;
+                    var aviso = filas[i];
+                    var leida = parseInt(aviso.leida, 10) === 1;
                     html += '<div class="hana-notif-fila' + (leida ? ' leida' : '') + '" data-id="' +
-                            parseInt(f.id, 10) + '" data-tipo="' + (f.tipo === 'rq' ? 'rq' : 'novedad') + '">' +
-                            '<span class="marca ' + seguro(f.prioridad) + '"></span>' +
+                            parseInt(aviso.id, 10) + '" data-tipo="' + (aviso.tipo === 'rq' ? 'rq' : 'novedad') + '">' +
+                            '<span class="marca ' + seguro(aviso.prioridad) + '"></span>' +
                             '<div class="texto">' +
-                            '<div class="titulo">' + seguro(f.titulo) +
+                            '<div class="titulo">' + seguro(aviso.titulo) +
                             (leida ? '' : '<span class="nueva">NUEVA</span>') + '</div>' +
-                            '<div class="detalle">' + seguro(f.estacion) + ' · Prioridad ' +
-                            seguro(f.relevancia) + ' · ' + fechaLegible(f.fecha) + '</div>' +
+                            '<div class="detalle">' + seguro(aviso.estacion) + ' · Prioridad ' +
+                            seguro(aviso.relevancia) + ' · ' + fechaLegible(aviso.fecha) + '</div>' +
                             '</div></div>';
                 }
                 cont.html(html);

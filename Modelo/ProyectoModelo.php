@@ -4,84 +4,89 @@
   ---------------------------------------------------------------------------
   Consultas de la tabla proyectos (las concesiones) y su coordinador.
   Lo usa Control/ProyectoControl.php.
+  El nombre se guarda como lo dejan los módulos de siempre, ya convertido para
+  HTML (ver Modelo/HanaTexto.php): «Peajes & Vías» queda «Peajes &amp; Vías».
 */
-//Incluímos inicialmente la conexión a la base de datos
 require "../Conexion/ConexionDB.php";
+require_once __DIR__ . '/HanaDB.php';
+require_once __DIR__ . '/HanaTexto.php'; //cómo se guardan los nombres
+
 class Proyecto
 {
-        //Implementamos el super constructor 
+        //Constructor vacío: la clase no guarda datos propios
         public function __construct()
         {
         }
-        //Implementamos un método para insertar registros
-        //$coordinador: id del colaborador que coordina el proyecto, o 0 si no tiene
-        public function insertar($nombreproyecto, $coordinador = 0)
+
+        //Crea un proyecto activo. $coordinador: la persona que lo coordina, o 0 si no tiene
+        public function insertar($nombre, $coordinador = 0)
         {
-                $coord = intval($coordinador) > 0 ? intval($coordinador) : 'NULL';
-                $sql = "INSERT INTO proyectos(NOM_PROYECTO,Estado,ID_COLABORADOR_COORDINADOR)
-                            VALUES ('$nombreproyecto','1',$coord)";
-                return ejecutarConsulta($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
+                return (bool)HanaDB::q("INSERT INTO proyectos (NOM_PROYECTO, ESTADO, ID_COLABORADOR_COORDINADOR) VALUES (?, '1', ?)",
+                                       'si', array((string)$nombre, intval($coordinador) > 0 ? intval($coordinador) : null));
         }
-        //Implementamos un método para editar registros
-        public function editar($id, $nombreproyecto, $coordinador = 0)
+
+        //Cambia el nombre y el coordinador (y lo deja activo)
+        public function editar($idProyecto, $nombre, $coordinador = 0)
         {
-                $coord = intval($coordinador) > 0 ? intval($coordinador) : 'NULL';
-                $sql = "UPDATE proyectos SET NOM_PROYECTO='$nombreproyecto', Estado='1',
-                               ID_COLABORADOR_COORDINADOR=$coord
-                         WHERE ID_PROYECTO=" . intval($id);
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::q("UPDATE proyectos SET NOM_PROYECTO = ?, ESTADO = '1', ID_COLABORADOR_COORDINADOR = ? WHERE ID_PROYECTO = ?",
+                                       'sii', array((string)$nombre, intval($coordinador) > 0 ? intval($coordinador) : null, (int)$idProyecto));
         }
-        //Implementar un método para mostrar los datos de un registro a modificar
-        public function mostrar($id)
+
+        //Un proyecto, para cargarlo en el formulario
+        public function mostrar($idProyecto)
         {
-                $sql = "SELECT * FROM proyectos WHERE ID_PROYECTO=" . intval($id);
-                return ejecutarConsultaSimpleFila($sql);
+                return HanaDB::fila("SELECT * FROM proyectos WHERE ID_PROYECTO = ?", 'i', array((int)$idProyecto));
         }
-        //Implementar un método para listar los registros
+
+        //¿Otro proyecto activo ya tiene ese nombre? (sin importar mayúsculas ni tildes)
+        public function nombreExiste($nombre, $excepto = 0)
+        {
+                return (bool)HanaDB::fila("SELECT 1 AS ok FROM proyectos WHERE NOM_PROYECTO = ? AND ESTADO = '1' AND ID_PROYECTO <> ?",
+                                          'si', array((string)$nombre, (int)$excepto));
+        }
+
+        //Todos los proyectos, con el nombre del coordinador (tabla de la pantalla)
         public function listar()
         {
-                //Con el nombre del coordinador, para mostrarlo en el listado
                 $sql = "SELECT p.*, c.NOM_COLABORADOR AS COORDINADOR
                           FROM proyectos p
                           LEFT JOIN colaboradores c ON c.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR";
                 return ejecutarConsulta($sql);
         }
-        //Implementamos un método para editar reasignar contraseña
-        public function anular($id)
+
+        //Desactiva un proyecto (no se borra)
+        public function anular($idProyecto)
         {
-                $sql = "UPDATE proyectos SET Estado=0 WHERE ID_PROYECTO=$id";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::q("UPDATE proyectos SET ESTADO = 0 WHERE ID_PROYECTO = ?", 'i', array((int)$idProyecto));
         }
-        //Colaboradores activos, para elegir coordinador (y jefe de centro)
+
+        //Colaboradores activos con su rol, para elegir coordinador (y jefe de centro)
         public function colaboradores()
         {
-                $sql = "SELECT c.ID_COLABORADOR AS id, c.NOM_COLABORADOR AS nombre, g.NOM_CARGO_COLABORADORES AS cargo
+                $sql = "SELECT c.ID_COLABORADOR AS id, c.NOM_COLABORADOR AS nombre, r.NOM_ROL_USUARIO_SISTEMA AS rol
                           FROM colaboradores c
-                          LEFT JOIN cargos_colaboradores g ON g.ID_CARGO_COLABORADORES = c.ID_CARGO_COLABORADORES_COLABORADORES
+                          LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
                          WHERE c.ESTADO = 1
                          ORDER BY c.NOM_COLABORADOR";
                 return ejecutarConsulta($sql);
         }
 
-        //¿Existe ese colaborador y está activo? Evita guardar un id inventado
-        public function colaboradorValido($id)
+        //¿Existe ese colaborador y está activo? Evita guardar un número inventado
+        public function colaboradorValido($idColaborador)
         {
-                $id = intval($id);
-                if ($id <= 0) { return false; }
-                $f = ejecutarConsultaSimpleFila("SELECT 1 AS ok FROM colaboradores WHERE ID_COLABORADOR = $id AND ESTADO = 1");
-                return (bool)$f;
+                if ((int)$idColaborador <= 0) { return false; }
+                return (bool)HanaDB::fila("SELECT 1 AS ok FROM colaboradores WHERE ID_COLABORADOR = ? AND ESTADO = 1", 'i', array((int)$idColaborador));
         }
 
-        //Proyectos activos para el buscador; si se escribió algo, filtra por el nombre
-        public function select($search_term)
+        //Proyectos activos para el buscador; si se escribió algo, solo los que lo contienen
+        public function buscar($loQueSeEscribio = '')
         {
-                if ($search_term === 0) {
-                        $sql = "SELECT * FROM proyectos WHERE Estado= '1' ORDER BY NOM_PROYECTO ASC";
-                        return ejecutarConsulta($sql);
+                if ((string)$loQueSeEscribio === '') {
+                        $filas = HanaDB::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos WHERE ESTADO = '1' ORDER BY NOM_PROYECTO ASC");
                 } else {
-                        $sql = "SELECT * FROM proyectos WHERE NOM_PROYECTO LIKE '%".$search_term."%' AND Estado= '1' ORDER BY NOM_PROYECTO ASC";
-                        return ejecutarConsulta($sql);
+                        $filas = HanaDB::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos WHERE ESTADO = '1' AND NOM_PROYECTO LIKE ? ORDER BY NOM_PROYECTO ASC",
+                                       's', array('%' . hanaTextoGuardado($loQueSeEscribio) . '%'));
                 }
-                
+                return $filas ? $filas : array();
         }
 }

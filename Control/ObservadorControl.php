@@ -1,5 +1,16 @@
 <?php
 /*
+  Archivo sin uso: la pantalla de Observadores se quitó (quien reporta la novedad
+  queda como quien la vio). Responde 410 ("Esta dirección ya no se usa.") y no
+  ejecuta nada; el código de abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Observadores de las novedades (controlador)
   ---------------------------------------------------------------------------
   Atiende las peticiones de Ajax/ObservadorAjax.js y responde con lo que
@@ -8,7 +19,7 @@
     guardar, mostrar, anular, activar, select y listar.
   Permiso: 9M. El desplegable (select) también lo usa Novedades.
 */
-session_start();//inicia la session, permite guardar variables de sesion
+session_start();//inicia la session, permite guardar variables de sesión
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('9M'), array('select')); //Observador: 9M. El selector lo usan novedades
 require_once "../Modelo/ObservadorModelo.php";//Utilizará este archivo

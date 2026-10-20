@@ -16,30 +16,30 @@
         var html = '';
         var orden = ['alta', 'media', 'baja'];
         for (var i = 0; i < orden.length; i++) {
-            var n = conteo[orden[i]] || 0;
-            if (n > 0) {
+            var cantidad = conteo[orden[i]] || 0;
+            if (cantidad > 0) {
                 //Más de 99 no cabe en el círculo: se muestra "99+"
-                var texto = n > 99 ? '99+' : n;
+                var texto = cantidad > 99 ? '99+' : cantidad;
                 html += '<span class="hana-punto hana-punto-' + orden[i] + '" ' +
-                        'title="' + n + ' de prioridad ' + orden[i] + '">' + texto + '</span>';
+                        'title="' + cantidad + ' de prioridad ' + orden[i] + '">' + texto + '</span>';
             }
         }
         return html;
     }
 
     //Escapa el texto antes de pintarlo: los títulos los escriben los usuarios
-    function seguro(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
+    function seguro(texto) { return $('<div>').text(texto == null ? '' : String(texto)).html(); }
 
     //"hace 5 min", "hace 2 h", "hace 3 días"
     function haceCuanto(fecha) {
-        var f = new Date(String(fecha).replace(' ', 'T'));
-        if (isNaN(f.getTime())) { return ''; }
-        var seg = Math.floor((new Date() - f) / 1000);
-        if (seg < 60) { return 'hace un momento'; }
-        if (seg < 3600) { return 'hace ' + Math.floor(seg / 60) + ' min'; }
-        if (seg < 86400) { return 'hace ' + Math.floor(seg / 3600) + ' h'; }
-        var d = Math.floor(seg / 86400);
-        return 'hace ' + d + (d === 1 ? ' día' : ' días');
+        var momento = new Date(String(fecha).replace(' ', 'T'));
+        if (isNaN(momento.getTime())) { return ''; }
+        var segundos = Math.floor((new Date() - momento) / 1000);
+        if (segundos < 60) { return 'hace un momento'; }
+        if (segundos < 3600) { return 'hace ' + Math.floor(segundos / 60) + ' min'; }
+        if (segundos < 86400) { return 'hace ' + Math.floor(segundos / 3600) + ' h'; }
+        var dias = Math.floor(segundos / 86400);
+        return 'hace ' + dias + (dias === 1 ? ' día' : ' días');
     }
 
     //Pinta la lista del menú desplegable
@@ -56,13 +56,13 @@
 
         var html = '';
         for (var i = 0; i < items.length; i++) {
-            var it = items[i];
-            html += '<li><a class="hana-campana-item" data-id="' + parseInt(it.id, 10) + '" data-tipo="' + (it.tipo === 'rq' ? 'rq' : 'novedad') + '">' +
-                    '<span class="marca ' + seguro(it.prioridad) + '"></span>' +
+            var item = items[i];
+            html += '<li><a class="hana-campana-item" data-id="' + parseInt(item.id, 10) + '" data-tipo="' + (item.tipo === 'rq' ? 'rq' : 'novedad') + '">' +
+                    '<span class="marca ' + seguro(item.prioridad) + '"></span>' +
                     '<span class="texto">' +
-                    '<div class="titulo">' + seguro(it.titulo) + '</div>' +
-                    '<div class="detalle">' + seguro(it.estacion) + ' · ' +
-                    seguro(it.relevancia) + ' · ' + haceCuanto(it.fecha) + '</div>' +
+                    '<div class="titulo">' + seguro(item.titulo) + '</div>' +
+                    '<div class="detalle">' + seguro(item.estacion) + ' · ' +
+                    seguro(item.relevancia) + ' · ' + haceCuanto(item.fecha) + '</div>' +
                     '</span></a></li>';
         }
         //Si hay más de las que caben, se avisa
@@ -77,21 +77,21 @@
     //Pide al servidor el resumen y actualiza la campana y el menú lateral
     function actualizar() {
         $.ajax({ url: URL + '?op=resumen', dataType: 'json', global: false })
-            .done(function (d) {
-                var puntos = circulos(d.conteo);
+            .done(function (respuesta) {
+                var puntos = circulos(respuesta.conteo);
                 $('#puntosCampana').html(puntos);
                 $('#puntosMenu').html(puntos);
 
                 //Si el total subió, la campana suena una vez
                 var campana = $('#hanaCampana');
-                if (ultimoTotal >= 0 && d.total > ultimoTotal) {
+                if (ultimoTotal >= 0 && respuesta.total > ultimoTotal) {
                     campana.removeClass('tiene-nuevas');
                     void campana[0].offsetWidth; //reinicia la animación
                 }
-                campana.toggleClass('tiene-nuevas', d.total > 0);
-                ultimoTotal = d.total;
+                campana.toggleClass('tiene-nuevas', respuesta.total > 0);
+                ultimoTotal = respuesta.total;
 
-                pintarLista(d.items || [], d.total);
+                pintarLista(respuesta.items || [], respuesta.total);
             })
             .fail(function (xhr) {
                 //401 = la sesión venció. Se deja de preguntar hasta que vuelva a entrar
@@ -142,15 +142,15 @@
         iniciar();
 
         //Clic en una notificación
-        $(document).on('click', '.hana-campana-item', function (e) {
-            e.preventDefault();
+        $(document).on('click', '.hana-campana-item', function (evento) {
+            evento.preventDefault();
             abrir($(this).data('id'), $(this).data('tipo'));
         });
 
         //Marcar todas como leídas
-        $(document).on('click', '#campanaTodas', function (e) {
-            e.preventDefault();
-            e.stopPropagation(); //que el menú no se cierre
+        $(document).on('click', '#campanaTodas', function (evento) {
+            evento.preventDefault();
+            evento.stopPropagation(); //que el menú no se cierre
             $.ajax({ url: URL + '?op=leerTodas', type: 'POST', dataType: 'json', global: false })
                 .always(actualizar);
         });

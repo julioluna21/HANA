@@ -7,50 +7,50 @@
 */
 require "../Conexion/ConexionDB.php";
 class grupos{
-     //Implementamos el super constructor 
+     //Constructor vacío: la clase no guarda datos propios
      public function __construct()
      {
      }
-     //Implementamos un método para insertar registros
+     //Crea un tipo de lista de chequeo
      public function insertar($nombreLista)
      {
              $sql = "INSERT INTO grupo_lista_chequeo(NOM_GRUPO_LISTA_CHEQUEO,ESTADO)
                          VALUES ('$nombreLista','1')";
-             return ejecutarConsulta($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
+             return ejecutarConsulta($sql); //ejecutarConsulta está en Conexion/ConexionDB.php
      }
-     //Implementamos un método para editar registros
+     //Cambia el nombre de un tipo de lista
      public function editar($id, $nombreLista)
      {
              $sql = "UPDATE grupo_lista_chequeo SET NOM_GRUPO_LISTA_CHEQUEO='$nombreLista', ESTADO='1' where 
                  ID_GRUPO_LISTA_CHEQUEO=$id";
              return ejecutarConsulta($sql);
      }
-     //Implementar un método para mostrar los datos de un registro a modificar
+     //Un tipo de lista, para cargarlo en el formulario
      public function mostrar($id)
      {
              $sql = "SELECT * FROM grupo_lista_chequeo WHERE ID_GRUPO_LISTA_CHEQUEO='$id'";
              return ejecutarConsultaSimpleFila($sql);
      }
-     //Implementar un método para listar los registros
+     //Todos los tipos de lista
      public function listar()
      {
              $sql = "SELECT * FROM grupo_lista_chequeo";
              return ejecutarConsulta($sql);
      }
-     //Implementamos un método para editar reasignar contraseña
+     //Desactiva un tipo de lista (no se borra)
      public function anular($id)
      {
              $sql = "UPDATE grupo_lista_chequeo SET ESTADO=0 WHERE ID_GRUPO_LISTA_CHEQUEO=$id";
              return ejecutarConsulta($sql);
      }
      //Listas activas para el buscador; si se escribió algo, filtra por el nombre
-     public function select($search_term)
+     public function select($busqueda)
      {
-             if ($search_term === 0) {
+             if ($busqueda === 0) {
                      $sql = "SELECT * FROM grupo_lista_chequeo WHERE ESTADO= '1' ORDER BY NOM_GRUPO_LISTA_CHEQUEO ASC";
                      return ejecutarConsulta($sql);
              } else {
-                     $sql = "SELECT * FROM grupo_lista_chequeo WHERE NOM_GRUPO_LISTA_CHEQUEO LIKE '%".$search_term."%' AND ESTADO= '1' ORDER BY NOM_GRUPO_LISTA_CHEQUEO ASC";
+                     $sql = "SELECT * FROM grupo_lista_chequeo WHERE NOM_GRUPO_LISTA_CHEQUEO LIKE '%".$busqueda."%' AND ESTADO= '1' ORDER BY NOM_GRUPO_LISTA_CHEQUEO ASC";
                      return ejecutarConsulta($sql);
              }
              

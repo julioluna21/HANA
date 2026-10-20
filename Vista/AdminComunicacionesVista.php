@@ -31,7 +31,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           </div>
           <div class="adm-resumen" id="admResumen"></div>
           <div class="table-responsive" id="admResultado"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-            <thead><tr><th>Tipo</th><th>Proyecto</th><th>ID / radicado</th><th>Recepción</th><th>Medio</th><th>Remitente</th><th>Asunto / respuesta</th><th>Responsable</th><th>Atención</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Estado</th></tr></thead><tbody id="admFilas"><tr><td colspan="12" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
+            <thead><tr><th>Tipo</th><th>Proyecto</th><th>ID / radicado</th><th>Recepción</th><th>Medio</th><th>Remitente</th><th>Asunto / respuesta</th><th>Registró</th><th>Atención</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Estado</th></tr></thead><tbody id="admFilas"><tr><td colspan="12" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
         </div>
       </div>
     </div>
@@ -52,7 +52,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=8"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

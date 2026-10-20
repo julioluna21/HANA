@@ -30,10 +30,10 @@ define('HANA_FOTO_CALIDAD', 82);
 function hanaArchivoMime($bytes)
 {
     if (function_exists('finfo_open')) {
-        $fi = finfo_open(FILEINFO_MIME_TYPE);
-        $m = finfo_buffer($fi, $bytes);
-        finfo_close($fi);
-        if ($m) { return $m; }
+        $inspector = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_buffer($inspector, $bytes);
+        finfo_close($inspector);
+        if ($mime) { return $mime; }
     }
     $info = @getimagesizefromstring($bytes);
     if ($info && !empty($info['mime'])) { return $info['mime']; }
@@ -45,10 +45,10 @@ function hanaFotoDerecha($img, $bytes)
 {
     if (!function_exists('exif_read_data')) { return $img; }
     $exif = @exif_read_data('data://image/jpeg;base64,' . base64_encode($bytes));
-    $o = ($exif && isset($exif['Orientation'])) ? (int)$exif['Orientation'] : 1;
-    if ($o === 3) { return imagerotate($img, 180, 0); }
-    if ($o === 6) { return imagerotate($img, -90, 0); }
-    if ($o === 8) { return imagerotate($img, 90, 0); }
+    $orientacion = ($exif && isset($exif['Orientation'])) ? (int)$exif['Orientation'] : 1;
+    if ($orientacion === 3) { return imagerotate($img, 180, 0); }
+    if ($orientacion === 6) { return imagerotate($img, -90, 0); }
+    if ($orientacion === 8) { return imagerotate($img, 90, 0); }
     return $img;
 }
 
@@ -60,16 +60,16 @@ function hanaFotoLiviana($bytes, $mime)
     if ($mime === 'image/jpeg' && !function_exists('exif_read_data')) { return null; }
     $info = @getimagesizefromstring($bytes);
     if (!$info) { return null; }
-    list($w, $h) = $info;
-    if (strlen($bytes) <= HANA_FOTO_PESO_MAX && max($w, $h) <= HANA_FOTO_LADO_MAX) { return null; }
+    list($ancho, $alto) = $info;
+    if (strlen($bytes) <= HANA_FOTO_PESO_MAX && max($ancho, $alto) <= HANA_FOTO_LADO_MAX) { return null; }
     $img = @imagecreatefromstring($bytes);
     if (!$img) { return null; }
-    if ($mime === 'image/jpeg') { $img = hanaFotoDerecha($img, $bytes); $w = imagesx($img); $h = imagesy($img); }
-    $k = min(1, HANA_FOTO_LADO / max($w, $h));
-    $nw = max(1, (int)round($w * $k)); $nh = max(1, (int)round($h * $k));
-    $lienzo = imagecreatetruecolor($nw, $nh);
+    if ($mime === 'image/jpeg') { $img = hanaFotoDerecha($img, $bytes); $ancho = imagesx($img); $alto = imagesy($img); }
+    $escala = min(1, HANA_FOTO_LADO / max($ancho, $alto));
+    $anchoNuevo = max(1, (int)round($ancho * $escala)); $altoNuevo = max(1, (int)round($alto * $escala));
+    $lienzo = imagecreatetruecolor($anchoNuevo, $altoNuevo);
     imagefill($lienzo, 0, 0, imagecolorallocate($lienzo, 255, 255, 255)); //lo transparente queda blanco
-    imagecopyresampled($lienzo, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    imagecopyresampled($lienzo, $img, 0, 0, 0, 0, $anchoNuevo, $altoNuevo, $ancho, $alto);
     ob_start();
     imagejpeg($lienzo, null, HANA_FOTO_CALIDAD);
     $nuevo = ob_get_clean();
@@ -98,17 +98,17 @@ function hanaArchivoCabe($texto)
 //Mensaje para un archivo que no cabe: dice hasta cuánto acepta hoy la base
 function hanaArchivoMuyGrande($nombre)
 {
-    $mb = max(0.1, round(Archivo::maxPaquete() / 1.37 / 1048576, 1));
-    return '«' . $nombre . '» es muy pesado para guardarlo en la base de datos (hoy acepta hasta ' . $mb . ' MB por archivo). '
+    $megas = max(0.1, round(Archivo::maxPaquete() / 1.37 / 1048576, 1));
+    return '«' . $nombre . '» es muy pesado para guardarlo en la base de datos (hoy acepta hasta ' . $megas . ' MB por archivo). '
          . 'Súbelo más liviano o pide al administrador que suba max_allowed_packet en MariaDB.';
 }
 
 //Separa el texto guardado en tipo y contenido. null si no es un texto "data:...;base64,..."
 function hanaArchivoPartes($valor)
 {
-    if (!is_string($valor) || !preg_match('#^data:([a-zA-Z0-9.+/-]+);base64,#', $valor, $m)) { return null; }
-    $bytes = base64_decode(substr($valor, strlen($m[0])));
-    return ($bytes === false) ? null : array($m[1], $bytes);
+    if (!is_string($valor) || !preg_match('#^data:([a-zA-Z0-9.+/-]+);base64,#', $valor, $partes)) { return null; }
+    $bytes = base64_decode(substr($valor, strlen($partes[0])));
+    return ($bytes === false) ? null : array($partes[1], $bytes);
 }
 
 //Entrega el archivo: en el navegador ($enLinea) o como descarga, con su nombre

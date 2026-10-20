@@ -103,7 +103,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <h4 class="cd-sub-imprimir">Comunicaciones abiertas</h4> <!-- al imprimir, el título va primero en su hoja -->
               <div id="cdComProy"></div>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>Tipo</th><th>Recepción</th><th>Remitente</th><th>Asunto</th><th>Responsable</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Pendiente de</th></tr></thead>
+                <thead><tr><th>Tipo</th><th>Recepción</th><th>Remitente</th><th>Asunto</th><th>Registró</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Pendiente de</th></tr></thead>
                 <tbody id="tbCom"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabRq">
@@ -156,7 +156,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=10"></script>
-<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=14"></script>
+<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=17"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

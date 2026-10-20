@@ -5,115 +5,100 @@
   Atiende las peticiones de Ajax/GruposListasnAjax.js y Ajax/Editarpreguntasajax.js y responde con lo que
   trae el modelo (Modelo/GruposListasModelo.php).
   Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
-    guardar, mostrar, mostrarPreguntas, anular, select y listar.
+    guardar, mostrar, anular, select y listar.
   Permiso: 12M para cambiarlas; con 11M solo se consultan.
 */
 session_start();
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
-hanaGuardia(array('12M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M')); //Cambiar listas: 12M; verlas: 11M o 12M
+hanaGuardia(array('12M'), array('select', 'mostrar', 'listar'), array(), array('11M', '12M')); //Cambiar listas: 12M; verlas: 11M o 12M
 require_once "../Modelo/GruposListasModelo.php";
 require_once "../Modelo/PreguntasListasModelo.php";
 $Grupos = new grupos;
-$Preguntas = new preguntas;
-// Obtiene los datos del formulario de datos.
+//Lo que llega del formulario
 $idLista=isset($_POST['idLista'])? limpiarCadena($_POST['idLista']):'';
 $nombreLista = isset($_POST["nombre"])? limpiarCadena($_POST['nombre']):'';
-//$preguntasRespuestas = isset($_POST["preguntasRespuestas"])?$_POST["preguntasRespuestas"]:'';
 
-switch ($_GET["op"]) {
+switch (isset($_GET["op"]) ? $_GET["op"] : '') {
   //Crea una lista de chequeo nueva o le cambia el nombre a una existente
   case 'guardar':
     try {
       if (empty($idLista)) {
-        $rspta=$Grupos->insertar($nombreLista);
-            echo $rspta? http_response_code(200) : http_response_code(400);
+        $resultado=$Grupos->insertar($nombreLista);
+            echo $resultado? http_response_code(200) : http_response_code(400);
        } else {  
-        $rspta=$Grupos->editar($idLista, $nombreLista);
-        $rspta? http_response_code(200) : http_response_code(400);
+        $resultado=$Grupos->editar($idLista, $nombreLista);
+        $resultado? http_response_code(200) : http_response_code(400);
        }
-    } catch (\Throwable $th) {
+    } catch (\Throwable $error) {
       http_response_code(404);
-      echo json_encode($th);
+      echo json_encode($error);
     }  
     break;
   
   //Trae una lista de chequeo para cargarla en el formulario
   case 'mostrar':
     try {
-      $rspta=$Grupos->mostrar($idLista);
-      $rspta ? http_response_code(200) : http_response_code(400);
-      echo json_encode($rspta);
-    } catch (\Throwable $th) {
+      $resultado=$Grupos->mostrar($idLista);
+      $resultado ? http_response_code(200) : http_response_code(400);
+      echo json_encode($resultado);
+    } catch (\Throwable $error) {
       http_response_code(404);
-      echo json_encode($th);
+      echo json_encode($error);
     }
     break;
-  
-    /*case 'mostrarPreguntas':
-      try {
-        $rsmostrar = [];
-        $rspta1 = $Preguntas->mostrar($idLista);
-        $rspta1 ? http_response_code(200):http_response_code(400);
-        foreach ($rspta1 as $key) {
-            $rsmostrar[]=$key;
-        }
-        echo json_encode($rsmostrar);
-      } catch (\Throwable $th) {
-        http_response_code(404);
-        echo json_encode($th);
-      }
-      break;*/
+
+  //Desactiva un tipo de lista (no se borra)
   case 'anular':
-    $rspta=$Grupos->anular($idLista);
-    $rspta? http_response_code(200):http_response_code(400);
+    $resultado=$Grupos->anular($idLista);
+    $resultado? http_response_code(200):http_response_code(400);
     break;
   //Opciones del buscador de listas de chequeo (filtra por lo que se escriba)
   case 'select':
-      $search_term = isset($_GET['search'])?$_GET['search']:'0';
+      $busqueda = isset($_GET['search'])?$_GET['search']:'0';
       try {
-        $rspta=$Grupos->select($search_term);
-        $userData = array();
-        if ($rspta->num_rows >0) {
-          while ($row = $rspta->fetch_assoc()) {
-            $data['id'] = $row['ID_GRUPO_LISTA_CHEQUEO'];
-            $data['nombre'] = $row['NOM_GRUPO_LISTA_CHEQUEO'];
-            array_push($userData, $data);
+        $resultado=$Grupos->select($busqueda);
+        $filasRespuesta = array();
+        if ($resultado->num_rows >0) {
+          while ($fila = $resultado->fetch_assoc()) {
+            $opcion['id'] = $fila['ID_GRUPO_LISTA_CHEQUEO'];
+            $opcion['nombre'] = $fila['NOM_GRUPO_LISTA_CHEQUEO'];
+            array_push($filasRespuesta, $opcion);
           }
         }
-        echo json_encode($userData);
-      } catch (\Throwable $th) {
+        echo json_encode($filasRespuesta);
+      } catch (\Throwable $error) {
         http_response_code(404);
-        echo json_encode($th);
+        echo json_encode($error);
       }
     break;
-  //Todas las listas activas para la tabla
+  //Todos los tipos de lista, para la tabla de la pantalla
   case 'listar':
     try {
-      $rspta= $Grupos->listar();
-      $userData = array();
-        while ($row = $rspta->fetch_object()) {
-          $userData[] = array(
-            "0"=>$row->ID_GRUPO_LISTA_CHEQUEO,
-            "1"=>$row->NOM_GRUPO_LISTA_CHEQUEO,
-            "2"=>$row->ESTADO == 1?"Activo":"Inactivo",
-            "3"=>'<SPAN title="Editar"><button class="btn btn-success" onclick="mostrar('.$row->ID_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-eye"></i></button></SPAN>
-            <SPAN title="anular"><button type="button" class="btn btn-success" onclick="anular('.$row->ID_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-trash-o"></i></button></SPAN>
-            <SPAN tittle="Agregar Preguntas"><button type="button" id="addPreguntas" class="btn btn-primary" data-toggle="modal" data-target="#modal-preguntas" data-idGrupo="'.$row->ID_GRUPO_LISTA_CHEQUEO.'">
+      $resultado= $Grupos->listar();
+      $filasRespuesta = array();
+        while ($fila = $resultado->fetch_object()) {
+          $filasRespuesta[] = array(
+            "0"=>$fila->ID_GRUPO_LISTA_CHEQUEO,
+            "1"=>$fila->NOM_GRUPO_LISTA_CHEQUEO,
+            "2"=>$fila->ESTADO == 1?"Activo":"Inactivo",
+            "3"=>'<SPAN title="Editar"><button class="btn btn-success" onclick="mostrar('.$fila->ID_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-eye"></i></button></SPAN>
+            <SPAN title="anular"><button type="button" class="btn btn-success" onclick="anular('.$fila->ID_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-trash-o"></i></button></SPAN>
+            <SPAN title="Agregar preguntas"><button type="button" id="addPreguntas" class="btn btn-primary" data-toggle="modal" data-target="#modal-preguntas" data-idGrupo="'.$fila->ID_GRUPO_LISTA_CHEQUEO.'">
                 Agregar preguntas
-            </button></SPAN> <SPAN tittle="Agregar desde Excel"><button type="button" id="addExcel" class="btn btn-primary" data-toggle="modal" data-target="#modal-excel" data-idGrupo="'.$row->ID_GRUPO_LISTA_CHEQUEO.'">
+            </button></SPAN> <SPAN title="Agregar desde Excel"><button type="button" id="addExcel" class="btn btn-primary" data-toggle="modal" data-target="#modal-excel" data-idGrupo="'.$fila->ID_GRUPO_LISTA_CHEQUEO.'">
             Agregar desde Excel
         </button></SPAN>'
           );
         }
-        $results = array(
+        $respuesta = array(
           "sEcho"=> 1,
-          "iTotalRecords"=>count($userData),
-          "iTotalDisplayRecords"=>count($userData),
-          "aaData"=>$userData);
-          echo json_encode($results);
-    } catch (\Throwable $th) {
+          "iTotalRecords"=>count($filasRespuesta),
+          "iTotalDisplayRecords"=>count($filasRespuesta),
+          "aaData"=>$filasRespuesta);
+          echo json_encode($respuesta);
+    } catch (\Throwable $error) {
       http_response_code(404);
-      echo json_encode($th);
+      echo json_encode($error);
     }
     break;
 }

@@ -47,8 +47,9 @@ define('PERMISO_ASIGNAR_NOVEDAD',     '42M'); //asignar una novedad a una person
 
 //La persona que tiene la sesión
 function hanaIdColaborador() { return isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0; }
-//Id del usuario que inició sesión (0 si no hay sesión)
-function hanaIdUsuario()     { return isset($_SESSION['IdUsuarios']) ? (int)$_SESSION['IdUsuarios'] : 0; }
+//El usuario que inició sesión. El usuario vive en la misma fila de la persona
+//(colaboradores), así que es el mismo número que hanaIdColaborador()
+function hanaIdUsuario()     { return hanaIdColaborador(); }
 
 //Rol del usuario que inició sesión. La sesión no lo guardaba, así que se
 //consulta una vez y queda guardado en la sesión
@@ -99,9 +100,9 @@ function hanaVeTodo($idColaborador = null)
     $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
     if ($id <= 0 || $id !== hanaIdColaborador() || !isset($_SESSION['Modulos'])) { return false; }
     if (hanaTienePermiso('24M')) { return true; }
-    $m = isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : '';
-    $p = hanaPermisosModulo();
-    return $m !== '' && isset($p[$m]) && hanaTienePermiso($p[$m]);
+    $modulo = isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : '';
+    $casillas = hanaPermisosModulo();
+    return $modulo !== '' && isset($casillas[$modulo]) && hanaTienePermiso($casillas[$modulo]);
 }
 
 //¿Esta persona coordina algún proyecto? (si no se pasa nadie, se pregunta por quien tiene la sesión)
@@ -131,9 +132,9 @@ function hanaPuedeModulo($modulo)
     if (hanaIdColaborador() <= 0) { return false; }
     $antes = isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : '';
     hanaUsarModulo($modulo);
-    $si = hanaEsCoordinador();
+    $esCoordinador = hanaEsCoordinador();
     hanaUsarModulo($antes);
-    return $si;
+    return $esCoordinador;
 }
 
 //¿Ese día lo puede registrar o corregir la persona de la sesión? (hoy, o un día habilitado)
@@ -145,7 +146,7 @@ function hanaEnVentana($fecha) { return HanaFechas::enVentana($fecha, hanaIdCola
 function hanaPromesaEntrar()
 {
     if (hanaIdColaborador() <= 0 || !isset($_SESSION['Modulos']) || !HanaConfig::modulo('PROMESA')) { return false; }
-    foreach (array('20M', '21M', '22M', '39M', '40M') as $p) { if (hanaTienePermiso($p)) { return true; } } //consultan o definen en todos los proyectos
+    foreach (array('20M', '21M', '22M', '39M', '40M') as $casilla) { if (hanaTienePermiso($casilla)) { return true; } } //consultan o definen en todos los proyectos
     if (hanaPuedeModulo('PROMESA')) { return true; }                                                           //coordinador, ADMIN TEC o casilla 38M
     //El jefe de peaje, solo si el administrador deja que registre el ejecutado de su peaje
     return HanaConfig::si('PV_JEFES_REGISTRAN', false) && Organizacion::esJefeDePeaje(hanaIdColaborador());

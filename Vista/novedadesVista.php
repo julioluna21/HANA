@@ -5,7 +5,7 @@
   Pantalla para registrar novedades, asignarlas, seguirlas y cerrarlas con su foto.
   La pantalla es solo el HTML: lo que hace cada botón está en Ajax/novedadnuevoAjax.js
   y los datos los entrega Control/NovedadesControl.php.
-  Permiso: 10M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+  Permiso: 10M (sin sesión va al inicio de sesión; sin el permiso, a la pantalla de inicio).
 */
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
@@ -44,7 +44,7 @@ include('head.php');
 </style>
 
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -100,11 +100,6 @@ include('head.php');
                               </select> 
                             </div>
                            
-                            <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                                <label>Observador hallazgo:</label>
-                                <select name="observador" id="observador" class="form-control"  required>     
-                              </select> 
-                              </div>
                           
                         </div> 
                
@@ -144,8 +139,10 @@ include('head.php');
                          <div class="row">
                              
                           <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                               <label>Descripción novedad:</label>
-                              <textarea class="form-control" name="novedad" id="novedad" required></textarea>
+                               <label for="novedad">Descripción novedad:</label>
+                              <!-- Máximo 600 caracteres (lo que cabe en la base); el contador dice cuántos quedan -->
+                              <textarea class="form-control" name="novedad" id="novedad" maxlength="600" required></textarea>
+                              <small id="novedadQuedan" style="color:#6B7076;">Máximo 600 caracteres.</small>
                                  
                             </div>
                              
@@ -153,15 +150,15 @@ include('head.php');
                              <!-- La foto es obligatoria: se puede tomar con la cámara y queda una vista previa -->
                              <label for="miarchivo2">Foto de evidencia: <span style="color:#6E1A1E;">*</span></label>
                              <SPAN class="miarchivo2">
-                                 <!-- accept: solo imagenes. El atributo capture NO se pone aqui:
-                                      si estuviera, el celular abriria siempre la camara y no
-                                      dejaria elegir una foto ya tomada. Lo pone y lo quita el
-                                      JavaScript segun el boton que se oprima -->
+                                 <!-- accept: solo imágenes. El atributo capture NO se pone aqui:
+                                      si estuviera, el celular abriría siempre la cámara y no
+                                      dejaría elegir una foto ya tomada. Lo pone y lo quita el
+                                      JavaScript según el botón que se oprima -->
                                  <input type="file" name="miarchivo2" id="miarchivo2" accept="image/*" required>
                              </SPAN>
                              <div class="hana-foto">
                                  <!-- Dos caminos: tomar la foto en el momento, o buscar una que
-                                      ya este en el telefono o en el computador -->
+                                      ya este en el teléfono o en el computador -->
                                  <button type="button" class="hana-foto-boton" id="imagenbt" data-campo="#miarchivo2" data-modo="camara">
                                      <i class="fa fa-camera" aria-hidden="true"></i> Tomar foto
                                  </button>
@@ -208,7 +205,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nueva novedad
               </button>
             </SPAN>
@@ -318,9 +315,9 @@ include('head.php');
             
               
              <link href="../public/css/chat.css" rel="stylesheet">
-             <!-- chat.css se carga aqui, DESPUES de head.php, asi que sus colores y su
+             <!-- chat.css se carga aquí, DESPUES de head.php, así que sus colores y su
                   regla ".row{display:-webkit-box}" ganaban sobre los nuestros. Por eso
-                  se vuelven a cargar nuestras hojas justo despues: asi mandan las de HANA -->
+                  se vuelven a cargar nuestras hojas justo despues: así mandan las de HANA -->
              <link href="../public/css/comun.css?v=1" rel="stylesheet">
              <link href="../public/css/paleta.css?v=1" rel="stylesheet">
              <!-- Estilos de la pantalla de novedades: foto con vista previa y estados visibles -->
@@ -355,7 +352,7 @@ include('head.php');
                             <!-- El asterisco solo para quien SI esta obligado a elegir estado:
                                  el servidor permite responder sin estado a quien tiene permiso
                                  de auditoria, que a veces solo deja un comentario -->
-                            <label class="hana-resp-titulo">Estado de la respuesta:<?php if($_SESSION['Audititoria']!=1){ ?> <span style="color:#6E1A1E;">*</span><?php } ?></label>
+                            <label class="hana-resp-titulo">Estado de la respuesta:<?php if($_SESSION['Auditoria']!=1){ ?> <span style="color:#6E1A1E;">*</span><?php } ?></label>
                             <div class="hana-resp-estados">
                                 <label class="hana-resp-estado hana-resp-proceso">
                                     <input type="radio" name="estadoNovedad" id="estadoProceso" value="2">
@@ -365,7 +362,7 @@ include('head.php');
                                     <input type="radio" name="estadoNovedad" id="estadoFinalizada" value="3">
                                     <span><i class="fa fa-check" aria-hidden="true"></i> Finalizada</span>
                                 </label>
-<?php if($_SESSION['Audititoria']==1){ ?>
+<?php if($_SESSION['Auditoria']==1){ ?>
                                 <label class="hana-resp-estado hana-resp-cerrada">
                                     <input type="radio" name="estadoNovedad" id="estadoCerrada" value="4">
                                     <span><i class="fa fa-lock" aria-hidden="true"></i> Cerrada</span>
@@ -394,9 +391,9 @@ include('head.php');
                             <textarea class="form-control hana-resp-texto" placeholder="Escribe tu respuesta a la novedad" name="novedad" id="nrespuesta" rows="3" required></textarea>
 
                             <input type="hidden" id="IDnovedad" name="IDnovedad">
-<?php echo $_SESSION['Audititoria']==1
-        ? '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="1">'
-        : '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="0">'; ?>
+                            <!-- 1 si la persona puede cerrar novedades (permiso de auditoría). Solo lo usa la
+                                 pantalla; el servidor revisa el permiso con la sesión -->
+                            <input type="hidden" id="esAuditoria" value="<?php echo $_SESSION['Auditoria'] == 1 ? '1' : '0'; ?>">
 
                             <button class="btn btn-success hana-resp-enviar" type="submit" id="btnenvio">
                                 <i class="fa fa-paper-plane"></i> Enviar respuesta
@@ -422,7 +419,7 @@ include('head.php');
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/novedadnuevoAjax.js"></script>
+<script type="text/javascript" src="../Ajax/novedadnuevoAjax.js?v=2"></script>
 <script>
     
     
@@ -431,7 +428,7 @@ include('footer.php');
 <?php
 }else{
   echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     
 }

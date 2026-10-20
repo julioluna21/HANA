@@ -5,17 +5,17 @@
   Pantalla para crear los tipos de lista de chequeo y administrar sus preguntas.
   La pantalla es solo el HTML: lo que hace cada botón está en Ajax/GruposListasnAjax.js
   y los datos los entrega Control/GruposListasControl.php.
-  Permiso: 12M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+  Permiso: 12M (sin sesión va al inicio de sesión; sin el permiso, a la pantalla de inicio).
 */
 session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
-    if (in_array("12M",$modulosAcceso) or isset($_GET["op"])) {
+    if (in_array("12M",$modulosAcceso)) {
         include('head.php');
 ?>
         <!-- Estilos de la carga masiva de preguntas -->
         <link href="../public/css/csv.css?v=1" rel="stylesheet">
-        <!-- Contenido aqui va todo el DIV del contenido.. -->
+        <!-- Contenido de la pantalla -->
         <div class="right_col" role="main">
             <div class="">
                 <div class="clearfix"></div>
@@ -85,20 +85,6 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                                     <label for="posicion-pregunta">Posición</label>
                                                                     <select class="form-control" id="posicion-pregunta">
                                                                         <option value="final">Al final</option>
-                                                                    </select>
-                                                                </div>
-<div class="form-group" id="novedad">
-                                                                    <label for="genera-novedad">¿La pregunta genera novedad?</label>
-                                                                    <select class="form-control" id="genera-novedad">
-                                                                        <option value="">Seleccione una opción</option>
-                                                                        <option value="1">Sí</option>
-                                                                        <option value="0">No</option>
-                                                                    </select>
-                                                                </div>
-																<div class="form-group" id="titulo">
-                                                                    <label for="Titulo-novedad">Título asociado</label>
-                                                                    <select class="form-control" id="Titulo-novedad">
-                                                                        
                                                                     </select>
                                                                 </div>
                                                                 </form>
@@ -181,7 +167,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                                         <span class="hana-csv-nombre" id="csvNombre"></span>
                                                                     </form>
 
-                                                                    <!-- Aqui el navegador muestra la vista previa -->
+                                                                    <!-- Aquí el navegador muestra la vista previa -->
                                                                     <div id="csvPrevia"></div>
                                                                 </div>
                                                             </div>
@@ -235,7 +221,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                     <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                                                         <!--Al hacer click, muestra el formulario-->
                                                         <i class="fa fa-plus-square">
-                                                            <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                                                            <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                                                         </i> Nueva lista
                                                     </button>
                                                 </SPAN>
@@ -269,10 +255,10 @@ if (isset($_SESSION['IdUsuarios'])) {
         <?php
         include('footer.php');
         ?>
-        <script type="text/javascript" src="../Ajax/GruposListasnAjax.js?v=5"></script>
+        <script type="text/javascript" src="../Ajax/GruposListasnAjax.js?v=7"></script>
         <script type="text/javascript">
-        //Esta funcion se define aqui a proposito: si el navegador tiene cacheado
-        //GruposListasnAjax.js, el boton igual sigue funcionando
+        //Esta función se define aquí a proposito: si el navegador tiene cacheado
+        //GruposListasnAjax.js, el botón igual sigue funcionando
         function irAEditarTodas() {
             //El ID se lee del campo oculto del formulario, no de una variable en memoria
             var id = $("#idLista").val() || window.grupoActual;
@@ -283,8 +269,8 @@ if (isset($_SESSION['IdUsuarios'])) {
                 return;
             }
 
-            //Se le agrega ?idLista= a la URL actual antes de salir. Asi, al presionar
-            //"atras" en el navegador, se regresa aqui con la lista ya abierta
+            //Se le agrega ?idLista= a la URL actual antes de salir. Así, al presionar
+            //"atras" en el navegador, se regresa aquí con la lista ya abierta
             try {
                 history.replaceState(null, "", "GruposListasVista.php?idLista=" + encodeURIComponent(id));
             } catch (e) {
@@ -297,7 +283,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             window.location.href = "Editarpreguntasvista.php?idGrupo=" + encodeURIComponent(id);
         }
 
-        //Al cargar la pagina se revisa si viene ?idLista= en la URL
+        //Al cargar la página se revisa si viene ?idLista= en la URL
         $(function () {
             var params = new URLSearchParams(window.location.search);
             var idLista = params.get("idLista");
@@ -311,7 +297,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 <?php
     } else {
         echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     }
 } else {

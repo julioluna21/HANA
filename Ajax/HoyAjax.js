@@ -14,34 +14,34 @@ var NOMBRES_DIA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 //---------------------------------------------------------------------------
 // Utilidades
 //---------------------------------------------------------------------------
-function esc(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
+function esc(texto) { return $('<div>').text(texto == null ? '' : String(texto)).html(); }
 //Número con dos dígitos: 7 -> "07"
-function dos(n) { return ('0' + n).slice(-2); }
+function dos(numero) { return ('0' + numero).slice(-2); }
 
 //"2026-09-07" -> Date local (sin el desfase de UTC)
-function aFecha(txt) { var p = txt.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function aFecha(texto) { var partes = texto.split('-'); return new Date(+partes[0], +partes[1] - 1, +partes[2]); }
 //De fecha a texto "2026-09-07", y sumar días a una fecha en texto
-function aTexto(d) { return d.getFullYear() + '-' + dos(d.getMonth() + 1) + '-' + dos(d.getDate()); }
-function sumarDias(txt, n) { var d = aFecha(txt); d.setDate(d.getDate() + n); return aTexto(d); }
+function aTexto(fecha) { return fecha.getFullYear() + '-' + dos(fecha.getMonth() + 1) + '-' + dos(fecha.getDate()); }
+function sumarDias(texto, cantidad) { var fecha = aFecha(texto); fecha.setDate(fecha.getDate() + cantidad); return aTexto(fecha); }
 
 //"07:40:00" -> "07:40"
-function hhmm(t) { return t ? String(t).substring(0, 5) : ''; }
+function hhmm(hora) { return hora ? String(hora).substring(0, 5) : ''; }
 
 //"2026-09-07" -> "Lun 07/09"
-function diaCorto(txt) {
-    var d = aFecha(txt);
-    return NOMBRES_DIA[d.getDay()] + ' ' + dos(d.getDate()) + '/' + dos(d.getMonth() + 1);
+function diaCorto(texto) {
+    var fecha = aFecha(texto);
+    return NOMBRES_DIA[fecha.getDay()] + ' ' + dos(fecha.getDate()) + '/' + dos(fecha.getMonth() + 1);
 }
 
 //Un texto largo, recortado para que quepa en una celda de la tabla
-function recortar(t, max) {
-    t = String(t == null ? '' : t).replace(/\s+/g, ' ');
-    return t.length > max ? t.substring(0, max - 1) + '…' : t;
+function recortar(texto, max) {
+    texto = String(texto == null ? '' : texto).replace(/\s+/g, ' ');
+    return texto.length > max ? texto.substring(0, max - 1) + '…' : texto;
 }
 
 //El mensaje de error que mandó el servidor, o uno general si no vino ninguno
 function mensajeError(xhr, base) {
-    try { return JSON.parse(xhr.responseText).error || base; } catch (e) { return base; }
+    try { return JSON.parse(xhr.responseText).error || base; } catch (error) { return base; }
 }
 
 //---------------------------------------------------------------------------
@@ -61,32 +61,32 @@ $(function () {
     rdVigilarCambios('#formHoy');
     //Botones rápidos: "Hoy" y uno por cada día que el administrador habilitó
     $(document).on('click', '#hoyRapido [data-fecha]', function () {
-        var f = $(this).data('fecha');
-        irADia(f === 'hoy' ? cfgHoy.hoy : f);
+        var fechaElegida = $(this).data('fecha');
+        irADia(fechaElegida === 'hoy' ? cfgHoy.hoy : fechaElegida);
     });
 
     $.getJSON(URL_HOY + '?op=config')
-        .done(function (c) {
-            cfgHoy = c;
+        .done(function (config) {
+            cfgHoy = config;
             pintarSituaciones();
             pintarCentros();
 
             //Año y mes de "Mi mes": del año pasado al actual
-            var anioHoy = +c.hoy.substring(0, 4), h = '';
-            for (var a = anioHoy; a >= anioHoy - 1; a--) { h += '<option value="' + a + '">' + a + '</option>'; }
-            $('#mesAnio').html(h).val(String(anioHoy));
-            $('#mesMes').val(String(+c.hoy.substring(5, 7)));
+            var anioHoy = +config.hoy.substring(0, 4), html = '';
+            for (var anio = anioHoy; anio >= anioHoy - 1; anio--) { html += '<option value="' + anio + '">' + anio + '</option>'; }
+            $('#mesAnio').html(html).val(String(anioHoy));
+            $('#mesMes').val(String(+config.hoy.substring(5, 7)));
 
             //Lo normal es que el último día sea hoy; si hay un día habilitado más adelante, ese
-            c.habilitados = c.habilitados || [];
-            ultimoDiaHoy = c.hoy;
-            c.habilitados.forEach(function (f) { if (f > ultimoDiaHoy) { ultimoDiaHoy = f; } });
+            config.habilitados = config.habilitados || [];
+            ultimoDiaHoy = config.hoy;
+            config.habilitados.forEach(function (fechaHabilitada) { if (fechaHabilitada > ultimoDiaHoy) { ultimoDiaHoy = fechaHabilitada; } });
             $('#hoyFecha').attr('max', ultimoDiaHoy);
             pintarHabilitados();
 
             //Se puede llegar con ?fecha=AAAA-MM-DD (desde "Mi mes" o el tablero)
             var pedida = new URLSearchParams(window.location.search).get('fecha');
-            cargarDia(/^\d{4}-\d{2}-\d{2}$/.test(pedida || '') && pedida <= ultimoDiaHoy ? pedida : c.hoy);
+            cargarDia(/^\d{4}-\d{2}-\d{2}$/.test(pedida || '') && pedida <= ultimoDiaHoy ? pedida : config.hoy);
             cargarMes();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir el reporte.'); });
@@ -112,34 +112,34 @@ $(function () {
 // Situaciones y centros
 //---------------------------------------------------------------------------
 function pintarSituaciones() {
-    var h = '';
+    var html = '';
     $.each(cfgHoy.situaciones, function (codigo, nombre) {
-        h += '<label class="hoy-sit hoy-sit-' + esc(codigo.toLowerCase()) + '">' +
+        html += '<label class="hoy-sit hoy-sit-' + esc(codigo.toLowerCase()) + '">' +
              '<input type="radio" name="situacion" value="' + esc(codigo) + '"> <span>' + esc(nombre) + '</span></label>';
     });
-    $('#hoySituaciones').html(h);
+    $('#hoySituaciones').html(html);
 }
 
 //Los centros asignados, agrupados por proyecto, como casillas grandes
 function pintarCentros() {
-    var c = cfgHoy.centros || [];
-    if (!c.length) {
+    var centros = cfgHoy.centros || [];
+    if (!centros.length) {
         $('#hoyCentros').html('<p class="rd-ayuda">Tus proyectos no tienen peajes activos. Puedes escribir el lugar en "Otro lugar".</p>');
         return;
     }
-    var h = '', grupo = null;
-    for (var i = 0; i < c.length; i++) {
-        if (c[i].NOM_PROYECTO !== grupo) {
-            if (grupo !== null) { h += '</div>'; }
-            grupo = c[i].NOM_PROYECTO;
-            h += '<div class="hoy-grupo"><span class="hoy-grupo-nom">' + esc(grupo) + '</span>';
+    var html = '', grupo = null;
+    for (var i = 0; i < centros.length; i++) {
+        if (centros[i].NOM_PROYECTO !== grupo) {
+            if (grupo !== null) { html += '</div>'; }
+            grupo = centros[i].NOM_PROYECTO;
+            html += '<div class="hoy-grupo"><span class="hoy-grupo-nom">' + esc(grupo) + '</span>';
         }
-        var tipo = (c[i].TIPO_CENTRO || 'PEAJE');
-        h += '<label class="hoy-chip"><input type="checkbox" name="centros[]" value="' + parseInt(c[i].ID_CENTRO_OP, 10) + '">' +
-             '<span>' + (tipo === 'BASCULA' ? '<i class="fa fa-balance-scale"></i> ' : '') + esc(c[i].NOM_CENTRO_OP) + '</span></label>';
+        var tipo = (centros[i].TIPO_CENTRO || 'PEAJE');
+        html += '<label class="hoy-chip"><input type="checkbox" name="centros[]" value="' + parseInt(centros[i].ID_CENTRO_OP, 10) + '">' +
+             '<span>' + (tipo === 'BASCULA' ? '<i class="fa fa-balance-scale"></i> ' : '') + esc(centros[i].NOM_CENTRO_OP) + '</span></label>';
     }
-    h += '</div>';
-    $('#hoyCentros').html(h);
+    html += '</div>';
+    $('#hoyCentros').html(html);
 }
 
 //Muestra los campos de trabajo solo si la situación del día es LABORAL
@@ -153,12 +153,12 @@ function mostrarLaboral() {
 //---------------------------------------------------------------------------
 function pintarHabilitados() {
     $('#hoyRapido [data-habilitado]').remove(); //se vuelven a pintar desde cero
-    var h = '';
-    (cfgHoy.habilitados || []).forEach(function (f) {
-        h += '<button type="button" class="btn btn-default btn-sm" data-habilitado="1" data-fecha="' + esc(f) + '" title="El administrador te habilitó este día">' +
-             '<i class="fa fa-unlock"></i> ' + esc(diaCorto(f)) + '</button>';
+    var html = '';
+    (cfgHoy.habilitados || []).forEach(function (fechaHabilitada) {
+        html += '<button type="button" class="btn btn-default btn-sm" data-habilitado="1" data-fecha="' + esc(fechaHabilitada) + '" title="El administrador te habilitó este día">' +
+             '<i class="fa fa-unlock"></i> ' + esc(diaCorto(fechaHabilitada)) + '</button>';
     });
-    $('#hoyRapido').append(h);
+    $('#hoyRapido').append(html);
 }
 
 //---------------------------------------------------------------------------
@@ -166,30 +166,30 @@ function pintarHabilitados() {
 //---------------------------------------------------------------------------
 function cargarDia(fecha) {
     $.getJSON(URL_HOY + '?op=obtener&fecha=' + encodeURIComponent(fecha))
-        .done(function (d) {
-            diaHoy = d.fecha;
-            editableHoy = !!d.editable;
-            var r = d.registro;
+        .done(function (respuesta) {
+            diaHoy = respuesta.fecha;
+            editableHoy = !!respuesta.editable;
+            var registro = respuesta.registro;
 
             $('#hoyFecha').val(diaHoy);
             $('#btnDiaSiguiente').prop('disabled', diaHoy >= ultimoDiaHoy);
-            $('#hoyEstado').html(r
+            $('#hoyEstado').html(registro
                 ? '<span class="rd-tag rd-tag-ok"><i class="fa fa-check"></i> Registrado</span>'
                 : '<span class="rd-tag rd-tag-pend"><i class="fa fa-clock-o"></i> Sin registrar</span>');
             $('#hoyConsulta').toggle(!editableHoy);
 
             //Llenar el formulario
             $('#formHoy')[0].reset();
-            $('input[name="situacion"][value="' + (r ? r.SITUACION : 'LABORAL') + '"]').prop('checked', true);
-            $('#hoyIngreso').val(r ? hhmm(r.HORA_INGRESO) : '');
-            $('#hoySalida').val(r ? hhmm(r.HORA_SALIDA) : '');
-            $('#hoyLugarOtro').val(r && r.LUGAR_OTRO ? r.LUGAR_OTRO : '');
-            $('#hoyActividad').val(r && r.ACTIVIDAD ? r.ACTIVIDAD : ''); //qué hizo en el día
-            $('#hoyObservacion').val(r && r.OBSERVACION ? r.OBSERVACION : '');
+            $('input[name="situacion"][value="' + (registro ? registro.SITUACION : 'LABORAL') + '"]').prop('checked', true);
+            $('#hoyIngreso').val(registro ? hhmm(registro.HORA_INGRESO) : '');
+            $('#hoySalida').val(registro ? hhmm(registro.HORA_SALIDA) : '');
+            $('#hoyLugarOtro').val(registro && registro.LUGAR_OTRO ? registro.LUGAR_OTRO : '');
+            $('#hoyActividad').val(registro && registro.ACTIVIDAD ? registro.ACTIVIDAD : ''); //qué hizo en el día
+            $('#hoyObservacion').val(registro && registro.OBSERVACION ? registro.OBSERVACION : '');
             $('input[name="centros[]"]').prop('checked', false);
-            if (r) {
-                for (var i = 0; i < r.CENTROS.length; i++) {
-                    $('input[name="centros[]"][value="' + parseInt(r.CENTROS[i], 10) + '"]').prop('checked', true);
+            if (registro) {
+                for (var i = 0; i < registro.CENTROS.length; i++) {
+                    $('input[name="centros[]"][value="' + parseInt(registro.CENTROS[i], 10) + '"]').prop('checked', true);
                 }
             }
             //Solo consulta: todo queda bloqueado y sin botón de guardar
@@ -200,8 +200,8 @@ function cargarDia(fecha) {
             $('.hoy-fila-mes').removeClass('activa').filter('[data-fecha="' + diaHoy + '"]').addClass('activa');
             //Hoy o un día habilitado: marca el botón del día que se está viendo
             $('#hoyRapido [data-fecha]').removeClass('active').each(function () {
-                var f = $(this).data('fecha');
-                if ((f === 'hoy' ? cfgHoy.hoy : f) === diaHoy) { $(this).addClass('active'); }
+                var fechaElegida = $(this).data('fecha');
+                if ((fechaElegida === 'hoy' ? cfgHoy.hoy : fechaElegida) === diaHoy) { $(this).addClass('active'); }
             });
             rdCambiosGuardados(); //acaba de cargarse: todavía no hay cambios
         })
@@ -211,11 +211,11 @@ function cargarDia(fecha) {
 //---------------------------------------------------------------------------
 // Guardar
 //---------------------------------------------------------------------------
-function guardarDia(e) {
-    e.preventDefault();
-    var sit = $('input[name="situacion"]:checked').val();
-    if (!sit) { alert('Elige la situación del día.'); return; }
-    if (sit === 'LABORAL') {
+function guardarDia(evento) {
+    evento.preventDefault();
+    var situacion = $('input[name="situacion"]:checked').val();
+    if (!situacion) { alert('Elige la situación del día.'); return; }
+    if (situacion === 'LABORAL') {
         if (!$('#hoyIngreso').val()) { alert('Escribe la hora de ingreso.'); $('#hoyIngreso').focus(); return; }
         if (!$('input[name="centros[]"]:checked').length && !$.trim($('#hoyLugarOtro').val())) {
             alert('Marca al menos un peaje o escribe en qué otro lugar estuviste.'); return;
@@ -223,13 +223,13 @@ function guardarDia(e) {
         if (!$.trim($('#hoyActividad').val())) { alert('Escribe qué hiciste hoy.'); $('#hoyActividad').focus(); return; }
     }
 
-    var fd = new FormData($('#formHoy')[0]);
-    fd.append('fecha', diaHoy);
+    var formulario = new FormData($('#formHoy')[0]);
+    formulario.append('fecha', diaHoy);
     hanaBoton('#btnGuardarHoy', true);
-    $.ajax({ url: URL_HOY + '?op=guardar', type: 'POST', data: fd, contentType: false, processData: false, dataType: 'json' })
-        .done(function (r) {
+    $.ajax({ url: URL_HOY + '?op=guardar', type: 'POST', data: formulario, contentType: false, processData: false, dataType: 'json' })
+        .done(function (respuesta) {
             rdCambiosGuardados();
-            rdAviso(r.mensaje);
+            rdAviso(respuesta.mensaje);
             cargarDia(diaHoy);
             cargarMes();
         })
@@ -243,36 +243,36 @@ function guardarDia(e) {
 function cargarMes() {
     var anio = +$('#mesAnio').val(), mes = +$('#mesMes').val();
     $.getJSON(URL_HOY + '?op=mes&anio=' + anio + '&mes=' + mes)
-        .done(function (d) {
+        .done(function (respuesta) {
             var porDia = {};
-            for (var i = 0; i < d.filas.length; i++) { porDia[d.filas[i].FECHA] = d.filas[i]; }
+            for (var i = 0; i < respuesta.filas.length; i++) { porDia[respuesta.filas[i].FECHA] = respuesta.filas[i]; }
 
             var primero = anio + '-' + dos(mes) + '-01';
             var ultimo = aTexto(new Date(anio, mes, 0));
             if (ultimo > ultimoDiaHoy) { ultimo = ultimoDiaHoy; } //se muestra hasta hoy (o hasta un día habilitado más adelante)
 
-            var h = '', registrados = 0, faltan = 0;
+            var html = '', registrados = 0, faltan = 0;
             for (var dia = primero; dia <= ultimo; dia = sumarDias(dia, 1)) {
-                var f = porDia[dia];
-                if (f) {
+                var registroDia = porDia[dia];
+                if (registroDia) {
                     registrados++;
-                    var sit = cfgHoy.situaciones[f.SITUACION] || f.SITUACION;
-                    var lab = f.SITUACION === 'LABORAL';
-                    var donde = [f.LUGARES, f.LUGAR_OTRO].filter(function (x) { return x; }).join(' · ');
-                    h += '<tr class="hoy-fila-mes" data-fecha="' + dia + '">' +
+                    var situacion = cfgHoy.situaciones[registroDia.SITUACION] || registroDia.SITUACION;
+                    var esLaboral = registroDia.SITUACION === 'LABORAL';
+                    var donde = [registroDia.LUGARES, registroDia.LUGAR_OTRO].filter(function (lugar) { return lugar; }).join(' · ');
+                    html += '<tr class="hoy-fila-mes" data-fecha="' + dia + '">' +
                          '<td>' + diaCorto(dia) + '</td>' +
-                         '<td><span class="hoy-sit-tag hoy-sit-' + esc(f.SITUACION.toLowerCase()) + '">' + esc(sit) + '</span></td>' +
-                         '<td>' + (lab ? esc(donde) : '') + '</td>' +
-                         '<td>' + (lab ? esc(hhmm(f.HORA_INGRESO)) + (f.HORA_SALIDA ? ' – ' + esc(hhmm(f.HORA_SALIDA)) : ' – …') : '') + '</td>' +
-                         '<td class="hoy-mes-actividad">' + (lab ? esc(recortar(f.ACTIVIDAD, 110)) : '') + '</td></tr>';
+                         '<td><span class="hoy-sit-tag hoy-sit-' + esc(registroDia.SITUACION.toLowerCase()) + '">' + esc(situacion) + '</span></td>' +
+                         '<td>' + (esLaboral ? esc(donde) : '') + '</td>' +
+                         '<td>' + (esLaboral ? esc(hhmm(registroDia.HORA_INGRESO)) + (registroDia.HORA_SALIDA ? ' – ' + esc(hhmm(registroDia.HORA_SALIDA)) : ' – …') : '') + '</td>' +
+                         '<td class="hoy-mes-actividad">' + (esLaboral ? esc(recortar(registroDia.ACTIVIDAD, 110)) : '') + '</td></tr>';
                 } else {
                     faltan++;
-                    h += '<tr class="hoy-fila-mes hoy-falta" data-fecha="' + dia + '">' +
+                    html += '<tr class="hoy-fila-mes hoy-falta" data-fecha="' + dia + '">' +
                          '<td>' + diaCorto(dia) + '</td><td colspan="4"><span class="rd-tag rd-tag-pend">Sin registrar</span></td></tr>';
                 }
             }
-            $('#mesFilas').html(h || '<tr><td colspan="5" class="rd-vacio">Este mes todavía no empieza.</td></tr>');
-            $('#mesResumen').html(h ? '<span class="rd-tag rd-tag-ok">' + registrados + ' registrados</span> ' +
+            $('#mesFilas').html(html || '<tr><td colspan="5" class="rd-vacio">Este mes todavía no empieza.</td></tr>');
+            $('#mesResumen').html(html ? '<span class="rd-tag rd-tag-ok">' + registrados + ' registrados</span> ' +
                                       (faltan ? '<span class="rd-tag rd-tag-pend">' + faltan + ' sin registrar</span>' : '') : '');
             $('.hoy-fila-mes[data-fecha="' + diaHoy + '"]').addClass('activa');
         })

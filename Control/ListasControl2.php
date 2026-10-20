@@ -335,7 +335,7 @@ switch ($_GET["op"]) {
     //contar ok
     case "contar":
       try{
-        $rspta=$Novedades->centrosOP($_SESSION['IdUsuarios']);//Carga la rspta con lista de articulos
+        $rspta=$Novedades->centrosOP($_SESSION['IdUsuarios']);//Carga la rspta con lista de artículos
                      $centrosoperativos= Array();
                      while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
                      {
@@ -396,9 +396,9 @@ switch ($_GET["op"]) {
     break;
          
         
-    case 'listarPorCentro'://activado por el ajax en el scrip articulos  
+    case 'listarPorCentro'://activado por el ajax en el scrip artículos  
                           
-       $rspta=$Listas->centrosOP($_SESSION['IdUsuarios']);//Carga la rspta con lista de articulos
+       $rspta=$Listas->centrosOP($_SESSION['IdUsuarios']);//Carga la rspta con lista de artículos
        $centrosoperativos= Array();
        while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
        {

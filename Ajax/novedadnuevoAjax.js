@@ -5,23 +5,24 @@
 var tabla;//variable global
 var vistaNov = 'mias'; //"mias" = Mis registros; "todas" = lo que mi rol puede ver
 var novedadesPrimeraCarga = true;  //solo la primera carga puede cambiar el filtro sola
-var suprimirCambioFiltro = false;  //evita que el cambio automatico vuelva a listar
+var suprimirCambioFiltro = false;  //evita que el cambio automático vuelva a listar
 //Función que se ejecuta al inicio
 function init()
 {
+    contadorDescripcion();
     mostrarcontenedor(true);
     mostrarform(false)
     //El listado inicial lo decide decidirFiltroInicial(), mas abajo: primero hay
     //que saber si este usuario tiene novedades asignadas
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
+//al oprimir el botón del formulario
+    $("#demo-form2").on("submit",function(evento) //evento: el envío del formulario
     {
-            guardar(e);//guarda o edita el registro
+            guardar(evento);//guarda o edita el registro
     });
     
-    $("#respuesta").on("submit",function(e)//e = variable que contiene el objeto
+    $("#respuesta").on("submit",function(evento) //evento: el envío del formulario
     {
-            respuesta(e);//guarda la respuesta de la novedad
+            respuesta(evento);//guarda la respuesta de la novedad
     });
     
     $.post("../Control/TituloControl.php?op=select",function(data){
@@ -48,10 +49,6 @@ function init()
         }
     });
     
-     $.post("../Control/ObservadorControl.php?op=select",function(data){
-        $("#observador").html(data);
-    });
-    
      $.post("../Control/EstadoControl.php?op=select",function(data){
         $("#prioridad").html(data);
     });
@@ -66,11 +63,6 @@ $('#titulo').select2({
 });
     
 $('#centroop').select2({
-    width: '100%' ,
-    
-});
-    
-$('#observador').select2({
     width: '100%' ,
     
 });
@@ -100,8 +92,8 @@ $('#validador').select2({
         condiciones();
     });
 
-    //Los filtros se aplican solos al cambiarlos. El boton de buscar sigue ahi
-    //para quien lo use, sobre todo despues de escribir las fechas
+    //Los filtros se aplican solos al cambiarlos. El botón de buscar sigue ahí
+    //para quien lo use, sobre todo después de escribir las fechas
     $("#validador, #validador2").on("change", function () {
         if (suprimirCambioFiltro) { return; } //lo cambio el sistema, no el usuario
         avisoFiltro(false); //el usuario ya tomo el control del filtro
@@ -109,14 +101,14 @@ $('#validador').select2({
     });
 
     //La foto de la novedad y la del cierre pasan por el mismo tratamiento:
-    //vista previa, nombre del archivo y reduccion de peso antes de enviarla
+    //vista previa, nombre del archivo y reducción de peso antes de enviarla
     prepararFoto("#miarchivo2", "#imagenbt", "#fotoPrevia", "#fotoPreviaImg", "#fotoNombre", "#fotoQuitar");
     prepararFoto("#miarchivo", "#imagenbt2", "#fotoPrevia2", "#fotoPreviaImg2", "#fotoNombre2", "#fotoQuitar2");
 
     //Botones de foto: "Tomar foto" y "Elegir de mis archivos".
     //El atributo capture se pone y se quita justo antes de abrir el campo:
-    //con capture el celular va directo a la camara; sin el, muestra el
-    //explorador con las fotos ya tomadas. Asi el usuario elige el camino
+    //con capture el celular va directo a la cámara; sin el, muestra el
+    //explorador con las fotos ya tomadas. Así el usuario elige el camino
     $(document).on("click", ".hana-foto-boton", function () {
         var campo = $($(this).data("campo"));
         if (!campo.length) { return; }
@@ -139,7 +131,7 @@ function mostrarform(flag)
 {
     limpiar()
     if (flag)
-    {//partes de la pagina que se muestran o se ocultan
+    {//partes de la página que se muestran o se ocultan
             $('#formularioregistros').show();
             $('#listadoregistros').hide();
             $("#btnGuardar").prop("disabled",false);
@@ -158,7 +150,7 @@ function mostrarform(flag)
 function mostrarcontenedor(flag)
 {
     if (flag)
-    {//partes de la pagina que se muestran o se ocultan
+    {//partes de la página que se muestran o se ocultan
             $('#tablasform').show();
             $('#novedadeschat').hide();
             mostrarform(false);
@@ -181,7 +173,7 @@ function cancelarform()
 function limpiar()
 {
     document.getElementById("demo-form2").reset();
-    $('#titulo,#centroop,#observador,#prioridad,#colaborador').val("").trigger('change');
+    $('#titulo,#centroop,#prioridad,#colaborador').val("").trigger('change');
     //Se usa limpiarFoto para que el botón, la vista previa y el archivo
     //queden todos en el mismo estado
     limpiarFoto("#miarchivo2", "#imagenbt", "#fotoPrevia");
@@ -210,13 +202,13 @@ function listar(validador,validador2,fechai,fechaf)
                     ],
         //El idioma completo de las tablas se define una sola vez en Ajax/ComunAjax.js
         
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/NovedadesControl.php?op=listar&vista='+vistaNov+'&validador='+validador+"&validador2="+validador2+"&fechai="+fechai+"&fechaf="+fechaf,//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
+                                    url: '../Control/NovedadesControl.php?op=listar&vista='+vistaNov+'&validador='+validador+"&validador2="+validador2+"&fechai="+fechai+"&fechaf="+fechaf,//página que realiza la operación
+                                    type : "get",//tipo de envío de datos
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -227,9 +219,9 @@ function listar(validador,validador2,fechai,fechaf)
     
 }
 //Función para guardar o editar
-function guardar(e)
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -262,15 +254,15 @@ function guardar(e)
 }
 
 //Guarda la respuesta a la novedad, con el estado elegido y la foto si la hay
-function respuesta(e)
+function respuesta(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
 
     //El estado se lee del botón marcado
     var estado=$("input[name='estadoNovedad']:checked").val() || "";
-    var permisoau=$("#esdaoauditoria").val();
+    var esAuditoria=$("#esAuditoria").val(); //1 si puede cerrar novedades: puede responder sin escoger estado
     var id=$("#IDnovedad").val();
-    if(estado!="" || permisoau==1){
+    if(estado!="" || esAuditoria==1){
 
        hanaBoton("#btnenvio", true, "Enviando...");
        var formData = new FormData($("#respuesta")[0]);
@@ -409,6 +401,23 @@ function condiciones()
 
 
 
+//Cuántos caracteres le quedan a la descripción de la novedad (máximo 600).
+//Se cambia de color cuando quedan pocos, para que no sorprenda el límite
+function contadorDescripcion()
+{
+    var campo = $("#novedad"), aviso = $("#novedadQuedan");
+    if (!campo.length || !aviso.length) { return; }
+    var maximo = parseInt(campo.attr("maxlength"), 10) || 600;
+    var pintar = function () {
+        var quedan = maximo - campo.val().length;
+        aviso.text(quedan === maximo ? "Máximo " + maximo + " caracteres." : "Te quedan " + quedan + " de " + maximo + " caracteres.")
+             .css("color", quedan <= 50 ? "#6E1A1E" : "#6B7076");
+    };
+    campo.on("input", pintar);
+    campo.closest("form").on("reset", function () { setTimeout(pintar, 0); });
+    pintar();
+}
+
 init();//ejecuta la función init
 
 //=================================================================
@@ -421,7 +430,7 @@ init();//ejecuta la función init
 var FOTO_LADO_MAX = 1600; //lado mayor de la imagen enviada, en pixeles
 var FOTO_CALIDAD  = 0.72; //calidad del JPEG: por debajo de esto se nota
 
-//Deja listo un campo de foto: vista previa, nombre y reduccion de peso
+//Deja listo un campo de foto: vista previa, nombre y reducción de peso
 function prepararFoto(campo, boton, previa, imagen, nombre, quitar) {
     var $campo = $(campo);
     if (!$campo.length) { return; }
@@ -445,13 +454,13 @@ function prepararFoto(campo, boton, previa, imagen, nombre, quitar) {
             //Se reemplaza el archivo del formulario por el ya reducido
             if (comprimida && window.DataTransfer) {
                 try {
-                    var dt = new DataTransfer();
-                    dt.items.add(comprimida);
-                    $campo[0].files = dt.files;
-                } catch (e) {
-                    //Si el navegador no lo permite se envia la original: es mas
+                    var transferencia = new DataTransfer();
+                    transferencia.items.add(comprimida);
+                    $campo[0].files = transferencia.files;
+                } catch (error) {
+                    //Si el navegador no lo permite se envía la original: es mas
                     //lento, pero no se pierde la foto
-                    console.log("No se pudo reemplazar el archivo:", e);
+                    console.log("No se pudo reemplazar el archivo:", error);
                 }
             }
 
@@ -462,8 +471,8 @@ function prepararFoto(campo, boton, previa, imagen, nombre, quitar) {
             //Vista previa con el nombre y el peso final
             var lector = new FileReader();
             //Cuando termina de leer la foto, la muestra como vista previa con su nombre y tamaño
-            lector.onload = function (e) {
-                $(imagen).attr("src", e.target.result);
+            lector.onload = function (evento) {
+                $(imagen).attr("src", evento.target.result);
                 $(nombre).text(usada.name + "  (" + Math.round(usada.size / 1024) + " KB)");
                 $(previa).show();
             };
@@ -471,7 +480,7 @@ function prepararFoto(campo, boton, previa, imagen, nombre, quitar) {
         });
     });
 
-    //Boton para descartar la foto elegida
+    //Botón para descartar la foto elegida
     $(quitar).on("click", function () { limpiarFoto(campo, boton, previa); });
 }
 
@@ -491,19 +500,19 @@ function limpiarFoto(campo, boton, previa, previa2) {
 //Reduce el tamano y el peso de una imagen usando el navegador.
 //Devuelve el archivo nuevo; si algo falla, devuelve el original
 function comprimirImagen(archivo, alTerminar) {
-    //Las imagenes ya livianas no se tocan: recomprimir solo les quita calidad
+    //Las imágenes ya livianas no se tocan: recomprimir solo les quita calidad
     if (archivo.size < 400 * 1024) { alTerminar(archivo); return; }
 
     var lector = new FileReader();
     //Si el archivo no se puede leer como imagen, se sube tal como viene
     lector.onerror = function () { alTerminar(archivo); };
-    lector.onload = function (e) {
+    lector.onload = function (evento) {
         var img = new Image();
         img.onerror = function () { alTerminar(archivo); };
         //La foto se achica antes de subirla, conservando la proporción
         img.onload = function () {
             try {
-                //Se calcula el tamano nuevo conservando la proporcion
+                //Se calcula el tamano nuevo conservando la proporción
                 var ancho = img.width, alto = img.height;
                 var mayor = Math.max(ancho, alto);
                 if (mayor > FOTO_LADO_MAX) {
@@ -526,19 +535,19 @@ function comprimirImagen(archivo, alTerminar) {
                     var nuevo;
                     try {
                         nuevo = new File([blob], nombre, { type: "image/jpeg", lastModified: Date.now() });
-                    } catch (e) {
+                    } catch (error) {
                         //Navegadores viejos no permiten crear un File
                         blob.name = nombre;
                         nuevo = blob;
                     }
                     alTerminar(nuevo);
                 }, "image/jpeg", FOTO_CALIDAD);
-            } catch (err) {
-                console.log("No se pudo reducir la foto:", err);
+            } catch (error) {
+                console.log("No se pudo reducir la foto:", error);
                 alTerminar(archivo);
             }
         };
-        img.src = e.target.result;
+        img.src = evento.target.result;
     };
     lector.readAsDataURL(archivo);
 }
@@ -577,14 +586,14 @@ function fijarVista(vista) {
 //Carga los roles del selector "Rol a notificar" y ajusta el nombre del botón de vista
 function cargarRolesNovedad() {
     $.getJSON('../Control/NovedadesControl.php?op=roles')
-        .done(function (d) {
-            var h = '<option value="">Selecciona el rol...</option>';
-            for (var i = 0; i < d.roles.length; i++) {
-                h += '<option value="' + parseInt(d.roles[i].id, 10) + '">' + $('<div>').text(d.roles[i].nombre).html() + '</option>';
+        .done(function (datos) {
+            var html = '<option value="">Selecciona el rol...</option>';
+            for (var i = 0; i < datos.roles.length; i++) {
+                html += '<option value="' + parseInt(datos.roles[i].id, 10) + '">' + $('<div>').text(datos.roles[i].nombre).html() + '</option>';
             }
-            $('#rolDestino').html(h);
+            $('#rolDestino').html(html);
             //Quien tiene el permiso ve todas; los demás, las de su rol
-            $('#vistaNovedades .hana-vista-todas').text(d.verTodas ? 'Todas las novedades' : 'Las de mi rol');
+            $('#vistaNovedades .hana-vista-todas').text(datos.verTodas ? 'Todas las novedades' : 'Las de mi rol');
         })
         .fail(function () { $('#rolDestino').html('<option value="">No se pudieron cargar los roles</option>'); });
 }

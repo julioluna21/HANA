@@ -1,5 +1,5 @@
 //Ausentismo:la matriz novedades × días de cada cargo, como en el Excel,
-//y el registro rápido: una ausencia a la vez (día, cargo, motivo y personas)
+//y el registro rápido: cómo se cubrió cada falta, una a la vez (día, cargo, qué pasó y personas)
 var URL_AUS = '../Control/AusentismoControl.php';
 var cfgAus = null, proyAus = null, centroAus = null, datosAus = null;
 var cambiosAus = {};        //"cargo-novedad-dia" => cantidad (solo lo que cambió)
@@ -7,15 +7,15 @@ var DIA_SEMANA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
 $(function () {
     $.getJSON(URL_AUS + '?op=config')
-        .done(function (c) {
-            cfgAus = c;
-            rdPeriodo('#aMes', '#aAnio', c.hoy);
-            if (!c.veTodos) { $('#consAlcance option[value="todos"]').remove(); } //el consolidado de todos los proyectos: 20M, 21M, 22M y 25M
-            var h = '';
-            c.proyectos.forEach(function (p) {
-                h += '<option value="' + parseInt(p.ID_PROYECTO, 10) + '">' + rdEsc(p.NOM_PROYECTO) + (p.COORDINA ? ' (el tuyo)' : (p.EDITABLE && !p.VE_PROYECTO ? ' (tu peaje)' : '')) + '</option>';
+        .done(function (config) {
+            cfgAus = config;
+            rdPeriodo('#aMes', '#aAnio', config.hoy);
+            if (!config.veTodos) { $('#consAlcance option[value="todos"]').remove(); } //el consolidado de todos los proyectos: 20M, 21M, 22M y 25M
+            var html = '';
+            config.proyectos.forEach(function (proyecto) {
+                html += '<option value="' + parseInt(proyecto.ID_PROYECTO, 10) + '">' + rdEsc(proyecto.NOM_PROYECTO) + (proyecto.COORDINA ? ' (el tuyo)' : (proyecto.EDITABLE && !proyecto.VE_PROYECTO ? ' (tu peaje)' : '')) + '</option>';
             });
-            $('#aProyecto').html(h || '<option value="">No tienes proyectos</option>').val(String(c.proyectoInicial || ''));
+            $('#aProyecto').html(html || '<option value="">No tienes proyectos</option>').val(String(config.proyectoInicial || ''));
             elegirProyectoAus();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir ausentismo.'); });
@@ -35,14 +35,14 @@ $(function () {
     //Consolidado: el proyecto elegido, solo el peaje elegido o todos, y de qué día a qué día
     $('#consAlcance').on('change', cargarConsolidado);
     $('#consDesde, #consHasta').on('change', function () {
-        var d1 = +$('#consDesde').val(), d2 = +$('#consHasta').val();
-        if (d1 > d2) { if (this.id === 'consDesde') { $('#consHasta').val(String(d1)); } else { $('#consDesde').val(String(d2)); } }
+        var diaDesde = +$('#consDesde').val(), diaHasta = +$('#consHasta').val();
+        if (diaDesde > diaHasta) { if (this.id === 'consDesde') { $('#consHasta').val(String(diaDesde)); } else { $('#consDesde').val(String(diaHasta)); } }
         cargarConsolidado();
     });
     $('.aus-rangos [data-rango]').on('click', function () {
-        var dias = $('#consHasta option').length, r = $(this).data('rango');
-        $('#consDesde').val(String(r === 'q2' ? 15 : 1));
-        $('#consHasta').val(String(r === 'q1' ? 14 : dias));
+        var dias = $('#consHasta option').length, rango = $(this).data('rango');
+        $('#consDesde').val(String(rango === 'q2' ? 15 : 1));
+        $('#consHasta').val(String(rango === 'q1' ? 14 : dias));
         cargarConsolidado();
     });
     $('#ausHistorial').on('toggle', function () { if (this.open) { cargarHistorial(); } });
@@ -70,24 +70,24 @@ function confirmarSalida() {
 //Al cambiar de proyecto: arma los botones de sus peajes
 function elegirProyectoAus() {
     var id = +($('#aProyecto').val() || 0);
-    proyAus = cfgAus.proyectos.filter(function (p) { return +p.ID_PROYECTO === id; })[0] || null;
+    proyAus = cfgAus.proyectos.filter(function (proyecto) { return +proyecto.ID_PROYECTO === id; })[0] || null;
     if (!proyAus) { $('#ausGrid').html('<p class="rd-vacio">No tienes proyectos para ver.</p>'); return; }
-    var h = '';
-    proyAus.CENTROS.forEach(function (c) { h += '<option value="' + parseInt(c.ID_CENTRO_OP, 10) + '">' + (c.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(c.NOM_CENTRO_OP) + '</option>'; });
-    $('#aCentro').html(h || '<option value="">El proyecto no tiene centros</option>');
+    var html = '';
+    proyAus.CENTROS.forEach(function (centro) { html += '<option value="' + parseInt(centro.ID_CENTRO_OP, 10) + '">' + (centro.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(centro.NOM_CENTRO_OP) + '</option>'; });
+    $('#aCentro').html(html || '<option value="">El proyecto no tiene centros</option>');
     elegirCentroAus(+($('#aCentro').val() || 0));
 }
 
 //Al elegir un peaje: carga su mes
 function elegirCentroAus(id) {
-    centroAus = proyAus.CENTROS.filter(function (c) { return +c.ID_CENTRO_OP === id; })[0] || null;
+    centroAus = proyAus.CENTROS.filter(function (centro) { return +centro.ID_CENTRO_OP === id; })[0] || null;
     //En el consolidado, la opción de ver solo este peaje lleva su nombre
     $('#consAlcance option[value="centro"]').text(centroAus ? 'Solo ' + nombreCentro(centroAus) : 'Solo el peaje elegido');
     cargarAus();
 }
 
 //"Báscula X" o el nombre del peaje
-function nombreCentro(c) { return (c.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + c.NOM_CENTRO_OP; }
+function nombreCentro(centro) { return (centro.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + centro.NOM_CENTRO_OP; }
 
 //Proyecto, año y mes elegidos, listos para la URL
 function periodoAus() { return '&proyecto=' + proyAus.ID_PROYECTO + '&anio=' + $('#aAnio').val() + '&mes=' + $('#aMes').val(); }
@@ -97,30 +97,30 @@ function cargarAus() {
     if (!proyAus || !centroAus) { return; }
     $('#btnExcel').attr('href', 'AusentismoExcelVista.php?' + periodoAus().substring(1));
     $.getJSON(URL_AUS + '?op=mes&centro=' + centroAus.ID_CENTRO_OP + periodoAus())
-        .done(function (d) {
-            datosAus = d; cambiosAus = {}; rdCambiosGuardados();
+        .done(function (respuesta) {
+            datosAus = respuesta; cambiosAus = {}; rdCambiosGuardados();
             //Quién registra y en qué estado está el mes
-            var est = d.cerrado ? '<span class="rd-tag rd-tag-mal"><i class="fa fa-lock"></i> Mes cerrado' + (d.cierre && d.cierre.QUIEN ? ' por ' + rdEsc(d.cierre.QUIEN) + ' el ' + rdFecha(d.cierre.FEC_MODIFICACION) : '') + '</span>'
+            var estado = respuesta.cerrado ? '<span class="rd-tag rd-tag-mal"><i class="fa fa-lock"></i> Mes cerrado' + (respuesta.cierre && respuesta.cierre.QUIEN ? ' por ' + rdEsc(respuesta.cierre.QUIEN) + ' el ' + rdFecha(respuesta.cierre.FEC_MODIFICACION) : '') + '</span>'
                                 : '<span class="rd-tag rd-tag-ok"><i class="fa fa-unlock"></i> Mes abierto</span>';
-            $('#aQuien').html('<i class="fa fa-user"></i> Coordinador: <strong>' + rdEsc(d.coordinador || 'sin asignar') + '</strong> ' + est +
-                              (d.editable ? '' : ' <span class="adm-sello">' + rdEsc(d.motivo) + '</span>'));
-            $('#btnCerrar').toggle(!!d.puedeCerrar);
+            $('#aQuien').html('<i class="fa fa-user"></i> Coordinador: <strong>' + rdEsc(respuesta.coordinador || 'sin asignar') + '</strong> ' + estado +
+                              (respuesta.editable ? '' : ' <span class="adm-sello">' + rdEsc(respuesta.motivo) + '</span>'));
+            $('#btnCerrar').toggle(!!respuesta.puedeCerrar);
             //El jefe de peaje ve solo su peaje: sin consolidado ni Excel del proyecto
-            $('#tabConsLink').parent().toggle(!!d.veProyecto);
-            $('#btnExcel').toggle(!!d.veProyecto);
-            if (!d.veProyecto && $('#tabConsolidado').hasClass('active')) { $('a[href="#tabRapido"]').tab('show'); }
-            $('#ausNota').html(d.editaTodo ? '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-unlock-alt"></i> Este mes está cerrado, pero tu permiso (25M) deja corregirlo. Cada cambio queda en el historial.</div>' : '');
+            $('#tabConsLink').parent().toggle(!!respuesta.veProyecto);
+            $('#btnExcel').toggle(!!respuesta.veProyecto);
+            if (!respuesta.veProyecto && $('#tabConsolidado').hasClass('active')) { $('a[href="#tabRapido"]').tab('show'); }
+            $('#ausNota').html(respuesta.editaTodo ? '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-unlock-alt"></i> Este mes está cerrado, pero tu permiso (25M) deja corregirlo. Cada cambio queda en el historial.</div>' : '');
             if ($('#ausHistorial').prop('open')) { cargarHistorial(); }
-            $('#btnReabrir').toggle(!!(d.cerrado && cfgAus.puedeReabrir));
-            $('#ausAcciones').toggle(!!d.editable);
+            $('#btnReabrir').toggle(!!(respuesta.cerrado && cfgAus.puedeReabrir));
+            $('#ausAcciones').toggle(!!respuesta.editable);
             //Avance: qué centros ya tienen registrado el mes
-            var h = '';
-            proyAus.CENTROS.forEach(function (c) {
-                var a = d.avance[c.ID_CENTRO_OP] || { celdas: 0 };
-                h += '<span class="aus-centro-chip' + (+c.ID_CENTRO_OP === +centroAus.ID_CENTRO_OP ? ' activo' : '') + (a.celdas ? ' con' : '') + '" data-id="' + parseInt(c.ID_CENTRO_OP, 10) + '" role="button" tabindex="0">' +
-                     '<i class="fa ' + (a.celdas ? 'fa-check' : 'fa-circle-o') + '"></i> ' + rdEsc(c.NOM_CENTRO_OP) + '</span>';
+            var html = '';
+            proyAus.CENTROS.forEach(function (centro) {
+                var avance = respuesta.avance[centro.ID_CENTRO_OP] || { celdas: 0 };
+                html += '<span class="aus-centro-chip' + (+centro.ID_CENTRO_OP === +centroAus.ID_CENTRO_OP ? ' activo' : '') + (avance.celdas ? ' con' : '') + '" data-id="' + parseInt(centro.ID_CENTRO_OP, 10) + '" role="button" tabindex="0">' +
+                     '<i class="fa ' + (avance.celdas ? 'fa-check' : 'fa-circle-o') + '"></i> ' + rdEsc(centro.NOM_CENTRO_OP) + '</span>';
             });
-            $('#aCentros').html(h);
+            $('#aCentros').html(html);
             pintarGrilla();
             pintarRapido(); //el formulario de una ausencia y la lista de las registradas
             if ($('#tabConsolidado').hasClass('active')) { cargarConsolidado(); }
@@ -130,62 +130,62 @@ function cargarAus() {
 
 //Los cargos que salen en el centro y las novedades de cada cargo
 function cargosDelCentro(tipo) {
-    var t = tipo === 'BASCULA' ? 'BASCULA' : 'PEAJE';
-    return cfgAus.cargos.filter(function (c) { return c.APLICA === 'AMBOS' || c.APLICA === t; });
+    var tipoCentro = tipo === 'BASCULA' ? 'BASCULA' : 'PEAJE';
+    return cfgAus.cargos.filter(function (cargo) { return cargo.APLICA === 'AMBOS' || cargo.APLICA === tipoCentro; });
 }
 //Los motivos de un cargo. Los que ya no se usan (ESTADO 0) salen solo si hay datos con ellos en $reg
 //(los registros de ese cargo en el mes): así los meses de antes se ven como se registraron
-function novedadesDe(idCargo, reg) {
-    return cfgAus.novedades.filter(function (n) {
-        if (n.ID_CARGO_AUS && +n.ID_CARGO_AUS !== +idCargo) { return false; }
-        return +n.ESTADO === 1 || conDatos(reg && reg[n.ID_NOVEDAD_AUS]);
+function novedadesDe(idCargo, registros) {
+    return cfgAus.novedades.filter(function (novedad) {
+        if (novedad.ID_CARGO_AUS && +novedad.ID_CARGO_AUS !== +idCargo) { return false; }
+        return +novedad.ESTADO === 1 || conDatos(registros && registros[novedad.ID_NOVEDAD_AUS]);
     });
 }
 //¿Esta fila tiene al menos un día con valor?
-function conDatos(vals) { for (var k in (vals || {})) { if (+vals[k]) { return true; } } return false; }
+function conDatos(vals) { for (var clave in (vals || {})) { if (+vals[clave]) { return true; } } return false; }
 //El nombre de un motivo; si ya no se usa, lo dice
-function nombreMotivo(n) { return rdEsc(n.NOMBRE) + (+n.ESTADO === 1 ? '' : ' <small style="color:#6B7076;font-weight:normal;">(motivo anterior)</small>'); }
+function nombreMotivo(novedad) { return rdEsc(novedad.NOMBRE) + (+novedad.ESTADO === 1 ? '' : ' <small style="color:#6B7076;font-weight:normal;">(motivo anterior)</small>'); }
 
 //Encabezado de días: número y letra del día de la semana; fines de semana y hoy marcados.
 //Va del día "desde" (1 si no se dice) al día "dias"
 function cabeceraDias(dias, titulo, extra, desde) {
-    var anio = +$('#aAnio').val(), mes = +$('#aMes').val(), h = '<thead><tr><th class="aus-fija">' + titulo + '</th>';
-    for (var d = desde || 1; d <= dias; d++) {
-        var f = new Date(anio, mes - 1, d), hoy = rdATexto(f) === cfgAus.hoy;
-        h += '<th class="aus-dia' + (f.getDay() === 0 || f.getDay() === 6 ? ' aus-finde' : '') + (hoy ? ' aus-hoy' : '') + '">' + d + '<small>' + DIA_SEMANA[f.getDay()] + '</small></th>';
+    var anio = +$('#aAnio').val(), mes = +$('#aMes').val(), html = '<thead><tr><th class="aus-fija">' + titulo + '</th>';
+    for (var dia = desde || 1; dia <= dias; dia++) {
+        var fecha = new Date(anio, mes - 1, dia), hoy = rdATexto(fecha) === cfgAus.hoy;
+        html += '<th class="aus-dia' + (fecha.getDay() === 0 || fecha.getDay() === 6 ? ' aus-finde' : '') + (hoy ? ' aus-hoy' : '') + '">' + dia + '<small>' + DIA_SEMANA[fecha.getDay()] + '</small></th>';
     }
-    return h + (extra || '<th class="aus-tot">Total</th>') + '</tr></thead>';
+    return html + (extra || '<th class="aus-tot">Total</th>') + '</tr></thead>';
 }
 
 //Arma la grilla del mes: un bloque por cargo, una fila por motivo y una columna por día
 function pintarGrilla() {
-    var dias = datosAus.diasMes, ed = datosAus.editable, h = '', fila = 0;
-    cargosDelCentro(centroAus.TIPO_CENTRO).forEach(function (c) {
-        var reg = datosAus.registros[c.ID_CARGO_AUS] || {};
-        h += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla" data-cargo="' + parseInt(c.ID_CARGO_AUS, 10) + '">' +
-             cabeceraDias(dias, rdEsc(c.NOMBRE)) + '<tbody>';
-        novedadesDe(c.ID_CARGO_AUS, reg).forEach(function (n) {
-            var vals = reg[n.ID_NOVEDAD_AUS] || {}, cuenta = +n.CUENTA_AUSENCIA === 1;
-            h += '<tr class="' + (cuenta ? '' : 'aus-no-cuenta') + '" data-cuenta="' + (cuenta ? 1 : 0) + '"><th class="aus-fija">' + nombreMotivo(n) + '</th>';
-            for (var d = 1; d <= dias; d++) {
-                var v = vals[d] || '', tarde = rdATexto(new Date(+$('#aAnio').val(), +$('#aMes').val() - 1, d)) > (cfgAus.limiteFuturo || cfgAus.hoy);
-                h += '<td' + (tarde && ed ? ' class="aus-futuro" title="Todavía no se puede anotar este día"' : '') + '>' + (ed && !tarde ? '<input type="text" inputmode="numeric" maxlength="3" class="aus-celda" value="' + v + '" data-c="' + parseInt(c.ID_CARGO_AUS, 10) +
-                                     '" data-n="' + parseInt(n.ID_NOVEDAD_AUS, 10) + '" data-d="' + d + '" data-f="' + fila + '" aria-label="' + rdEsc(n.NOMBRE + ' día ' + d) + '">'
-                                   : '<span class="aus-ver">' + v + '</span>') + '</td>';
+    var dias = datosAus.diasMes, editable = datosAus.editable, html = '', fila = 0;
+    cargosDelCentro(centroAus.TIPO_CENTRO).forEach(function (cargo) {
+        var registros = datosAus.registros[cargo.ID_CARGO_AUS] || {};
+        html += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla" data-cargo="' + parseInt(cargo.ID_CARGO_AUS, 10) + '">' +
+             cabeceraDias(dias, rdEsc(cargo.NOMBRE)) + '<tbody>';
+        novedadesDe(cargo.ID_CARGO_AUS, registros).forEach(function (novedad) {
+            var vals = registros[novedad.ID_NOVEDAD_AUS] || {}, cuenta = +novedad.CUENTA_AUSENCIA === 1;
+            html += '<tr class="' + (cuenta ? '' : 'aus-no-cuenta') + '" data-cuenta="' + (cuenta ? 1 : 0) + '"><th class="aus-fija">' + nombreMotivo(novedad) + '</th>';
+            for (var dia = 1; dia <= dias; dia++) {
+                var valor = vals[dia] || '', tarde = rdATexto(new Date(+$('#aAnio').val(), +$('#aMes').val() - 1, dia)) > (cfgAus.limiteFuturo || cfgAus.hoy);
+                html += '<td' + (tarde && editable ? ' class="aus-futuro" title="Todavía no se puede anotar este día"' : '') + '>' + (editable && !tarde ? '<input type="text" inputmode="numeric" maxlength="3" class="aus-celda" value="' + valor + '" data-c="' + parseInt(cargo.ID_CARGO_AUS, 10) +
+                                     '" data-n="' + parseInt(novedad.ID_NOVEDAD_AUS, 10) + '" data-d="' + dia + '" data-f="' + fila + '" aria-label="' + rdEsc(novedad.NOMBRE + ' día ' + dia) + '">'
+                                   : '<span class="aus-ver">' + valor + '</span>') + '</td>';
             }
-            h += '<td class="aus-tot aus-tot-fila">0</td></tr>';
+            html += '<td class="aus-tot aus-tot-fila">0</td></tr>';
             fila++;
         });
-        h += '</tbody><tfoot><tr><th class="aus-fija">Total del día</th>';
-        for (var d2 = 1; d2 <= dias; d2++) { h += '<td class="aus-tot-dia" data-d="' + d2 + '">0</td>'; }
-        h += '<td class="aus-tot aus-tot-bloque">0</td></tr></tfoot></table></div></div>';
+        html += '</tbody><tfoot><tr><th class="aus-fija">Total del día</th>';
+        for (var diaTotal = 1; diaTotal <= dias; diaTotal++) { html += '<td class="aus-tot-dia" data-d="' + diaTotal + '">0</td>'; }
+        html += '<td class="aus-tot aus-tot-bloque">0</td></tr></tfoot></table></div></div>';
     });
     //Ausencias diarias: la suma de todos los cargos (sin las filas que no son ausencia)
-    h += '<div class="aus-bloque aus-resumen"><div class="table-responsive aus-scroll"><table class="aus-tabla" id="ausDiarias">' +
+    html += '<div class="aus-bloque aus-resumen"><div class="table-responsive aus-scroll"><table class="aus-tabla" id="ausDiarias">' +
          cabeceraDias(dias, 'Ausencias diarias', '<th class="aus-tot">Total</th><th class="aus-tot">1ª quincena</th>') + '<tbody><tr><th class="aus-fija">Todos los cargos</th>';
-    for (var d3 = 1; d3 <= dias; d3++) { h += '<td class="aus-diaria" data-d="' + d3 + '">0</td>'; }
-    h += '<td class="aus-tot" id="ausTotalMes">0</td><td class="aus-tot" id="ausQuincena">0</td></tr></tbody></table></div></div>';
-    $('#ausGrid').html(h);
+    for (var diaDiaria = 1; diaDiaria <= dias; diaDiaria++) { html += '<td class="aus-diaria" data-d="' + diaDiaria + '">0</td>'; }
+    html += '<td class="aus-tot" id="ausTotalMes">0</td><td class="aus-tot" id="ausQuincena">0</td></tr></tbody></table></div></div>';
+    $('#ausGrid').html(html);
     recalcular();
     //Deja a la vista el día de hoy
     var hoyTh = $('#ausGrid .aus-hoy').first();
@@ -193,67 +193,67 @@ function pintarGrilla() {
 }
 
 //El número que hay en una celda (sea casilla o texto)
-function valorCelda(el) { return parseInt($(el).is('input') ? $(el).val() : $(el).text(), 10) || 0; }
+function valorCelda(elemento) { return parseInt($(elemento).is('input') ? $(elemento).val() : $(elemento).text(), 10) || 0; }
 
 //Vuelve a sumar los totales por día, por fila y por bloque después de cada cambio
 function recalcular() {
     var dias = datosAus.diasMes, diarias = {};
     $('#ausGrid .aus-tabla[data-cargo]').each(function () {
-        var t = $(this), totDia = {}, totBloque = 0;
-        t.find('tbody tr').each(function () {
-            var tr = $(this), suma = 0, cuenta = tr.data('cuenta') === 1;
-            tr.find('td').not('.aus-tot').each(function (i) {
-                var v = valorCelda($(this).find('.aus-celda, .aus-ver'));
-                suma += v;
-                if (cuenta) { totDia[i + 1] = (totDia[i + 1] || 0) + v; diarias[i + 1] = (diarias[i + 1] || 0) + v; }
+        var tabla = $(this), totDia = {}, totBloque = 0;
+        tabla.find('tbody tr').each(function () {
+            var fila = $(this), suma = 0, cuenta = fila.data('cuenta') === 1;
+            fila.find('td').not('.aus-tot').each(function (i) {
+                var valor = valorCelda($(this).find('.aus-celda, .aus-ver'));
+                suma += valor;
+                if (cuenta) { totDia[i + 1] = (totDia[i + 1] || 0) + valor; diarias[i + 1] = (diarias[i + 1] || 0) + valor; }
             });
-            tr.find('.aus-tot-fila').text(suma);
+            fila.find('.aus-tot-fila').text(suma);
             if (cuenta) { totBloque += suma; }
         });
-        t.find('.aus-tot-dia').each(function () { var d = +$(this).data('d'); $(this).text(totDia[d] || 0).toggleClass('aus-hay', !!totDia[d]); });
-        t.find('.aus-tot-bloque').text(totBloque);
+        tabla.find('.aus-tot-dia').each(function () { var dia = +$(this).data('d'); $(this).text(totDia[dia] || 0).toggleClass('aus-hay', !!totDia[dia]); });
+        tabla.find('.aus-tot-bloque').text(totBloque);
     });
     var mesTot = 0, quincena = 0;
     $('#ausDiarias .aus-diaria').each(function () {
-        var d = +$(this).data('d'), v = diarias[d] || 0;
-        $(this).text(v).toggleClass('aus-hay', v > 0);
-        mesTot += v; if (d <= 14) { quincena += v; }
+        var dia = +$(this).data('d'), valor = diarias[dia] || 0;
+        $(this).text(valor).toggleClass('aus-hay', valor > 0);
+        mesTot += valor; if (dia <= 14) { quincena += valor; }
     });
     $('#ausTotalMes').text(mesTot); $('#ausQuincena').text(quincena);
-    var n = Object.keys(cambiosAus).length;
-    $('#ausCambios').text(n ? (n === 1 ? '1 celda sin guardar' : n + ' celdas sin guardar') : 'Todo guardado');
+    var cantidad = Object.keys(cambiosAus).length;
+    $('#ausCambios').text(cantidad ? (cantidad === 1 ? '1 celda sin guardar' : cantidad + ' celdas sin guardar') : 'Todo guardado');
 }
 
 //Al escribir en una celda: deja solo números y anota el cambio para guardarlo después
 function escribirCelda() {
-    var v = this.value.replace(/\D/g, '').substring(0, 3);
-    if (v !== this.value) { this.value = v; }
-    var k = $(this).data('c') + '-' + $(this).data('n') + '-' + $(this).data('d');
+    var valor = this.value.replace(/\D/g, '').substring(0, 3);
+    if (valor !== this.value) { this.value = valor; }
+    var clave = $(this).data('c') + '-' + $(this).data('n') + '-' + $(this).data('d');
     var antes = ((datosAus.registros[$(this).data('c')] || {})[$(this).data('n')] || {})[$(this).data('d')] || 0;
-    if ((parseInt(v, 10) || 0) === antes) { delete cambiosAus[k]; $(this).removeClass('aus-cambio'); }
-    else { cambiosAus[k] = parseInt(v, 10) || 0; $(this).addClass('aus-cambio'); }
+    if ((parseInt(valor, 10) || 0) === antes) { delete cambiosAus[clave]; $(this).removeClass('aus-cambio'); }
+    else { cambiosAus[clave] = parseInt(valor, 10) || 0; $(this).addClass('aus-cambio'); }
     recalcular();
 }
 
 //Flechas y Enter para moverse entre celdas, como en una hoja de cálculo
-function moverConFlechas(e) {
-    var f = +$(this).data('f'), d = +$(this).data('d'), destino = null;
-    if (e.key === 'ArrowRight') { destino = [f, d + 1]; }
-    else if (e.key === 'ArrowLeft') { destino = [f, d - 1]; }
-    else if (e.key === 'ArrowDown' || e.key === 'Enter') { destino = [f + 1, d]; }
-    else if (e.key === 'ArrowUp') { destino = [f - 1, d]; }
+function moverConFlechas(evento) {
+    var numFila = +$(this).data('f'), dia = +$(this).data('d'), destino = null;
+    if (evento.key === 'ArrowRight') { destino = [numFila, dia + 1]; }
+    else if (evento.key === 'ArrowLeft') { destino = [numFila, dia - 1]; }
+    else if (evento.key === 'ArrowDown' || evento.key === 'Enter') { destino = [numFila + 1, dia]; }
+    else if (evento.key === 'ArrowUp') { destino = [numFila - 1, dia]; }
     if (!destino) { return; }
-    var el = $('.aus-celda[data-f="' + destino[0] + '"][data-d="' + destino[1] + '"]');
-    if (el.length) { e.preventDefault(); el.focus(); }
+    var celda = $('.aus-celda[data-f="' + destino[0] + '"][data-d="' + destino[1] + '"]');
+    if (celda.length) { evento.preventDefault(); celda.focus(); }
 }
 
 //Envía al servidor solo las celdas que cambiaron
 function guardarAus() {
-    var celdas = Object.keys(cambiosAus).map(function (k) { var p = k.split('-'); return { cargo: +p[0], novedad: +p[1], dia: +p[2], cantidad: cambiosAus[k] }; });
+    var celdas = Object.keys(cambiosAus).map(function (clave) { var partes = clave.split('-'); return { cargo: +partes[0], novedad: +partes[1], dia: +partes[2], cantidad: cambiosAus[clave] }; });
     if (!celdas.length) { rdAviso('No hay cambios por guardar.'); return; }
     hanaBoton('#btnGuardarAus', true);
     $.post(URL_AUS + '?op=guardar&centro=' + centroAus.ID_CENTRO_OP + periodoAus(), { celdas: JSON.stringify(celdas) }, null, 'json')
-        .done(function (r) { cambiosAus = {}; rdCambiosGuardados(); rdAviso(r.mensaje); cargarAus(); })
+        .done(function (respuesta) { cambiosAus = {}; rdCambiosGuardados(); rdAviso(respuesta.mensaje); cargarAus(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el ausentismo.')); })
         .always(function () { hanaBoton('#btnGuardarAus', false); });
 }
@@ -263,7 +263,7 @@ function cierreAus(op, pregunta) {
     if (Object.keys(cambiosAus).length) { alert('Primero guarda los cambios de este centro.'); return; }
     hanaConfirmar(pregunta, function () {
         $.post(URL_AUS + '?op=' + op + periodoAus(), {}, null, 'json')
-            .done(function (r) { rdAviso(r.mensaje); cargarAus(); })
+            .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarAus(); })
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo cambiar el estado del mes.')); });
     }, { aceptar: op === 'cerrar' ? 'Sí, cerrar' : 'Sí, reabrir', cancelar: 'No' });
 }
@@ -272,14 +272,14 @@ function cierreAus(op, pregunta) {
 function cargarHistorial() {
     if (!proyAus || !centroAus) { return; }
     $.getJSON(URL_AUS + '?op=historial&centro=' + centroAus.ID_CENTRO_OP + periodoAus())
-        .done(function (f) {
-            var h = '';
-            f.forEach(function (x) {
-                h += '<tr><td class="rd-nowrap">' + rdFecha(x.CUANDO) + ' ' + rdHora(String(x.CUANDO).substring(11)) + '</td><td>' + rdEsc(x.QUIEN || '') + '</td>' +
-                     '<td>Día ' + parseInt(x.DIA, 10) + ' · ' + rdEsc(x.CARGO) + ' · ' + rdEsc(x.NOVEDAD) + '</td>' +
-                     '<td class="rd-num-col">' + parseInt(x.ANTES, 10) + ' → <strong>' + parseInt(x.DESPUES, 10) + '</strong></td></tr>';
+        .done(function (cambios) {
+            var html = '';
+            cambios.forEach(function (cambio) {
+                html += '<tr><td class="rd-nowrap">' + rdFecha(cambio.CUANDO) + ' ' + rdHora(String(cambio.CUANDO).substring(11)) + '</td><td>' + rdEsc(cambio.QUIEN || '') + '</td>' +
+                     '<td>Día ' + parseInt(cambio.DIA, 10) + ' · ' + rdEsc(cambio.CARGO) + ' · ' + rdEsc(cambio.NOVEDAD) + '</td>' +
+                     '<td class="rd-num-col">' + parseInt(cambio.ANTES, 10) + ' → <strong>' + parseInt(cambio.DESPUES, 10) + '</strong></td></tr>';
             });
-            $('#ausHistorialCuerpo').html(h ? '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué celda</th><th class="rd-num-col">Cambio</th></tr></thead><tbody>' + h + '</tbody></table></div>'
+            $('#ausHistorialCuerpo').html(html ? '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué celda</th><th class="rd-num-col">Cambio</th></tr></thead><tbody>' + html + '</tbody></table></div>'
                                            : '<p class="rd-vacio">Todavía no hay cambios registrados en este peaje este mes.</p>');
         })
         .fail(function (xhr) { $('#ausHistorialCuerpo').html('<p class="rd-ayuda">' + rdEsc(rdError(xhr, 'No se pudo cargar el historial.')) + '</p>'); });
@@ -294,18 +294,18 @@ var consPedido = 0; //si se cambian los días muy rápido, solo se pinta la últ
 //Llena "desde" y "hasta" con los días del mes elegido. Si se estaba viendo todo el mes, sigue todo el mes
 function diasConsolidado() {
     var dias = new Date(+$('#aAnio').val(), +$('#aMes').val(), 0).getDate();
-    var antes = $('#consHasta option').length, d1 = +$('#consDesde').val() || 1, d2 = +$('#consHasta').val() || dias;
-    if (!antes || (d1 === 1 && d2 === antes)) { d1 = 1; d2 = dias; }
+    var antes = $('#consHasta option').length, diaDesde = +$('#consDesde').val() || 1, diaHasta = +$('#consHasta').val() || dias;
+    if (!antes || (diaDesde === 1 && diaHasta === antes)) { diaDesde = 1; diaHasta = dias; }
     if (antes !== dias) {
-        var h = '';
-        for (var d = 1; d <= dias; d++) { h += '<option value="' + d + '">' + d + '</option>'; }
-        $('#consDesde, #consHasta').html(h);
+        var html = '';
+        for (var dia = 1; dia <= dias; dia++) { html += '<option value="' + dia + '">' + dia + '</option>'; }
+        $('#consDesde, #consHasta').html(html);
     }
-    d2 = Math.min(d2, dias); d1 = Math.min(d1, d2);
-    $('#consDesde').val(String(d1)); $('#consHasta').val(String(d2));
+    diaHasta = Math.min(diaHasta, dias); diaDesde = Math.min(diaDesde, diaHasta);
+    $('#consDesde').val(String(diaDesde)); $('#consHasta').val(String(diaHasta));
     //El botón del rango que se está viendo queda marcado
     $('.aus-rangos [data-rango]').removeClass('active');
-    $('.aus-rangos [data-rango="' + (d1 === 1 && d2 === dias ? 'mes' : (d1 === 1 && d2 === 14 ? 'q1' : (d1 === 15 && d2 === dias ? 'q2' : ''))) + '"]').addClass('active');
+    $('.aus-rangos [data-rango="' + (diaDesde === 1 && diaHasta === dias ? 'mes' : (diaDesde === 1 && diaHasta === 14 ? 'q1' : (diaDesde === 15 && diaHasta === dias ? 'q2' : ''))) + '"]').addClass('active');
 }
 
 //¿Se está viendo el consolidado de todos los proyectos? ¿O solo el del peaje elegido?
@@ -319,118 +319,118 @@ function filtroConsolidado() {
 }
 
 //Los días elegidos, en palabras: "todo el mes", "solo el día 1" o "del día 1 al 15"
-function textoDias(d1, d2, dias) {
-    if (d1 === 1 && d2 === dias) { return 'todo el mes'; }
-    return d1 === d2 ? 'solo el día ' + d1 : 'del día ' + d1 + ' al ' + d2;
+function textoDias(diaDesde, diaHasta, dias) {
+    if (diaDesde === 1 && diaHasta === dias) { return 'todo el mes'; }
+    return diaDesde === diaHasta ? 'solo el día ' + diaDesde : 'del día ' + diaDesde + ' al ' + diaHasta;
 }
 
 function cargarConsolidado() {
     if (!proyAus) { return; }
     diasConsolidado();
-    var d1 = +$('#consDesde').val(), d2 = +$('#consHasta').val(), todos = consTodos(), soloCentro = consCentro(), filtro = filtroConsolidado(), pedido = ++consPedido;
+    var diaDesde = +$('#consDesde').val(), diaHasta = +$('#consHasta').val(), todos = consTodos(), soloCentro = consCentro(), filtro = filtroConsolidado(), pedido = ++consPedido;
     $('#btnExcelCons').attr('href', 'AusentismoExcelVista.php?' + filtro.substring(1));
     $.getJSON(URL_AUS + '?op=consolidado' + filtro)
-        .done(function (d) {
+        .done(function (respuesta) {
             if (pedido !== consPedido) { return; } //llegó tarde: ya se pidió otro rango
-            var todoMes = d1 === 1 && d2 === d.diasMes, h = '', totNov = {}, quiNov = {}, diarias = {};
+            var todoMes = diaDesde === 1 && diaHasta === respuesta.diasMes, html = '', totNov = {}, quiNov = {}, diarias = {};
             //Por cargo, día por día: una fila por motivo, una columna por día del rango y el total de cada día
-            cfgAus.cargos.forEach(function (c) {
-                var reg = d.porCargo[c.ID_CARGO_AUS], totDia = {}, totBloque = 0;
-                if (!reg) { return; } //solo los cargos con datos
-                h += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla">' + cabeceraDias(d2, rdEsc(c.NOMBRE), null, d1) + '<tbody>';
-                novedadesDe(c.ID_CARGO_AUS, reg).forEach(function (n) {
-                    var vals = reg[n.ID_NOVEDAD_AUS] || {}, suma = 0, cuenta = +n.CUENTA_AUSENCIA === 1;
-                    h += '<tr class="' + (cuenta ? '' : 'aus-no-cuenta') + '"><th class="aus-fija">' + nombreMotivo(n) + '</th>';
-                    for (var dd = d1; dd <= d2; dd++) {
-                        var v = vals[dd] || 0; suma += v;
+            cfgAus.cargos.forEach(function (cargo) {
+                var registros = respuesta.porCargo[cargo.ID_CARGO_AUS], totDia = {}, totBloque = 0;
+                if (!registros) { return; } //solo los cargos con datos
+                html += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla">' + cabeceraDias(diaHasta, rdEsc(cargo.NOMBRE), null, diaDesde) + '<tbody>';
+                novedadesDe(cargo.ID_CARGO_AUS, registros).forEach(function (novedad) {
+                    var vals = registros[novedad.ID_NOVEDAD_AUS] || {}, suma = 0, cuenta = +novedad.CUENTA_AUSENCIA === 1;
+                    html += '<tr class="' + (cuenta ? '' : 'aus-no-cuenta') + '"><th class="aus-fija">' + nombreMotivo(novedad) + '</th>';
+                    for (var diaCelda = diaDesde; diaCelda <= diaHasta; diaCelda++) {
+                        var valor = vals[diaCelda] || 0; suma += valor;
                         if (cuenta) {
-                            totNov[n.ID_NOVEDAD_AUS] = (totNov[n.ID_NOVEDAD_AUS] || 0) + v;
-                            if (dd <= 14) { quiNov[n.ID_NOVEDAD_AUS] = (quiNov[n.ID_NOVEDAD_AUS] || 0) + v; }
-                            totDia[dd] = (totDia[dd] || 0) + v; diarias[dd] = (diarias[dd] || 0) + v;
+                            totNov[novedad.ID_NOVEDAD_AUS] = (totNov[novedad.ID_NOVEDAD_AUS] || 0) + valor;
+                            if (diaCelda <= 14) { quiNov[novedad.ID_NOVEDAD_AUS] = (quiNov[novedad.ID_NOVEDAD_AUS] || 0) + valor; }
+                            totDia[diaCelda] = (totDia[diaCelda] || 0) + valor; diarias[diaCelda] = (diarias[diaCelda] || 0) + valor;
                         }
-                        h += '<td class="' + (v ? 'aus-hay' : '') + '">' + (v || '') + '</td>';
+                        html += '<td class="' + (valor ? 'aus-hay' : '') + '">' + (valor || '') + '</td>';
                     }
                     if (cuenta) { totBloque += suma; }
-                    h += '<td class="aus-tot">' + suma + '</td></tr>';
+                    html += '<td class="aus-tot">' + suma + '</td></tr>';
                 });
-                h += '</tbody><tfoot><tr><th class="aus-fija">Total del día</th>';
-                for (var d3 = d1; d3 <= d2; d3++) { h += '<td class="' + (totDia[d3] ? 'aus-hay' : '') + '">' + (totDia[d3] || 0) + '</td>'; }
-                h += '<td class="aus-tot">' + totBloque + '</td></tr></tfoot></table></div></div>';
+                html += '</tbody><tfoot><tr><th class="aus-fija">Total del día</th>';
+                for (var diaTotal = diaDesde; diaTotal <= diaHasta; diaTotal++) { html += '<td class="' + (totDia[diaTotal] ? 'aus-hay' : '') + '">' + (totDia[diaTotal] || 0) + '</td>'; }
+                html += '<td class="aus-tot">' + totBloque + '</td></tr></tfoot></table></div></div>';
             });
             //Ausencias diarias: la suma de todos los cargos, día por día
-            if (h) {
-                var tr = 0, tq = 0;
-                h += '<div class="aus-bloque aus-resumen"><div class="table-responsive aus-scroll"><table class="aus-tabla">' +
-                     cabeceraDias(d2, 'Ausencias diarias', '<th class="aus-tot">Total</th>' + (todoMes ? '<th class="aus-tot">1ª quincena</th>' : ''), d1) + '<tbody><tr><th class="aus-fija">Todos los cargos</th>';
-                for (var d4 = d1; d4 <= d2; d4++) { var vd = diarias[d4] || 0; tr += vd; if (d4 <= 14) { tq += vd; } h += '<td>' + vd + '</td>'; }
-                h += '<td class="aus-tot">' + tr + '</td>' + (todoMes ? '<td class="aus-tot">' + tq + '</td>' : '') + '</tr></tbody></table></div></div>';
+            if (html) {
+                var totalRango = 0, totalQuincena = 0;
+                html += '<div class="aus-bloque aus-resumen"><div class="table-responsive aus-scroll"><table class="aus-tabla">' +
+                     cabeceraDias(diaHasta, 'Ausencias diarias', '<th class="aus-tot">Total</th>' + (todoMes ? '<th class="aus-tot">1ª quincena</th>' : ''), diaDesde) + '<tbody><tr><th class="aus-fija">Todos los cargos</th>';
+                for (var dia = diaDesde; dia <= diaHasta; dia++) { var valorDia = diarias[dia] || 0; totalRango += valorDia; if (dia <= 14) { totalQuincena += valorDia; } html += '<td>' + valorDia + '</td>'; }
+                html += '<td class="aus-tot">' + totalRango + '</td>' + (todoMes ? '<td class="aus-tot">' + totalQuincena + '</td>' : '') + '</tr></tbody></table></div></div>';
             }
             //TOTAL por novedad. Todo el mes: el mes y la primera quincena, como la columna AI del Excel
-            var t = '<table class="table table-bordered rd-tabla rd-tabla-compacta aus-total"><thead><tr><th>Novedad</th><th class="rd-num-col">' +
-                    (todoMes ? 'Total del mes' : (d1 === d2 ? 'Día ' + d1 : 'Días ' + d1 + ' a ' + d2)) + '</th>' + (todoMes ? '<th class="rd-num-col">1ª quincena (días 1 a 14)</th>' : '') + '</tr></thead><tbody>';
-            var gm = 0, gq = 0;
-            cfgAus.novedades.filter(function (n) { return +n.CUENTA_AUSENCIA && (+n.ESTADO === 1 || totNov[n.ID_NOVEDAD_AUS]); }).forEach(function (n) {
-                var m = totNov[n.ID_NOVEDAD_AUS] || 0, qq = quiNov[n.ID_NOVEDAD_AUS] || 0; gm += m; gq += qq;
-                t += '<tr><td>' + rdEsc(n.NOMBRE) + '</td><td class="rd-num-col">' + m + '</td>' + (todoMes ? '<td class="rd-num-col">' + qq + '</td>' : '') + '</tr>';
+            var htmlTotal = '<table class="table table-bordered rd-tabla rd-tabla-compacta aus-total"><thead><tr><th>Novedad</th><th class="rd-num-col">' +
+                    (todoMes ? 'Total del mes' : (diaDesde === diaHasta ? 'Día ' + diaDesde : 'Días ' + diaDesde + ' a ' + diaHasta)) + '</th>' + (todoMes ? '<th class="rd-num-col">1ª quincena (días 1 a 14)</th>' : '') + '</tr></thead><tbody>';
+            var granTotal = 0, granTotalQuincena = 0;
+            cfgAus.novedades.filter(function (novedadTotal) { return +novedadTotal.CUENTA_AUSENCIA && (+novedadTotal.ESTADO === 1 || totNov[novedadTotal.ID_NOVEDAD_AUS]); }).forEach(function (novedadTotal) {
+                var totalNovedad = totNov[novedadTotal.ID_NOVEDAD_AUS] || 0, quincenaNovedad = quiNov[novedadTotal.ID_NOVEDAD_AUS] || 0; granTotal += totalNovedad; granTotalQuincena += quincenaNovedad;
+                htmlTotal += '<tr><td>' + rdEsc(novedadTotal.NOMBRE) + '</td><td class="rd-num-col">' + totalNovedad + '</td>' + (todoMes ? '<td class="rd-num-col">' + quincenaNovedad + '</td>' : '') + '</tr>';
             });
-            t += '</tbody><tfoot><tr><th>TOTAL</th><th class="rd-num-col">' + gm + '</th>' + (todoMes ? '<th class="rd-num-col">' + gq + '</th>' : '') + '</tr></tfoot></table>';
+            htmlTotal += '</tbody><tfoot><tr><th>TOTAL</th><th class="rd-num-col">' + granTotal + '</th>' + (todoMes ? '<th class="rd-num-col">' + granTotalQuincena + '</th>' : '') + '</tr></tfoot></table>';
             //Los proyectos y los centros que se suman (con todos los proyectos, cada centro con su proyecto)
             var proys = todos ? cfgAus.proyectos : [proyAus], filasCentro = [];
-            proys.forEach(function (p) { p.CENTROS.forEach(function (c) { if (!soloCentro || +c.ID_CENTRO_OP === +centroAus.ID_CENTRO_OP) { filasCentro.push({ p: p, c: c }); } }); });
+            proys.forEach(function (proyecto) { proyecto.CENTROS.forEach(function (centro) { if (!soloCentro || +centro.ID_CENTRO_OP === +centroAus.ID_CENTRO_OP) { filasCentro.push({ p: proyecto, c: centro }); } }); });
             //Las columnas: los motivos de hoy y los anteriores que en esos días tienen datos en algún centro
-            var nov = cfgAus.novedades.filter(function (n) {
-                return +n.ESTADO === 1 || Object.keys(d.porCentro).some(function (k) { return +((d.porCentro[k] || {})[n.ID_NOVEDAD_AUS] || 0); });
+            var novedadesVisibles = cfgAus.novedades.filter(function (novedad) {
+                return +novedad.ESTADO === 1 || Object.keys(respuesta.porCentro).some(function (clave) { return +((respuesta.porCentro[clave] || {})[novedad.ID_NOVEDAD_AUS] || 0); });
             });
-            var cab = function (primeras) {
-                var x = '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr>' + primeras;
-                nov.forEach(function (n) { x += '<th class="rd-num-col">' + rdEsc(n.NOMBRE) + '</th>'; });
-                return x + '<th class="rd-num-col">Ausencias</th></tr></thead><tbody>';
+            var cabecera = function (primeras) {
+                var htmlTabla = '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr>' + primeras;
+                novedadesVisibles.forEach(function (novedad) { htmlTabla += '<th class="rd-num-col">' + rdEsc(novedad.NOMBRE) + '</th>'; });
+                return htmlTabla + '<th class="rd-num-col">Ausencias</th></tr></thead><tbody>';
             };
             //Una fila de la tabla: el valor de cada motivo y las ausencias (solo los motivos que cuentan); suma en "tot" para la fila TOTAL
-            var fila = function (primeras, r, tot) {
-                var aus = 0, x = '<tr>' + primeras;
-                nov.forEach(function (n) {
-                    var v = r[n.ID_NOVEDAD_AUS] || 0;
-                    tot[n.ID_NOVEDAD_AUS] = (tot[n.ID_NOVEDAD_AUS] || 0) + v;
-                    if (+n.CUENTA_AUSENCIA) { aus += v; }
-                    x += '<td class="rd-num-col">' + (v || '') + '</td>';
+            var fila = function (primeras, valores, total) {
+                var ausencias = 0, htmlFila = '<tr>' + primeras;
+                novedadesVisibles.forEach(function (novedad) {
+                    var valor = valores[novedad.ID_NOVEDAD_AUS] || 0;
+                    total[novedad.ID_NOVEDAD_AUS] = (total[novedad.ID_NOVEDAD_AUS] || 0) + valor;
+                    if (+novedad.CUENTA_AUSENCIA) { ausencias += valor; }
+                    htmlFila += '<td class="rd-num-col">' + (valor || '') + '</td>';
                 });
-                tot.aus = (tot.aus || 0) + aus;
-                return x + '<td class="rd-num-col"><strong>' + aus + '</strong></td></tr>';
+                total.aus = (total.aus || 0) + ausencias;
+                return htmlFila + '<td class="rd-num-col"><strong>' + ausencias + '</strong></td></tr>';
             };
-            var pie = function (colspan, tot) {
-                var x = '</tbody><tfoot><tr><th' + (colspan > 1 ? ' colspan="' + colspan + '"' : '') + '>TOTAL</th>';
-                nov.forEach(function (n) { x += '<th class="rd-num-col">' + (tot[n.ID_NOVEDAD_AUS] || '') + '</th>'; });
-                return x + '<th class="rd-num-col">' + (tot.aus || 0) + '</th></tr></tfoot></table></div>';
+            var pie = function (colspan, total) {
+                var htmlPie = '</tbody><tfoot><tr><th' + (colspan > 1 ? ' colspan="' + colspan + '"' : '') + '>TOTAL</th>';
+                novedadesVisibles.forEach(function (novedad) { htmlPie += '<th class="rd-num-col">' + (total[novedad.ID_NOVEDAD_AUS] || '') + '</th>'; });
+                return htmlPie + '<th class="rd-num-col">' + (total.aus || 0) + '</th></tr></tfoot></table></div>';
             };
             //Por proyecto (solo con todos los proyectos)
-            var pp = '';
+            var htmlPorProyecto = '';
             if (todos) {
                 var totP = {};
-                pp = cab('<th>Proyecto</th>');
-                cfgAus.proyectos.forEach(function (p) { pp += fila('<td>' + rdEsc(p.NOM_PROYECTO) + '</td>', d.porProyecto[p.ID_PROYECTO] || {}, totP); });
-                pp += pie(1, totP);
+                htmlPorProyecto = cabecera('<th>Proyecto</th>');
+                cfgAus.proyectos.forEach(function (proyecto) { htmlPorProyecto += fila('<td>' + rdEsc(proyecto.NOM_PROYECTO) + '</td>', respuesta.porProyecto[proyecto.ID_PROYECTO] || {}, totP); });
+                htmlPorProyecto += pie(1, totP);
             }
             //Por centro. Si hay datos de centros que ya no están activos, van juntos en una fila para que la suma cuadre
-            var totC = {}, vistos = {}, pc = cab((todos ? '<th>Proyecto</th>' : '') + '<th>Centro</th>');
-            filasCentro.forEach(function (x) {
-                vistos[x.c.ID_CENTRO_OP] = 1;
-                pc += fila((todos ? '<td>' + rdEsc(x.p.NOM_PROYECTO) + '</td>' : '') + '<td>' + rdEsc(x.c.NOM_CENTRO_OP) + '</td>', d.porCentro[x.c.ID_CENTRO_OP] || {}, totC);
+            var totC = {}, vistos = {}, htmlPorCentro = cabecera((todos ? '<th>Proyecto</th>' : '') + '<th>Centro</th>');
+            filasCentro.forEach(function (filaCentro) {
+                vistos[filaCentro.c.ID_CENTRO_OP] = 1;
+                htmlPorCentro += fila((todos ? '<td>' + rdEsc(filaCentro.p.NOM_PROYECTO) + '</td>' : '') + '<td>' + rdEsc(filaCentro.c.NOM_CENTRO_OP) + '</td>', respuesta.porCentro[filaCentro.c.ID_CENTRO_OP] || {}, totC);
             });
             var otros = {}, hayOtros = false;
-            Object.keys(d.porCentro).forEach(function (k) {
-                if (vistos[k]) { return; }
+            Object.keys(respuesta.porCentro).forEach(function (clave) {
+                if (vistos[clave]) { return; }
                 hayOtros = true;
-                Object.keys(d.porCentro[k]).forEach(function (n) { otros[n] = (otros[n] || 0) + (+d.porCentro[k][n] || 0); });
+                Object.keys(respuesta.porCentro[clave]).forEach(function (idNovedad) { otros[idNovedad] = (otros[idNovedad] || 0) + (+respuesta.porCentro[clave][idNovedad] || 0); });
             });
-            if (hayOtros) { pc += fila('<td' + (todos ? ' colspan="2"' : '') + '><em>Centros que ya no están activos</em></td>', otros, totC); }
-            pc += pie(todos ? 2 : 1, totC);
+            if (hayOtros) { htmlPorCentro += fila('<td' + (todos ? ' colspan="2"' : '') + '><em>Centros que ya no están activos</em></td>', otros, totC); }
+            htmlPorCentro += pie(todos ? 2 : 1, totC);
             //Con un solo peaje no hace falta la tabla por centro: sería una sola fila igual al total
             var nombre = todos ? 'todos los proyectos' : (soloCentro ? rdEsc(nombreCentro(centroAus)) + ' <small>(' + rdEsc(proyAus.NOM_PROYECTO) + ')</small>' : rdEsc(proyAus.NOM_PROYECTO));
-            $('#ausConsolidado').html('<h4 class="rd-subtitulo" style="margin-top:0">Total de ' + nombre + ' <small>· ' + textoDias(d1, d2, d.diasMes) + '</small></h4>' + t +
-                (todos ? '<h4 class="rd-subtitulo">Por proyecto</h4>' + pp : '') +
-                (soloCentro ? '' : '<h4 class="rd-subtitulo">Por centro</h4>' + pc) +
-                '<h4 class="rd-subtitulo">Por cargo, día por día</h4>' + (h || '<p class="rd-vacio">Sin datos en esos días.</p>'));
+            $('#ausConsolidado').html('<h4 class="rd-subtitulo" style="margin-top:0">Total de ' + nombre + ' <small>· ' + textoDias(diaDesde, diaHasta, respuesta.diasMes) + '</small></h4>' + htmlTotal +
+                (todos ? '<h4 class="rd-subtitulo">Por proyecto</h4>' + htmlPorProyecto : '') +
+                (soloCentro ? '' : '<h4 class="rd-subtitulo">Por centro</h4>' + htmlPorCentro) +
+                '<h4 class="rd-subtitulo">Por cargo, día por día</h4>' + (html || '<p class="rd-vacio">Sin datos en esos días.</p>'));
         })
         .fail(function (xhr) { if (pedido === consPedido) { hanaErrorAjax(xhr, 'No se pudo cargar el consolidado.'); } });
 }
@@ -442,37 +442,37 @@ function cargarConsolidado() {
 //   consolidado, el Excel y Power BI no cambian.
 //===========================================================================
 function nombreCargoAus(id) {
-    var c = cfgAus.cargos.filter(function (x) { return +x.ID_CARGO_AUS === +id; })[0];
-    return c ? c.NOMBRE : 'Cargo ' + id; //un cargo desactivado ya no viene en la lista
+    var cargo = cfgAus.cargos.filter(function (item) { return +item.ID_CARGO_AUS === +id; })[0];
+    return cargo ? cargo.NOMBRE : 'Cargo ' + id; //un cargo desactivado ya no viene en la lista
 }
 //Busca un motivo de ausencia por su id
 function novedadAus(id) {
-    return cfgAus.novedades.filter(function (x) { return +x.ID_NOVEDAD_AUS === +id; })[0] || null;
+    return cfgAus.novedades.filter(function (item) { return +item.ID_NOVEDAD_AUS === +id; })[0] || null;
 }
 //"2026-10" del mes que se está viendo
 function mesVistoAus() { return $('#aAnio').val() + '-' + rdDos(+$('#aMes').val()); }
 
 //Llena un selector de cargos con los que aplican al centro
-function llenarCargos(sel, elegido) {
-    var h = '<option value="">Elige el cargo</option>';
-    cargosDelCentro(centroAus.TIPO_CENTRO).forEach(function (c) {
-        h += '<option value="' + parseInt(c.ID_CARGO_AUS, 10) + '"' + (+c.ID_CARGO_AUS === +elegido ? ' selected' : '') + '>' + rdEsc(c.NOMBRE) + '</option>';
+function llenarCargos(seleccion, elegido) {
+    var html = '<option value="">Elige el cargo</option>';
+    cargosDelCentro(centroAus.TIPO_CENTRO).forEach(function (cargo) {
+        html += '<option value="' + parseInt(cargo.ID_CARGO_AUS, 10) + '"' + (+cargo.ID_CARGO_AUS === +elegido ? ' selected' : '') + '>' + rdEsc(cargo.NOMBRE) + '</option>';
     });
-    $(sel).html(h);
+    $(seleccion).html(html);
 }
 //Llena un selector de motivos con los que aplican a ese cargo
-function llenarMotivos(sel, idCargo, elegido) {
-    var h = '<option value="">' + (idCargo ? 'Elige el motivo' : 'Primero elige el cargo') + '</option>';
+function llenarMotivos(seleccion, idCargo, elegido) {
+    var html = '<option value="">' + (idCargo ? 'Elige qué pasó' : 'Primero elige el cargo') + '</option>';
     if (idCargo) {
         //Para escoger, solo los motivos de hoy (y el que ya tenía, si se está corrigiendo uno anterior)
-        cfgAus.novedades.filter(function (n) {
-            return (!n.ID_CARGO_AUS || +n.ID_CARGO_AUS === +idCargo) && (+n.ESTADO === 1 || +n.ID_NOVEDAD_AUS === +elegido);
-        }).forEach(function (n) {
-            h += '<option value="' + parseInt(n.ID_NOVEDAD_AUS, 10) + '"' + (+n.ID_NOVEDAD_AUS === +elegido ? ' selected' : '') + '>' +
-                 rdEsc(n.NOMBRE) + (+n.CUENTA_AUSENCIA ? '' : ' (no cuenta como ausencia)') + '</option>';
+        cfgAus.novedades.filter(function (novedad) {
+            return (!novedad.ID_CARGO_AUS || +novedad.ID_CARGO_AUS === +idCargo) && (+novedad.ESTADO === 1 || +novedad.ID_NOVEDAD_AUS === +elegido);
+        }).forEach(function (novedad) {
+            html += '<option value="' + parseInt(novedad.ID_NOVEDAD_AUS, 10) + '"' + (+novedad.ID_NOVEDAD_AUS === +elegido ? ' selected' : '') + '>' +
+                 rdEsc(novedad.NOMBRE) + (+novedad.CUENTA_AUSENCIA ? '' : ' (no cuenta como ausencia)') + '</option>';
         });
     }
-    $(sel).html(h);
+    $(seleccion).html(html);
 }
 
 //Deja listo el formulario para el centro y el mes que se están viendo, y pinta la lista
@@ -503,24 +503,24 @@ function pintarAusencias() {
             });
         });
     });
-    filas.sort(function (a, b) { return b.dia - a.dia || a.cargo - b.cargo || a.novedad - b.novedad; }); //lo más reciente arriba
+    filas.sort(function (primera, segunda) { return segunda.dia - primera.dia || primera.cargo - segunda.cargo || primera.novedad - segunda.novedad; }); //lo más reciente arriba
 
-    var mes = mesVistoAus(), h = '', total = 0;
-    filas.forEach(function (f) {
-        var n = novedadAus(f.novedad), fecha = rdAFecha(mes + '-' + rdDos(f.dia));
-        var cuenta = !n || +n.CUENTA_AUSENCIA === 1;
-        if (cuenta) { total += f.cantidad; }
-        var datos = ' data-cargo="' + f.cargo + '" data-novedad="' + f.novedad + '" data-dia="' + f.dia + '"';
-        h += '<tr><td class="aus-lista-dia">' + RD_DIAS_SEMANA[fecha.getDay()] + ' ' + rdDos(f.dia) + '/' + mes.substring(5) + '</td>' +
-             '<td>' + rdEsc(nombreCargoAus(f.cargo)) + '</td>' +
-             '<td' + (cuenta ? '' : ' class="aus-no-cuenta"') + '>' + rdEsc(n ? n.NOMBRE : 'Motivo ' + f.novedad) + (cuenta ? '' : ' (no cuenta como ausencia)') + '</td>' +
-             '<td class="rd-num-col"><strong>' + f.cantidad + '</strong></td>' +
+    var mes = mesVistoAus(), html = '', total = 0;
+    filas.forEach(function (fila) {
+        var novedad = novedadAus(fila.novedad), fecha = rdAFecha(mes + '-' + rdDos(fila.dia));
+        var cuenta = !novedad || +novedad.CUENTA_AUSENCIA === 1;
+        if (cuenta) { total += fila.cantidad; }
+        var datos = ' data-cargo="' + fila.cargo + '" data-novedad="' + fila.novedad + '" data-dia="' + fila.dia + '"';
+        html += '<tr><td class="aus-lista-dia">' + RD_DIAS_SEMANA[fecha.getDay()] + ' ' + rdDos(fila.dia) + '/' + mes.substring(5) + '</td>' +
+             '<td>' + rdEsc(nombreCargoAus(fila.cargo)) + '</td>' +
+             '<td' + (cuenta ? '' : ' class="aus-no-cuenta"') + '>' + (novedad ? nombreMotivo(novedad) : rdEsc('Motivo ' + fila.novedad)) + (cuenta ? '' : ' (no cuenta como ausencia)') + '</td>' +
+             '<td class="rd-num-col"><strong>' + fila.cantidad + '</strong></td>' +
              '<td class="rd-nowrap">' + (datosAus.editable
                  ? '<button type="button" class="btn btn-default btn-xs btn-aus-cambiar"' + datos + '><i class="fa fa-pencil"></i> Cambiar</button> ' +
                    '<button type="button" class="btn btn-default btn-xs btn-aus-borrar"' + datos + '><i class="fa fa-trash"></i> Borrar</button>'
                  : '') + '</td></tr>';
     });
-    $('#ausLista').html(h || '<tr><td colspan="5" class="rd-vacio">Este peaje no tiene ausencias registradas en el mes.</td></tr>');
+    $('#ausLista').html(html || '<tr><td colspan="5" class="rd-vacio">Este peaje no tiene ausencias registradas en el mes.</td></tr>');
     $('#ausTotalMes').html(filas.length ? '<span class="rd-tag rd-tag-pend">' + total + (total === 1 ? ' ausencia' : ' ausencias') + '</span>' : '');
 }
 
@@ -535,16 +535,16 @@ function matrizSinGuardar() {
 function urlAusencia(op) { return URL_AUS + '?op=' + op + '&centro=' + centroAus.ID_CENTRO_OP + periodoAus(); }
 
 //Registra la ausencia de una persona en uno o varios días
-function registrarAusencia(e) {
-    e.preventDefault();
+function registrarAusencia(evento) {
+    evento.preventDefault();
     if (matrizSinGuardar()) { return; }
     if (!$('#rFecha').val()) { alert('Elige el día de la ausencia.'); return; }
     if ($('#rHasta').val() && $('#rHasta').val() < $('#rFecha').val()) { alert('El último día no puede ser antes del primero.'); return; }
     if (!$('#rCargo').val()) { alert('Elige el cargo.'); return; }
-    if (!$('#rNovedad').val()) { alert('Elige el motivo de la ausencia.'); return; }
+    if (!$('#rNovedad').val()) { alert('Elige qué pasó.'); return; }
     hanaBoton('#btnRegistrarAus', true);
     $.post(urlAusencia('ausencia'), $('#ausRapido').serialize(), null, 'json')
-        .done(function (r) { rdAviso(r.mensaje); cargarAus(); })
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarAus(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo registrar la ausencia.')); })
         .always(function () { hanaBoton('#btnRegistrarAus', false); });
 }
@@ -554,7 +554,7 @@ function cambiarAusencia(cargo, novedad, dia) {
     if (matrizSinGuardar()) { return; }
     var mes = mesVistoAus(), fecha = mes + '-' + rdDos(dia);
     var cantidad = ((datosAus.registros[cargo] || {})[novedad] || {})[dia] || 1;
-    var h = '<form id="formAusCambio" autocomplete="off">' +
+    var html = '<form id="formAusCambio" autocomplete="off">' +
             //La ausencia como está hoy, para que el servidor sepa cuál se cambia
             '<input type="hidden" name="fecha0" value="' + fecha + '"><input type="hidden" name="cargo0" value="' + cargo + '"><input type="hidden" name="novedad0" value="' + novedad + '">' +
             '<div class="row"><div class="form-group col-sm-6"><label for="cFecha">Día:</label>' +
@@ -562,28 +562,28 @@ function cambiarAusencia(cargo, novedad, dia) {
             '<div class="form-group col-sm-6"><label for="cCantidad">Personas:</label>' +
             '<input type="number" id="cCantidad" name="cantidad" class="form-control" min="1" max="999" value="' + parseInt(cantidad, 10) + '"></div></div>' +
             '<div class="form-group"><label for="cCargo">Cargo:</label><select id="cCargo" name="cargo" class="form-control"></select></div>' +
-            '<div class="form-group"><label for="cNovedad">Motivo de la ausencia:</label><select id="cNovedad" name="novedad" class="form-control"></select></div>' +
+            '<div class="form-group"><label for="cNovedad">¿Qué pasó?</label><select id="cNovedad" name="novedad" class="form-control"></select></div>' +
             '<p class="rd-ayuda">El cambio queda en el historial, con tu nombre y la hora.</p>' +
             '<div class="rd-acciones"><button type="submit" class="btn btn-success" id="btnGuardarCambioAus"><i class="fa fa-save"></i> Guardar cambio</button></div></form>';
-    var m = $('#modalAus');
-    if (!m.length) {
-        m = $('<div class="modal fade" id="modalAus" tabindex="-1" role="dialog"><div class="modal-dialog" role="document"><div class="modal-content">' +
+    var ventana = $('#modalAus');
+    if (!ventana.length) {
+        ventana = $('<div class="modal fade" id="modalAus" tabindex="-1" role="dialog"><div class="modal-dialog" role="document"><div class="modal-content">' +
               '<div class="modal-header rd-modal-cab"><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>' +
               '<h4 class="modal-title">Cambiar la ausencia</h4></div><div class="modal-body" id="modalAusCuerpo"></div></div></div></div>').appendTo('body');
     }
-    $('#modalAusCuerpo').html(h);
+    $('#modalAusCuerpo').html(html);
     llenarCargos('#cCargo', cargo);
     llenarMotivos('#cNovedad', cargo, novedad);
-    m.modal('show');
+    ventana.modal('show');
 }
 
 //Guarda el cambio de cargo o motivo de una ausencia ya registrada
-function guardarCambioAusencia(e) {
-    e.preventDefault();
-    if (!$('#cCargo').val() || !$('#cNovedad').val()) { alert('Elige el cargo y el motivo.'); return; }
+function guardarCambioAusencia(evento) {
+    evento.preventDefault();
+    if (!$('#cCargo').val() || !$('#cNovedad').val()) { alert('Elige el cargo y qué pasó.'); return; }
     hanaBoton('#btnGuardarCambioAus', true);
     $.post(urlAusencia('ausenciaCambiar'), $(this).serialize(), null, 'json')
-        .done(function (r) { $('#modalAus').modal('hide'); rdAviso(r.mensaje); cargarAus(); })
+        .done(function (respuesta) { $('#modalAus').modal('hide'); rdAviso(respuesta.mensaje); cargarAus(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo cambiar la ausencia.')); })
         .always(function () { hanaBoton('#btnGuardarCambioAus', false); });
 }
@@ -591,10 +591,10 @@ function guardarCambioAusencia(e) {
 //Borra una ausencia de un día (pregunta antes)
 function borrarAusencia(cargo, novedad, dia) {
     if (matrizSinGuardar()) { return; }
-    var n = novedadAus(novedad);
-    hanaConfirmar('¿Borrar la ausencia del día ' + dia + ' (' + nombreCargoAus(cargo) + ', ' + (n ? n.NOMBRE : 'motivo ' + novedad) + ')? Queda anotado en el historial.', function () {
+    var novedadElegida = novedadAus(novedad);
+    hanaConfirmar('¿Borrar la ausencia del día ' + dia + ' (' + nombreCargoAus(cargo) + ', ' + (novedadElegida ? novedadElegida.NOMBRE : 'motivo ' + novedad) + ')? Queda anotado en el historial.', function () {
         $.post(urlAusencia('ausenciaBorrar'), { fecha: mesVistoAus() + '-' + rdDos(dia), cargo: cargo, novedad: novedad }, null, 'json')
-            .done(function (r) { rdAviso(r.mensaje); cargarAus(); })
+            .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarAus(); })
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo borrar la ausencia.')); });
     }, { aceptar: 'Sí, borrar', cancelar: 'No' });
 }

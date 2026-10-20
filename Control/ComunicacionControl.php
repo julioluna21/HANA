@@ -5,6 +5,7 @@
 */
 session_start();
 require_once __DIR__ . "/../Modelo/VacanteModelo.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //las respuestas JSON llevan los textos como se escribieron (sin &amp;)
 require_once __DIR__ . "/../Modelo/HanaFechas.php";
 require_once __DIR__ . "/AccesoHelper.php";
 
@@ -15,7 +16,7 @@ date_default_timezone_set('America/Bogota');
 function comError($codigo, $mensaje)
 {
     http_response_code($codigo);
-    echo json_encode(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
+    echo hanaJsonTexto(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -25,8 +26,8 @@ if (!HanaConfig::modulo('COMUNICACIONES')) { comError(403, 'Este módulo está d
 hanaUsarModulo('COMUNICACIONES'); //la casilla COMUNICACIONES de Roles da acceso en todos los proyectos
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { comError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
 $idColaborador = (int)$_SESSION['Idcolaborador'];
-$idUsuario     = (int)$_SESSION['IdUsuarios'];
-$M   = new Comunicacion();
+$idUsuario     = (int)$_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
+$modeloComunicacion   = new Comunicacion();
 $hoy = date('Y-m-d');
 $ultimoEditable = HanaFechas::ventana()[1]; //las fechas no pueden pasar de hoy
 
@@ -40,9 +41,9 @@ $ultimoEditable = HanaFechas::ventana()[1]; //las fechas no pueden pasar de hoy
 $resuelveTodo = hanaTienePermiso('24M') || hanaTienePermiso('32M');
 $centros = array(); $proyectos = array();
 $agregar = function ($filas) use (&$centros, &$proyectos) {
-    foreach ((array)$filas as $c) {
-        $centros[(int)$c['ID_CENTRO_OP']] = $c;
-        $proyectos[(int)$c['ID_PROYECTO']] = array('ID_PROYECTO' => (int)$c['ID_PROYECTO'], 'NOM_PROYECTO' => $c['NOM_PROYECTO']);
+    foreach ((array)$filas as $centro) {
+        $centros[(int)$centro['ID_CENTRO_OP']] = $centro;
+        $proyectos[(int)$centro['ID_PROYECTO']] = array('ID_PROYECTO' => (int)$centro['ID_PROYECTO'], 'NOM_PROYECTO' => $centro['NOM_PROYECTO']);
     }
 };
 $agregar(hanaCentrosCoordinador($idColaborador)); //los que coordina (todos si ADMIN TEC o 32M)
@@ -57,24 +58,21 @@ $puedeResolver = function ($idProyecto) use ($resuelveTodo, $idColaborador) {
 };
 
 //Trae una comunicación y revisa que esté activa y que sea de un proyecto de la persona
-function comCargar($M, $proyectos, $id)
+function comCargar($modeloComunicacion, $proyectos, $id)
 {
-    $m = $M->mostrar($id);
-    if (!$m || (int)$m['ESTADO'] !== 1 || !isset($proyectos[(int)$m['ID_PROYECTO']])) {
+    $comunicacion = $modeloComunicacion->mostrar($id);
+    if (!$comunicacion || (int)$comunicacion['ESTADO'] !== 1 || !isset($proyectos[(int)$comunicacion['ID_PROYECTO']])) {
         comError(404, 'No se encontró la comunicación, o no es de tus proyectos.');
     }
-    return $m;
+    return $comunicacion;
 }
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     case 'config':
-        //El nombre de quien entra, para proponerlo como responsable
-        $yo = Organizacion::nombre($idColaborador);
-        echo json_encode(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'proyectos' => array_values($proyectos), 'centros' => array_values($centros),
+        echo hanaJsonTexto(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'proyectos' => array_values($proyectos), 'centros' => array_values($centros),
                                'tipos' => Comunicacion::$TIPOS, 'medios' => Comunicacion::$MEDIOS,
                                'pendiente' => Comunicacion::$PENDIENTE, 'diasRespuesta' => Comunicacion::diasRespuesta(),
-                               'miNombre' => html_entity_decode($yo, ENT_QUOTES, 'UTF-8'),
                                'proyectosResuelve' => array_values(array_filter(array_keys($proyectos), $puedeResolver))),
                          JSON_UNESCAPED_UNICODE);
         break;
@@ -93,51 +91,51 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (isset($_GET['proyecto']) && (int)$_GET['proyecto'] > 0) {
             $ids = isset($proyectos[(int)$_GET['proyecto']]) ? array((int)$_GET['proyecto']) : array();
         }
-        $filas = $M->listar($ids, $desde, $hasta, $abiertas, $hoy);
-        foreach ($filas as $i => $f) {
+        $filas = $modeloComunicacion->listar($ids, $desde, $hasta, $abiertas, $hoy);
+        foreach ($filas as $i => $fila) {
             //Lo que esta persona puede hacer con cada una (la pantalla muestra los botones según esto)
-            $resuelve = $resuelveTodo || (int)$f['COORDINADOR_PROYECTO'] === $idColaborador;
+            $resuelve = $resuelveTodo || (int)$fila['COORDINADOR_PROYECTO'] === $idColaborador;
             $filas[$i]['PUEDE_RESOLVER'] = $resuelve;
-            $filas[$i]['PUEDE_EDITAR'] = $resuelve || (int)$f['ID_COLABORADOR_REGISTRA'] === $idColaborador;
+            $filas[$i]['PUEDE_EDITAR'] = $resuelve || (int)$fila['ID_COLABORADOR_REGISTRA'] === $idColaborador;
         }
-        echo json_encode($filas, JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto($filas, JSON_UNESCAPED_UNICODE);
         break;
 
     //La conversación de una comunicación
     case 'hilo':
-        $m = comCargar($M, $proyectos, isset($_GET['id']) ? (int)$_GET['id'] : 0);
-        echo json_encode(array('hilo' => $M->hilo($m['ID_COMUNICACION']), 'puedeResolver' => $puedeResolver($m['ID_PROYECTO']),
-                               'resuelta' => $m['FECHA_ATENCION'] !== null), JSON_UNESCAPED_UNICODE);
+        $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_GET['id']) ? (int)$_GET['id'] : 0);
+        echo hanaJsonTexto(array('hilo' => $modeloComunicacion->hilo($comunicacion['ID_COMUNICACION']), 'puedeResolver' => $puedeResolver($comunicacion['ID_PROYECTO']),
+                               'resuelta' => $comunicacion['FECHA_ATENCION'] !== null), JSON_UNESCAPED_UNICODE);
         break;
 
     //Cualquiera con el proyecto asignado responde
     case 'responder':
-        $m = comCargar($M, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
         $texto = HanaVal::texto(isset($_POST['texto']) ? $_POST['texto'] : '', 2000);
         if ($texto === null) { comError(400, 'Escribe la respuesta.'); }
-        $M->agregarHilo($m['ID_COMUNICACION'], $idColaborador, 'RESPUESTA', $texto, date('Y-m-d H:i:s'));
-        echo json_encode(array('ok' => true, 'mensaje' => 'Respuesta agregada.'), JSON_UNESCAPED_UNICODE);
+        $modeloComunicacion->agregarHilo($comunicacion['ID_COMUNICACION'], $idColaborador, 'RESPUESTA', $texto, date('Y-m-d H:i:s'));
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Respuesta agregada.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //El coordinador del proyecto, el ADMIN TEC o 32M: marcar como resuelta o reabrir
     case 'resolver':
     case 'reabrir':
-        $m = comCargar($M, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
-        if (!$puedeResolver($m['ID_PROYECTO'])) { comError(403, 'La marca como resuelta el coordinador del proyecto o el administrador.'); }
+        $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        if (!$puedeResolver($comunicacion['ID_PROYECTO'])) { comError(403, 'La marca como resuelta el coordinador del proyecto o el administrador.'); }
         $nota = HanaVal::texto(isset($_POST['texto']) ? $_POST['texto'] : '', 2000);
         $ahora = date('Y-m-d H:i:s');
         if ($_GET['op'] === 'resolver') {
-            if ($m['FECHA_ATENCION'] !== null) { comError(400, 'Ya está resuelta.'); }
-            $M->resolver($m['ID_COMUNICACION'], $nota, $hoy, $ahora);
-            $M->agregarHilo($m['ID_COMUNICACION'], $idColaborador, 'RESUELTA', $nota, $ahora);
+            if ($comunicacion['FECHA_ATENCION'] !== null) { comError(400, 'Ya está resuelta.'); }
+            $modeloComunicacion->resolver($comunicacion['ID_COMUNICACION'], $nota, $hoy, $ahora);
+            $modeloComunicacion->agregarHilo($comunicacion['ID_COMUNICACION'], $idColaborador, 'RESUELTA', $nota, $ahora);
             $msg = 'Marcada como resuelta.';
         } else {
-            if ($m['FECHA_ATENCION'] === null) { comError(400, 'Todavía está abierta.'); }
-            $M->reabrir($m['ID_COMUNICACION'], $ahora);
-            $M->agregarHilo($m['ID_COMUNICACION'], $idColaborador, 'REABIERTA', $nota, $ahora);
+            if ($comunicacion['FECHA_ATENCION'] === null) { comError(400, 'Todavía está abierta.'); }
+            $modeloComunicacion->reabrir($comunicacion['ID_COMUNICACION'], $ahora);
+            $modeloComunicacion->agregarHilo($comunicacion['ID_COMUNICACION'], $idColaborador, 'REABIERTA', $nota, $ahora);
             $msg = 'Reabierta.';
         }
-        echo json_encode(array('ok' => true, 'mensaje' => $msg), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => $msg), JSON_UNESCAPED_UNICODE);
         break;
 
     //Crea una comunicación nueva o guarda los cambios de una existente
@@ -145,73 +143,71 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         $antes = null;
         if ($id > 0) {
-            $antes = comCargar($M, $proyectos, $id);
+            $antes = comCargar($modeloComunicacion, $proyectos, $id);
             //Los datos los cambia quien la registró o quien la puede resolver; los demás responden
             if ((int)$antes['ID_COLABORADOR_REGISTRA'] !== $idColaborador && !$puedeResolver($antes['ID_PROYECTO'])) {
                 comError(403, 'Los datos los cambia quien la registró o el coordinador. Tú puedes responder en la conversación.');
             }
         }
-        $d = array();
-        $d['proyecto'] = isset($_POST['proyecto']) ? (int)$_POST['proyecto'] : 0;
-        if (!isset($proyectos[$d['proyecto']])) { comError(400, 'Elige uno de tus proyectos.'); }
-        $d['centro'] = isset($_POST['centro']) && (int)$_POST['centro'] > 0 ? (int)$_POST['centro'] : null;
-        if ($d['centro'] !== null && (!isset($centros[$d['centro']]) || (int)$centros[$d['centro']]['ID_PROYECTO'] !== $d['proyecto'])) {
+        $datos = array();
+        $datos['proyecto'] = isset($_POST['proyecto']) ? (int)$_POST['proyecto'] : 0;
+        if (!isset($proyectos[$datos['proyecto']])) { comError(400, 'Elige uno de tus proyectos.'); }
+        $datos['centro'] = isset($_POST['centro']) && (int)$_POST['centro'] > 0 ? (int)$_POST['centro'] : null;
+        if ($datos['centro'] !== null && (!isset($centros[$datos['centro']]) || (int)$centros[$datos['centro']]['ID_PROYECTO'] !== $datos['proyecto'])) {
             comError(400, 'El centro elegido no pertenece a ese proyecto o no está asignado a tu usuario.');
         }
-        $d['tipo'] = isset($_POST['tipo']) ? $_POST['tipo'] : '';
-        if (!isset(Comunicacion::$TIPOS[$d['tipo']])) { comError(400, 'Elige si es por atender o por enviar.'); }
-        $d['medio'] = isset($_POST['medio']) ? $_POST['medio'] : '';
-        if (!isset(Comunicacion::$MEDIOS[$d['medio']])) { comError(400, 'Elige el medio por el que llegó.'); }
-        $d['fecha'] = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
-        if ($d['fecha'] === '' || $d['fecha'] > $ultimoEditable) { comError(400, 'La fecha de recepción no es válida o es posterior a hoy.'); }
-        $d['remitente'] = HanaVal::texto(isset($_POST['remitente']) ? $_POST['remitente'] : '', 120);
-        if ($d['remitente'] === null) { comError(400, 'Escribe el remitente o el área.'); }
-        $d['asunto'] = HanaVal::texto(isset($_POST['asunto']) ? $_POST['asunto'] : '', 300);
-        if ($d['asunto'] === null) { comError(400, 'Escribe el asunto o la solicitud.'); }
-        $d['responsable'] = HanaVal::texto(isset($_POST['responsable']) ? $_POST['responsable'] : '', 120);
-        if ($d['responsable'] === null) { comError(400, 'Escribe quién es el responsable.'); }
-        $d['radicado'] = HanaVal::texto(isset($_POST['radicado']) ? $_POST['radicado'] : '', 40);
-        $d['pendiente'] = isset($_POST['pendiente']) && $_POST['pendiente'] !== '' ? $_POST['pendiente'] : null;
-        if ($d['pendiente'] !== null && !isset(Comunicacion::$PENDIENTE[$d['pendiente']])) { comError(400, '"Pendiente de" no es válido.'); }
-        $d['atencion'] = null;
+        $datos['tipo'] = isset($_POST['tipo']) ? $_POST['tipo'] : '';
+        if (!isset(Comunicacion::$TIPOS[$datos['tipo']])) { comError(400, 'Elige si es por atender o por enviar.'); }
+        $datos['medio'] = isset($_POST['medio']) ? $_POST['medio'] : '';
+        if (!isset(Comunicacion::$MEDIOS[$datos['medio']])) { comError(400, 'Elige el medio por el que llegó.'); }
+        $datos['fecha'] = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
+        if ($datos['fecha'] === '' || $datos['fecha'] > $ultimoEditable) { comError(400, 'La fecha de recepción no es válida o es posterior a hoy.'); }
+        $datos['remitente'] = HanaVal::texto(isset($_POST['remitente']) ? $_POST['remitente'] : '', 120);
+        if ($datos['remitente'] === null) { comError(400, 'Escribe el remitente o el área.'); }
+        $datos['asunto'] = HanaVal::texto(isset($_POST['asunto']) ? $_POST['asunto'] : '', 300);
+        if ($datos['asunto'] === null) { comError(400, 'Escribe el asunto o la solicitud.'); }
+        $datos['radicado'] = HanaVal::texto(isset($_POST['radicado']) ? $_POST['radicado'] : '', 40);
+        $datos['pendiente'] = isset($_POST['pendiente']) && $_POST['pendiente'] !== '' ? $_POST['pendiente'] : null;
+        if ($datos['pendiente'] !== null && !isset(Comunicacion::$PENDIENTE[$datos['pendiente']])) { comError(400, '"Pendiente de" no es válido.'); }
+        $datos['atencion'] = null;
         if (isset($_POST['atencion']) && trim($_POST['atencion']) !== '') {
-            $d['atencion'] = HanaVal::fecha($_POST['atencion']);
-            if ($d['atencion'] === '' || $d['atencion'] < $d['fecha'] || $d['atencion'] > $ultimoEditable) {
+            $datos['atencion'] = HanaVal::fecha($_POST['atencion']);
+            if ($datos['atencion'] === '' || $datos['atencion'] < $datos['fecha'] || $datos['atencion'] > $ultimoEditable) {
                 comError(400, 'La fecha de atención debe estar entre la fecha de recepción y hoy.');
             }
         }
         //Ya atendida, no está pendiente de nadie
-        if ($d['atencion'] !== null) { $d['pendiente'] = null; }
-        $d['respuesta'] = HanaVal::texto(isset($_POST['respuesta']) ? $_POST['respuesta'] : '', 2000);
+        if ($datos['atencion'] !== null) { $datos['pendiente'] = null; }
+        $datos['respuesta'] = HanaVal::texto(isset($_POST['respuesta']) ? $_POST['respuesta'] : '', 2000);
         //La atención (resolverla) solo la marca quien puede resolver; para los demás se conserva como estaba
-        if (!$puedeResolver($d['proyecto'])) {
-            $d['atencion']  = $antes ? $antes['FECHA_ATENCION'] : null;
-            $d['respuesta'] = $antes ? $antes['RESPUESTA'] : null;
-            if ($d['atencion'] !== null) { $d['pendiente'] = null; }
+        if (!$puedeResolver($datos['proyecto'])) {
+            $datos['atencion']  = $antes ? $antes['FECHA_ATENCION'] : null;
+            $datos['respuesta'] = $antes ? $antes['RESPUESTA'] : null;
+            if ($datos['atencion'] !== null) { $datos['pendiente'] = null; }
         }
 
-        $nuevo = $M->guardar($id, $d, $idColaborador, date('Y-m-d H:i:s'));
+        $nuevo = $modeloComunicacion->guardar($id, $datos, $idColaborador, date('Y-m-d H:i:s'));
         if (!$nuevo) { comError(500, 'No se pudo guardar. Intenta de nuevo.'); }
         //"Respuesta o gestión" se guarda como un mensaje más de la conversación, y solo si cambió:
         //así el texto queda en un solo sitio (historial) y no repetido en la tabla del oficio
         $respAntes = $antes && isset($antes['RESPUESTA']) ? (string)$antes['RESPUESTA'] : '';
-        if ($puedeResolver($d['proyecto']) && (string)$d['respuesta'] !== '' && (string)$d['respuesta'] !== $respAntes) {
-            $M->agregarHilo($nuevo, $idColaborador, $d['atencion'] !== null ? 'RESUELTA' : 'RESPUESTA', $d['respuesta'], date('Y-m-d H:i:s'));
+        if ($puedeResolver($datos['proyecto']) && (string)$datos['respuesta'] !== '' && (string)$datos['respuesta'] !== $respAntes) {
+            $modeloComunicacion->agregarHilo($nuevo, $idColaborador, $datos['atencion'] !== null ? 'RESUELTA' : 'RESPUESTA', $datos['respuesta'], date('Y-m-d H:i:s'));
         }
-        echo json_encode(array('ok' => true, 'id' => $nuevo, 'mensaje' => $id ? 'Comunicación actualizada.' : 'Comunicación registrada.'),
+        echo hanaJsonTexto(array('ok' => true, 'id' => $nuevo, 'mensaje' => $id ? 'Comunicación actualizada.' : 'Comunicación registrada.'),
                          JSON_UNESCAPED_UNICODE);
         break;
 
     //Anula una comunicación (solo quien la registró o quien tenga el permiso 5M)
     case 'anular':
-        $m = comCargar($M, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
-        if ((int)$m['ID_COLABORADOR_REGISTRA'] !== $idColaborador && !hanaTienePermiso('5M')) {
+        $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        if ((int)$comunicacion['ID_COLABORADOR_REGISTRA'] !== $idColaborador && !hanaTienePermiso('5M')) {
             comError(403, 'Solo quien la registró puede anularla.');
         }
         $motivo = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 300);
         if ($motivo === null) { comError(400, 'Explica por qué se anula.'); }
-        if (!$M->anular($m['ID_COMUNICACION'], $motivo)) { comError(500, 'No se pudo anular. Intenta de nuevo.'); }
-        echo json_encode(array('ok' => true, 'mensaje' => 'Comunicación anulada.'), JSON_UNESCAPED_UNICODE);
+        if (!$modeloComunicacion->anular($comunicacion['ID_COMUNICACION'], $motivo)) { comError(500, 'No se pudo anular. Intenta de nuevo.'); }
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Comunicación anulada.'), JSON_UNESCAPED_UNICODE);
         break;
 
     default:

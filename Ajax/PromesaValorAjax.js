@@ -11,18 +11,18 @@ var mesPv = null;           //lo último que respondió el servidor para el mes 
 
 $(function () {
     $.getJSON(URL_PV + '?op=config')
-        .done(function (c) {
-            cfgPv = c;
-            fechaPv = c.hoy;
-            rdPeriodo('#pvMes', '#pvAnio', c.hoy);                            //el mes y el año de hoy
-            $('#pvOtroDia').attr('max', c.hoy);
-            $('#pvDesde').val(c.hoy);
-            $('#dsDesde').val(c.hoy);
-            var h = '';
-            c.proyectos.forEach(function (p) {
-                h += '<option value="' + parseInt(p.ID_PROYECTO, 10) + '">' + rdEsc(p.NOM_PROYECTO) + (p.COORDINA ? ' (el tuyo)' : '') + '</option>';
+        .done(function (config) {
+            cfgPv = config;
+            fechaPv = config.hoy;
+            rdPeriodo('#pvMes', '#pvAnio', config.hoy);                            //el mes y el año de hoy
+            $('#pvOtroDia').attr('max', config.hoy);
+            $('#pvDesde').val(config.hoy);
+            $('#dsDesde').val(config.hoy);
+            var html = '';
+            config.proyectos.forEach(function (proyecto) {
+                html += '<option value="' + parseInt(proyecto.ID_PROYECTO, 10) + '">' + rdEsc(proyecto.NOM_PROYECTO) + (proyecto.COORDINA ? ' (el tuyo)' : '') + '</option>';
             });
-            $('#pvProyecto').html(h).val(String(c.proyectoInicial));
+            $('#pvProyecto').html(html).val(String(config.proyectoInicial));
             leerDireccion();                                                  //si viene del tablero con ?centro=&fecha=
             pintarDias();
             elegirProyectoPv();
@@ -45,9 +45,9 @@ $(function () {
     });
     $(document).on('input', '.pv-eje', escribirEjecutado);
     $(document).on('focus', '.pv-eje', function () { this.select(); });
-    $(document).on('keydown', '.pv-eje', function (e) {                       //Enter y las flechas bajan o suben de cargo
-        var i = $('.pv-eje').index(this), destino = e.key === 'Enter' || e.key === 'ArrowDown' ? i + 1 : (e.key === 'ArrowUp' ? i - 1 : -1);
-        if (destino >= 0 && destino < $('.pv-eje').length) { e.preventDefault(); $('.pv-eje').eq(destino).focus(); }
+    $(document).on('keydown', '.pv-eje', function (evento) {                       //Enter y las flechas bajan o suben de cargo
+        var i = $('.pv-eje').index(this), destino = evento.key === 'Enter' || evento.key === 'ArrowDown' ? i + 1 : (evento.key === 'ArrowUp' ? i - 1 : -1);
+        if (destino >= 0 && destino < $('.pv-eje').length) { evento.preventDefault(); $('.pv-eje').eq(destino).focus(); }
     });
     $('#btnLlenar').on('click', llenarSegunAusentismo);
     $('#btnGuardarPv').on('click', guardarDia);
@@ -64,17 +64,17 @@ $(function () {
 
 //Si la dirección trae ?proyecto=, ?centro= o ?fecha= (así llega desde el tablero), se abre ahí
 function leerDireccion() {
-    var q = new URLSearchParams(window.location.search), idCentro = parseInt(q.get('centro'), 10) || 0, idProy = parseInt(q.get('proyecto'), 10) || 0;
-    cfgPv.proyectos.forEach(function (p) {
-        if (+p.ID_PROYECTO === idProy) { $('#pvProyecto').val(String(idProy)); }
-        p.CENTROS.forEach(function (c) { if (+c.ID_CENTRO_OP === idCentro) { $('#pvProyecto').val(String(p.ID_PROYECTO)); cfgPv.centroInicial = idCentro; } });
+    var parametrosUrl = new URLSearchParams(window.location.search), idCentro = parseInt(parametrosUrl.get('centro'), 10) || 0, idProy = parseInt(parametrosUrl.get('proyecto'), 10) || 0;
+    cfgPv.proyectos.forEach(function (proyecto) {
+        if (+proyecto.ID_PROYECTO === idProy) { $('#pvProyecto').val(String(idProy)); }
+        proyecto.CENTROS.forEach(function (centro) { if (+centro.ID_CENTRO_OP === idCentro) { $('#pvProyecto').val(String(proyecto.ID_PROYECTO)); cfgPv.centroInicial = idCentro; } });
     });
-    var f = q.get('fecha') || '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(f) && f <= cfgPv.hoy) { fechaPv = f; }
+    var fechaUrl = parametrosUrl.get('fecha') || '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fechaUrl) && fechaUrl <= cfgPv.hoy) { fechaPv = fechaUrl; }
     //Desde el consolidado se llega con ?ver=mes&anio=&mes=: se abre la pestaña del mes en ese periodo
-    if (q.get('ver') === 'mes') {
-        if ($('#pvAnio option[value="' + q.get('anio') + '"]').length) { $('#pvAnio').val(q.get('anio')); }
-        if (+q.get('mes') >= 1 && +q.get('mes') <= 12) { $('#pvMes').val(String(+q.get('mes'))); }
+    if (parametrosUrl.get('ver') === 'mes') {
+        if ($('#pvAnio option[value="' + parametrosUrl.get('anio') + '"]').length) { $('#pvAnio').val(parametrosUrl.get('anio')); }
+        if (+parametrosUrl.get('mes') >= 1 && +parametrosUrl.get('mes') <= 12) { $('#pvMes').val(String(+parametrosUrl.get('mes'))); }
         $('#tabMesLink').tab('show');
     }
 }
@@ -89,17 +89,17 @@ function salirDelDia() {
 //Al cambiar de proyecto: llena el selector con sus peajes
 function elegirProyectoPv() {
     var id = +($('#pvProyecto').val() || 0);
-    proyPv = cfgPv.proyectos.filter(function (p) { return +p.ID_PROYECTO === id; })[0] || cfgPv.proyectos[0];
-    var h = '';
-    proyPv.CENTROS.forEach(function (c) { h += '<option value="' + parseInt(c.ID_CENTRO_OP, 10) + '">' + (c.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(c.NOM_CENTRO_OP) + '</option>'; });
-    $('#pvCentro').html(h);
+    proyPv = cfgPv.proyectos.filter(function (proyecto) { return +proyecto.ID_PROYECTO === id; })[0] || cfgPv.proyectos[0];
+    var html = '';
+    proyPv.CENTROS.forEach(function (centro) { html += '<option value="' + parseInt(centro.ID_CENTRO_OP, 10) + '">' + (centro.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(centro.NOM_CENTRO_OP) + '</option>'; });
+    $('#pvCentro').html(html);
     if (cfgPv.centroInicial) { $('#pvCentro').val(String(cfgPv.centroInicial)); cfgPv.centroInicial = 0; } //solo la primera vez
     elegirCentroPv(+($('#pvCentro').val() || 0));
 }
 
 //Al elegir un peaje: pone al día la pestaña que esté abierta
 function elegirCentroPv(id) {
-    centroPv = proyPv.CENTROS.filter(function (c) { return +c.ID_CENTRO_OP === id; })[0] || proyPv.CENTROS[0];
+    centroPv = proyPv.CENTROS.filter(function (centro) { return +centro.ID_CENTRO_OP === id; })[0] || proyPv.CENTROS[0];
     cargarDia();
     if ($('#tabMes').hasClass('active')) { cargarMes(); }                    //la pestaña que esté abierta se pone al día
     if ($('#tabPromesa').hasClass('active')) { cargarPromesa(); }
@@ -110,14 +110,14 @@ function elegirCentroPv(id) {
 //---------------------------------------------------------------------------
 //Los botones de los días que se pueden llenar: "Hoy" y, si hay, los anteriores permitidos o habilitados
 function pintarDias() {
-    var h = '';
-    cfgPv.dias.forEach(function (d) {
-        var f = rdAFecha(d.fecha), rotulo = d.tipo === 'HOY' ? 'Hoy' : RD_DIAS_SEMANA[f.getDay()] + ' ' + rdDos(f.getDate()) + '/' + rdDos(f.getMonth() + 1);
-        var titulo = d.tipo === 'HABILITADO' ? 'El administrador te habilitó este día' : (d.tipo === 'ATRAS' ? 'Todavía se puede registrar' : 'El día de hoy');
-        h += '<button type="button" class="btn btn-default btn-sm" data-fecha="' + rdEsc(d.fecha) + '" title="' + titulo + '">' +
-             (d.tipo === 'HABILITADO' ? '<i class="fa fa-unlock"></i> ' : '') + rotulo + '</button>';
+    var html = '';
+    cfgPv.dias.forEach(function (dia) {
+        var fecha = rdAFecha(dia.fecha), rotulo = dia.tipo === 'HOY' ? 'Hoy' : RD_DIAS_SEMANA[fecha.getDay()] + ' ' + rdDos(fecha.getDate()) + '/' + rdDos(fecha.getMonth() + 1);
+        var titulo = dia.tipo === 'HABILITADO' ? 'El administrador te habilitó este día' : (dia.tipo === 'ATRAS' ? 'Todavía se puede registrar' : 'El día de hoy');
+        html += '<button type="button" class="btn btn-default btn-sm" data-fecha="' + rdEsc(dia.fecha) + '" title="' + titulo + '">' +
+             (dia.tipo === 'HABILITADO' ? '<i class="fa fa-unlock"></i> ' : '') + rotulo + '</button>';
     });
-    $('#pvDias').html(h);
+    $('#pvDias').html(html);
 }
 
 //Cambia al día indicado y lo carga
@@ -127,16 +127,16 @@ function verDia(fecha) { fechaPv = fecha; cargarDia(); }
 function cargarDia() {
     if (!centroPv) { return; }
     $.getJSON(URL_PV + '?op=dia&centro=' + centroPv.ID_CENTRO_OP + '&fecha=' + encodeURIComponent(fechaPv))
-        .done(function (d) {
-            diaPv = d; rdCambiosGuardados();
-            rdMarcarDia('#pvDias', d.fecha);                                  //resalta el botón del día
-            $('#pvOtroDia').val($('#pvDias [data-fecha="' + d.fecha + '"]').length ? '' : d.fecha); //si no es un botón, queda en el campo
-            $('#pvQuien').html('<i class="fa fa-user"></i> Coordinador: <strong>' + rdEsc(d.coordinador || 'sin asignar') + '</strong>' +
-                               ' <span class="rd-tag">' + rdEsc(textoDia(d.fecha)) + '</span>');
-            pintarChips(d);
-            pintarNota(d);
-            pintarFiltroPv(d.cargos);
-            pintarFilas(d);
+        .done(function (respuesta) {
+            diaPv = respuesta; rdCambiosGuardados();
+            rdMarcarDia('#pvDias', respuesta.fecha);                                  //resalta el botón del día
+            $('#pvOtroDia').val($('#pvDias [data-fecha="' + respuesta.fecha + '"]').length ? '' : respuesta.fecha); //si no es un botón, queda en el campo
+            $('#pvQuien').html('<i class="fa fa-user"></i> Coordinador: <strong>' + rdEsc(respuesta.coordinador || 'sin asignar') + '</strong>' +
+                               ' <span class="rd-tag">' + rdEsc(textoDia(respuesta.fecha)) + '</span>');
+            pintarChips(respuesta);
+            pintarNota(respuesta);
+            pintarFiltroPv(respuesta.cargos);
+            pintarFilas(respuesta);
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el día.'); });
 }
@@ -148,95 +148,95 @@ function textoDia(fecha) {
 }
 
 //Un botón por peaje del proyecto: verde si ya tiene el ejecutado de ese día
-function pintarChips(d) {
-    var h = '';
-    proyPv.CENTROS.forEach(function (c) {
-        var id = parseInt(c.ID_CENTRO_OP, 10), listo = !!d.avance[id], sinPromesa = d.conPromesa.indexOf(id) === -1;
-        h += '<span class="aus-centro-chip' + (id === +centroPv.ID_CENTRO_OP ? ' activo' : '') + (listo ? ' con' : '') + '" data-id="' + id + '" role="button" tabindex="0"' +
+function pintarChips(datos) {
+    var html = '';
+    proyPv.CENTROS.forEach(function (centro) {
+        var id = parseInt(centro.ID_CENTRO_OP, 10), listo = !!datos.avance[id], sinPromesa = datos.conPromesa.indexOf(id) === -1;
+        html += '<span class="aus-centro-chip' + (id === +centroPv.ID_CENTRO_OP ? ' activo' : '') + (listo ? ' con' : '') + '" data-id="' + id + '" role="button" tabindex="0"' +
              ' title="' + (listo ? 'Ya tiene el ejecutado de ese día' : (sinPromesa ? 'Todavía no tiene promesa de valor' : 'Falta registrar el ejecutado')) + '">' +
-             '<i class="fa ' + (listo ? 'fa-check' : (sinPromesa ? 'fa-minus' : 'fa-circle-o')) + '"></i> ' + rdEsc(c.NOM_CENTRO_OP) + '</span>';
+             '<i class="fa ' + (listo ? 'fa-check' : (sinPromesa ? 'fa-minus' : 'fa-circle-o')) + '"></i> ' + rdEsc(centro.NOM_CENTRO_OP) + '</span>';
     });
-    $('#pvCentros').html(h);
+    $('#pvCentros').html(html);
 }
 
 //El aviso de arriba de la tabla: registrado, pendiente, solo consulta o sin promesa
-function pintarNota(d) {
-    var h = '';
-    if (!d.filas.length) {
-        h = '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-info-circle"></i> Este peaje todavía no tiene promesa de valor para ese día. ' +
-            (d.define ? 'Defínela en la pestaña <a href="#" id="pvIrPromesa">Promesa del peaje</a>.' : 'La define ' + rdEsc(d.coordinador || 'el coordinador del proyecto') + '.') + '</div>';
-    } else if (d.registrado) {
-        h = '<div class="rd-alerta-dia rd-alerta-ok"><i class="fa fa-check-circle"></i> Ejecutado registrado' +
-            (d.quien ? ' por ' + rdEsc(d.quien) : '') + (d.cuando ? ' el ' + rdFecha(d.cuando) + ' a las ' + rdHora(String(d.cuando).substring(11)) : '') + '.' +
-            (d.editable ? ' Puedes corregirlo y volver a guardar.' : '') + '</div>';
+function pintarNota(datos) {
+    var html = '';
+    if (!datos.filas.length) {
+        html = '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-info-circle"></i> Este peaje todavía no tiene promesa de valor para ese día. ' +
+            (datos.define ? 'Defínela en la pestaña <a href="#" id="pvIrPromesa">Promesa del peaje</a>.' : 'La define ' + rdEsc(datos.coordinador || 'el coordinador del proyecto') + '.') + '</div>';
+    } else if (datos.registrado) {
+        html = '<div class="rd-alerta-dia rd-alerta-ok"><i class="fa fa-check-circle"></i> Ejecutado registrado' +
+            (datos.quien ? ' por ' + rdEsc(datos.quien) : '') + (datos.cuando ? ' el ' + rdFecha(datos.cuando) + ' a las ' + rdHora(String(datos.cuando).substring(11)) : '') + '.' +
+            (datos.editable ? ' Puedes corregirlo y volver a guardar.' : '') + '</div>';
     } else {                                                              //hay promesa pero nadie ha registrado ese día
-        h = '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-exclamation-circle"></i> ' +
-            (d.editable ? 'Falta registrar el ejecutado de ' : 'Todavía no se ha registrado el ejecutado de ') + rdEsc(textoDia(d.fecha)) + '.</div>';
+        html = '<div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-exclamation-circle"></i> ' +
+            (datos.editable ? 'Falta registrar el ejecutado de ' : 'Todavía no se ha registrado el ejecutado de ') + rdEsc(textoDia(datos.fecha)) + '.</div>';
     }
-    if (d.filas.length && !d.editable) { h += '<div class="rd-alerta-dia pv-alerta-gris"><i class="fa fa-lock"></i> ' + rdEsc(d.motivo) + '</div>'; }
-    $('#pvNotaDia').html(h);
-    $('#pvIrPromesa').on('click', function (e) { e.preventDefault(); $('#tabPromesaLink').tab('show'); });
+    if (datos.filas.length && !datos.editable) { html += '<div class="rd-alerta-dia pv-alerta-gris"><i class="fa fa-lock"></i> ' + rdEsc(datos.motivo) + '</div>'; }
+    $('#pvNotaDia').html(html);
+    $('#pvIrPromesa').on('click', function (evento) { evento.preventDefault(); $('#tabPromesaLink').tab('show'); });
 }
 
 //La tabla del día: un renglón por cargo
-function pintarFilas(d) {
-    var h = '';
-    d.filas.forEach(function (f) {
-        var motivos = f.motivos.map(function (m) { return '<span class="' + (m.cuenta ? '' : 'aus-no-cuenta') + '">' + rdEsc(m.nombre.toLowerCase()) + ' ' + m.n + '</span>'; }).join(', ');
-        h += '<tr data-cargo="' + f.id + '" data-promesa="' + f.promesa + '" data-ausencias="' + f.ausencias + '"' + (enFiltroPv(f.id) ? '' : ' class="pv-oculta" style="display:none;"') + '>' +
-             '<td class="pv-cargo">' + rdEsc(f.nombre) + '</td>' +
-             '<td class="rd-num-col pv-prom">' + f.promesa + '</td>' +
-             '<td class="pv-col-eje">' + (d.editable
-                 ? '<input type="text" inputmode="numeric" maxlength="3" class="form-control pv-eje" value="' + (f.ejecutado === null ? '' : f.ejecutado) + '" aria-label="Ejecutado de ' + rdEsc(f.nombre) + '">'
-                 : '<span class="pv-eje-ver">' + (f.ejecutado === null ? '—' : f.ejecutado) + '</span>') + '</td>' +
+function pintarFilas(datos) {
+    var html = '';
+    datos.filas.forEach(function (fila) {
+        var motivos = fila.motivos.map(function (motivo) { return '<span class="' + (motivo.cuenta ? '' : 'aus-no-cuenta') + '">' + rdEsc(motivo.nombre.toLowerCase()) + ' ' + motivo.n + '</span>'; }).join(', ');
+        html += '<tr data-cargo="' + fila.id + '" data-promesa="' + fila.promesa + '" data-ausencias="' + fila.ausencias + '"' + (enFiltroPv(fila.id) ? '' : ' class="pv-oculta" style="display:none;"') + '>' +
+             '<td class="pv-cargo">' + rdEsc(fila.nombre) + '</td>' +
+             '<td class="rd-num-col pv-prom">' + fila.promesa + '</td>' +
+             '<td class="pv-col-eje">' + (datos.editable
+                 ? '<input type="text" inputmode="numeric" maxlength="3" class="form-control pv-eje" value="' + (fila.ejecutado === null ? '' : fila.ejecutado) + '" aria-label="Ejecutado de ' + rdEsc(fila.nombre) + '">'
+                 : '<span class="pv-eje-ver">' + (fila.ejecutado === null ? '—' : fila.ejecutado) + '</span>') + '</td>' +
              '<td class="rd-num-col pv-dif"></td>' +
-             '<td class="pv-aus">' + (motivos ? '<strong>' + f.ausencias + '</strong> · ' + motivos : '<span class="pv-suave">Sin ausencias registradas</span>') + '<div class="pv-explica"></div></td></tr>';
+             '<td class="pv-aus">' + (motivos ? '<strong>' + fila.ausencias + '</strong> · ' + motivos : '<span class="pv-suave">Sin ausencias registradas</span>') + '<div class="pv-explica"></div></td></tr>';
     });
-    $('#pvFilas').html(h || '<tr><td colspan="5" class="rd-vacio">No hay cargos con promesa de valor para ese día.</td></tr>');
-    $('#pvAcciones').toggle(!!d.editable && d.filas.length > 0);
+    $('#pvFilas').html(html || '<tr><td colspan="5" class="rd-vacio">No hay cargos con promesa de valor para ese día.</td></tr>');
+    $('#pvAcciones').toggle(!!datos.editable && datos.filas.length > 0);
     recalcularDia();
 }
 
 //Lo que hay escrito en el ejecutado de un renglón: un número, o null si está vacío
-function ejecutadoDe(tr) {
-    var el = tr.find('.pv-eje'), t = el.length ? el.val() : tr.find('.pv-eje-ver').text();
-    return /^\d+$/.test(t) ? parseInt(t, 10) : null;
+function ejecutadoDe(fila) {
+    var campo = fila.find('.pv-eje'), texto = campo.length ? campo.val() : fila.find('.pv-eje-ver').text();
+    return /^\d+$/.test(texto) ? parseInt(texto, 10) : null;
 }
 
 //Un número con su signo a la vista: +3, −2 o 0
-function conSigno(n) { return (n > 0 ? '+' : (n < 0 ? '−' : '')) + Math.abs(n); }
+function conSigno(numero) { return (numero > 0 ? '+' : (numero < 0 ? '−' : '')) + Math.abs(numero); }
 
 //La diferencia como etiqueta: −2 en vino, +1 en menta, 0 en gris
-function etiquetaDif(n) {
-    if (n === null) { return '<span class="pv-suave">—</span>'; }
-    return '<span class="pv-difn ' + (n < 0 ? 'pv-menos' : (n > 0 ? 'pv-mas' : 'pv-igual')) + '">' + conSigno(n) + '</span>';
+function etiquetaDif(diferencia) {
+    if (diferencia === null) { return '<span class="pv-suave">—</span>'; }
+    return '<span class="pv-difn ' + (diferencia < 0 ? 'pv-menos' : (diferencia > 0 ? 'pv-mas' : 'pv-igual')) + '">' + conSigno(diferencia) + '</span>';
 }
 
 //Saca la diferencia de cada cargo, los totales y si las ausencias explican lo que faltó
 function recalcularDia() {
-    var tProm = 0, tEje = 0, tAus = 0, completos = 0, n = 0;
+    var tProm = 0, tEje = 0, tAus = 0, completos = 0, cargosContados = 0;
     $('#pvFilas tr[data-cargo]').each(function () {
-        var tr = $(this), prom = +tr.data('promesa'), aus = +tr.data('ausencias'), eje = ejecutadoDe(tr), nota = '';
-        if (tr.hasClass('pv-oculta')) { return; }                             //fuera del filtro: no entra en los totales
-        n++; tProm += prom; tAus += aus;
-        if (eje !== null) {
-            completos++; tEje += eje;
-            var falta = prom - eje;                                           //personas que faltaron frente a lo prometido
-            if (falta > aus) { nota = '<i class="fa fa-exclamation-triangle"></i> ' + (falta - aus === 1 ? 'Falta 1 persona' : 'Faltan ' + (falta - aus) + ' personas') + ' por explicar en Ausentismo.'; }
-            else if (falta < aus && aus > 0) { nota = 'Hay más ausencias anotadas que personas faltantes: seguramente alguien cubrió el puesto.'; }
+        var fila = $(this), prom = +fila.data('promesa'), ausencias = +fila.data('ausencias'), ejecutado = ejecutadoDe(fila), nota = '';
+        if (fila.hasClass('pv-oculta')) { return; }                             //fuera del filtro: no entra en los totales
+        cargosContados++; tProm += prom; tAus += ausencias;
+        if (ejecutado !== null) {
+            completos++; tEje += ejecutado;
+            var falta = prom - ejecutado;                                           //personas que faltaron frente a lo prometido
+            if (falta > ausencias) { nota = '<i class="fa fa-exclamation-triangle"></i> ' + (falta - ausencias === 1 ? 'Falta 1 persona' : 'Faltan ' + (falta - ausencias) + ' personas') + ' por explicar en Ausentismo.'; }
+            else if (falta < ausencias && ausencias > 0) { nota = 'Hay más ausencias anotadas que personas faltantes: seguramente alguien cubrió el puesto.'; }
         }
-        tr.find('.pv-dif').html(etiquetaDif(eje === null ? null : eje - prom));
-        tr.find('.pv-explica').html(nota);
+        fila.find('.pv-dif').html(etiquetaDif(ejecutado === null ? null : ejecutado - prom));
+        fila.find('.pv-explica').html(nota);
     });
-    var todo = n > 0 && completos === n;
-    $('#pvTotales').html(n ? '<tr><th class="pv-cargo">' + (filtroPv.length ? 'Cargos elegidos' : 'Todo el peaje') + '</th><th class="rd-num-col pv-prom">' + tProm + '</th><th class="pv-col-eje">' + (completos ? tEje : '—') + '</th>' +
+    var todo = cargosContados > 0 && completos === cargosContados;
+    $('#pvTotales').html(cargosContados ? '<tr><th class="pv-cargo">' + (filtroPv.length ? 'Cargos elegidos' : 'Todo el peaje') + '</th><th class="rd-num-col pv-prom">' + tProm + '</th><th class="pv-col-eje">' + (completos ? tEje : '—') + '</th>' +
         '<th class="rd-num-col pv-dif">' + etiquetaDif(todo ? tEje - tProm : null) + '</th><th class="pv-aus">' + (tAus ? tAus + (tAus === 1 ? ' ausencia registrada' : ' ausencias registradas') : '') + '</th></tr>' : '');
 }
 
 //Al escribir el ejecutado: deja solo números y vuelve a sumar
 function escribirEjecutado() {
-    var v = this.value.replace(/\D/g, '').substring(0, 3);                    //solo números, máximo 999
-    if (v !== this.value) { this.value = v; }
+    var valor = this.value.replace(/\D/g, '').substring(0, 3);                    //solo números, máximo 999
+    if (valor !== this.value) { this.value = valor; }
     recalcularDia();
 }
 
@@ -244,8 +244,8 @@ function escribirEjecutado() {
 function llenarSegunAusentismo() {
     var cambio = false;
     $('#pvFilas tr[data-cargo]').each(function () {
-        var tr = $(this), sugerido = Math.max(0, +tr.data('promesa') - +tr.data('ausencias')), el = tr.find('.pv-eje');
-        if (el.val() !== String(sugerido)) { el.val(sugerido).addClass('pv-sugerido'); cambio = true; }
+        var fila = $(this), sugerido = Math.max(0, +fila.data('promesa') - +fila.data('ausencias')), campo = fila.find('.pv-eje');
+        if (campo.val() !== String(sugerido)) { campo.val(sugerido).addClass('pv-sugerido'); cambio = true; }
     });
     if (cambio) { rdHayCambios = true; }
     recalcularDia();
@@ -256,9 +256,9 @@ function llenarSegunAusentismo() {
 function guardarDia() {
     var valores = {}, falta = null;
     $('#pvFilas tr[data-cargo]').each(function () {
-        var eje = ejecutadoDe($(this));
-        if (eje === null && !falta) { falta = $(this); }
-        valores[$(this).data('cargo')] = eje;
+        var ejecutado = ejecutadoDe($(this));
+        if (ejecutado === null && !falta) { falta = $(this); }
+        valores[$(this).data('cargo')] = ejecutado;
     });
     if (falta) {
         if (falta.hasClass('pv-oculta')) { filtroPv = []; pintarFiltroPv(diaPv.cargos); aplicarFiltroDia(); } //estaba escondido por el filtro: se muestra todo
@@ -266,7 +266,7 @@ function guardarDia() {
     }
     hanaBoton('#btnGuardarPv', true);
     $.post(URL_PV + '?op=guardar&centro=' + centroPv.ID_CENTRO_OP, { fecha: fechaPv, valores: JSON.stringify(valores) }, null, 'json')
-        .done(function (r) { rdCambiosGuardados(); rdAviso(r.mensaje); cargarDia(); })
+        .done(function (respuesta) { rdCambiosGuardados(); rdAviso(respuesta.mensaje); cargarDia(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el ejecutado.')); })
         .always(function () { hanaBoton('#btnGuardarPv', false); });
 }
@@ -280,27 +280,27 @@ function enFiltroPv(id) { return !filtroPv.length || filtroPv.indexOf(+id) !== -
 //Arma los botones para filtrar por cargo (si el peaje tiene más de uno)
 function pintarFiltroPv(cargos) {
     cargos = cargos || [];
-    var ids = cargos.map(function (c) { return +c.id; });
+    var ids = cargos.map(function (cargo) { return +cargo.id; });
     filtroPv = filtroPv.filter(function (id) { return ids.indexOf(id) !== -1; }); //los de otro peaje no cuentan
     if (cargos.length < 2) { $('#pvFiltroCargos').hide().html(''); return; }
-    var h = '<span><i class="fa fa-filter"></i> Ver cargos:</span>' +
+    var html = '<span><i class="fa fa-filter"></i> Ver cargos:</span>' +
             '<button type="button" class="pv-fc pv-fc-todos' + (filtroPv.length ? '' : ' activo') + '" data-id="0" aria-pressed="' + !filtroPv.length + '">Todos</button>';
-    cargos.forEach(function (c) {
-        var on = filtroPv.indexOf(+c.id) !== -1;
-        h += '<button type="button" class="pv-fc' + (on ? ' activo' : '') + '" data-id="' + parseInt(c.id, 10) + '" aria-pressed="' + on + '">' + rdEsc(nombreCargoPv(c.nombre)) + '</button>';
+    cargos.forEach(function (cargo) {
+        var marcado = filtroPv.indexOf(+cargo.id) !== -1;
+        html += '<button type="button" class="pv-fc' + (marcado ? ' activo' : '') + '" data-id="' + parseInt(cargo.id, 10) + '" aria-pressed="' + marcado + '">' + rdEsc(nombreCargoPv(cargo.nombre)) + '</button>';
     });
-    if (filtroPv.length) { h += '<span class="pv-fc-nota">Al guardar el día se guardan todos los cargos.</span>'; }
-    $('#pvFiltroCargos').html(h).show();
+    if (filtroPv.length) { html += '<span class="pv-fc-nota">Al guardar el día se guardan todos los cargos.</span>'; }
+    $('#pvFiltroCargos').html(html).show();
 }
 
 //"RECOLECTOR DE PEAJE" -> "Recolector de peaje"
-function nombreCargoPv(t) { t = String(t).toLowerCase(); return t.charAt(0).toUpperCase() + t.substring(1); }
+function nombreCargoPv(texto) { texto = String(texto).toLowerCase(); return texto.charAt(0).toUpperCase() + texto.substring(1); }
 
 //Prende o apaga un cargo del filtro (0 = todos)
 function cambiarFiltroPv(id) {
     if (!id) { filtroPv = []; }
     else if (filtroPv.indexOf(id) === -1) { filtroPv.push(id); }
-    else { filtroPv = filtroPv.filter(function (x) { return x !== id; }); }
+    else { filtroPv = filtroPv.filter(function (idCargo) { return idCargo !== id; }); }
     if (diaPv) { pintarFiltroPv(diaPv.cargos); }
     aplicarFiltroDia();
     if (mesPv) { pintarMes(mesPv.d, mesPv.anio, mesPv.mes); }
@@ -309,8 +309,8 @@ function cambiarFiltroPv(id) {
 //Muestra solo los cargos elegidos en el filtro
 function aplicarFiltroDia() {
     $('#pvFilas tr[data-cargo]').each(function () {
-        var si = enFiltroPv($(this).data('cargo'));
-        $(this).toggleClass('pv-oculta', !si).toggle(si);
+        var enFiltro = enFiltroPv($(this).data('cargo'));
+        $(this).toggleClass('pv-oculta', !enFiltro).toggle(enFiltro);
     });
     recalcularDia();
 }
@@ -322,7 +322,7 @@ function cargarMes() {
     if (!centroPv) { return; }
     var anio = +$('#pvAnio').val(), mes = +$('#pvMes').val();
     $.getJSON(URL_PV + '?op=mes&centro=' + centroPv.ID_CENTRO_OP + '&anio=' + anio + '&mes=' + mes)
-        .done(function (d) { mesPv = { d: d, anio: anio, mes: mes }; pintarMes(d, anio, mes); })
+        .done(function (respuesta) { mesPv = { d: respuesta, anio: anio, mes: mes }; pintarMes(respuesta, anio, mes); })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el mes.'); });
 }
 
@@ -330,91 +330,91 @@ function cargarMes() {
 function semanaDe(dia) { return Math.min(4, Math.floor((dia - 1) / 7)); }
 
 //El encabezado de un bloque: el cargo, los días (con su letra) y las semanas
-function cabeceraMes(d, anio, mes, titulo) {
-    var h = '<thead><tr><th class="aus-fija">' + titulo + '</th>';
-    for (var dia = 1; dia <= d.diasMes; dia++) {
-        var f = new Date(anio, mes - 1, dia), txt = rdATexto(f), libre = f.getDay() === 0 || f.getDay() === 6 || d.festivos.indexOf(txt) !== -1;
-        h += '<th class="aus-dia' + (libre ? ' aus-finde' : '') + (txt === cfgPv.hoy ? ' aus-hoy' : '') + '"' + (d.festivos.indexOf(txt) !== -1 ? ' title="Festivo"' : '') + '>' +
-             dia + '<small>' + PV_LETRA_DIA[f.getDay()] + '</small></th>';
+function cabeceraMes(datos, anio, mes, titulo) {
+    var html = '<thead><tr><th class="aus-fija">' + titulo + '</th>';
+    for (var dia = 1; dia <= datos.diasMes; dia++) {
+        var fecha = new Date(anio, mes - 1, dia), texto = rdATexto(fecha), libre = fecha.getDay() === 0 || fecha.getDay() === 6 || datos.festivos.indexOf(texto) !== -1;
+        html += '<th class="aus-dia' + (libre ? ' aus-finde' : '') + (texto === cfgPv.hoy ? ' aus-hoy' : '') + '"' + (datos.festivos.indexOf(texto) !== -1 ? ' title="Festivo"' : '') + '>' +
+             dia + '<small>' + PV_LETRA_DIA[fecha.getDay()] + '</small></th>';
     }
-    d.semanas.forEach(function (s) { h += '<th class="aus-tot pv-sem">' + rdEsc(s) + '</th>'; });
-    return h + '<th class="aus-tot">Total</th></tr></thead>';
+    datos.semanas.forEach(function (semana) { html += '<th class="aus-tot pv-sem">' + rdEsc(semana) + '</th>'; });
+    return html + '<th class="aus-tot">Total</th></tr></thead>';
 }
 
 //Los tres renglones de un bloque a partir de la promesa y el ejecutado por día: {dia: n}
-function filasMes(d, prom, eje) {
-    var fp = '<tr class="pv-f-prom"><th class="aus-fija">Promesa de valor</th>', fe = '<tr class="pv-f-eje"><th class="aus-fija">Ejecutado</th>',
-        fd = '<tr class="pv-f-dif"><th class="aus-fija">Diferencia</th>', sp = [0, 0, 0, 0, 0], se = [0, 0, 0, 0, 0], hay = [false, false, false, false, false];
-    for (var dia = 1; dia <= d.diasMes; dia++) {
-        var p = prom[dia] || 0, e = eje[dia], reg = e !== undefined, s = semanaDe(dia);
-        if (reg) { sp[s] += p; se[s] += e; hay[s] = true; }                   //las semanas solo cuentan los días registrados
-        fp += '<td class="' + (reg ? '' : 'pv-plan') + '">' + (p || '') + '</td>';
-        fe += '<td>' + (reg ? e : '') + '</td>';
-        fd += '<td class="' + (reg ? (e - p < 0 ? 'pv-menos' : (e - p > 0 ? 'pv-mas' : 'pv-igual')) : '') + '">' + (reg ? conSigno(e - p) : '') + '</td>';
+function filasMes(datos, prom, ejecutado) {
+    var filaPromesa = '<tr class="pv-f-prom"><th class="aus-fija">Promesa de valor</th>', filaEjecutado = '<tr class="pv-f-eje"><th class="aus-fija">Ejecutado</th>',
+        filaDiferencia = '<tr class="pv-f-dif"><th class="aus-fija">Diferencia</th>', promesaSemana = [0, 0, 0, 0, 0], ejecutadoSemana = [0, 0, 0, 0, 0], hay = [false, false, false, false, false];
+    for (var dia = 1; dia <= datos.diasMes; dia++) {
+        var promesaDia = prom[dia] || 0, ejecutadoDia = ejecutado[dia], registrado = ejecutadoDia !== undefined, semana = semanaDe(dia);
+        if (registrado) { promesaSemana[semana] += promesaDia; ejecutadoSemana[semana] += ejecutadoDia; hay[semana] = true; }                   //las semanas solo cuentan los días registrados
+        filaPromesa += '<td class="' + (registrado ? '' : 'pv-plan') + '">' + (promesaDia || '') + '</td>';
+        filaEjecutado += '<td>' + (registrado ? ejecutadoDia : '') + '</td>';
+        filaDiferencia += '<td class="' + (registrado ? (ejecutadoDia - promesaDia < 0 ? 'pv-menos' : (ejecutadoDia - promesaDia > 0 ? 'pv-mas' : 'pv-igual')) : '') + '">' + (registrado ? conSigno(ejecutadoDia - promesaDia) : '') + '</td>';
     }
-    var tp = 0, te = 0, alguno = false;
+    var totalPromesa = 0, totalEjecutado = 0, alguno = false;
     for (var i = 0; i < 5; i++) {
-        tp += sp[i]; te += se[i]; alguno = alguno || hay[i];
-        var dif = se[i] - sp[i];
-        fp += '<td class="aus-tot">' + (hay[i] ? sp[i] : '') + '</td>';
-        fe += '<td class="aus-tot">' + (hay[i] ? se[i] : '') + '</td>';
-        fd += '<td class="aus-tot ' + (hay[i] ? (dif < 0 ? 'pv-menos' : (dif > 0 ? 'pv-mas' : 'pv-igual')) : '') + '">' + (hay[i] ? conSigno(dif) : '') + '</td>';
+        totalPromesa += promesaSemana[i]; totalEjecutado += ejecutadoSemana[i]; alguno = alguno || hay[i];
+        var diferencia = ejecutadoSemana[i] - promesaSemana[i];
+        filaPromesa += '<td class="aus-tot">' + (hay[i] ? promesaSemana[i] : '') + '</td>';
+        filaEjecutado += '<td class="aus-tot">' + (hay[i] ? ejecutadoSemana[i] : '') + '</td>';
+        filaDiferencia += '<td class="aus-tot ' + (hay[i] ? (diferencia < 0 ? 'pv-menos' : (diferencia > 0 ? 'pv-mas' : 'pv-igual')) : '') + '">' + (hay[i] ? conSigno(diferencia) : '') + '</td>';
     }
-    var t = te - tp;
-    return fp + '<td class="aus-tot">' + (alguno ? tp : '') + '</td></tr>' + fe + '<td class="aus-tot">' + (alguno ? te : '') + '</td></tr>' +
-           fd + '<td class="aus-tot ' + (alguno ? (t < 0 ? 'pv-menos' : (t > 0 ? 'pv-mas' : 'pv-igual')) : '') + '">' + (alguno ? conSigno(t) : '') + '</td></tr>';
+    var diferenciaTotal = totalEjecutado - totalPromesa;
+    return filaPromesa + '<td class="aus-tot">' + (alguno ? totalPromesa : '') + '</td></tr>' + filaEjecutado + '<td class="aus-tot">' + (alguno ? totalEjecutado : '') + '</td></tr>' +
+           filaDiferencia + '<td class="aus-tot ' + (alguno ? (diferenciaTotal < 0 ? 'pv-menos' : (diferenciaTotal > 0 ? 'pv-mas' : 'pv-igual')) : '') + '">' + (alguno ? conSigno(diferenciaTotal) : '') + '</td></tr>';
 }
 
 //Una celda de diferencia para el resumen: vacía si no hay días registrados
-function celdaDif(hay, dif) {
-    return '<td class="' + (hay ? (dif < 0 ? 'pv-menos' : (dif > 0 ? 'pv-mas' : 'pv-cero')) : 'pv-cero') + '">' + (hay ? conSigno(dif) : '—') + '</td>';
+function celdaDif(hay, diferencia) {
+    return '<td class="' + (hay ? (diferencia < 0 ? 'pv-menos' : (diferencia > 0 ? 'pv-mas' : 'pv-cero')) : 'pv-cero') + '">' + (hay ? conSigno(diferencia) : '—') + '</td>';
 }
 
 //El renglón de un cargo en el resumen del mes: totales y diferencia por semana (solo días registrados)
-function filaResumenMes(d, nombre, prom, eje, total) {
-    var sp = [0, 0, 0, 0, 0], se = [0, 0, 0, 0, 0], hay = [false, false, false, false, false], tp = 0, te = 0, dias = 0;
-    for (var dia = 1; dia <= d.diasMes; dia++) {
-        if (eje[dia] === undefined) { continue; }
-        var s = semanaDe(dia); sp[s] += prom[dia] || 0; se[s] += eje[dia]; hay[s] = true; tp += prom[dia] || 0; te += eje[dia]; dias++;
+function filaResumenMes(datos, nombre, prom, ejecutado, total) {
+    var promesaSemana = [0, 0, 0, 0, 0], ejecutadoSemana = [0, 0, 0, 0, 0], hay = [false, false, false, false, false], totalPromesa = 0, totalEjecutado = 0, dias = 0;
+    for (var dia = 1; dia <= datos.diasMes; dia++) {
+        if (ejecutado[dia] === undefined) { continue; }
+        var semana = semanaDe(dia); promesaSemana[semana] += prom[dia] || 0; ejecutadoSemana[semana] += ejecutado[dia]; hay[semana] = true; totalPromesa += prom[dia] || 0; totalEjecutado += ejecutado[dia]; dias++;
     }
-    var h = '<tr class="' + (total ? 'pv-total' : '') + '"><td class="pv-nombre">' + rdEsc(nombre) + '</td><td>' + (dias ? tp : '—') + '</td><td>' + (dias ? te : '—') + '</td>' +
-            celdaDif(dias > 0, te - tp) + '<td>' + (tp > 0 ? (Math.round(1000 * te / tp) / 10).toString().replace('.', ',') + ' %' : '—') + '</td>';
-    for (var i = 0; i < 5; i++) { h += celdaDif(hay[i], se[i] - sp[i]); }
-    return h + '<td>' + dias + '</td></tr>';
+    var html = '<tr class="' + (total ? 'pv-total' : '') + '"><td class="pv-nombre">' + rdEsc(nombre) + '</td><td>' + (dias ? totalPromesa : '—') + '</td><td>' + (dias ? totalEjecutado : '—') + '</td>' +
+            celdaDif(dias > 0, totalEjecutado - totalPromesa) + '<td>' + (totalPromesa > 0 ? (Math.round(1000 * totalEjecutado / totalPromesa) / 10).toString().replace('.', ',') + ' %' : '—') + '</td>';
+    for (var i = 0; i < 5; i++) { html += celdaDif(hay[i], ejecutadoSemana[i] - promesaSemana[i]); }
+    return html + '<td>' + dias + '</td></tr>';
 }
 
 //Pinta la grilla del mes: prometido contra ejecutado por cargo y día
-function pintarMes(d, anio, mes) {
-    if (!d.cargos.length) {
+function pintarMes(datos, anio, mes) {
+    if (!datos.cargos.length) {
         $('#pvMesGrid').html('<p class="rd-vacio">Este peaje no tiene promesa de valor ni ejecutado en ese mes.</p>');
         return;
     }
-    var cargos = d.cargos.filter(function (c) { return enFiltroPv(c.id); });  //solo los cargos del filtro
+    var cargos = datos.cargos.filter(function (cargo) { return enFiltroPv(cargo.id); });  //solo los cargos del filtro
     if (!cargos.length) {
         $('#pvMesGrid').html('<p class="rd-vacio">Los cargos elegidos en el filtro no tienen promesa de valor ni ejecutado en ese mes.</p>');
         return;
     }
     var nombreTotal = filtroPv.length ? 'Cargos elegidos' : 'Todo el peaje';
-    var h = '', totProm = {}, totEje = {}, resumen = '';
-    cargos.forEach(function (c) {
+    var html = '', totProm = {}, totEje = {}, resumen = '';
+    cargos.forEach(function (cargo) {
         //Se va sumando para el bloque final de todo el peaje. Un día cuenta como registrado si algún cargo lo tiene
-        for (var dia = 1; dia <= d.diasMes; dia++) {
-            if (c.promesa[dia]) { totProm[dia] = (totProm[dia] || 0) + c.promesa[dia]; }
-            if (c.ejecutado[dia] !== undefined) { totEje[dia] = (totEje[dia] || 0) + c.ejecutado[dia]; }
+        for (var dia = 1; dia <= datos.diasMes; dia++) {
+            if (cargo.promesa[dia]) { totProm[dia] = (totProm[dia] || 0) + cargo.promesa[dia]; }
+            if (cargo.ejecutado[dia] !== undefined) { totEje[dia] = (totEje[dia] || 0) + cargo.ejecutado[dia]; }
         }
-        resumen += filaResumenMes(d, c.nombre, c.promesa, c.ejecutado, false);
-        h += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla pv-mes">' + cabeceraMes(d, anio, mes, rdEsc(c.nombre)) +
-             '<tbody>' + filasMes(d, c.promesa, c.ejecutado) + '</tbody></table></div></div>';
+        resumen += filaResumenMes(datos, cargo.nombre, cargo.promesa, cargo.ejecutado, false);
+        html += '<div class="aus-bloque"><div class="table-responsive aus-scroll"><table class="aus-tabla pv-mes">' + cabeceraMes(datos, anio, mes, rdEsc(cargo.nombre)) +
+             '<tbody>' + filasMes(datos, cargo.promesa, cargo.ejecutado) + '</tbody></table></div></div>';
     });
     //Primero el resumen (las semanas a la vista) y después el detalle día por día
-    var cab = '<thead><tr><th class="pv-nombre">Cargo</th><th>Promesa</th><th>Ejecutado</th><th>Diferencia</th><th>% ejecución</th>';
-    d.semanas.forEach(function (s) { cab += '<th class="pv-g-aus">' + rdEsc(s) + '</th>'; });
-    resumen = '<h4 class="rd-subtitulo" style="margin-top:4px;">Resumen del mes</h4><div class="table-responsive"><table class="table table-bordered pv-cons">' + cab +
-              '<th>Días registrados</th></tr></thead><tbody>' + resumen + filaResumenMes(d, nombreTotal, totProm, totEje, true) + '</tbody></table></div>' +
+    var cabecera = '<thead><tr><th class="pv-nombre">Cargo</th><th>Promesa</th><th>Ejecutado</th><th>Diferencia</th><th>% ejecución</th>';
+    datos.semanas.forEach(function (semana) { cabecera += '<th class="pv-g-aus">' + rdEsc(semana) + '</th>'; });
+    resumen = '<h4 class="rd-subtitulo" style="margin-top:4px;">Resumen del mes</h4><div class="table-responsive"><table class="table table-bordered pv-cons">' + cabecera +
+              '<th>Días registrados</th></tr></thead><tbody>' + resumen + filaResumenMes(datos, nombreTotal, totProm, totEje, true) + '</tbody></table></div>' +
               '<h4 class="rd-subtitulo">Día por día</h4>';
-    h += '<div class="aus-bloque aus-resumen"><div class="table-responsive aus-scroll"><table class="aus-tabla pv-mes">' + cabeceraMes(d, anio, mes, nombreTotal) +
-         '<tbody>' + filasMes(d, totProm, totEje) + '</tbody></table></div></div>';
-    $('#pvMesGrid').html(resumen + h);
+    html += '<div class="aus-bloque aus-resumen"><div class="table-responsive aus-scroll"><table class="aus-tabla pv-mes">' + cabeceraMes(datos, anio, mes, nombreTotal) +
+         '<tbody>' + filasMes(datos, totProm, totEje) + '</tbody></table></div></div>';
+    $('#pvMesGrid').html(resumen + html);
     //Deja a la vista el día de hoy (o el final del mes si ya pasó)
     var hoyTh = $('#pvMesGrid .aus-hoy').first();
     if (hoyTh.length) { $('#pvMesGrid .aus-scroll').each(function () { this.scrollLeft = Math.max(0, hoyTh.position().left - 320); }); }
@@ -426,118 +426,118 @@ function pintarMes(d, anio, mes) {
 function cargarPromesa() {
     if (!centroPv) { return; }
     $.getJSON(URL_PV + '?op=promesa&centro=' + centroPv.ID_CENTRO_OP)
-        .done(function (d) {
-            promesaPv = d;
-            $('#pvDefinir').toggle(!!d.define);
-            $('#pvNotaPromesa').html(d.define ? '' : '<div class="rd-alerta-dia pv-alerta-gris"><i class="fa fa-lock"></i> Solo consulta: la promesa de este peaje la define ' +
-                rdEsc(d.coordDefine ? (d.coordinador || 'el coordinador del proyecto') : 'quien tenga el permiso en su rol') + '.</div>');
+        .done(function (respuesta) {
+            promesaPv = respuesta;
+            $('#pvDefinir').toggle(!!respuesta.define);
+            $('#pvNotaPromesa').html(respuesta.define ? '' : '<div class="rd-alerta-dia pv-alerta-gris"><i class="fa fa-lock"></i> Solo consulta: la promesa de este peaje la define ' +
+                rdEsc(respuesta.coordDefine ? (respuesta.coordinador || 'el coordinador del proyecto') : 'quien tenga el permiso en su rol') + '.</div>');
             //Una casilla por cargo, con lo que rige hoy ya escrito
-            var h = '', op = '';
-            d.cargos.forEach(function (c) {
-                h += '<label class="pv-cargo-caja"><span>' + rdEsc(c.nombre) + '</span>' +
-                     '<input type="text" inputmode="numeric" maxlength="3" class="form-control pv-nueva" data-cargo="' + c.id + '" data-hoy="' + (c.hoy === null ? '' : c.hoy) + '" value="' + (c.hoy === null ? '' : c.hoy) + '" placeholder="0">' +
-                     '<small>' + (c.hoy === null ? 'sin definir' : 'hoy: ' + c.hoy) + '</small></label>';
-                op += '<option value="' + c.id + '">' + rdEsc(c.nombre) + '</option>';
+            var html = '', op = '';
+            respuesta.cargos.forEach(function (cargo) {
+                html += '<label class="pv-cargo-caja"><span>' + rdEsc(cargo.nombre) + '</span>' +
+                     '<input type="text" inputmode="numeric" maxlength="3" class="form-control pv-nueva" data-cargo="' + cargo.id + '" data-hoy="' + (cargo.hoy === null ? '' : cargo.hoy) + '" value="' + (cargo.hoy === null ? '' : cargo.hoy) + '" placeholder="0">' +
+                     '<small>' + (cargo.hoy === null ? 'sin definir' : 'hoy: ' + cargo.hoy) + '</small></label>';
+                op += '<option value="' + cargo.id + '">' + rdEsc(cargo.nombre) + '</option>';
             });
-            $('#pvCargosPromesa').html(h);
+            $('#pvCargosPromesa').html(html);
             $('#rgCargo').html(op);
             //Días que se repiten: una casilla por día de la semana y una caja por cargo (vacía = sigue igual)
-            var sem = '', cajas = '';
-            Object.keys(d.dias).forEach(function (k) {
-                sem += '<label><input type="checkbox" class="pv-dia-rep" value="' + rdEsc(k) + '"><span>' + rdEsc(k === 'F' ? 'Festivos' : d.dias[k].substring(0, 3)) + '</span></label>';
+            var semana = '', cajas = '';
+            Object.keys(respuesta.dias).forEach(function (clave) {
+                semana += '<label><input type="checkbox" class="pv-dia-rep" value="' + rdEsc(clave) + '"><span>' + rdEsc(clave === 'F' ? 'Festivos' : respuesta.dias[clave].substring(0, 3)) + '</span></label>';
             });
-            d.cargos.forEach(function (c) {
-                cajas += '<label class="pv-cargo-caja"><span>' + rdEsc(c.nombre) + '</span>' +
-                         '<input type="text" inputmode="numeric" maxlength="3" class="form-control pv-rep" data-cargo="' + c.id + '" placeholder="igual"></label>';
+            respuesta.cargos.forEach(function (cargo) {
+                cajas += '<label class="pv-cargo-caja"><span>' + rdEsc(cargo.nombre) + '</span>' +
+                         '<input type="text" inputmode="numeric" maxlength="3" class="form-control pv-rep" data-cargo="' + cargo.id + '" placeholder="igual"></label>';
             });
-            $('#pvSemana').html(sem);
+            $('#pvSemana').html(semana);
             $('#pvCargosDias').html(cajas);
-            pintarReglas(d);
+            pintarReglas(respuesta);
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar la promesa del peaje.'); });
 }
 
 //"Viernes, sábado, domingo y festivos" a partir de "5,6,7,F"
 function textoDiasPv(dias) {
-    var nombres = (promesaPv && promesaPv.dias) || {}, lista = String(dias || '').split(',').map(function (k) { return k === 'F' ? 'festivos' : String(nombres[k] || k).toLowerCase(); });
+    var nombres = (promesaPv && promesaPv.dias) || {}, lista = String(dias || '').split(',').map(function (clave) { return clave === 'F' ? 'festivos' : String(nombres[clave] || clave).toLowerCase(); });
     if (!lista.length) { return ''; }
-    var t = lista.length > 1 ? lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1] : lista[0];
-    return t.charAt(0).toUpperCase() + t.substring(1);
+    var textoDias = lista.length > 1 ? lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1] : lista[0];
+    return textoDias.charAt(0).toUpperCase() + textoDias.substring(1);
 }
 
 //¿La regla de días que se repiten aplica hoy? (el día de la semana de hoy, o hoy es festivo)
-function aplicaHoyPv(r) {
-    var dias = String(r.DIAS).split(','), n = rdAFecha(cfgPv.hoy).getDay();
-    return dias.indexOf(String(n === 0 ? 7 : n)) !== -1 || (dias.indexOf('F') !== -1 && (promesaPv.festivos || []).indexOf(cfgPv.hoy) !== -1);
+function aplicaHoyPv(regla) {
+    var dias = String(regla.DIAS).split(','), diaSemana = rdAFecha(cfgPv.hoy).getDay();
+    return dias.indexOf(String(diaSemana === 0 ? 7 : diaSemana)) !== -1 || (dias.indexOf('F') !== -1 && (promesaPv.festivos || []).indexOf(cfgPv.hoy) !== -1);
 }
 
 //La lista de lo guardado. De cada cargo, la regla sin fecha final y sin días marcados más nueva que ya empezó es la vigente
-function pintarReglas(d) {
-    var h = '', vigente = {};
-    d.reglas.forEach(function (r) {                                           //vienen de la más nueva a la más vieja por cargo
-        if (r.HASTA === null && !r.DIAS && r.DESDE <= cfgPv.hoy && vigente[r.ID_CARGO_AUS] === undefined) { vigente[r.ID_CARGO_AUS] = r.ID_PV_PROMESA; }
+function pintarReglas(datos) {
+    var html = '', vigente = {};
+    datos.reglas.forEach(function (regla) {                                           //vienen de la más nueva a la más vieja por cargo
+        if (regla.HASTA === null && !regla.DIAS && regla.DESDE <= cfgPv.hoy && vigente[regla.ID_CARGO_AUS] === undefined) { vigente[regla.ID_CARGO_AUS] = regla.ID_PV_PROMESA; }
     });
-    d.reglas.forEach(function (r) {
+    datos.reglas.forEach(function (regla) {
         var estado, rige;
-        if (r.DIAS) {                                                         //días que se repiten
-            rige = '<span class="pv-dias-txt"><i class="fa fa-repeat"></i> ' + rdEsc(textoDiasPv(r.DIAS)) + '</span><br>' +
-                   (r.HASTA !== null ? 'Del ' + rdFecha(r.DESDE) + ' al ' + rdFecha(r.HASTA) : 'Desde el ' + rdFecha(r.DESDE)) +
-                   (r.NOMBRE ? '<br><em>' + rdEsc(r.NOMBRE) + '</em>' : '');
-            estado = (r.HASTA !== null && r.HASTA < cfgPv.hoy) ? '<span class="rd-tag">Ya pasó</span>'
-                   : (r.DESDE > cfgPv.hoy ? '<span class="rd-tag rd-tag-pend">Empieza después</span>'
-                   : (aplicaHoyPv(r) ? '<span class="rd-tag rd-tag-ok">Se repite, rige hoy</span>' : '<span class="rd-tag rd-tag-ok">Se repite</span>'));
-        } else if (r.HASTA !== null) {
-            rige = 'Del ' + rdFecha(r.DESDE) + ' al ' + rdFecha(r.HASTA);
-            estado = r.HASTA < cfgPv.hoy ? '<span class="rd-tag">Rango que ya pasó</span>'
-                   : (r.DESDE <= cfgPv.hoy ? '<span class="rd-tag rd-tag-ok">Rango especial, rige hoy</span>' : '<span class="rd-tag rd-tag-pend">Rango especial, próximo</span>');
+        if (regla.DIAS) {                                                         //días que se repiten
+            rige = '<span class="pv-dias-txt"><i class="fa fa-repeat"></i> ' + rdEsc(textoDiasPv(regla.DIAS)) + '</span><br>' +
+                   (regla.HASTA !== null ? 'Del ' + rdFecha(regla.DESDE) + ' al ' + rdFecha(regla.HASTA) : 'Desde el ' + rdFecha(regla.DESDE)) +
+                   (regla.NOMBRE ? '<br><em>' + rdEsc(regla.NOMBRE) + '</em>' : '');
+            estado = (regla.HASTA !== null && regla.HASTA < cfgPv.hoy) ? '<span class="rd-tag">Ya pasó</span>'
+                   : (regla.DESDE > cfgPv.hoy ? '<span class="rd-tag rd-tag-pend">Empieza después</span>'
+                   : (aplicaHoyPv(regla) ? '<span class="rd-tag rd-tag-ok">Se repite, rige hoy</span>' : '<span class="rd-tag rd-tag-ok">Se repite</span>'));
+        } else if (regla.HASTA !== null) {
+            rige = 'Del ' + rdFecha(regla.DESDE) + ' al ' + rdFecha(regla.HASTA);
+            estado = regla.HASTA < cfgPv.hoy ? '<span class="rd-tag">Rango que ya pasó</span>'
+                   : (regla.DESDE <= cfgPv.hoy ? '<span class="rd-tag rd-tag-ok">Rango especial, rige hoy</span>' : '<span class="rd-tag rd-tag-pend">Rango especial, próximo</span>');
         } else {
-            rige = 'Desde el ' + rdFecha(r.DESDE);
-            estado = r.DESDE > cfgPv.hoy ? '<span class="rd-tag rd-tag-pend">Empieza después</span>'
-                   : (vigente[r.ID_CARGO_AUS] === r.ID_PV_PROMESA ? '<span class="rd-tag rd-tag-ok">Vigente</span>' : '<span class="rd-tag">Anterior</span>');
+            rige = 'Desde el ' + rdFecha(regla.DESDE);
+            estado = regla.DESDE > cfgPv.hoy ? '<span class="rd-tag rd-tag-pend">Empieza después</span>'
+                   : (vigente[regla.ID_CARGO_AUS] === regla.ID_PV_PROMESA ? '<span class="rd-tag rd-tag-ok">Vigente</span>' : '<span class="rd-tag">Anterior</span>');
         }
-        var texto = r.CARGO + ': ' + r.CANTIDAD + ' por día' + (r.DIAS ? ' los ' + textoDiasPv(r.DIAS).toLowerCase() : '') + ', ' + $('<div>').html(rige.split('<br>')[r.DIAS ? 1 : 0]).text().toLowerCase();
-        h += '<tr><td>' + rdEsc(r.CARGO) + '</td><td class="rd-num-col"><strong>' + parseInt(r.CANTIDAD, 10) + '</strong></td><td>' + rige + '</td><td>' + estado + '</td>' +
-             '<td>' + rdEsc(r.QUIEN || '') + ' <span class="pv-suave">' + rdFecha(r.FEC_MODIFICACION) + '</span></td>' +
-             '<td class="rd-nowrap">' + (d.define ? '<button type="button" class="btn btn-default btn-xs btn-pv-borrar" data-id="' + parseInt(r.ID_PV_PROMESA, 10) + '" data-texto="' + rdEsc(texto) + '" title="Borrar esta regla"><i class="fa fa-trash"></i></button>' : '') + '</td></tr>';
+        var texto = regla.CARGO + ': ' + regla.CANTIDAD + ' por día' + (regla.DIAS ? ' los ' + textoDiasPv(regla.DIAS).toLowerCase() : '') + ', ' + $('<div>').html(rige.split('<br>')[regla.DIAS ? 1 : 0]).text().toLowerCase();
+        html += '<tr><td>' + rdEsc(regla.CARGO) + '</td><td class="rd-num-col"><strong>' + parseInt(regla.CANTIDAD, 10) + '</strong></td><td>' + rige + '</td><td>' + estado + '</td>' +
+             '<td>' + rdEsc(regla.QUIEN || '') + ' <span class="pv-suave">' + rdFecha(regla.FEC_MODIFICACION) + '</span></td>' +
+             '<td class="rd-nowrap">' + (datos.define ? '<button type="button" class="btn btn-default btn-xs btn-pv-borrar" data-id="' + parseInt(regla.ID_PV_PROMESA, 10) + '" data-texto="' + rdEsc(texto) + '" title="Borrar esta regla"><i class="fa fa-trash"></i></button>' : '') + '</td></tr>';
     });
-    $('#pvReglas').html(h || '<tr><td colspan="6" class="rd-vacio">Todavía no se ha definido la promesa de valor de este peaje.</td></tr>');
+    $('#pvReglas').html(html || '<tr><td colspan="6" class="rd-vacio">Todavía no se ha definido la promesa de valor de este peaje.</td></tr>');
 }
 
 //Guarda los días que se repiten: los días marcados, cada cargo con su número
 function guardarDias() {
-    var dias = $('.pv-dia-rep:checked').map(function () { return this.value; }).get(), valores = {}, n = 0, malo = null;
+    var dias = $('.pv-dia-rep:checked').map(function () { return this.value; }).get(), valores = {}, cantidad = 0, malo = null;
     $('.pv-rep').each(function () {
-        var v = this.value.replace(/\s/g, '');
-        if (v === '') { return; }
-        if (!/^\d{1,3}$/.test(v) && !malo) { malo = $(this); }
-        valores[$(this).data('cargo')] = v; n++;
+        var valor = this.value.replace(/\s/g, '');
+        if (valor === '') { return; }
+        if (!/^\d{1,3}$/.test(valor) && !malo) { malo = $(this); }
+        valores[$(this).data('cargo')] = valor; cantidad++;
     });
     if (!dias.length) { alert('Marca al menos un día (por ejemplo viernes, sábado, domingo o festivos).'); return; }
     if (malo) { malo.focus(); alert('Escribe un número de 0 a 999.'); return; }
-    if (!n) { alert('Escribe cuántas personas van esos días en al menos un cargo.'); return; }
+    if (!cantidad) { alert('Escribe cuántas personas van esos días en al menos un cargo.'); return; }
     if (!$('#dsDesde').val()) { alert('Elige desde qué día rige.'); return; }
     hanaBoton('#btnGuardarDias', true);
     $.post(URL_PV + '?op=promesaDias&centro=' + centroPv.ID_CENTRO_OP,
            { dias: dias, valores: JSON.stringify(valores), desde: $('#dsDesde').val(), hasta: $('#dsHasta').val(), nombre: $('#dsNombre').val() }, null, 'json')
-        .done(function (r) { rdAviso(r.mensaje); $('.pv-rep, #dsNombre, #dsHasta').val(''); $('.pv-dia-rep').prop('checked', false); cargarPromesa(); cargarDia(); })
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); $('.pv-rep, #dsNombre, #dsHasta').val(''); $('.pv-dia-rep').prop('checked', false); cargarPromesa(); cargarDia(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron guardar los días que se repiten.')); })
         .always(function () { hanaBoton('#btnGuardarDias', false); });
 }
 
 //Guarda la nueva promesa de valor (solo los cargos que cambiaron)
 function guardarPromesa() {
-    var valores = {}, n = 0, desde = $('#pvDesde').val();
+    var valores = {}, cantidad = 0, desde = $('#pvDesde').val();
     $('.pv-nueva').each(function () {
-        var v = this.value.replace(/\s/g, '');
-        if (v === String($(this).data('hoy')) && desde === cfgPv.hoy) { return; } //quedó como estaba: no se manda
-        if (v === '') { return; }
-        valores[$(this).data('cargo')] = v; n++;
+        var valor = this.value.replace(/\s/g, '');
+        if (valor === String($(this).data('hoy')) && desde === cfgPv.hoy) { return; } //quedó como estaba: no se manda
+        if (valor === '') { return; }
+        valores[$(this).data('cargo')] = valor; cantidad++;
     });
     if (!desde) { alert('Elige desde qué día rige la promesa.'); return; }
-    if (!n) { rdAviso('No cambiaste la promesa de ningún cargo.'); return; }
+    if (!cantidad) { rdAviso('No cambiaste la promesa de ningún cargo.'); return; }
     hanaBoton('#btnGuardarPromesa', true);
     $.post(URL_PV + '?op=promesaGuardar&centro=' + centroPv.ID_CENTRO_OP, { desde: desde, valores: JSON.stringify(valores) }, null, 'json')
-        .done(function (r) { rdAviso(r.mensaje); cargarPromesa(); cargarDia(); })
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarPromesa(); cargarDia(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar la promesa.')); })
         .always(function () { hanaBoton('#btnGuardarPromesa', false); });
 }
@@ -548,7 +548,7 @@ function agregarRango() {
     if (!datos.desde || !datos.hasta || datos.cantidad === '') { alert('Elige el primer día, el último y cuántas personas.'); return; }
     hanaBoton('#btnAgregarRango', true);
     $.post(URL_PV + '?op=promesaRango&centro=' + centroPv.ID_CENTRO_OP, datos, null, 'json')
-        .done(function (r) { rdAviso(r.mensaje); $('#rgDesde, #rgHasta, #rgCantidad').val(''); cargarPromesa(); cargarDia(); })
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); $('#rgDesde, #rgHasta, #rgCantidad').val(''); cargarPromesa(); cargarDia(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el rango.')); })
         .always(function () { hanaBoton('#btnAgregarRango', false); });
 }
@@ -557,7 +557,7 @@ function agregarRango() {
 function borrarRegla(id, texto) {
     hanaConfirmar('¿Borrar esta regla? Vuelve a regir la anterior, y los días ya registrados se comparan con ella.', function () {
         $.post(URL_PV + '?op=promesaBorrar&centro=' + centroPv.ID_CENTRO_OP, { id: id }, null, 'json')
-            .done(function (r) { rdAviso(r.mensaje); cargarPromesa(); cargarDia(); })
+            .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarPromesa(); cargarDia(); })
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo borrar la regla.')); });
     }, { aceptar: 'Sí, borrar', cancelar: 'No', titulo: texto });
 }

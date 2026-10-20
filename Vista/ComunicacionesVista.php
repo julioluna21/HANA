@@ -56,7 +56,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="table-responsive">
             <table class="table table-bordered rd-tabla rd-tabla-compacta">
               <thead><tr><th>Tipo</th><th>ID / radicado</th><th>Recepción</th><th>Medio</th><th>Remitente / área</th><th>Asunto / solicitud</th>
-                <th>Responsable</th><th>Atención</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Estado</th><th></th></tr></thead>
+                <th>Registró</th><th>Atención</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Estado</th><th></th></tr></thead>
               <tbody id="filas"><tr><td colspan="12" class="rd-vacio">Cargando...</td></tr></tbody>
             </table>
           </div>
@@ -88,8 +88,6 @@ if (isset($_SESSION['IdUsuarios'])) {
             <div class="form-group"><label for="mAsunto">Asunto o solicitud: <span class="rd-req">*</span></label>
               <input type="text" id="mAsunto" name="asunto" class="form-control" maxlength="300" placeholder="Ej: Oficio dobles cobros"></div>
             <div class="row">
-              <div class="form-group col-md-6 col-sm-6 col-xs-12"><label for="mResponsable">Responsable: <span class="rd-req">*</span></label>
-                <input type="text" id="mResponsable" name="responsable" class="form-control" maxlength="120"></div>
               <div class="form-group col-md-6 col-sm-6 col-xs-12" id="grupoPendiente"><label for="mPendiente">Pendiente de:</label>
                 <select id="mPendiente" name="pendiente" class="form-control"></select></div>
             </div>
@@ -132,7 +130,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/ComunicacionAjax.js?v=4"></script>
+<script type="text/javascript" src="../Ajax/ComunicacionAjax.js?v=5"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

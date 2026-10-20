@@ -23,17 +23,17 @@ class HanaDB
     {
         global $conexion;
         try {
-            $st = $conexion->prepare($sql);
-            if (!$st) { error_log('HANA - no se pudo preparar: ' . $conexion->error); return false; }
-            if ($tipos !== '') { $st->bind_param($tipos, ...$params); }
-            if (!$st->execute()) { error_log('HANA - error SQL: ' . $st->error); $st->close(); return false; }
-            $r = $st->get_result();
-            if ($r === false) { $st->close(); return true; }
-            $filas = $r->fetch_all(MYSQLI_ASSOC);
-            $st->close();
+            $sentencia = $conexion->prepare($sql);
+            if (!$sentencia) { error_log('HANA - no se pudo preparar: ' . $conexion->error); return false; }
+            if ($tipos !== '') { $sentencia->bind_param($tipos, ...$params); }
+            if (!$sentencia->execute()) { error_log('HANA - error SQL: ' . $sentencia->error); $sentencia->close(); return false; }
+            $resultado = $sentencia->get_result();
+            if ($resultado === false) { $sentencia->close(); return true; }
+            $filas = $resultado->fetch_all(MYSQLI_ASSOC);
+            $sentencia->close();
             return $filas;
-        } catch (Throwable $e) {
-            error_log('HANA - ' . $e->getMessage());
+        } catch (Throwable $error) {
+            error_log('HANA - ' . $error->getMessage());
             return false;
         }
     }
@@ -41,8 +41,8 @@ class HanaDB
     //La primera fila, o null
     public static function fila($sql, $tipos = '', $params = array())
     {
-        $f = self::q($sql, $tipos, $params);
-        return ($f && isset($f[0])) ? $f[0] : null;
+        $filas = self::q($sql, $tipos, $params);
+        return ($filas && isset($filas[0])) ? $filas[0] : null;
     }
 
     //Id del último registro insertado y manejo de transacciones (iniciar, confirmar, deshacer)
@@ -65,13 +65,13 @@ class HanaDB
     public static function proyectosCoordinados($idColaborador, $todos = false)
     {
         if ($todos) {
-            $f = self::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos WHERE Estado = '1' ORDER BY NOM_PROYECTO");
-            return $f ? $f : array();
+            $filas = self::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos WHERE ESTADO = '1' ORDER BY NOM_PROYECTO");
+            return $filas ? $filas : array();
         }
-        $f = self::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos
-                       WHERE Estado = '1' AND ID_COLABORADOR_COORDINADOR = ?
+        $filas = self::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos
+                       WHERE ESTADO = '1' AND ID_COLABORADOR_COORDINADOR = ?
                        ORDER BY NOM_PROYECTO", 'i', array((int)$idColaborador));
-        return $f ? $f : array();
+        return $filas ? $filas : array();
     }
 
     //¿Coordina al menos un proyecto?
@@ -83,27 +83,27 @@ class HanaDB
     //Los centros de los proyectos que coordina (misma forma que centrosUsuario)
     public static function centrosCoordinador($idColaborador, $todos = false)
     {
-        $f = self::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
+        $filas = self::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
                         FROM centros_operacion c
-                        INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
-                       WHERE p.Estado = '1' AND c.Estado = '1' AND (p.ID_COLABORADOR_COORDINADOR = ? OR ? = 1)
+                        INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
+                       WHERE p.ESTADO = '1' AND c.ESTADO = '1' AND (p.ID_COLABORADOR_COORDINADOR = ? OR ? = 1)
                        ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP", 'ii', array((int)$idColaborador, $todos ? 1 : 0));
-        return $f ? $f : array();
+        return $filas ? $filas : array();
     }
 
-    //Los centros asignados al usuario (peajes, básculas, bases, oficinas).
+    //Los centros asignados a la persona en Usuarios (peajes, básculas, bases, oficinas).
     //Son los que usa para RQ y listas de chequeo
     public static function centrosUsuario($idUsuario)
     {
-        $f = self::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
+        $filas = self::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
                         FROM centros_operacion c
-                        INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
+                        INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
                         INNER JOIN asoc_usuarios_sistemas_x_cop a
-                                ON a.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = c.ID_CENTRO_OP
-                       WHERE a.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = ?
-                         AND c.Estado = '1'
+                                ON a.ID_CENTRO_OP = c.ID_CENTRO_OP
+                       WHERE a.ID_COLABORADOR = ?
+                         AND c.ESTADO = '1'
                        ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP", 'i', array((int)$idUsuario));
-        return $f ? $f : array();
+        return $filas ? $filas : array();
     }
 }
 
@@ -111,34 +111,34 @@ class HanaDB
 class HanaVal
 {
     //Una fecha AAAA-MM-DD válida, o ''
-    public static function fecha($v)
+    public static function fecha($valor)
     {
-        $v = trim((string)$v);
-        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $v, $m)) { return ''; }
-        return checkdate((int)$m[2], (int)$m[3], (int)$m[1]) ? $v : '';
+        $valor = trim((string)$valor);
+        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $valor, $partes)) { return ''; }
+        return checkdate((int)$partes[2], (int)$partes[3], (int)$partes[1]) ? $valor : '';
     }
 
     //Una hora HH:MM válida (con :00 de segundos), o null
-    public static function hora($v)
+    public static function hora($valor)
     {
-        $v = trim((string)$v);
-        return preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $v) ? $v . ':00' : null;
+        $valor = trim((string)$valor);
+        return preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $valor) ? $valor . ':00' : null;
     }
 
     //Texto recortado a un largo máximo; null si queda vacío y $nulo es true
-    public static function texto($v, $max, $nulo = true)
+    public static function texto($valor, $max, $nulo = true)
     {
-        $t = trim((string)$v);
-        $t = function_exists('mb_substr') ? mb_substr($t, 0, $max, 'UTF-8') : substr($t, 0, $max);
-        return ($t === '' && $nulo) ? null : $t;
+        $texto = trim((string)$valor);
+        $texto = function_exists('mb_substr') ? mb_substr($texto, 0, $max, 'UTF-8') : substr($texto, 0, $max);
+        return ($texto === '' && $nulo) ? null : $texto;
     }
 
     //Un valor en pesos: acepta "1.500.000", "1500000" o "$ 1,500,000".
     //Devuelve un número >= 0, o null si no es un valor válido
-    public static function pesos($v)
+    public static function pesos($valor)
     {
-        $v = preg_replace('/[^\d]/', '', (string)$v);
-        if ($v === '' || strlen($v) > 12) { return null; }
-        return (float)$v;
+        $valor = preg_replace('/[^\d]/', '', (string)$valor);
+        if ($valor === '' || strlen($valor) > 12) { return null; }
+        return (float)$valor;
     }
 }

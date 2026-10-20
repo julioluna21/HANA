@@ -1,5 +1,11 @@
 <?php
-//Modelo del módulo de Requisiciones (RQ)
+/*
+  HANA - Requisiciones (RQ) (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de las tablas rq (encabezado) y rq_detalle (ítems), más su
+  historial y sus archivos (tablas historial y adjunto). Lo usa
+  Control/RQControl.php. El flujo de estados está en Modelo/RQEstados.php.
+*/
 require_once __DIR__ . "/../Conexion/ConexionDB.php";
 require_once __DIR__ . "/RQEstados.php"; //el flujo de estados de la RQ
 
@@ -18,11 +24,11 @@ class Rq
     private function ejecutar($sql)
     {
         global $conexion;
-        $r = $conexion->query($sql);
-        if ($r === false) {
+        $resultado = $conexion->query($sql);
+        if ($resultado === false) {
             error_log('HANA RQ - error SQL: ' . $conexion->error);
         }
-        return $r;
+        return $resultado;
     }
 
     //Inserta y devuelve el id nuevo, o 0 si falló
@@ -33,7 +39,7 @@ class Rq
     }
 
     //Deja un texto listo para ir entre comillas en SQL
-    private function txt($valor)
+    private function textoSql($valor)
     {
         return "'" . limpiarCadena(trim((string)$valor)) . "'";
     }
@@ -53,11 +59,11 @@ class Rq
     {
         $idUsuario = intval($idUsuario);
         if ($todos) { return "(1 = 1)"; }
-        $persona = "(SELECT ID_COLABORADOR_USUARIOS_SISTEMA FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA = $idUsuario)";
+        $persona = $idUsuario; //el usuario es la misma persona (colaboradores)
         $coordina = "p.ID_COLABORADOR_COORDINADOR = $persona";
         return "(EXISTS (SELECT 1 FROM asoc_usuarios_sistemas_x_cop a
-                          WHERE a.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = c.ID_CENTRO_OP
-                            AND a.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = $idUsuario)
+                          WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP
+                            AND a.ID_COLABORADOR = $idUsuario)
                  OR c.ID_COLABORADOR_JEFE = $persona OR $coordina)";
     }
 
@@ -67,9 +73,9 @@ class Rq
         $idUsuario = intval($idUsuario);
         $sql = "SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, p.ID_PROYECTO, p.NOM_PROYECTO
                   FROM centros_operacion c
-                  INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
+                  INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
                  WHERE " . $this->condPeajes($idUsuario, $todos) . "
-                   AND c.Estado = '1'
+                   AND c.ESTADO = '1'
                  ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP";
         return $this->ejecutar($sql);
     }
@@ -81,30 +87,53 @@ class Rq
     {
         $idUsuario = intval($idUsuario);
         $idCentro  = intval($idCentro);
-        $sql = "SELECT c.ID_PROYECTO_CENTRO_OP AS ID_PROYECTO
+        $sql = "SELECT c.ID_PROYECTO
                   FROM centros_operacion c
-                  INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
+                  INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
                  WHERE " . $this->condPeajes($idUsuario, $todos) . "
                    AND c.ID_CENTRO_OP = $idCentro
                  LIMIT 1";
-        $r = $this->ejecutar($sql);
-        $f = $r ? $r->fetch_assoc() : null;
-        return $f ? (int)$f['ID_PROYECTO'] : 0;
+        $resultado = $this->ejecutar($sql);
+        $fila = $resultado ? $resultado->fetch_assoc() : null;
+        return $fila ? (int)$fila['ID_PROYECTO'] : 0;
     }
 
     //-----------------------------------------------------------------------
     // Numeración: el número se lleva por proyecto
+    //
+    // Dos personas que crean una RQ del mismo proyecto al mismo tiempo podían
+    // recibir el mismo número: las dos leían el último antes de que la otra
+    // guardara. Por eso el controlador "aparta" la numeración del proyecto
+    // (bloquearNumeracion) mientras calcula el número y guarda la RQ, y la suelta
+    // al terminar (soltarNumeracion). Mientras tanto, la otra persona espera unos
+    // segundos. Es un bloqueo con nombre de MySQL (GET_LOCK): si el programa se
+    // corta, MySQL lo suelta solo al cerrarse la conexión.
     //-----------------------------------------------------------------------
+    //Aparta la numeración del proyecto. Devuelve false si no se pudo en $segundos
+    public function bloquearNumeracion($idProyecto, $segundos = 10)
+    {
+        $resultado = $this->ejecutar("SELECT GET_LOCK('hana_rq_numero_" . intval($idProyecto) . "', " . intval($segundos) . ") AS ok");
+        $fila = $resultado ? $resultado->fetch_assoc() : null;
+        return $fila && (int)$fila['ok'] === 1;
+    }
+
+    //Suelta la numeración del proyecto
+    public function soltarNumeracion($idProyecto)
+    {
+        $this->ejecutar("SELECT RELEASE_LOCK('hana_rq_numero_" . intval($idProyecto) . "')");
+    }
+
+    //El siguiente número libre del proyecto (llamar con la numeración apartada)
     public function siguienteNumero($idProyecto)
     {
         $idProyecto = intval($idProyecto);
         //El número puede tener letras ("230A"): el siguiente sale de los que son solo números
         //El proyecto de una RQ es el de su peaje (rq no guarda ID_PROYECTO: sería el mismo dato dos veces)
-        $r = $this->ejecutar("SELECT COALESCE(MAX(CAST(r.NUMERO_RQ AS UNSIGNED)), 0) + 1 AS n
+        $resultado = $this->ejecutar("SELECT COALESCE(MAX(CAST(r.NUMERO_RQ AS UNSIGNED)), 0) + 1 AS n
                                 FROM rq r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                               WHERE c.ID_PROYECTO_CENTRO_OP = $idProyecto AND r.NUMERO_RQ REGEXP '^[0-9]+$'");
-        $f = $r ? $r->fetch_assoc() : null;
-        return $f ? (int)$f['n'] : 1;
+                               WHERE c.ID_PROYECTO = $idProyecto AND r.NUMERO_RQ REGEXP '^[0-9]+$'");
+        $fila = $resultado ? $resultado->fetch_assoc() : null;
+        return $fila ? (int)$fila['n'] : 1;
     }
 
     //¿Ese número de RQ ya existe en el proyecto?
@@ -112,9 +141,9 @@ class Rq
     {
         $idProyecto = intval($idProyecto);
         //El número no se repite dentro del proyecto: lo revisa esta consulta
-        $r = $this->ejecutar("SELECT 1 FROM rq r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                               WHERE c.ID_PROYECTO_CENTRO_OP = $idProyecto AND r.NUMERO_RQ = " . $this->txt((string)$numero) . " LIMIT 1");
-        return $r && $r->num_rows > 0;
+        $resultado = $this->ejecutar("SELECT 1 FROM rq r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
+                               WHERE c.ID_PROYECTO = $idProyecto AND r.NUMERO_RQ = " . $this->textoSql((string)$numero) . " LIMIT 1");
+        return $resultado && $resultado->num_rows > 0;
     }
 
     //-----------------------------------------------------------------------
@@ -130,9 +159,9 @@ class Rq
         //Desde cuándo está en su estado no se guarda aquí: sale del historial (RqEstado::sqlDesde)
         $sql = "INSERT INTO rq (NUMERO_RQ, ID_CENTRO_OP, FECHA_RQ, ID_COLABORADOR_SOLICITA,
                                 ID_RQ_ESTADO, OBSERVACION_SST, FEC_CREACION, TIPO_RQ)
-                VALUES (" . $this->txt((string)$numero) . ", " . intval($idCentro) . ",
-                        " . $this->txt($fecha) . ", " . intval($idColaborador) . ",
-                        " . RqEstado::SOLICITADA . ", " . $this->txt($observacion) . ", NOW(), '$tipo')";
+                VALUES (" . $this->textoSql((string)$numero) . ", " . intval($idCentro) . ",
+                        " . $this->textoSql($fecha) . ", " . intval($idColaborador) . ",
+                        " . RqEstado::SOLICITADA . ", " . $this->textoSql($observacion) . ", NOW(), '$tipo')";
         return $this->insertarId($sql);
     }
 
@@ -141,8 +170,8 @@ class Rq
     {
         $cantidad = is_numeric($cantidad) && $cantidad > 0 ? (float)$cantidad : 1;
         $sql = "INSERT INTO rq_detalle (ID_RQ, DESCRIPCION, JUSTIFICACION, CANTIDAD, UNIDAD, SOPORTE_ULTIMA_ADQUISICION)
-                VALUES (" . intval($idRq) . ", " . $this->txt($descripcion) . ", " . $this->txt($justificacion) . ",
-                        $cantidad, " . $this->txt($unidad !== '' ? $unidad : 'Unidad') . ", " . $this->txt($soporte) . ")";
+                VALUES (" . intval($idRq) . ", " . $this->textoSql($descripcion) . ", " . $this->textoSql($justificacion) . ",
+                        $cantidad, " . $this->textoSql($unidad !== '' ? $unidad : 'Unidad') . ", " . $this->textoSql($soporte) . ")";
         return $this->insertarId($sql);
     }
 
@@ -154,7 +183,7 @@ class Rq
         $tipo = ($tipo === RqEstado::HIST_CORRECCION) ? RqEstado::HIST_CORRECCION : RqEstado::HIST_CAMBIO;
         $sql = "INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, ESTADO_ANTERIOR, ESTADO_NUEVO, TEXTO, ID_COLABORADOR, FECHA)
                 VALUES ('RQ', " . intval($idRq) . ", '$tipo', $anterior, " . intval($nuevo) . ",
-                        " . $this->txt($observacion) . ", NULLIF(" . intval($idColaborador) . ", 0), NOW())";
+                        " . $this->textoSql($observacion) . ", NULLIF(" . intval($idColaborador) . ", 0), NOW())";
         return $this->insertarId($sql);
     }
 
@@ -166,7 +195,7 @@ class Rq
         //Los archivos de las RQ se guardan en "adjunto", la tabla de archivos de todos los
         //módulos (MODULO = 'RQ'). El archivo va completo en ARCHIVO, como texto base64
         $sql = "INSERT INTO adjunto (MODULO, ID_REGISTRO, NOMBRE, ARCHIVO, TIPO, TAMANO, ID_COLABORADOR, FEC_REGISTRO, ESTADO)
-                VALUES ('RQ', " . intval($idRq) . ", " . $this->txt(mb_substr((string)$nombreOriginal, 0, 200)) . ", '" . $conexion->real_escape_string((string)$texto) . "',
+                VALUES ('RQ', " . intval($idRq) . ", " . $this->textoSql(mb_substr((string)$nombreOriginal, 0, 200)) . ", '" . $conexion->real_escape_string((string)$texto) . "',
                         '$tipo', " . intval($tamano) . ", COALESCE((SELECT ID_COLABORADOR_SOLICITA FROM rq WHERE ID_RQ = " . intval($idRq) . "), 0), NOW(), 1)";
         return $this->insertarId($sql);
     }
@@ -183,7 +212,7 @@ class Rq
     public function listar($condAcceso, $idProyecto, $idCentro, $anio, $mes)
     {
         $filtro = '';
-        if (intval($idProyecto) > 0) { $filtro .= " AND c.ID_PROYECTO_CENTRO_OP = " . intval($idProyecto); }
+        if (intval($idProyecto) > 0) { $filtro .= " AND c.ID_PROYECTO = " . intval($idProyecto); }
         if (intval($idCentro)   > 0) { $filtro .= " AND r.ID_CENTRO_OP = " . intval($idCentro); }
 
         //Se filtra por un rango de fechas y no con MONTH()/YEAR(): así la base
@@ -214,7 +243,7 @@ class Rq
                        " . RqEstado::sqlVencida('r.ID_RQ_ESTADO', RqEstado::sqlDesde('r.ID_RQ')) . " AS VENCIDA
                   FROM rq r
                   INNER JOIN centros_operacion c  ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                  INNER JOIN proyectos p          ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
+                  INNER JOIN proyectos p          ON p.ID_PROYECTO = c.ID_PROYECTO
                   LEFT  JOIN colaboradores col    ON col.ID_COLABORADOR = r.ID_COLABORADOR_SOLICITA
                  WHERE $condAcceso $filtro
                  ORDER BY r.FEC_CREACION DESC";
@@ -232,7 +261,7 @@ class Rq
     {
         $idRq = intval($idRq);
         //ID_PROYECTO sale del peaje, con el nombre que espera la pantalla
-        $sql = "SELECT r.*, c.ID_PROYECTO_CENTRO_OP AS ID_PROYECTO, IF(r.ID_RQ_ESTADO = " . RqEstado::ANULADA . ", 0, 1) AS ESTADO,
+        $sql = "SELECT r.*, c.ID_PROYECTO, IF(r.ID_RQ_ESTADO = " . RqEstado::ANULADA . ", 0, 1) AS ESTADO,
                        p.NOM_PROYECTO, c.NOM_CENTRO_OP,
                        " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO', array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'ORDEN', 'DIAS_ESPERADOS')) . ",
                        col.NOM_COLABORADOR AS SOLICITA,
@@ -240,12 +269,12 @@ class Rq
                        " . self::sqlReintentos('r.ID_RQ') . " AS REINTENTOS
                   FROM rq r
                   INNER JOIN centros_operacion c  ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                  INNER JOIN proyectos p          ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
+                  INNER JOIN proyectos p          ON p.ID_PROYECTO = c.ID_PROYECTO
                   LEFT  JOIN colaboradores col    ON col.ID_COLABORADOR = r.ID_COLABORADOR_SOLICITA
                  WHERE r.ID_RQ = $idRq AND $condAcceso
                  LIMIT 1";
-        $r = $this->ejecutar($sql);
-        return $r ? $r->fetch_assoc() : null;
+        $resultado = $this->ejecutar($sql);
+        return $resultado ? $resultado->fetch_assoc() : null;
     }
 
     //Cuántas veces se corrigió y se envió de nuevo una RQ rechazada: se cuentan en el historial
@@ -269,9 +298,10 @@ class Rq
         $sql = "SELECT h.FECHA, h.TEXTO AS OBSERVACION,
                        IF(h.ESTADO_ANTERIOR IS NULL, NULL, " . RqEstado::sqlCampo('h.ESTADO_ANTERIOR', 'NOM_RQ_ESTADO') . ") AS ANTERIOR,
                        " . RqEstado::sqlCampo('h.ESTADO_NUEVO', 'NOM_RQ_ESTADO') . " AS NUEVO,
-                       col.NOM_COLABORADOR AS QUIEN
+                       col.NOM_COLABORADOR AS QUIEN, ro.NOM_ROL_USUARIO_SISTEMA AS ROL
                   FROM historial h
                   LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
+                  LEFT JOIN rol_usuarios_sistemas ro ON ro.ID_ROL_USUARIO_SISTEMA = col.ID_ROL_USUARIO_SISTEMA
                  WHERE h.MODULO = 'RQ' AND h.ID_REGISTRO = " . intval($idRq) . "
                  ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC";
         return $this->ejecutar($sql);
@@ -316,8 +346,8 @@ class Rq
     public function actualizarCabecera($idRq, $fecha, $observacion, $tipo)
     {
         $tipo = ($tipo === 'U') ? 'U' : 'N';
-        $sql = "UPDATE rq SET FECHA_RQ = " . $this->txt($fecha) . ",
-                              OBSERVACION_SST = " . $this->txt($observacion) . ",
+        $sql = "UPDATE rq SET FECHA_RQ = " . $this->textoSql($fecha) . ",
+                              OBSERVACION_SST = " . $this->textoSql($observacion) . ",
                               TIPO_RQ = '$tipo'
                  WHERE ID_RQ = " . intval($idRq);
         return $this->ejecutar($sql);

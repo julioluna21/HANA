@@ -53,14 +53,14 @@ class RqEstado
     public static function datos($id)
     {
         $id = (int)$id;
-        $e = isset(self::LISTA[$id]) ? self::LISTA[$id]
+        $estado = isset(self::LISTA[$id]) ? self::LISTA[$id]
            : array('nombre' => 'Estado ' . $id, 'color' => 'gris', 'orden' => 100, 'final' => 1, 'dias' => 0, 'vigente' => 0);
         return array(
             'ID_RQ_ESTADO'   => $id,
-            'NOM_RQ_ESTADO'  => $e['nombre'],
-            'COLOR'          => $e['color'],
-            'ORDEN'          => $e['orden'],
-            'ES_FINAL'       => $e['final'],
+            'NOM_RQ_ESTADO'  => $estado['nombre'],
+            'COLOR'          => $estado['color'],
+            'ORDEN'          => $estado['orden'],
+            'ES_FINAL'       => $estado['final'],
             'DIAS_ESPERADOS' => self::dias($id),
         );
     }
@@ -77,9 +77,9 @@ class RqEstado
     {
         $sql = "CASE $columna";
         foreach (array_keys(self::LISTA) as $id) {
-            $d = self::datos($id);
-            $v = $d[$campo];
-            $sql .= " WHEN $id THEN " . (is_int($v) ? $v : "'" . str_replace("'", "''", $v) . "'");
+            $datosEstado = self::datos($id);
+            $valor = $datosEstado[$campo];
+            $sql .= " WHEN $id THEN " . (is_int($valor) ? $valor : "'" . str_replace("'", "''", $valor) . "'");
         }
         $otro = ($campo === 'NOM_RQ_ESTADO') ? "CONCAT('Estado ', $columna)"
               : (($campo === 'COLOR') ? "'gris'" : (($campo === 'ES_FINAL') ? '1' : (($campo === 'ORDEN') ? '100' : '0')));
@@ -90,7 +90,7 @@ class RqEstado
     public static function sqlColumnas($columna, $campos = array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'DIAS_ESPERADOS'))
     {
         $partes = array();
-        foreach ($campos as $c) { $partes[] = self::sqlCampo($columna, $c) . " AS $c"; }
+        foreach ($campos as $campo) { $partes[] = self::sqlCampo($columna, $campo) . " AS $campo"; }
         return implode(",\n                       ", $partes);
     }
 

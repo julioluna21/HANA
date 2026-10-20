@@ -2,140 +2,200 @@
 /*
   HANA - Usuarios (modelo)
   ---------------------------------------------------------------------------
-  Consultas de usuarios_sistema y de asoc_usuarios_sistemas_x_cop (qué centros tiene
-  asignados cada usuario). También la consulta para iniciar sesión.
-  Lo usa Control/UsuariosControl.php.
+  Las personas y su acceso a HANA viven en la misma fila (tabla colaboradores,
+  script 35): documento, nombre, correo, rol, USUARIO y CLAVE (cifrada). Se manejan
+  en dos pantallas: Colaboradores (la persona y sus datos) y Usuarios (su acceso).
+  También están los peajes asignados a cada persona (asoc_usuarios_sistemas_x_cop)
+  y la consulta para iniciar sesión y recuperar la clave.
+  Lo usan Control/ColaboradoresControl.php y Control/UsuariosControl.php.
+  El número de usuario que usan la pantalla y la sesión es el ID_COLABORADOR.
+  La clave nunca sale de aquí hacia la pantalla: solo el controlador la revisa
+  (con Modelo/HanaClave.php) al entrar o al validar el enlace de recuperación.
 */
 require "../Conexion/ConexionDB.php";
+require_once __DIR__ . '/HanaDB.php';
 class Usuarios
 {
-        //Implementamos el super constructor 
         public function __construct()
         {
         }
-        //Implementamos un método para insertar registros 	
-        public function insertar($NOMBREUsuario,$clave,$idcolaborador,$idrol)
+
+        //-----------------------------------------------------------------------
+        // La persona
+        //-----------------------------------------------------------------------
+        //Registra una persona con su rol. Devuelve su id, o 0 si no se pudo
+        public function crearPersona($documento, $nombre, $correo, $idRol)
         {
-                $sql = "INSERT INTO usuarios_sistema(NOM_USUARIO_SISTEMA,CLAVE_USUARIO_SISTEMA,ID_COLABORADOR_USUARIOS_SISTEMA,ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA,ESTADO)
-                            VALUES ('$NOMBREUsuario','$clave','$idcolaborador','$idrol','1')";
-                return ejecutarConsulta_retornarID($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
+                $ok = HanaDB::q("INSERT INTO colaboradores (DOC_COLABORADOR, NOM_COLABORADOR, MAIL_COLABORADOR, ID_ROL_USUARIO_SISTEMA, ESTADO)
+                                 VALUES (?, ?, ?, ?, 1)", 'sssi', array((string)$documento, (string)$nombre, (string)$correo, (int)$idRol));
+                if (!$ok) { return 0; }
+                $fila = HanaDB::fila("SELECT ID_COLABORADOR FROM colaboradores WHERE DOC_COLABORADOR = ?", 's', array((string)$documento));
+                return $fila ? (int)$fila['ID_COLABORADOR'] : 0;
         }
-        //Implementamos un método para editar registros
-        public function editar($idusurio,$NOMBREUsuario,$idcolaborador,$idrol)
+        //Cambia documento, nombre y correo
+        public function editarDatos($id, $documento, $nombre, $correo)
         {
-                $sql = "UPDATE usuarios_sistema SET NOM_USUARIO_SISTEMA='$NOMBREUsuario',ID_COLABORADOR_USUARIOS_SISTEMA='$idcolaborador', ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA='$idrol' where ID_USUARIO_SISTEMA=$idusurio";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::q("UPDATE colaboradores SET DOC_COLABORADOR = ?, NOM_COLABORADOR = ?, MAIL_COLABORADOR = ? WHERE ID_COLABORADOR = ?",
+                                       'sssi', array((string)$documento, (string)$nombre, (string)$correo, (int)$id));
         }
-    
-        //Asigna un centro a un usuario. La pareja usuario-centro es la llave de la tabla:
-        //si ya estaba asignado no se repite (IGNORE)
-        public function insertarcentros($idusuario,$idcentro)
+        //Cambia el rol
+        public function ponerRol($id, $idRol)
         {
-                $sql = "INSERT IGNORE INTO asoc_usuarios_sistemas_x_cop(ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP ,ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP)
-                            VALUES (" . intval($idusuario) . "," . intval($idcentro) . ")";
-                return ejecutarConsulta($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
+                return (bool)HanaDB::q("UPDATE colaboradores SET ID_ROL_USUARIO_SISTEMA = ? WHERE ID_COLABORADOR = ?", 'ii', array((int)$idRol, (int)$id));
         }
-        //Implementar un método para mostrar los datos de un registro a modificar
-        public function mostrar($ID_usuario)
+        //Cambia el nombre de usuario (si no tenía, también se le pone la clave temporal)
+        public function ponerUsuario($id, $usuario, $claveCifrada = null)
         {
-                $sql = "SELECT * FROM usuarios_sistema WHERE ID_USUARIO_SISTEMA='$ID_usuario'";
-                return ejecutarConsultaSimpleFila($sql);
+                if ($claveCifrada === null) {
+                        return (bool)HanaDB::q("UPDATE colaboradores SET USUARIO = ? WHERE ID_COLABORADOR = ?", 'si', array((string)$usuario, (int)$id));
+                }
+                return (bool)HanaDB::q("UPDATE colaboradores SET USUARIO = ?, CLAVE = ? WHERE ID_COLABORADOR = ?", 'ssi', array((string)$usuario, (string)$claveCifrada, (int)$id));
         }
-    
-        //Centros asignados a un usuario
-        public function detectarcentros($ID_usuario)
+        //¿Otra persona ya tiene ese documento?
+        public function documentoExiste($documento, $excepto = 0)
         {
-                $sql = "SELECT * FROM asoc_usuarios_sistemas_x_cop WHERE ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP='$ID_usuario'";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::fila("SELECT 1 AS ok FROM colaboradores WHERE DOC_COLABORADOR = ? AND ID_COLABORADOR <> ?", 'si', array((string)$documento, (int)$excepto));
         }
-    
-         //Todos los centros activos con el nombre de su proyecto
-         public function mostrarcentros()
+        //El rol más básico: USUARIO BASE si existe; si no, el activo con menos casillas que no administre usuarios
+        public function rolBasico()
         {
-                $sql = "SELECT centros_operacion.*,proyectos.NOM_PROYECTO FROM centros_operacion INNER JOIN proyectos ON proyectos.ID_PROYECTO=centros_operacion.ID_PROYECTO_CENTRO_OP WHERE centros_operacion.Estado=1 ORDER BY centros_operacion.ID_PROYECTO_CENTRO_OP ASC";
-                return ejecutarConsulta($sql);
+                $fila = HanaDB::fila("SELECT ID_ROL_USUARIO_SISTEMA AS ID FROM rol_usuarios_sistemas
+                                    WHERE ESTADO = 1 AND FIND_IN_SET('1M', PERMISOS) = 0
+                                    ORDER BY NOM_ROL_USUARIO_SISTEMA = 'USUARIO BASE' DESC, LENGTH(PERMISOS) LIMIT 1");
+                return $fila ? (int)$fila['ID'] : 0;
         }
-    
-    
-         //Nombres de los centros asignados a un usuario
-         public function consultaCentros($ID_usuario)
+        //Los datos de la persona para el formulario (sin la clave)
+        public function mostrar($idPersona)
         {
-                $sql = "SELECT centros_operacion.NOM_CENTRO_OP from asoc_usuarios_sistemas_x_cop INNER JOIN centros_operacion on centros_operacion.ID_CENTRO_OP=asoc_usuarios_sistemas_x_cop.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP WHERE asoc_usuarios_sistemas_x_cop.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP='$ID_usuario' ORDER BY centros_operacion.NOM_CENTRO_OP";
-                return ejecutarConsulta($sql);
+                return HanaDB::fila("SELECT c.ID_COLABORADOR, c.DOC_COLABORADOR, c.NOM_COLABORADOR, c.MAIL_COLABORADOR, c.USUARIO,
+                                            c.ID_ROL_USUARIO_SISTEMA, r.NOM_ROL_USUARIO_SISTEMA, c.ESTADO
+                                       FROM colaboradores c
+                                       LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
+                                      WHERE c.ID_COLABORADOR = ?", 'i', array((int)$idPersona));
         }
-        //Implementar un método para listar los registros
+        //Todas las personas, con su rol, su usuario y cuántos peajes tiene asignados (sin la clave)
         public function listar()
         {
-                $sql = "SELECT colaboradores.DOC_COLABORADO,colaboradores.NOM_COLABORADOR, rol_usuarios_sistemas.NOM_ROL_USUARIO_SISTEMA, usuarios_sistema.* FROM usuarios_sistema INNER JOIN colaboradores ON colaboradores.ID_COLABORADOR=usuarios_sistema.ID_COLABORADOR_USUARIOS_SISTEMA INNER join rol_usuarios_sistemas on rol_usuarios_sistemas.ID_ROL_USUARIO_SISTEMA=usuarios_sistema.ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA";
+                $sql = "SELECT c.ID_COLABORADOR, c.DOC_COLABORADOR, c.NOM_COLABORADOR, c.MAIL_COLABORADOR, c.USUARIO, c.ESTADO,
+                               r.NOM_ROL_USUARIO_SISTEMA,
+                               (SELECT COUNT(*) FROM asoc_usuarios_sistemas_x_cop a WHERE a.ID_COLABORADOR = c.ID_COLABORADOR) AS PEAJES
+                          FROM colaboradores c
+                          LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
+                         ORDER BY c.ESTADO DESC, c.NOM_COLABORADOR";
                 return ejecutarConsulta($sql);
         }
-        
-    
-        //Desactiva un usuario (ya no puede entrar)
-        public function desactivar($IDUsuario)
+        //Desactiva a la persona: ya no puede entrar y deja de salir en las listas
+        public function desactivar($idPersona)
         {
-                $sql = "UPDATE usuarios_sistema SET ESTADO=0 WHERE ID_USUARIO_SISTEMA=$IDUsuario";
+                return (bool)HanaDB::q("UPDATE colaboradores SET ESTADO = 0 WHERE ID_COLABORADOR = ?", 'i', array((int)$idPersona));
+        }
+        //Vuelve a activar a la persona
+        public function activar($idPersona)
+        {
+                return (bool)HanaDB::q("UPDATE colaboradores SET ESTADO = 1 WHERE ID_COLABORADOR = ?", 'i', array((int)$idPersona));
+        }
+
+        //-----------------------------------------------------------------------
+        // Peajes asignados
+        //-----------------------------------------------------------------------
+        //Asigna un centro a una persona. La pareja persona-centro no se repite (IGNORE)
+        public function asignarCentro($idPersona, $idCentro)
+        {
+                return (bool)HanaDB::q("INSERT IGNORE INTO asoc_usuarios_sistemas_x_cop (ID_COLABORADOR, ID_CENTRO_OP) VALUES (?, ?)",
+                                       'ii', array((int)$idPersona, (int)$idCentro));
+        }
+        //Quita todos los centros de una persona (se usa antes de guardar los nuevos)
+        public function quitarCentros($idPersona)
+        {
+                return (bool)HanaDB::q("DELETE FROM asoc_usuarios_sistemas_x_cop WHERE ID_COLABORADOR = ?", 'i', array((int)$idPersona));
+        }
+        //Centros asignados a una persona
+        public function centrosAsignados($idPersona)
+        {
+                $sql = "SELECT * FROM asoc_usuarios_sistemas_x_cop WHERE ID_COLABORADOR=" . intval($idPersona);
                 return ejecutarConsulta($sql);
         }
-        //Vuelve a activar un usuario
-        public function activar($IDUsuario)
+        //Todos los centros activos con el nombre de su proyecto, ordenados por proyecto
+        public function centrosActivos()
         {
-               $sql = "UPDATE usuarios_sistema SET ESTADO=1 WHERE ID_USUARIO_SISTEMA=$IDUsuario";
+                $sql = "SELECT centros_operacion.*, proyectos.NOM_PROYECTO
+                          FROM centros_operacion
+                          INNER JOIN proyectos ON proyectos.ID_PROYECTO = centros_operacion.ID_PROYECTO
+                         WHERE centros_operacion.ESTADO = 1
+                         ORDER BY centros_operacion.ID_PROYECTO ASC";
                 return ejecutarConsulta($sql);
         }
-    
-        //Busca un usuario por su nombre de inicio de sesión
-        public function Verficar($usuario)
+        //Nombres de los centros asignados a una persona
+        public function nombresCentros($idPersona)
         {
-                $sql = "SELECT * from  usuarios_sistema WHERE NOM_USUARIO_SISTEMA='$usuario'";
+                $sql = "SELECT centros_operacion.NOM_CENTRO_OP
+                          FROM asoc_usuarios_sistemas_x_cop
+                          INNER JOIN centros_operacion ON centros_operacion.ID_CENTRO_OP = asoc_usuarios_sistemas_x_cop.ID_CENTRO_OP
+                         WHERE asoc_usuarios_sistemas_x_cop.ID_COLABORADOR=" . intval($idPersona) . "
+                         ORDER BY centros_operacion.NOM_CENTRO_OP";
                 return ejecutarConsulta($sql);
         }
-        
-    
-        //Correo de un colaborador
-        public function correo($idcolaborador)
+
+        //-----------------------------------------------------------------------
+        // Otras pantallas
+        //-----------------------------------------------------------------------
+        //Colaboradores activos (desplegables de otras pantallas)
+        public function colaboradoresActivos()
         {
-               $sql = "SELECT MAIL_COLABORADOR from  colaboradores WHERE ID_COLABORADOR=$idcolaborador";
-                return ejecutarConsultaSimpleFila($sql);
-        }
-    
-        //Quita todos los centros de un usuario (se usa antes de guardar los nuevos)
-        public function eliminarcentros($idusuario)
-        {
-               $sql = "DELETE from asoc_usuarios_sistemas_x_cop WHERE asoc_usuarios_sistemas_x_cop.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP=$idusuario";
+                $sql = "SELECT ID_COLABORADOR, NOM_COLABORADOR FROM colaboradores WHERE ESTADO=1";
                 return ejecutarConsulta($sql);
         }
-        
-     
-    
-       //Guarda la nueva clave de un usuario (llega ya convertida en hash desde el controlador)
-       public function cambiraclave($IDUsuario,$clave)
+        //Colaboradores activos que todavía no tienen usuario
+        public function colaboradoresSinUsuario()
         {
-               $sql = "UPDATE usuarios_sistema SET CLAVE_USUARIO_SISTEMA='$clave' WHERE ID_USUARIO_SISTEMA=$IDUsuario";
+                $sql = "SELECT ID_COLABORADOR, NOM_COLABORADOR FROM colaboradores WHERE ESTADO=1 AND USUARIO IS NULL ORDER BY NOM_COLABORADOR";
                 return ejecutarConsulta($sql);
         }
-    
-          //Colaboradores activos
-          public function colaboradores()
+
+        //-----------------------------------------------------------------------
+        // Usuario y clave
+        //-----------------------------------------------------------------------
+        //¿Otra persona ya tiene ese usuario?
+        public function usuarioExiste($usuario, $excepto = 0)
         {
-                $sql = "SELECT * FROM colaboradores WHERE ESTADO=1";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::fila("SELECT 1 AS ok FROM colaboradores WHERE USUARIO = ? AND ID_COLABORADOR <> ?", 'si', array((string)$usuario, (int)$excepto));
         }
-        
-    
-         //Datos del usuario para iniciar sesión: colaborador, rol y permisos
-         public function verificar($usuario,$calve)
+        //Guarda la clave nueva de una persona. Llega ya cifrada (HanaClave::cifrar).
+        //Solo a quien tiene usuario: sin usuario no hay con qué entrar
+        public function guardarClave($idPersona, $claveCifrada)
         {
-                $sql = "SELECT usuarios_sistema.ID_USUARIO_SISTEMA,colaboradores.ID_COLABORADOR,colaboradores.NOM_COLABORADOR, rol_usuarios_sistemas.MODULOS_ROL_USUARIOS_SISTEMAS,rol_usuarios_sistemas.PERMISOS_CERRAR_NOVEDADES FROM usuarios_sistema INNER JOIN rol_usuarios_sistemas on rol_usuarios_sistemas.ID_ROL_USUARIO_SISTEMA=usuarios_sistema.ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA INNER JOIN colaboradores on colaboradores.ID_COLABORADOR=usuarios_sistema.ID_COLABORADOR_USUARIOS_SISTEMA INNER JOIN cargos_colaboradores on cargos_colaboradores.ID_CARGO_COLABORADORES=colaboradores.ID_CARGO_COLABORADORES_COLABORADORES WHERE usuarios_sistema.NOM_USUARIO_SISTEMA='$usuario' AND usuarios_sistema.CLAVE_USUARIO_SISTEMA='$calve' AND usuarios_sistema.ESTADO=1";
-                return ejecutarConsulta($sql);
+                return (bool)HanaDB::q("UPDATE colaboradores SET CLAVE = ? WHERE ID_COLABORADOR = ? AND USUARIO IS NOT NULL",
+                                       'si', array((string)$claveCifrada, (int)$idPersona));
         }
-    
-         //Correo y nombre del usuario que pidió recuperar la clave
-         public function CorreoRecuperacion($usuario)
+        //Lo necesario para iniciar sesión con ese usuario: la clave guardada, si la persona
+        //y su rol están activos, y los permisos del rol. null si nadie tiene ese usuario.
+        //El controlador revisa la clave y los estados (así puede explicar por qué no entra)
+        public function datosIngreso($usuario)
         {
-                $sql = "SELECT colaboradores.MAIL_COLABORADOR, usuarios_sistema.ID_USUARIO_SISTEMA, colaboradores.NOM_COLABORADOR FROM usuarios_sistema INNER JOIN colaboradores ON colaboradores.ID_COLABORADOR=usuarios_sistema.ID_COLABORADOR_USUARIOS_SISTEMA WHERE usuarios_sistema.NOM_USUARIO_SISTEMA='$usuario' AND usuarios_sistema.ESTADO=1";
-                return ejecutarConsultaSimpleFila($sql);
+                return HanaDB::fila("SELECT c.ID_COLABORADOR, c.NOM_COLABORADOR, c.USUARIO, c.CLAVE,
+                                            c.ESTADO AS PERSONA_ACTIVA,
+                                            COALESCE(r.ESTADO, 0) AS ROL_ACTIVO,
+                                            r.PERMISOS, r.PUEDE_CERRAR_NOVEDADES
+                                       FROM colaboradores c
+                                       LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
+                                      WHERE c.USUARIO = ?", 's', array((string)$usuario));
         }
-        
-		
+        //La persona activa con ese usuario, para mandarle el enlace de "Olvidé mi contraseña":
+        //su correo, su nombre y la clave guardada (con ella se firma el enlace). null si no hay
+        public function datosRecuperacion($usuario)
+        {
+                return HanaDB::fila("SELECT ID_COLABORADOR, NOM_COLABORADOR, MAIL_COLABORADOR, CLAVE
+                                       FROM colaboradores
+                                      WHERE USUARIO = ? AND ESTADO = 1 AND CLAVE IS NOT NULL AND CLAVE <> ''",
+                                    's', array((string)$usuario));
+        }
+        //La persona del enlace de recuperación (por su número), con su clave guardada para
+        //revisar la firma. null si no existe, está inactiva o no tiene usuario
+        public function datosEnlace($idPersona)
+        {
+                return HanaDB::fila("SELECT ID_COLABORADOR, NOM_COLABORADOR, USUARIO, CLAVE
+                                       FROM colaboradores
+                                      WHERE ID_COLABORADOR = ? AND ESTADO = 1 AND USUARIO IS NOT NULL AND USUARIO <> ''",
+                                    'i', array((int)$idPersona));
+        }
 }

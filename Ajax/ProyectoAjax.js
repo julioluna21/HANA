@@ -3,9 +3,9 @@
 
 var tabla;//variable global
 //Función para guardar o editar
-function guardar(e)
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -98,13 +98,13 @@ function limpiar()
 function cargarColaboradores(selector)
 {
     $.getJSON("../Control/ProyectoControl.php?op=colaboradores", function(lista){
-        var h = '<option value="">Sin asignar</option>';
+        var html = '<option value="">Sin asignar</option>';
         for (var i = 0; i < lista.length; i++) {
-            var t = $('<div>').text(lista[i].nombre + (lista[i].cargo ? ' · ' + lista[i].cargo : '')).html();
-            h += '<option value="' + parseInt(lista[i].id, 10) + '">' + t + '</option>';
+            var nombreSeguro = $('<div>').text(lista[i].nombre + (lista[i].rol ? ' · ' + lista[i].rol : '')).html();
+            html += '<option value="' + parseInt(lista[i].id, 10) + '">' + nombreSeguro + '</option>';
         }
         var actual = $(selector).val();
-        $(selector).html(h).val(actual || "");
+        $(selector).html(html).val(actual || "");
     });
 }
 //Muestra el formulario (true) o la tabla (false)
@@ -113,7 +113,6 @@ function mostrarform(flag)
     //limpia el formulario
     if (flag)
     {
-           // $('#myModal').modal('show');
         $("#demo-form2").show();
         $("#listadoregistros").hide();
             $("#btnGuardar").prop("disabled",false);
@@ -138,13 +137,13 @@ function listar()
         buttons: [
                         
                     ],
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/ProyectoControl.php?op=listar',//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
+                                    url: '../Control/ProyectoControl.php?op=listar',//página que realiza la operación
+                                    type : "get",//tipo de envío de datos
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -159,10 +158,10 @@ function init()
     mostrarform(false)
     listar();//lista 
     cargarColaboradores("#coordinador");
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
+//al oprimir el botón del formulario
+    $("#demo-form2").on("submit",function(evento) //evento: el envío del formulario
     {
-            guardar(e);//guarda o edita el registro
+            guardar(evento);//guarda o edita el registro
     });
 }
 init();

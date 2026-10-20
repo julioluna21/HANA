@@ -159,8 +159,8 @@ if (isset($_SESSION['IdUsuarios'])) {
           <button type="button" class="btn btn-default pull-right" id="btnVolverCampos"><i class="fa fa-arrow-left"></i> Volver</button>
           <div class="clearfix"></div></div>
         <div class="x_content">
-          <p class="rd-ayuda" style="margin-top:0;">Cada renglón del arqueo de casetas es un campo. Los de "todos los peajes" salen en todos; en un peaje
-            puedes quitarlos o agregarle campos propios. Los arqueos ya registrados conservan sus renglones tal como estaban.</p>
+          <p class="rd-ayuda" style="margin-top:0;">Cada renglón del arqueo de casetas es un campo. Los de "todos los peajes" salen en todos; a un peaje
+            le puedes agregar campos propios. Los arqueos ya registrados conservan sus renglones tal como estaban.</p>
           <div class="row">
             <div class="form-group col-md-5 col-sm-7 col-xs-12"><label for="cmpCentro">Ver los campos de:</label>
               <select id="cmpCentro" class="form-control"></select></div>
@@ -221,7 +221,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=8"></script>
+<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=10"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

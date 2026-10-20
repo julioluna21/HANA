@@ -11,6 +11,7 @@
 */
 session_start();
 require_once __DIR__ . "/../Modelo/HanaDB.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //las respuestas JSON llevan los textos como se escribieron (sin &amp;)
 require_once __DIR__ . "/../Modelo/HoyModelo.php";
 require_once __DIR__ . "/../Modelo/ArqueoModelo.php";
 require_once __DIR__ . "/../Modelo/CronogramaModelo.php";
@@ -24,7 +25,7 @@ date_default_timezone_set('America/Bogota');
 function admError($codigo, $mensaje)
 {
     http_response_code($codigo);
-    echo json_encode(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
+    echo hanaJsonTexto(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -35,18 +36,18 @@ $hoy = date('Y-m-d');
 
 //Todos los centros activos (con su proyecto), con el id como llave
 $centros = array();
-foreach (Organizacion::centrosActivos() as $c) {
-    $centros[(int)$c['ID_CENTRO_OP']] = $c;
+foreach (Organizacion::centrosActivos() as $centro) {
+    $centros[(int)$centro['ID_CENTRO_OP']] = $centro;
 }
 
 //Los centros a consultar según los filtros de proyecto y centro
 function admCentros($centros)
 {
-    $proy = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
+    $proyectoPedido = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
     $cen  = isset($_GET['centro'])   ? (int)$_GET['centro']   : 0;
     $ids = array();
-    foreach ($centros as $id => $c) {
-        if ($proy > 0 && (int)$c['ID_PROYECTO'] !== $proy) { continue; }
+    foreach ($centros as $id => $centro) {
+        if ($proyectoPedido > 0 && (int)$centro['ID_PROYECTO'] !== $proyectoPedido) { continue; }
         if ($cen > 0 && $id !== $cen) { continue; }
         $ids[] = $id;
     }
@@ -71,7 +72,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'config':
         $proyectos = Organizacion::proyectos();
         $personas = Organizacion::personasDelReporte();
-        echo json_encode(array(
+        echo hanaJsonTexto(array(
             'hoy' => $hoy, 'proyectos' => $proyectos ? $proyectos : array(), 'centros' => array_values($centros),
             'personas' => $personas ? $personas : array(),
             'situaciones' => Hoy::$SITUACIONES, 'tiposArqueo' => Arqueo::$TIPOS, 'efectivo' => Arqueo::$EFECTIVO,
@@ -87,8 +88,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'hoy':
         list($desde, $hasta) = admMes();
         if ($desde === '') { admError(400, 'Elige un mes.'); }
-        $f = (new Hoy())->mesTodos($desde, $hasta, isset($_GET['persona']) ? max(0, (int)$_GET['persona']) : 0);
-        echo json_encode($f ? $f : array(), JSON_UNESCAPED_UNICODE);
+        $filas = (new Hoy())->mesTodos($desde, $hasta, isset($_GET['persona']) ? max(0, (int)$_GET['persona']) : 0);
+        echo hanaJsonTexto($filas ? $filas : array(), JSON_UNESCAPED_UNICODE);
         break;
 
     //Un día completo de una persona, con lo que hizo
@@ -96,12 +97,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $persona = isset($_GET['persona']) ? (int)$_GET['persona'] : 0;
         $fecha = HanaVal::fecha(isset($_GET['fecha']) ? $_GET['fecha'] : '');
         if ($persona <= 0 || $fecha === '') { admError(400, 'Faltan la persona o la fecha.'); }
-        $r = (new Hoy())->obtener($persona, $fecha);
-        if (!$r) { admError(404, 'No hay registro de esa persona ese día.'); }
-        $r['LUGARES'] = array();
-        foreach ($r['CENTROS'] as $id) { if (isset($centros[$id])) { $r['LUGARES'][] = $centros[$id]['NOM_CENTRO_OP']; } }
-        $r['NOM_COLABORADOR'] = Organizacion::nombre($persona);
-        echo json_encode($r, JSON_UNESCAPED_UNICODE);
+        $registro = (new Hoy())->obtener($persona, $fecha);
+        if (!$registro) { admError(404, 'No hay registro de esa persona ese día.'); }
+        $registro['LUGARES'] = array();
+        foreach ($registro['CENTROS'] as $id) { if (isset($centros[$id])) { $registro['LUGARES'][] = $centros[$id]['NOM_CENTRO_OP']; } }
+        $registro['NOM_COLABORADOR'] = Organizacion::nombre($persona);
+        echo hanaJsonTexto($registro, JSON_UNESCAPED_UNICODE);
         break;
 
     //-----------------------------------------------------------------------
@@ -110,15 +111,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'arqueos':
         list($desde, $hasta) = admMes();
         if ($desde === '') { admError(400, 'Elige un mes.'); }
-        echo json_encode((new Arqueo())->listar(admCentros($centros), $desde, $hasta, 0, isset($_GET['tipo']) ? $_GET['tipo'] : ''),
+        echo hanaJsonTexto((new Arqueo())->listar(admCentros($centros), $desde, $hasta, 0, isset($_GET['tipo']) ? $_GET['tipo'] : ''),
                          JSON_UNESCAPED_UNICODE);
         break;
 
     //El detalle de un arqueo, para abrirlo desde el reporte
     case 'arqueo':
-        $a = (new Arqueo())->mostrar(isset($_GET['id']) ? (int)$_GET['id'] : 0);
-        if (!$a) { admError(404, 'No se encontró el arqueo.'); }
-        echo json_encode($a, JSON_UNESCAPED_UNICODE);
+        $arqueo = (new Arqueo())->mostrar(isset($_GET['id']) ? (int)$_GET['id'] : 0);
+        if (!$arqueo) { admError(404, 'No se encontró el arqueo.'); }
+        echo hanaJsonTexto($arqueo, JSON_UNESCAPED_UNICODE);
         break;
 
     //-----------------------------------------------------------------------
@@ -129,18 +130,18 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($desde === '') { admError(400, 'Elige un mes.'); }
         $persona = isset($_GET['persona']) ? (int)$_GET['persona'] : 0;
         if ($persona <= 0) { admError(400, 'Elige la persona.'); }
-        $C = new Cronograma();
+        $modeloCronograma = new Cronograma();
         $vehiculos = array();
-        foreach ($C->vehiculosDe($persona, false) as $v) {
-            $v['DIAS'] = $C->vehiculoDias($v['ID_VEHICULO'], $desde, $hasta);
-            if (!count($v['DIAS'])) { $v['DIAS'] = new stdClass(); }
-            $vehiculos[] = $v;
+        foreach ($modeloCronograma->vehiculosDe($persona, false) as $vehiculo) {
+            $vehiculo['DIAS'] = $modeloCronograma->vehiculoDias($vehiculo['ID_VEHICULO'], $desde, $hasta);
+            if (!count($vehiculo['DIAS'])) { $vehiculo['DIAS'] = new stdClass(); }
+            $vehiculos[] = $vehiculo;
         }
-        echo json_encode(array(
+        echo hanaJsonTexto(array(
             'desde' => $desde, 'hasta' => $hasta,
-            'items' => $C->items($persona, $desde, $hasta, $hoy),
-            'situaciones' => (object)$C->situaciones($persona, $desde, $hasta),
-            'lugares' => (object)$C->lugares($persona, $desde, $hasta),
+            'items' => $modeloCronograma->items($persona, $desde, $hasta, $hoy),
+            'situaciones' => (object)$modeloCronograma->situaciones($persona, $desde, $hasta),
+            'lugares' => (object)$modeloCronograma->lugares($persona, $desde, $hasta),
             'vehiculos' => $vehiculos
         ), JSON_UNESCAPED_UNICODE);
         break;
@@ -150,18 +151,18 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //-----------------------------------------------------------------------
     case 'vacantes':
         list($desde, $hasta, $abiertas) = admMes();
-        echo json_encode((new Vacante())->listar(admCentros($centros), $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto((new Vacante())->listar(admCentros($centros), $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
         break;
 
     //Comunicaciones del mes (o las abiertas) de los proyectos activos
     case 'comunicaciones':
         list($desde, $hasta, $abiertas) = admMes();
-        $proy = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
+        $proyectoPedido = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
         $ids = array();
-        foreach (Organizacion::idsProyectosActivos() as $p) {
-            if ($proy === 0 || $p === $proy) { $ids[] = $p; }
+        foreach (Organizacion::idsProyectosActivos() as $idProyecto) {
+            if ($proyectoPedido === 0 || $idProyecto === $proyectoPedido) { $ids[] = $idProyecto; }
         }
-        echo json_encode((new Comunicacion())->listar($ids, $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto((new Comunicacion())->listar($ids, $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
         break;
 
     default:

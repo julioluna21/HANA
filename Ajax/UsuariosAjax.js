@@ -1,339 +1,249 @@
 //Configuración - Usuarios (Vista/UsuariosVista.php)
-//Tabla, formulario con los centros del usuario, cambio de clave y botones de activar/desactivar.
+//El acceso de cada persona: rol, nombre de usuario, peajes asignados y contraseña
+//temporal (le llega por correo). Sus datos (documento, nombre, correo) solo se ven:
+//se cambian en Colaboradores, donde también se registra a las personas nuevas.
+//Todo vive en la misma fila (colaboradores) y el número de usuario es el del colaborador.
 //Habla con Control/UsuariosControl.php
 
 var tabla;//variable global
 var vrca;
 var Centroslista;
+
 //Función que se ejecuta al inicio
 function init()
 {
-    vrca=$("#cambioclave").val();
+    vrca = $("#cambioclave").val();
 
-    //Modo "Cambiar clave" del menú: solo se muestra el formulario de la clave propia.
-    //No se piden la lista de usuarios ni los centros: eso es de administración (1M)
-    //y el servidor solo se lo entrega a quien tiene ese permiso
-    if(vrca=="canvu"){
-        mostrarform(false);
-        mostrarformcalve(true);
-        $("#formularioclave").on("submit",function(e){ cambiarclave(e); });
+    //Modo "Cambiar clave" del menú: solo el formulario de la clave propia
+    if (vrca == "canvu") {
+        $('#formularioregistros, #listadoregistros').hide();
+        $('#formclave').show();
+        $("#formularioclave").on("submit", function(evento){ cambiarclave(evento); });
         return;
     }
 
+    $('#formclave').hide();
     mostrarform(false);
-    listar();//lista 
-    mostrarformcalve(false);
-    
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
-    {
-            guardar(e);//guarda o edita el registro
-    });
+    listar();
 
-    $("#formularioclave").on("submit",function(e)//e = variable que contiene el objeto
-    {
-            cambiarclave(e);//guarda la nueva clave
-    });
+    $("#demo-form2").on("submit", function(evento){ guardar(evento); });
 
-$.post("../Control/UsuariosControl.php?op=centros", function(data)
-    {
-    
-     $("#centros").html(data);
+    //Los peajes (casillas agrupadas por proyecto) y los roles activos
+    $.post("../Control/UsuariosControl.php?op=centros", function(data){
+        $("#centros").html(data);
     });
-    
-$.post("../Control/RolesControl.php?op=select",function(data){
-        $("#rolColaborador").html(data);
+    $.post("../Control/RolesControl.php?op=select", function(data){
+        $("#rol").html(data);
     });
-
-$.post("../Control/UsuariosControl.php?op=select",function(data){
-        $("#colaborador").html(data);
+    $.post("../Control/UsuariosControl.php?op=centroslistatodos", function(data){
+        Centroslista = String(data).split(',');
     });
-    
-$.post("../Control/UsuariosControl.php?op=centroslistatodos", function(data){
-            Centroslista = data.split(',');
-});    
-    
-$('#rolColaborador').select2({
-    width: '100%' ,
-    
-});
-
-$('#colaborador').select2({
-    width: '100%' ,
-    
-});
-    
-  
-    
-
+    $('#rol').select2({ width: '100%' });
 }
-
 
 //Marca o desmarca todos los centros con la casilla "Seleccionar todos"
-function selecionar()
-{ 
-         if($('#todosc').prop('checked')){
-            for(var i=0;i<Centroslista.length;i++){   
-            $("#r"+Centroslista[i]).prop("checked", true);  
-            }                
-         }else{
-           for(var i=0;i<Centroslista.length;i++){   
-            $("#r"+Centroslista[i]).prop("checked", false);  
-            } 
-         } 
-      
+function seleccionarTodos()
+{
+    var marcar = $('#todosc').prop('checked');
+    for (var i = 0; i < (Centroslista || []).length; i++) {
+        $("#r" + Centroslista[i]).prop("checked", marcar);
+    }
 }
 
-
-//Función mostrar formulario
+//Muestra el formulario (true) o la tabla (false)
 function mostrarform(flag)
 {
-    if (flag)
-    {//partes de la pagina que se muestran o se ocultan
-            $('#formularioregistros').show();
-            $('#listadoregistros').hide();
-            $('#btnclave').hide();
-            $('#formclave').hide();
-            $("#btnGuardar").prop("disabled",false);
-    }
-    else
-    {		
-             $("#btnGuardar").prop("disabled",false);
-             $('#formularioregistros').hide();
-             $('#formclave').hide();
-             $('#listadoregistros').show();
-           
-             
+    if (flag) {
+        $('#formularioregistros').show();
+        $('#listadoregistros').hide();
+        $("#btnGuardar").prop("disabled", false);
+        $("#rol").focus();
+    } else {
+        $('#formularioregistros').hide();
+        $('#listadoregistros').show();
+        $("#btnGuardar").prop("disabled", false);
     }
 }
 
-//Muestra (true) u oculta (false) el formulario de cambio de clave
-function mostrarformcalve(flag)
-{
-    if (flag)
-    {//partes de la pagina que se muestran o se ocultan
-            $('#formclave').show();
-            $('#formularioregistros').hide();
-            $('#listadoregistros').hide();
-           
-    }
-    else
-    {
-        
-    if(vrca=="canvu"){
-     window.history.go(-1);
-    }else{
-        $('#formclave').hide();
-        $('#listadoregistros').show();
-        limpiar();
-    }
-             
-    }
-}
-//Función cancelarform
+//Cierra el formulario sin guardar
 function cancelarform()
 {
     limpiar();
     mostrarform(false);
 }
 
-
-//Función limpiar, pone el formulario en blanco
+//Deja el formulario en blanco
 function limpiar()
 {
     document.getElementById("demo-form2").reset();
     document.getElementById("formularioclave").reset();
-    $('#rolColaborador').val("").trigger('change')
-    $('#colaborador').val("").trigger('change')  
-    $("#idusuario, #idusuario2").val("");
-    
-  
+    $('#rol').val("").trigger('change');
+    $("#idusuario").val("");
+    $('#centros input[type=checkbox]').prop("checked", false);
 }
-//Función Listar
+
+//La tabla de personas
 function listar()
 {
-    tabla=$('#tbllistado').dataTable(//Carga variable con datos datatable
-    {
-            "aProcessing": true,//Activamos el procesamiento del datatables
-        "aServerSide": true,//Paginación y filtrado realizados por el servidor
-        dom: 'Bfrtip',//Definimos los elementos del control de tabla Bfrtip
-        buttons: [
-                        
-                    ],
-        "ajax"://metodo ajax
-                            {
-                                    url: '../Control/UsuariosControl.php?op=listar',//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
-                                    dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
-                                    }
-                            },
-            "bDestroy": true,
-            "iDisplayLength": 10,//Paginación
-        "order": [[ 0, "asc" ]]//Ordenar (columna,orden)
+    tabla = $('#tbllistado').dataTable({
+        "aProcessing": true,
+        "aServerSide": true,
+        dom: 'Bfrtip',
+        buttons: [],
+        "ajax": {
+            url: '../Control/UsuariosControl.php?op=listar',
+            type: "get",
+            dataType: "json",
+            error: function(xhr){ console.log(xhr.responseText); }
+        },
+        "bDestroy": true,
+        "iDisplayLength": 10,
+        "order": []
     }).DataTable();
-    
 }
-//Función para guardar o editar
-function guardar(e)
+
+//Guarda el acceso de la persona: rol, usuario y peajes
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
-    hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
+    evento.preventDefault();
+    hanaBoton("#btnGuardar", true);
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
-            url: "../Control/UsuariosControl.php?op=guardar",
+        url: "../Control/UsuariosControl.php?op=guardar",
         type: "POST",
         data: formData,
         contentType: false,
         processData: false,
-        //Error de conexión o del servidor: se muestra el motivo y el formulario se conserva
-        error: function(xhr)
-        {
-            hanaErrorAjax(xhr, "No se pudo guardar el usuario.");
-        },
+        error: function(xhr){ hanaErrorAjax(xhr, "No se pudo guardar."); },
         success: function(datos)
         {
-            alert(datos); //el servidor responde con el mensaje exacto: éxito o motivo del error
-            //Solo si NO fue un error se cierra el formulario; si falló, queda abierto para corregir
+            alert(datos); //el servidor responde con el mensaje exacto (y la contraseña temporal, si la hay)
             if (hanaTipoMensaje(datos) !== "error") {
                 mostrarform(false);
                 limpiar();
                 tabla.ajax.reload();
             }
         },
-        complete: function()
-        {
-            hanaBoton("#btnGuardar", false); //pase lo que pase, el botón vuelve a quedar disponible
-        }
+        complete: function(){ hanaBoton("#btnGuardar", false); }
     });
 }
 
-
-//Revisa que las dos claves coincidan y guarda la nueva
-function cambiarclave(e)
-{
-    e.preventDefault(); //No se activará la acción predeterminada del evento
-    if(validaPwds()){
-    var boton = $("#formularioclave button[type=submit]"); //botón de la pantalla de cambio de clave
-    hanaBoton(boton, true, "Cambiando...");
-    var formData = new FormData($("#formularioclave")[0]);
-    $.ajax({
-            url: "../Control/UsuariosControl.php?op=cambiarclave",
-        type: "POST",
-        data: formData,
-        contentType: false,
-        processData: false,
-        error: function(xhr)
-        {
-            hanaErrorAjax(xhr, "No se pudo cambiar la contraseña.");
-        },
-        success: function(datos)
-        {
-            alert(datos); //el servidor responde con el mensaje exacto: éxito o motivo del error
-            //Solo se sale de la pantalla si el cambio se hizo; si falló, se puede reintentar
-            if (hanaTipoMensaje(datos) !== "error") {
-                limpiar();
-                mostrarformcalve(false);
-            }
-        },
-        complete: function()
-        {
-            hanaBoton(boton, false);
-        }
-    });
-    }
-}
-
-//Trae un usuario y sus centros y los carga en el formulario para editarlo
+//Trae a una persona con sus peajes y la carga en el formulario
 function mostrar(idusuario)
 {
-    hanaCargando(true); //aviso de carga mientras llegan los datos y los centros del usuario
-
-    //Se piden los dos datos a la vez y se espera a que ambos lleguen
-    var pideUsuario = $.post("../Control/UsuariosControl.php?op=mostrar",{idusuario : idusuario});
-    var pideCentros = $.post("../Control/UsuariosControl.php?op=centroslista",{idusuario : idusuario});
-
-    $.when(pideUsuario, pideCentros)
-        .done(function(resUsuario, resCentros){
+    hanaCargando(true);
+    var pidePersona = $.post("../Control/UsuariosControl.php?op=mostrar", {idusuario : idusuario});
+    var pideCentros = $.post("../Control/UsuariosControl.php?op=centroslista", {idusuario : idusuario});
+    $.when(pidePersona, pideCentros)
+        .done(function(resPersona, resCentros){
             hanaCargando(false);
-            var data = JSON.parse(resUsuario[0]);
-            mostrarform(true);
-            $('#btnclave').show();
-            $("#idusuario").val(data.ID_USUARIO_SISTEMA);
-            $("#idusuario2").val(data.ID_USUARIO_SISTEMA);
-            $("#nombre").val(data.NOM_USUARIO_SISTEMA);
-            $('#rolColaborador').val(data.ID_ROL_USUARIO_SISTEMA_USUARIOS_SISTEMA).trigger('change');
-            $('#colaborador').val(data.ID_COLABORADOR_USUARIOS_SISTEMA).trigger('change');
-
-            //Marca los centros de operación que el usuario tiene asignados
-            var arr = String(resCentros[0]).split(',');
-            for(var i=0;i<arr.length;i++){
-                $("#r"+arr[i]).prop("checked", true);
+            var data = JSON.parse(resPersona[0]);
+            limpiar();
+            $("#idusuario").val(data.ID_COLABORADOR);
+            $("#documento").val(data.DOC_COLABORADOR);
+            $("#persona").val(data.NOM_COLABORADOR);
+            $("#correo").val(data.MAIL_COLABORADOR);
+            $("#usuario").val(data.USUARIO || "");
+            //Si su rol está apagado no sale en la lista: se agrega para verlo
+            if (data.ID_ROL_USUARIO_SISTEMA && !$('#rol option[value="' + data.ID_ROL_USUARIO_SISTEMA + '"]').length) {
+                $('#rol').append(new Option(data.NOM_ROL_USUARIO_SISTEMA || data.ID_ROL_USUARIO_SISTEMA, data.ID_ROL_USUARIO_SISTEMA));
             }
+            $('#rol').val(data.ID_ROL_USUARIO_SISTEMA).trigger('change');
+            var lista = String(resCentros[0]).split(',');
+            for (var i = 0; i < lista.length; i++) { $("#r" + lista[i]).prop("checked", true); }
+            mostrarform(true);
+            //La contraseña temporal solo sirve para quien ya tiene usuario
+            $('#btnclave').toggle(!!data.USUARIO);
         })
         .fail(function(xhr){
             hanaCargando(false);
-            hanaErrorAjax(xhr, "No se pudieron cargar los datos del usuario.");
+            hanaErrorAjax(xhr, "No se pudieron cargar los datos.");
         });
 }
-//Desactiva un usuario (pregunta antes)
-function anular(idusuario){
-    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
-    hanaConfirmar("¿Desea anular este usuario?", function(){
-        $.post("../Control/UsuariosControl.php?op=anular",{idusuario : idusuario}, function(data){
-            alert(data); //el servidor responde con el mensaje exacto: éxito o motivo del error
-            tabla.ajax.reload();
-        })
-        .fail(function(xhr){
-            hanaErrorAjax(xhr, "No se pudo anular el usuario.");
-        });
-    });
-}
-//Vuelve a activar un usuario (pregunta antes)
-function activar(idusuario){
-    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
-    hanaConfirmar("¿Desea activar este usuario?", function(){
-        $.post("../Control/UsuariosControl.php?op=activar",{idusuario : idusuario}, function(data){
-            alert(data); //el servidor responde con el mensaje exacto: éxito o motivo del error
-            tabla.ajax.reload();
-        })
-        .fail(function(xhr){
-            hanaErrorAjax(xhr, "No se pudo activar el usuario.");
-        });
+
+//Le da a la persona una contraseña temporal nueva: le llega por correo (si el correo no sale, se muestra aquí una sola vez)
+function claveTemporal()
+{
+    var id = $("#idusuario").val();
+    if (!id) { return; }
+    hanaConfirmar("¿Darle una contraseña temporal nueva? La que tiene deja de servir.", function(){
+        $.post("../Control/UsuariosControl.php?op=claveTemporal", {idusuario : id}, function(data){
+            alert(data);
+        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo cambiar la contraseña."); });
     });
 }
 
-//Muestra en una ventana los centros asignados a un usuario
+//Desactiva a la persona (pregunta antes)
+function anular(idusuario){
+    hanaConfirmar("¿Desactivar a esta persona? No podrá entrar y dejará de salir en las listas.", function(){
+        $.post("../Control/UsuariosControl.php?op=anular", {idusuario : idusuario}, function(data){
+            alert(data);
+            tabla.ajax.reload();
+        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo desactivar."); });
+    });
+}
+//Vuelve a activar a la persona (pregunta antes)
+function activar(idusuario){
+    hanaConfirmar("¿Activar a esta persona?", function(){
+        $.post("../Control/UsuariosControl.php?op=activar", {idusuario : idusuario}, function(data){
+            alert(data);
+            tabla.ajax.reload();
+        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo activar."); });
+    });
+}
+
+//Muestra en una ventana los peajes asignados a una persona
 function centros(idusuario){
-    hanaCargando(true); //aviso de carga mientras llega la lista de centros
-    $.post("../Control/UsuariosControl.php?op=MostrarCentros",{idusuario : idusuario}, function(data)
+    hanaCargando(true);
+    $.post("../Control/UsuariosControl.php?op=MostrarCentros", {idusuario : idusuario}, function(data)
     {
         hanaCargando(false);
-        //El servidor devuelve los nombres separados por <br>; se pasan a saltos de línea
-        //para mostrarlos como texto en la ventana del sistema
         var lista = $.trim(String(data).replace(/<br\s*\/?>/gi, "\n"));
-        alert(lista !== "" ? lista : "Este usuario no tiene centros de operación asignados.",
-              null, { titulo: "Centros de operación asignados" });
+        alert(lista !== "" ? lista : "Esta persona no tiene peajes asignados.", null, { titulo: "Peajes asignados" });
     })
     .fail(function(xhr){
         hanaCargando(false);
-        hanaErrorAjax(xhr, "No se pudieron cargar los centros del usuario.");
+        hanaErrorAjax(xhr, "No se pudieron cargar los peajes.");
     });
 }
 
-//¿Las dos claves escritas son iguales?
-function validaPwds() {
-    var c1=$("#clave").val();
-    var c2=$("#clave2").val();
-        if (c2 === c1) {
-            return true;
-        }else{
-            alert("Las contraseñas no coinciden. Vuelve a escribirlas.");
-            $("#clave").val('');
-            $("#clave2").val('');
-            return false;
-        }
+//Cambia la clave propia: revisa que las dos coincidan
+function cambiarclave(evento)
+{
+    evento.preventDefault();
+    if (!validaPwds()) { return; }
+    var boton = $("#formularioclave button[type=submit]");
+    hanaBoton(boton, true, "Cambiando...");
+    $.ajax({
+        url: "../Control/UsuariosControl.php?op=cambiarclave",
+        type: "POST",
+        data: new FormData($("#formularioclave")[0]),
+        contentType: false,
+        processData: false,
+        error: function(xhr){ hanaErrorAjax(xhr, "No se pudo cambiar la contraseña."); },
+        success: function(datos)
+        {
+            alert(datos);
+            if (hanaTipoMensaje(datos) !== "error") { window.history.go(-1); }
+        },
+        complete: function(){ hanaBoton(boton, false); }
+    });
 }
 
-init();//ejecuta la función init
+//¿La clave nueva sirve? Tiene el mínimo de caracteres y las dos escritas son iguales.
+//El servidor vuelve a revisar las mismas reglas (Modelo/HanaClave.php)
+var CLAVE_LARGO_MINIMO = 8;
+function validaPwds() {
+    var clave = $("#clave").val(), claveRepetida = $("#clave2").val();
+    if (clave.length < CLAVE_LARGO_MINIMO) {
+        alert("La contraseña debe tener al menos " + CLAVE_LARGO_MINIMO + " caracteres.");
+        $("#clave").focus();
+        return false;
+    }
+    if (claveRepetida === clave) { return true; }
+    alert("Las contraseñas no coinciden. Vuelve a escribirlas.");
+    $("#clave, #clave2").val('');
+    return false;
+}
+
+init();

@@ -2,7 +2,7 @@
 /*
   HANA - Guardia de sesión y permisos para los controladores
   ---------------------------------------------------------------------------
-  Los controladores de Roles, Colaboradores, Cargos, Títulos, Estados, Observador,
+  Los controladores de Roles, Colaboradores, Títulos, Prioridades (EstadoControl),
   Listas, Preguntas, Novedades y Notificaciones pasan por aquí: sin sesión o sin
   el permiso de la pantalla no se atiende la petición (nadie cambia permisos ni
   crea registros sin haber entrado al sistema).
@@ -32,12 +32,12 @@ function hanaGuardia($permisos, $opsLectura = array(), $opsLibres = array(), $pe
         echo 'Tu sesión terminó. Vuelve a iniciar sesión.';
         exit;
     }
-    $mios = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
+    $misCasillas = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
     if (in_array($op, $opsLectura, true)) {
         if ($permisosLectura === null) { return; }
         $permisos = $permisosLectura;
     }
-    foreach ((array)$permisos as $p) { if (in_array($p, $mios, true)) { return; } }
+    foreach ((array)$permisos as $permiso) { if (in_array($permiso, $misCasillas, true)) { return; } }
 
     http_response_code(403);
     echo 'No permitido: tu rol no tiene acceso a esta acción.';

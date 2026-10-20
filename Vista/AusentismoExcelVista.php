@@ -22,215 +22,222 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 $MESES = array('', 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE');
 $VINO = '6E1A1E';
-$n = $d2 - $d1 + 1;                    //columnas de días: la B es el día $d1
-$todoMes = $d1 === 1 && $d2 === $dias; //la 1ª quincena solo tiene sentido con el mes completo
-$textoDias = $todoMes ? '' : ($d1 === $d2 ? ' — DÍA ' . $d1 : ' — DÍAS ' . $d1 . ' A ' . $d2);
+$columnasDias = $diaHasta - $diaDesde + 1;      //columnas de días: la B es el día $diaDesde
+$todoMes = $diaDesde === 1 && $diaHasta === $dias; //la 1ª quincena solo tiene sentido con el mes completo
+$textoDias = $todoMes ? '' : ($diaDesde === $diaHasta ? ' — DÍA ' . $diaDesde : ' — DÍAS ' . $diaDesde . ' A ' . $diaHasta);
 $periodo = $MESES[$mes] . ' ' . $anio . $textoDias;
 
 $libro = new Spreadsheet();
 $libro->removeSheetByIndex(0);
-$libro->getProperties()->setCreator('HANA - Grupo Regency')->setTitle('Reporte nacional de ausentismo ' . $proy['NOM_PROYECTO']);
+$libro->getProperties()->setCreator('HANA - Grupo Regency')->setTitle('Reporte nacional de ausentismo ' . $proyectoPedido['NOM_PROYECTO']);
 
 //Letra de la columna de Excel a partir de su número (1 = A, 27 = AA)
-function col($i) { return Coordinate::stringFromColumnIndex($i); }
+function col($numero) { return Coordinate::stringFromColumnIndex($numero); }
 
-//Hoja nueva con un nombre válido para Excel (máx. 31 caracteres, sin : \ / ? * [ ]) que no se repita en el libro
-function hojaNueva($libro, $t)
+//Hoja nueva con un nombre válido para Excel, que no se repita en el libro.
+//Excel no acepta nombres vacíos, de más de 31 caracteres, con : \ / ? * [ ] ni que
+//empiecen o terminen con comilla: se quitan, y si no queda nada la hoja se llama «Sin nombre»
+function hojaNueva($libro, $titulo)
 {
-    $base = mb_substr(trim(preg_replace('/[:\\\\\/\?\*\[\]]/', ' ', $t)), 0, 31);
+    $base = trim(preg_replace('/[:\\\\\/\?\*\[\]]/', ' ', (string)$titulo));
+    $base = trim(mb_substr(trim($base, " '"), 0, 31), " '");
+    if ($base === '') { $base = 'Sin nombre'; }
     $nombre = $base; $i = 2;
-    while ($libro->sheetNameExists($nombre)) { $nombre = mb_substr($base, 0, 26) . ' (' . $i++ . ')'; }
-    $h = $libro->createSheet();
-    $h->setTitle($nombre);
-    return $h;
+    while ($libro->sheetNameExists($nombre)) { $nombre = rtrim(mb_substr($base, 0, 26), " '") . ' (' . $i++ . ')'; }
+    $hoja = $libro->createSheet();
+    $hoja->setTitle($nombre);
+    return $hoja;
 }
 
+//«SAN MIGUEL» → «San Miguel», respetando tildes y eñes («PEÑA» → «Peña»)
+function nombrePropio($texto) { return mb_convert_case((string)$texto, MB_CASE_TITLE, 'UTF-8'); }
+
 //Título de la hoja, en la fila 2
-function tituloHoja($h, $texto, $VINO)
+function tituloHoja($hoja, $texto, $VINO)
 {
-    $h->setCellValue('A2', $texto);
-    $h->getStyle('A2')->getFont()->setBold(true)->setSize(13)->getColor()->setRGB($VINO);
+    $hoja->setCellValue('A2', $texto);
+    $hoja->getStyle('A2')->getFont()->setBold(true)->setSize(13)->getColor()->setRGB($VINO);
 }
 
 //Encabezado de un bloque: el cargo, los días del rango y "TOTAL" (y "1ª QUINCENA" si se pide)
-function cabecera($h, $fila, $titulo, $d1, $d2, $VINO, $conQuincena = false)
+function cabecera($hoja, $fila, $titulo, $diaDesde, $diaHasta, $VINO, $conQuincena = false)
 {
-    $n = $d2 - $d1 + 1;
-    $h->setCellValue('A' . $fila, $titulo);
-    for ($d = $d1; $d <= $d2; $d++) { $h->setCellValue(col($d - $d1 + 2) . $fila, $d); }
-    $h->setCellValue(col($n + 2) . $fila, 'TOTAL');
-    $ultima = $n + 2;
-    if ($conQuincena) { $h->setCellValue(col($n + 3) . $fila, '1ª QUINCENA'); $ultima++; }
-    $h->getStyle('A' . $fila . ':' . col($ultima) . $fila)->applyFromArray(array(
+    $columnasDias = $diaHasta - $diaDesde + 1;
+    $hoja->setCellValue('A' . $fila, $titulo);
+    for ($dia = $diaDesde; $dia <= $diaHasta; $dia++) { $hoja->setCellValue(col($dia - $diaDesde + 2) . $fila, $dia); }
+    $hoja->setCellValue(col($columnasDias + 2) . $fila, 'TOTAL');
+    $ultima = $columnasDias + 2;
+    if ($conQuincena) { $hoja->setCellValue(col($columnasDias + 3) . $fila, '1ª QUINCENA'); $ultima++; }
+    $hoja->getStyle('A' . $fila . ':' . col($ultima) . $fila)->applyFromArray(array(
         'font' => array('bold' => true, 'color' => array('rgb' => 'FFFFFF')),
         'fill' => array('fillType' => Fill::FILL_SOLID, 'startColor' => array('rgb' => $VINO)),
         'alignment' => array('horizontal' => Alignment::HORIZONTAL_CENTER)));
-    $h->getStyle('A' . $fila)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+    $hoja->getStyle('A' . $fila)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 }
 
-//Escribe un bloque (cargo) con sus valores [idNovedad][dia] del día $d1 al $d2;
+//Escribe un bloque (cargo) con sus valores [idNovedad][dia] del día $diaDesde al $diaHasta;
 //devuelve [fila del total del día, siguiente fila libre]
-function bloque($h, $fila, $cargo, $novs, $vals, $d1, $d2, $VINO)
+function bloque($hoja, $fila, $cargo, $novedades, $vals, $diaDesde, $diaHasta, $VINO)
 {
-    $n = $d2 - $d1 + 1;
-    cabecera($h, $fila, $cargo['NOMBRE'], $d1, $d2, $VINO);
+    $columnasDias = $diaHasta - $diaDesde + 1;
+    cabecera($hoja, $fila, $cargo['NOMBRE'], $diaDesde, $diaHasta, $VINO);
     $filasCuenta = array();
-    $r = $fila + 1;
-    foreach ($novs as $nv) {
-        if ($nv['ID_CARGO_AUS'] && (int)$nv['ID_CARGO_AUS'] !== (int)$cargo['ID_CARGO_AUS']) { continue; }
-        $h->setCellValue('A' . $r, $nv['NOMBRE']);
-        $v = isset($vals[(int)$nv['ID_NOVEDAD_AUS']]) ? $vals[(int)$nv['ID_NOVEDAD_AUS']] : array();
-        for ($d = $d1; $d <= $d2; $d++) { if (!empty($v[$d])) { $h->setCellValue(col($d - $d1 + 2) . $r, $v[$d]); } }
-        $h->setCellValue(col($n + 2) . $r, '=SUM(B' . $r . ':' . col($n + 1) . $r . ')');
-        if ((int)$nv['CUENTA_AUSENCIA'] === 1) { $filasCuenta[] = $r; }
-        else { $h->getStyle('A' . $r . ':' . col($n + 2) . $r)->getFont()->setItalic(true)->getColor()->setRGB('6B7076'); }
-        $r++;
+    $filaActual = $fila + 1;
+    foreach ($novedades as $novedad) {
+        if ($novedad['ID_CARGO_AUS'] && (int)$novedad['ID_CARGO_AUS'] !== (int)$cargo['ID_CARGO_AUS']) { continue; }
+        $hoja->setCellValue('A' . $filaActual, $novedad['NOMBRE']);
+        $valoresNovedad = isset($vals[(int)$novedad['ID_NOVEDAD_AUS']]) ? $vals[(int)$novedad['ID_NOVEDAD_AUS']] : array();
+        for ($dia = $diaDesde; $dia <= $diaHasta; $dia++) { if (!empty($valoresNovedad[$dia])) { $hoja->setCellValue(col($dia - $diaDesde + 2) . $filaActual, $valoresNovedad[$dia]); } }
+        $hoja->setCellValue(col($columnasDias + 2) . $filaActual, '=SUM(B' . $filaActual . ':' . col($columnasDias + 1) . $filaActual . ')');
+        if ((int)$novedad['CUENTA_AUSENCIA'] === 1) { $filasCuenta[] = $filaActual; }
+        else { $hoja->getStyle('A' . $filaActual . ':' . col($columnasDias + 2) . $filaActual)->getFont()->setItalic(true)->getColor()->setRGB('6B7076'); }
+        $filaActual++;
     }
     //Total del día: solo las filas que son ausencia
-    $h->setCellValue('A' . $r, 'TOTAL DEL DÍA');
-    for ($k = 1; $k <= $n + 1; $k++) {
-        $c = col($k + 1);
-        $h->setCellValue($c . $r, count($filasCuenta) ? '=' . implode('+', array_map(function ($x) use ($c) { return $c . $x; }, $filasCuenta)) : 0);
+    $hoja->setCellValue('A' . $filaActual, 'TOTAL DEL DÍA');
+    for ($posicion = 1; $posicion <= $columnasDias + 1; $posicion++) {
+        $letra = col($posicion + 1);
+        $hoja->setCellValue($letra . $filaActual, count($filasCuenta) ? '=' . implode('+', array_map(function ($numFila) use ($letra) { return $letra . $numFila; }, $filasCuenta)) : 0);
     }
-    $h->getStyle('A' . $r . ':' . col($n + 2) . $r)->applyFromArray(array('font' => array('bold' => true),
+    $hoja->getStyle('A' . $filaActual . ':' . col($columnasDias + 2) . $filaActual)->applyFromArray(array('font' => array('bold' => true),
         'fill' => array('fillType' => Fill::FILL_SOLID, 'startColor' => array('rgb' => 'F2F2F2'))));
-    $h->getStyle('A' . $fila . ':' . col($n + 2) . $r)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D9D9D9');
-    return array($r, $r + 3);
+    $hoja->getStyle('A' . $fila . ':' . col($columnasDias + 2) . $filaActual)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D9D9D9');
+    return array($filaActual, $filaActual + 3);
 }
 
-//Anchos de columna y formato común de cada hoja del Excel ($n = columnas de días)
-function formatoHoja($h, $n, $extra = 0)
+//Anchos de columna y formato común de cada hoja del Excel ($columnasDias = columnas de días)
+function formatoHoja($hoja, $columnasDias, $extra = 0)
 {
-    $h->getColumnDimension('A')->setWidth(34);
-    for ($k = 1; $k <= $n; $k++) { $h->getColumnDimension(col($k + 1))->setWidth(4.5); }
-    for ($i = 0; $i <= $extra; $i++) { $h->getColumnDimension(col($n + 2 + $i))->setWidth(12); }
-    $h->freezePane('B1');
-    $h->getStyle('B1:' . col($n + 3 + $extra) . $h->getHighestRow())->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $hoja->getColumnDimension('A')->setWidth(34);
+    for ($posicion = 1; $posicion <= $columnasDias; $posicion++) { $hoja->getColumnDimension(col($posicion + 1))->setWidth(4.5); }
+    for ($i = 0; $i <= $extra; $i++) { $hoja->getColumnDimension(col($columnasDias + 2 + $i))->setWidth(12); }
+    $hoja->freezePane('B1');
+    $hoja->getStyle('B1:' . col($columnasDias + 3 + $extra) . $hoja->getHighestRow())->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 }
 
 //Hoja de un consolidado: un bloque por cargo con datos y la tabla TOTAL por novedad.
 //Devuelve [hoja, filas de la tabla TOTAL: idNovedad => fila]
-function hojaConsolidado($libro, $nombreHoja, $titulo, $porCargo, $cargos, $novedades, $d1, $d2, $todoMes, $VINO)
+function hojaConsolidado($libro, $nombreHoja, $titulo, $porCargo, $cargos, $novedades, $diaDesde, $diaHasta, $todoMes, $VINO)
 {
-    $n = $d2 - $d1 + 1;
-    $colTotal = col($n + 2);
-    $h = hojaNueva($libro, $nombreHoja);
-    tituloHoja($h, $titulo, $VINO);
+    $columnasDias = $diaHasta - $diaDesde + 1;
+    $colTotal = col($columnasDias + 2);
+    $hoja = hojaNueva($libro, $nombreHoja);
+    tituloHoja($hoja, $titulo, $VINO);
     $fila = 4;
     $filasNov = array(); //[idNovedad] = filas de esa novedad en todos los bloques
-    foreach ($cargos as $cg) {
-        $idc = (int)$cg['ID_CARGO_AUS'];
-        if (empty($porCargo[$idc])) { continue; } //solo los cargos con datos
+    foreach ($cargos as $cargo) {
+        $idCargo = (int)$cargo['ID_CARGO_AUS'];
+        if (empty($porCargo[$idCargo])) { continue; } //solo los cargos con datos
         $inicio = $fila + 1;
-        list($ft, $sig) = bloque($h, $fila, $cg, $novedades, $porCargo[$idc], $d1, $d2, $VINO);
-        for ($r = $inicio; $r < $ft; $r++) {
-            foreach ($novedades as $nv) { if ($h->getCell('A' . $r)->getValue() === $nv['NOMBRE'] && (int)$nv['CUENTA_AUSENCIA'] === 1) { $filasNov[(int)$nv['ID_NOVEDAD_AUS']][] = $r; } }
+        list($filaTotalDia, $siguienteFila) = bloque($hoja, $fila, $cargo, $novedades, $porCargo[$idCargo], $diaDesde, $diaHasta, $VINO);
+        for ($filaActual = $inicio; $filaActual < $filaTotalDia; $filaActual++) {
+            foreach ($novedades as $novedad) { if ($hoja->getCell('A' . $filaActual)->getValue() === $novedad['NOMBRE'] && (int)$novedad['CUENTA_AUSENCIA'] === 1) { $filasNov[(int)$novedad['ID_NOVEDAD_AUS']][] = $filaActual; } }
         }
-        $fila = $sig;
+        $fila = $siguienteFila;
     }
     //TOTAL por novedad: cada día, el total y, con el mes completo, la 1ª quincena (días 1 a 14)
-    cabecera($h, $fila, 'TOTAL', $d1, $d2, $VINO, $todoMes);
-    $r = $fila + 1;
+    cabecera($hoja, $fila, 'TOTAL', $diaDesde, $diaHasta, $VINO, $todoMes);
+    $filaActual = $fila + 1;
     $filasTotal = array();
-    foreach ($novedades as $nv) {
-        if ((int)$nv['CUENTA_AUSENCIA'] !== 1) { continue; }
-        $h->setCellValue('A' . $r, $nv['NOMBRE']);
-        $fs = isset($filasNov[(int)$nv['ID_NOVEDAD_AUS']]) ? $filasNov[(int)$nv['ID_NOVEDAD_AUS']] : array();
-        for ($k = 1; $k <= $n; $k++) {
-            $cc = col($k + 1);
-            $h->setCellValue($cc . $r, count($fs) ? '=' . implode('+', array_map(function ($x) use ($cc) { return $cc . $x; }, $fs)) : 0);
+    foreach ($novedades as $novedad) {
+        if ((int)$novedad['CUENTA_AUSENCIA'] !== 1) { continue; }
+        $hoja->setCellValue('A' . $filaActual, $novedad['NOMBRE']);
+        $filasNovedad = isset($filasNov[(int)$novedad['ID_NOVEDAD_AUS']]) ? $filasNov[(int)$novedad['ID_NOVEDAD_AUS']] : array();
+        for ($posicion = 1; $posicion <= $columnasDias; $posicion++) {
+            $letra = col($posicion + 1);
+            $hoja->setCellValue($letra . $filaActual, count($filasNovedad) ? '=' . implode('+', array_map(function ($numFila) use ($letra) { return $letra . $numFila; }, $filasNovedad)) : 0);
         }
-        $h->setCellValue($colTotal . $r, '=SUM(B' . $r . ':' . col($n + 1) . $r . ')');
-        if ($todoMes) { $h->setCellValue(col($n + 3) . $r, '=SUM(B' . $r . ':' . col(15) . $r . ')'); }
-        $filasTotal[(int)$nv['ID_NOVEDAD_AUS']] = $r;
-        $r++;
+        $hoja->setCellValue($colTotal . $filaActual, '=SUM(B' . $filaActual . ':' . col($columnasDias + 1) . $filaActual . ')');
+        if ($todoMes) { $hoja->setCellValue(col($columnasDias + 3) . $filaActual, '=SUM(B' . $filaActual . ':' . col(15) . $filaActual . ')'); }
+        $filasTotal[(int)$novedad['ID_NOVEDAD_AUS']] = $filaActual;
+        $filaActual++;
     }
-    $h->getStyle('A' . $fila . ':' . col($n + ($todoMes ? 3 : 2)) . ($r - 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D9D9D9');
-    formatoHoja($h, $n, $todoMes ? 1 : 0);
-    return array($h, $filasTotal);
+    $hoja->getStyle('A' . $fila . ':' . col($columnasDias + ($todoMes ? 3 : 2)) . ($filaActual - 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D9D9D9');
+    formatoHoja($hoja, $columnasDias, $todoMes ? 1 : 0);
+    return array($hoja, $filasTotal);
 }
 
 if (!$todos) {
     //----- Un proyecto: una hoja por centro -----
-    foreach ((array)$centros as $c) {
-        $h = hojaNueva($libro, ucwords(strtolower($c['NOM_CENTRO_OP'])));
-        tituloHoja($h, 'NOVEDADES DE AUSENTISMO — ' . $proy['NOM_PROYECTO'] . ' — ' . $c['NOM_CENTRO_OP'] . ' — ' . $periodo, $VINO);
-        $vals = $c['VALS'];
+    foreach ((array)$centros as $centro) {
+        $hoja = hojaNueva($libro, nombrePropio($centro['NOM_CENTRO_OP']));
+        tituloHoja($hoja, 'NOVEDADES DE AUSENTISMO — ' . $proyectoPedido['NOM_PROYECTO'] . ' — ' . $centro['NOM_CENTRO_OP'] . ' — ' . $periodo, $VINO);
+        $vals = $centro['VALS'];
         $fila = 4; $totales = array();
-        foreach ($c['CARGOS'] as $cg) {
-            list($ft, $fila) = bloque($h, $fila, $cg, $novedades, isset($vals[(int)$cg['ID_CARGO_AUS']]) ? $vals[(int)$cg['ID_CARGO_AUS']] : array(), $d1, $d2, $VINO);
-            $totales[] = $ft;
+        foreach ($centro['CARGOS'] as $cargo) {
+            list($filaTotalDia, $fila) = bloque($hoja, $fila, $cargo, $novedades, isset($vals[(int)$cargo['ID_CARGO_AUS']]) ? $vals[(int)$cargo['ID_CARGO_AUS']] : array(), $diaDesde, $diaHasta, $VINO);
+            $totales[] = $filaTotalDia;
         }
         //Ausencias diarias: la suma de los "total del día" de todos los cargos
-        $h->setCellValue('A' . $fila, 'AUSENCIAS DIARIAS');
-        for ($k = 1; $k <= $n + 1; $k++) {
-            $cc = col($k + 1);
-            $h->setCellValue($cc . $fila, count($totales) ? '=' . implode('+', array_map(function ($x) use ($cc) { return $cc . $x; }, $totales)) : 0);
+        $hoja->setCellValue('A' . $fila, 'AUSENCIAS DIARIAS');
+        for ($posicion = 1; $posicion <= $columnasDias + 1; $posicion++) {
+            $letra = col($posicion + 1);
+            $hoja->setCellValue($letra . $fila, count($totales) ? '=' . implode('+', array_map(function ($numFila) use ($letra) { return $letra . $numFila; }, $totales)) : 0);
         }
-        $h->getStyle('A' . $fila . ':' . col($n + 2) . $fila)->applyFromArray(array('font' => array('bold' => true),
+        $hoja->getStyle('A' . $fila . ':' . col($columnasDias + 2) . $fila)->applyFromArray(array('font' => array('bold' => true),
             'fill' => array('fillType' => Fill::FILL_SOLID, 'startColor' => array('rgb' => 'F5E4E5'))));
-        formatoHoja($h, $n);
+        formatoHoja($hoja, $columnasDias);
     }
     //----- Y al final la hoja del proyecto (o del peaje): el consolidado -----
     if ($soloCentro) {
-        hojaConsolidado($libro, 'Total ' . ucwords(strtolower($soloCentro['NOM_CENTRO_OP'])),
-                        'REPORTE NACIONAL DE AUSENTISMO — ' . $proy['NOM_PROYECTO'] . ' — ' . $soloCentro['NOM_CENTRO_OP'] . ' — ' . $periodo,
-                        $cons['porCargo'], $cargos, $novedades, $d1, $d2, $todoMes, $VINO);
+        hojaConsolidado($libro, 'Total ' . nombrePropio($soloCentro['NOM_CENTRO_OP']),
+                        'REPORTE NACIONAL DE AUSENTISMO — ' . $proyectoPedido['NOM_PROYECTO'] . ' — ' . $soloCentro['NOM_CENTRO_OP'] . ' — ' . $periodo,
+                        $consolidado['porCargo'], $cargos, $novedades, $diaDesde, $diaHasta, $todoMes, $VINO);
     } else {
-        hojaConsolidado($libro, $proy['NOM_PROYECTO'], 'REPORTE NACIONAL DE AUSENTISMO — ' . $proy['NOM_PROYECTO'] . ' — ' . $periodo,
-                        $cons['porCargo'], $cargos, $novedades, $d1, $d2, $todoMes, $VINO);
+        hojaConsolidado($libro, $proyectoPedido['NOM_PROYECTO'], 'REPORTE NACIONAL DE AUSENTISMO — ' . $proyectoPedido['NOM_PROYECTO'] . ' — ' . $periodo,
+                        $consolidado['porCargo'], $cargos, $novedades, $diaDesde, $diaHasta, $todoMes, $VINO);
     }
 } else {
     //----- Todos los proyectos: una hoja por proyecto con su consolidado -----
     $refs = array(); //[proyecto, nombre de su hoja, filas de su tabla TOTAL]
-    foreach ($proyectos as $p) {
-        list($hp, $filas) = hojaConsolidado($libro, $p['NOM_PROYECTO'], 'REPORTE NACIONAL DE AUSENTISMO — ' . $p['NOM_PROYECTO'] . ' — ' . $periodo,
-                                            $p['CONS']['porCargo'], $cargos, $novedades, $d1, $d2, $todoMes, $VINO);
-        $refs[] = array($p, $hp->getTitle(), $filas);
+    foreach ($proyectos as $proyecto) {
+        list($hojaProyecto, $filas) = hojaConsolidado($libro, $proyecto['NOM_PROYECTO'], 'REPORTE NACIONAL DE AUSENTISMO — ' . $proyecto['NOM_PROYECTO'] . ' — ' . $periodo,
+                                            $proyecto['CONS']['porCargo'], $cargos, $novedades, $diaDesde, $diaHasta, $todoMes, $VINO);
+        $refs[] = array($proyecto, $hojaProyecto->getTitle(), $filas);
     }
     //----- Por proyecto: el total de cada novedad en cada proyecto, tomado de su hoja -----
-    $cuentan = array_values(array_filter($novedades, function ($nv) { return (int)$nv['CUENTA_AUSENCIA'] === 1; }));
-    $m = count($cuentan);
-    $colTot = col($n + 2); //la columna TOTAL de las hojas de proyecto
-    $h = hojaNueva($libro, 'Por proyecto');
-    tituloHoja($h, 'AUSENCIAS POR PROYECTO — ' . $periodo, $VINO);
-    $h->setCellValue('A4', 'PROYECTO');
-    foreach ($cuentan as $i => $nv) { $h->setCellValue(col($i + 2) . '4', $nv['NOMBRE']); }
-    $h->setCellValue(col($m + 2) . '4', 'TOTAL');
-    $h->getStyle('A4:' . col($m + 2) . '4')->applyFromArray(array(
+    $cuentan = array_values(array_filter($novedades, function ($novedad) { return (int)$novedad['CUENTA_AUSENCIA'] === 1; }));
+    $numNovedades = count($cuentan);
+    $colTot = col($columnasDias + 2); //la columna TOTAL de las hojas de proyecto
+    $hoja = hojaNueva($libro, 'Por proyecto');
+    tituloHoja($hoja, 'AUSENCIAS POR PROYECTO — ' . $periodo, $VINO);
+    $hoja->setCellValue('A4', 'PROYECTO');
+    foreach ($cuentan as $i => $novedad) { $hoja->setCellValue(col($i + 2) . '4', $novedad['NOMBRE']); }
+    $hoja->setCellValue(col($numNovedades + 2) . '4', 'TOTAL');
+    $hoja->getStyle('A4:' . col($numNovedades + 2) . '4')->applyFromArray(array(
         'font' => array('bold' => true, 'color' => array('rgb' => 'FFFFFF')),
         'fill' => array('fillType' => Fill::FILL_SOLID, 'startColor' => array('rgb' => $VINO)),
         'alignment' => array('horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true)));
-    $r = 5;
+    $filaActual = 5;
     foreach ($refs as $ref) {
-        list($p, $nombre, $filas) = $ref;
-        $h->setCellValue('A' . $r, $p['NOM_PROYECTO']);
-        foreach ($cuentan as $i => $nv) {
-            $id = (int)$nv['ID_NOVEDAD_AUS'];
-            $h->setCellValue(col($i + 2) . $r, isset($filas[$id]) ? "='" . str_replace("'", "''", $nombre) . "'!" . $colTot . $filas[$id] : 0);
+        list($proyecto, $nombre, $filas) = $ref;
+        $hoja->setCellValue('A' . $filaActual, $proyecto['NOM_PROYECTO']);
+        foreach ($cuentan as $i => $novedad) {
+            $idNovedad = (int)$novedad['ID_NOVEDAD_AUS'];
+            $hoja->setCellValue(col($i + 2) . $filaActual, isset($filas[$idNovedad]) ? "='" . str_replace("'", "''", $nombre) . "'!" . $colTot . $filas[$idNovedad] : 0);
         }
-        $h->setCellValue(col($m + 2) . $r, $m ? '=SUM(B' . $r . ':' . col($m + 1) . $r . ')' : 0);
-        $r++;
+        $hoja->setCellValue(col($numNovedades + 2) . $filaActual, $numNovedades ? '=SUM(B' . $filaActual . ':' . col($numNovedades + 1) . $filaActual . ')' : 0);
+        $filaActual++;
     }
-    $h->setCellValue('A' . $r, 'TOTAL');
-    for ($k = 2; $k <= $m + 2; $k++) { $h->setCellValue(col($k) . $r, $r > 5 ? '=SUM(' . col($k) . '5:' . col($k) . ($r - 1) . ')' : 0); }
-    $h->getStyle('A' . $r . ':' . col($m + 2) . $r)->applyFromArray(array('font' => array('bold' => true),
+    $hoja->setCellValue('A' . $filaActual, 'TOTAL');
+    for ($posicion = 2; $posicion <= $numNovedades + 2; $posicion++) { $hoja->setCellValue(col($posicion) . $filaActual, $filaActual > 5 ? '=SUM(' . col($posicion) . '5:' . col($posicion) . ($filaActual - 1) . ')' : 0); }
+    $hoja->getStyle('A' . $filaActual . ':' . col($numNovedades + 2) . $filaActual)->applyFromArray(array('font' => array('bold' => true),
         'fill' => array('fillType' => Fill::FILL_SOLID, 'startColor' => array('rgb' => 'F5E4E5'))));
-    $h->getStyle('A4:' . col($m + 2) . $r)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D9D9D9');
-    $h->getColumnDimension('A')->setWidth(34);
-    for ($k = 2; $k <= $m + 2; $k++) { $h->getColumnDimension(col($k))->setWidth(14); }
-    $h->getRowDimension(4)->setRowHeight(45);
-    $h->getStyle('B5:' . col($m + 2) . $r)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-    $h->freezePane('B5');
+    $hoja->getStyle('A4:' . col($numNovedades + 2) . $filaActual)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D9D9D9');
+    $hoja->getColumnDimension('A')->setWidth(34);
+    for ($posicion = 2; $posicion <= $numNovedades + 2; $posicion++) { $hoja->getColumnDimension(col($posicion))->setWidth(14); }
+    $hoja->getRowDimension(4)->setRowHeight(45);
+    $hoja->getStyle('B5:' . col($numNovedades + 2) . $filaActual)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $hoja->freezePane('B5');
     //----- Y al final la de todos los proyectos juntos -----
     hojaConsolidado($libro, 'Todos los proyectos', 'REPORTE NACIONAL DE AUSENTISMO — TODOS LOS PROYECTOS — ' . $periodo,
-                    $cons['porCargo'], $cargos, $novedades, $d1, $d2, $todoMes, $VINO);
+                    $consolidado['porCargo'], $cargos, $novedades, $diaDesde, $diaHasta, $todoMes, $VINO);
 }
 $libro->setActiveSheetIndex($libro->getSheetCount() - 1);
 
-$nombre = 'Reporte nacional de ausentismo ' . ($todos ? 'todos los proyectos' : $proy['NOM_PROYECTO'] . ($soloCentro ? ' ' . $soloCentro['NOM_CENTRO_OP'] : ''))
+$nombre = 'Reporte nacional de ausentismo ' . ($todos ? 'todos los proyectos' : $proyectoPedido['NOM_PROYECTO'] . ($soloCentro ? ' ' . $soloCentro['NOM_CENTRO_OP'] : ''))
         . ' ' . strtolower($MESES[$mes]) . ' ' . $anio
-        . ($todoMes ? '' : ($d1 === $d2 ? ' dia ' . $d1 : ' del ' . $d1 . ' al ' . $d2)) . '.xlsx';
+        . ($todoMes ? '' : ($diaDesde === $diaHasta ? ' dia ' . $diaDesde : ' del ' . $diaDesde . ' al ' . $diaHasta)) . '.xlsx';
 while (ob_get_level() > 0) { ob_end_clean(); }
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $nombre . '"');

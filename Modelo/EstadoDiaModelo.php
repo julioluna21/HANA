@@ -1,6 +1,7 @@
 <?php
 /*
   HANA - Estado del día de una persona en el reporte diario
+  ---------------------------------------------------------------------------
   Lo usan las alertas pequeñas ("ya registraste hoy" / "falta hoy") de la
   pantalla principal del reporte y de cada módulo.
   Que una persona revisó una pantalla queda en bitacora_sistema
@@ -14,14 +15,14 @@ class EstadoDia
     //Todo lo del día de una persona, en una sola consulta
     public function resumen($idColaborador, $fecha)
     {
-        $sig = date('Y-m-d', strtotime("$fecha +1 day"));
-        $c = (int)$idColaborador;
-        $f = HanaDB::fila("SELECT
+        $diaSiguiente = date('Y-m-d', strtotime("$fecha +1 day"));
+        $idPersona = (int)$idColaborador;
+        $fila = HanaDB::fila("SELECT
                 (SELECT SITUACION FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA = ?) AS HOY,
-                (SELECT COUNT(*) FROM lista_chequeo WHERE ID_COLABORADOR_LISTA_CHEQUEO = ?
-                         AND FEC_REGISTRO_LISTA_CHEQUEO >= ? AND FEC_REGISTRO_LISTA_CHEQUEO < ?) AS LISTAS,
-                (SELECT MAX(FEC_REGISTRO_LISTA_CHEQUEO) FROM lista_chequeo WHERE ID_COLABORADOR_LISTA_CHEQUEO = ?
-                         AND FEC_REGISTRO_LISTA_CHEQUEO >= ? AND FEC_REGISTRO_LISTA_CHEQUEO < ?) AS LISTAS_ULTIMA,
+                (SELECT COUNT(*) FROM lista_chequeo WHERE ID_COLABORADOR = ?
+                         AND FEC_REGISTRO >= ? AND FEC_REGISTRO < ?) AS LISTAS,
+                (SELECT MAX(FEC_REGISTRO) FROM lista_chequeo WHERE ID_COLABORADOR = ?
+                         AND FEC_REGISTRO >= ? AND FEC_REGISTRO < ?) AS LISTAS_ULTIMA,
                 (SELECT COUNT(*) FROM arqueo WHERE ID_COLABORADOR_ARQUEA = ? AND FECHA = ? AND ESTADO = 1) AS ARQUEOS,
                 (SELECT MAX(HORA) FROM arqueo WHERE ID_COLABORADOR_ARQUEA = ? AND FECHA = ? AND ESTADO = 1) AS ARQUEOS_ULTIMA,
                 (SELECT MIN(FECHA) FROM bitacora_sistema WHERE TIPO = 'REVISION' AND MODULO = 'CRONOGRAMA' AND ID_COLABORADOR = ?
@@ -30,14 +31,14 @@ class EstadoDia
                 (SELECT COUNT(*) FROM vehiculo v INNER JOIN vehiculo_dia d ON d.ID_VEHICULO = v.ID_VEHICULO AND d.FECHA = ?
                   WHERE v.ESTADO = 1 AND v.ID_COLABORADOR_RESPONSABLE = ?) AS VEHICULOS_REG",
             'isississisisissisi',
-            array($c, $fecha, $c, $fecha, $sig, $c, $fecha, $sig, $c, $fecha, $c, $fecha, $c, $fecha, $sig, $c, $fecha, $c));
-        if (!$f) { return null; }
+            array($idPersona, $fecha, $idPersona, $fecha, $diaSiguiente, $idPersona, $fecha, $diaSiguiente, $idPersona, $fecha, $idPersona, $fecha, $idPersona, $fecha, $diaSiguiente, $idPersona, $fecha, $idPersona));
+        if (!$fila) { return null; }
         return array(
-            'hoy'        => array('ok' => $f['HOY'] !== null, 'situacion' => $f['HOY']),
-            'listas'     => array('ok' => (int)$f['LISTAS'] > 0, 'n' => (int)$f['LISTAS'], 'ultima' => $f['LISTAS_ULTIMA']),
-            'arqueos'    => array('ok' => (int)$f['ARQUEOS'] > 0, 'n' => (int)$f['ARQUEOS'], 'ultima' => $f['ARQUEOS_ULTIMA']),
-            'cronograma' => array('ok' => $f['CRONO_REVISADO'] !== null, 'revisado' => $f['CRONO_REVISADO'],
-                                  'vehiculos' => (int)$f['VEHICULOS'], 'vehiculosReg' => (int)$f['VEHICULOS_REG'])
+            'hoy'        => array('ok' => $fila['HOY'] !== null, 'situacion' => $fila['HOY']),
+            'listas'     => array('ok' => (int)$fila['LISTAS'] > 0, 'n' => (int)$fila['LISTAS'], 'ultima' => $fila['LISTAS_ULTIMA']),
+            'arqueos'    => array('ok' => (int)$fila['ARQUEOS'] > 0, 'n' => (int)$fila['ARQUEOS'], 'ultima' => $fila['ARQUEOS_ULTIMA']),
+            'cronograma' => array('ok' => $fila['CRONO_REVISADO'] !== null, 'revisado' => $fila['CRONO_REVISADO'],
+                                  'vehiculos' => (int)$fila['VEHICULOS'], 'vehiculosReg' => (int)$fila['VEHICULOS_REG'])
         );
     }
 
@@ -45,28 +46,28 @@ class EstadoDia
     public function visto($idColaborador, $modulo, $ahora)
     {
         $dia = substr($ahora, 0, 10);
-        $sig = date('Y-m-d', strtotime("$dia +1 day"));
+        $diaSiguiente = date('Y-m-d', strtotime("$dia +1 day"));
         $quien = (int)$idColaborador;
         return HanaDB::q("INSERT INTO bitacora_sistema (TIPO, FECHA, MODULO, QUIEN, ID_COLABORADOR, DETALLE, OK)
                           SELECT 'REVISION', ?, ?, '', ?, '', 1 FROM DUAL
                            WHERE NOT EXISTS (SELECT 1 FROM bitacora_sistema
                                               WHERE TIPO = 'REVISION' AND MODULO = ? AND ID_COLABORADOR = ? AND FECHA >= ? AND FECHA < ?)",
-                         'ssisiss', array($ahora, $modulo, $quien, $modulo, $quien, $dia, $sig));
+                         'ssisiss', array($ahora, $modulo, $quien, $modulo, $quien, $dia, $diaSiguiente));
     }
 
     //Quiénes revisaron un módulo un día: [idColaborador => primera vez]
     public function revisaron($idsPersonas, $modulo, $fecha)
     {
         if (!count($idsPersonas)) { return array(); }
-        $m = implode(',', array_fill(0, count($idsPersonas), '?'));
-        $sig = date('Y-m-d', strtotime("$fecha +1 day"));
-        $f = HanaDB::q("SELECT ID_COLABORADOR, MIN(FECHA) AS PRIMERA FROM bitacora_sistema
-                         WHERE TIPO = 'REVISION' AND MODULO = ? AND FECHA >= ? AND FECHA < ? AND ID_COLABORADOR IN ($m)
+        $marcas = implode(',', array_fill(0, count($idsPersonas), '?'));
+        $diaSiguiente = date('Y-m-d', strtotime("$fecha +1 day"));
+        $filas = HanaDB::q("SELECT ID_COLABORADOR, MIN(FECHA) AS PRIMERA FROM bitacora_sistema
+                         WHERE TIPO = 'REVISION' AND MODULO = ? AND FECHA >= ? AND FECHA < ? AND ID_COLABORADOR IN ($marcas)
                          GROUP BY ID_COLABORADOR",
                        'sss' . str_repeat('i', count($idsPersonas)),
-                       array_merge(array($modulo, $fecha, $sig), array_map('intval', $idsPersonas)));
-        $res = array();
-        foreach ((array)$f as $x) { $res[(int)$x['ID_COLABORADOR']] = $x['PRIMERA']; }
-        return $res;
+                       array_merge(array($modulo, $fecha, $diaSiguiente), array_map('intval', $idsPersonas)));
+        $primeraVez = array();
+        foreach ((array)$filas as $fila) { $primeraVez[(int)$fila['ID_COLABORADOR']] = $fila['PRIMERA']; }
+        return $primeraVez;
     }
 }

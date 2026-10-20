@@ -1,58 +1,59 @@
 <?php
 /*
-  HANA - Observadores (modelo)
+  HANA - Observadores (modelo, sin uso)
   ---------------------------------------------------------------------------
-  Consultas de la tabla observador_novedades_hallazgos.
-  Lo usa Control/ObservadorControl.php.
+  Consultas de la tabla observador_novedades_hallazgos, que ya no existe en la
+  base (la quitó el script 32: quien reporta la novedad es quien la vio).
+  Ningún archivo lo carga; se conserva solo como referencia.
 */
 require "../Conexion/ConexionDB.php";
 class Observador
 {
-        //Implementamos el super constructor 
+        //Constructor vacío: la clase no guarda datos propios
         public function __construct()
         {
         }
-        //Implementamos un método para insertar registros 	
-        public function insertar($NOMBRE)
+        //Crea un observador activo
+        public function insertar($nombre)
         {
                 $sql = "INSERT INTO observador_novedades_hallazgos(NOM_OBSERVADOR_NOVEDADES_HALLAZGOS,ESTADO)
-                            VALUES ('$NOMBRE','1')";
-                return ejecutarConsulta($sql); //envia la sentencia a la funcion ejecutarConsulta que está en conexion.php
+                            VALUES ('$nombre','1')";
+                return ejecutarConsulta($sql); //ejecutarConsulta está en Conexion/ConexionDB.php
         }
-        //Implementamos un método para editar registros
-        public function editar($IDOBSERVADOR,$NOMBRE)
+        //Cambia el nombre de un observador
+        public function editar($idObservador,$nombre)
         {
-                $sql = "UPDATE observador_novedades_hallazgos SET NOM_OBSERVADOR_NOVEDADES_HALLAZGOS='$NOMBRE' where ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$IDOBSERVADOR";
+                $sql = "UPDATE observador_novedades_hallazgos SET NOM_OBSERVADOR_NOVEDADES_HALLAZGOS='$nombre' where ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$idObservador";
                 return ejecutarConsulta($sql);
         }
-        //Implementar un método para mostrar los datos de un registro a modificar
-        public function mostrar($IDOBSERVADOR)
+        //Un observador, para cargarlo en el formulario
+        public function mostrar($idObservador)
         {
-                $sql = "SELECT * FROM observador_novedades_hallazgos WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS='$IDOBSERVADOR'";
+                $sql = "SELECT * FROM observador_novedades_hallazgos WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS='$idObservador'";
                 return ejecutarConsultaSimpleFila($sql);
         }
-        //Implementar un método para listar los registros
+        //Todos los observadores
         public function listar()
         {
                 $sql = "SELECT * FROM observador_novedades_hallazgos";
                 return ejecutarConsulta($sql);
         }
-        //Implementar un método para listar los registros
+        //Los observadores activos (desplegable)
         public function select()
         {
                 $sql = "SELECT * FROM observador_novedades_hallazgos WHERE ESTADO=1";
                 return ejecutarConsulta($sql);
         }
         //Desactiva un observador (no se borra)
-        public function desactivar($IDOBSERVADOR)
+        public function desactivar($idObservador)
         {
-                $sql = "UPDATE observador_novedades_hallazgos SET ESTADO=0 WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$IDOBSERVADOR";
+                $sql = "UPDATE observador_novedades_hallazgos SET ESTADO=0 WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$idObservador";
                 return ejecutarConsulta($sql);
         }
         //Vuelve a activar un observador
-        public function activar($IDOBSERVADOR)
+        public function activar($idObservador)
         {
-               $sql = "UPDATE observador_novedades_hallazgos SET ESTADO=1 WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$IDOBSERVADOR";
+               $sql = "UPDATE observador_novedades_hallazgos SET ESTADO=1 WHERE ID_OBSERVADOR_NOVEDADES_HALLAZGOS=$idObservador";
                 return ejecutarConsulta($sql);
         }
 		

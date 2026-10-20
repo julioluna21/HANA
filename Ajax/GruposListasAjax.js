@@ -1,9 +1,11 @@
+//Archivo sin uso: lo cargaba la pantalla anterior de grupos de listas (Vista/GruposListasVista2.php).
+//La pantalla vigente usa Ajax/GruposListasnAjax.js. Se conserva solo como referencia.
 var tabla;//variable global
 //Función para guardar o editar
 
-function guardar(e)
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -18,7 +20,7 @@ function guardar(e)
             mostrarform(false);
             alert("Lista guardada con éxito");
         },
-        //Antes decia "errro" en vez de "error", asi que este bloque nunca se ejecutaba
+        //Antes decía "errro" en vez de "error", así que este bloque nunca se ejecutaba
         //y un fallo del servidor pasaba inadvertido
         error: function(xhr)
         {
@@ -152,7 +154,6 @@ function mostrarform(flag)
     //limpia el formulario
     if (flag)
     {
-           // $('#myModal').modal('show');
         $("#demo-form2").show();
         $("#listadoPreguntas").hide();
         $("#listadoregistros").hide();
@@ -183,13 +184,13 @@ function listar()
         buttons: [
                         
                     ],
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/GruposListasControl.php?op=listar',//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
+                                    url: '../Control/GruposListasControl.php?op=listar',//página que realiza la operación
+                                    type : "get",//tipo de envío de datos
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -209,14 +210,14 @@ function listarPreguntas(idGrupoPreguntas)
         buttons: [
                         
                     ],
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/PreguntasListasControl.php?op=listar',//pagina que realiza la operación
-                                    type : "post",//tipo de envio de datos
+                                    url: '../Control/PreguntasListasControl.php?op=listar',//página que realiza la operación
+                                    type : "post",//tipo de envío de datos
                                     data: idGrupoPreguntas,
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -225,8 +226,7 @@ function listarPreguntas(idGrupoPreguntas)
     }).DataTable();
     
 }
-function agregarPregunta(e){
-    //e.preventDefault();
+function agregarPregunta(evento){
     //Validaciones antes de enviar: si falta algo se avisa aquí, sin ir al servidor
     if ($.trim($("#pregunta").val()) === "") { alert("Escribe el texto de la pregunta."); return; }
     if ($("#tipo-respuesta").val() === "")   { alert("Selecciona el tipo de respuesta."); return; }
@@ -251,8 +251,8 @@ function agregarPregunta(e){
             mostrarform(false);
             alert("Pregunta guardada con éxito");
         },
-        //Antes no habia manejador de error: si la pregunta no se guardaba,
-        //igual aparecia el mensaje de exito
+        //Antes no había manejador de error: si la pregunta no se guardaba,
+        //igual aparecía el mensaje de éxito
         error: function(xhr)
         {
             hanaErrorAjax(xhr, "No se pudo guardar la pregunta.");
@@ -264,7 +264,7 @@ function agregarPregunta(e){
     });
 }
 
-function agregarPreguntaExcel(e){
+function agregarPreguntaExcel(evento){
     var fileInput = $('#fileInput')[0];
     var file = fileInput.files[0];
     if (!file) { alert('Selecciona primero el archivo con las preguntas.'); return; }
@@ -289,7 +289,7 @@ function agregarPreguntaExcel(e){
         },
         error: function (xhr) {
             //Si alguna fila tiene problemas, el servidor devuelve la lista
-            //indicando el numero de fila. No se guarda nada hasta corregirla
+            //indicando el número de fila. No se guarda nada hasta corregirla
             hanaErrorAjax(xhr, "No se pudo importar el archivo.");
         },
         complete: function()
@@ -302,7 +302,7 @@ function agregarPreguntaExcel(e){
 //=================================================================
 //  Vista previa del CSV
 //  El archivo se revisa en el propio navegador antes de enviarlo, con
-//  las mismas reglas que aplica el servidor. Asi el usuario ve que va a
+//  las mismas reglas que aplica el servidor. Así el usuario ve que va a
 //  importar y donde tiene errores, sin esperar una ida y vuelta.
 //=================================================================
 
@@ -316,18 +316,18 @@ var CSV_TIPOS = {
     'firma':    ['firma', 'signature']
 };
 
-//Minusculas, sin tildes y sin espacios de sobra
+//Minúsculas, sin tildes y sin espacios de sobra
 function csvNormaliza(texto) {
-    var t = String(texto).trim().toLowerCase();
-    if (t.normalize) { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
-    return t.replace(/\s+/g, ' ');
+    var limpio = String(texto).trim().toLowerCase();
+    if (limpio.normalize) { limpio = limpio.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+    return limpio.replace(/\s+/g, ' ');
 }
 
-//Devuelve el tipo que corresponde, o cadena vacia si no se reconoce
+//Devuelve el tipo que corresponde, o cadena vacía si no se reconoce
 function csvTipo(valor) {
-    var n = csvNormaliza(valor);
+    var normalizado = csvNormaliza(valor);
     for (var clave in CSV_TIPOS) {
-        if (CSV_TIPOS[clave].indexOf(n) !== -1) { return clave; }
+        if (CSV_TIPOS[clave].indexOf(normalizado) !== -1) { return clave; }
     }
     return '';
 }
@@ -338,25 +338,25 @@ function revisarCsv(file) {
     lector.onerror = function () {
         $("#csvPrevia").html('<div class="hana-csv-previa"><div class="hana-csv-previa-cab error">No se pudo leer el archivo.</div></div>');
     };
-    lector.onload = function (e) {
-        var texto = String(e.target.result).replace(/^\uFEFF/, ''); //quita la marca de Excel
+    lector.onload = function (evento) {
+        var texto = String(evento.target.result).replace(/^\uFEFF/, ''); //quita la marca de Excel
         var lineas = texto.split(/\r\n|\r|\n/);
 
         //Separador: el que mas aparezca en la primera linea con contenido
-        var sep = ';';
+        var separador = ';';
         for (var i = 0; i < lineas.length; i++) {
             if (lineas[i].trim() !== '') {
-                sep = (lineas[i].split(';').length >= lineas[i].split(',').length) ? ';' : ',';
+                separador = (lineas[i].split(';').length >= lineas[i].split(',').length) ? ';' : ',';
                 break;
             }
         }
 
         var filas = [], errores = 0, vistas = {};
-        for (var n = 0; n < lineas.length; n++) {
-            var linea = lineas[n];
+        for (var numLinea = 0; numLinea < lineas.length; numLinea++) {
+            var linea = lineas[numLinea];
             if (linea.trim() === '') { continue; }
 
-            var celdas = linea.split(sep);
+            var celdas = linea.split(separador);
             var pregunta = (celdas[0] || '').replace(/^"|"$/g, '').trim();
             var tipoTxt  = (celdas[1] || '').replace(/^"|"$/g, '').trim();
 
@@ -364,7 +364,7 @@ function revisarCsv(file) {
             //igual que en el servidor
             if (pregunta === '' && tipoTxt === '') { continue; }
             //La primera fila de la plantilla es el encabezado
-            if (n === 0 && csvNormaliza(pregunta) === 'pregunta') { continue; }
+            if (numLinea === 0 && csvNormaliza(pregunta) === 'pregunta') { continue; }
 
             var problema = '';
             if (pregunta === '' || tipoTxt === '') {
@@ -376,11 +376,11 @@ function revisarCsv(file) {
             } else if (vistas[csvNormaliza(pregunta)]) {
                 problema = 'Repetida (fila ' + vistas[csvNormaliza(pregunta)] + ')';
             } else {
-                vistas[csvNormaliza(pregunta)] = n + 1;
+                vistas[csvNormaliza(pregunta)] = numLinea + 1;
             }
 
             if (problema) { errores++; }
-            filas.push({ n: n + 1, pregunta: pregunta || '(vacía)', tipo: problema || csvTipo(tipoTxt), mala: !!problema });
+            filas.push({ n: numLinea + 1, pregunta: pregunta || '(vacía)', tipo: problema || csvTipo(tipoTxt), mala: !!problema });
         }
 
         dibujarPreviaCsv(filas, errores);
@@ -388,7 +388,7 @@ function revisarCsv(file) {
     lector.readAsText(file, 'UTF-8');
 }
 
-//Pinta la vista previa y habilita o bloquea el boton de importar
+//Pinta la vista previa y habilita o bloquea el botón de importar
 function dibujarPreviaCsv(filas, errores) {
     var cont = $("#csvPrevia");
 
@@ -399,26 +399,26 @@ function dibujarPreviaCsv(filas, errores) {
         return;
     }
 
-    var cab, clase;
+    var cabecera, clase;
     if (errores > 0) {
         clase = 'error';
-        cab = '<i class="fa fa-exclamation-triangle"></i> ' + errores + ' fila(s) con problemas. ' +
+        cabecera = '<i class="fa fa-exclamation-triangle"></i> ' + errores + ' fila(s) con problemas. ' +
               'Corrige el archivo y vuelve a subirlo: no se importará nada hasta que esté todo bien.';
     } else {
         clase = 'ok';
-        cab = '<i class="fa fa-check-circle"></i> Todo listo: se importarán ' + filas.length + ' pregunta(s).';
+        cabecera = '<i class="fa fa-check-circle"></i> Todo listo: se importarán ' + filas.length + ' pregunta(s).';
     }
 
-    var html = '<div class="hana-csv-previa"><div class="hana-csv-previa-cab ' + clase + '">' + cab + '</div>' +
+    var html = '<div class="hana-csv-previa"><div class="hana-csv-previa-cab ' + clase + '">' + cabecera + '</div>' +
                '<div class="hana-csv-previa-cuerpo"><table><tbody>';
 
     for (var i = 0; i < filas.length; i++) {
-        var f = filas[i];
+        var fila = filas[i];
         //Se escribe como texto, nunca como HTML: el archivo lo trae el usuario
-        html += '<tr class="' + (f.mala ? 'mala' : '') + '">' +
-                '<td class="fila-num">' + f.n + '</td>' +
-                '<td>' + $('<div>').text(f.pregunta).html() + '</td>' +
-                '<td class="fila-tipo">' + $('<div>').text(f.tipo).html() + '</td></tr>';
+        html += '<tr class="' + (fila.mala ? 'mala' : '') + '">' +
+                '<td class="fila-num">' + fila.n + '</td>' +
+                '<td>' + $('<div>').text(fila.pregunta).html() + '</td>' +
+                '<td class="fila-tipo">' + $('<div>').text(fila.tipo).html() + '</td></tr>';
     }
     html += '</tbody></table></div></div>';
 
@@ -439,24 +439,23 @@ function init()
 {
 	listar();//lista 
     mostrarform(false);
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
+//al oprimir el botón del formulario
+    $("#demo-form2").on("submit",function(evento) //evento: el envío del formulario
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(evento); //guarda (nuevo o editado)
     });
 
     // Agrega un evento al botón "Agregar pregunta".
-    $("#btn-agregar-pregunta").on("click", function(e) {
-        agregarPregunta(e);
+    $("#btn-agregar-pregunta").on("click", function(evento) {
+        agregarPregunta(evento);
       });
 
       // Agrega un evento al botón "Agregar pregunta".
-      $("#btn-agregar-excel").on("click", function(e) {
-          agregarPreguntaExcel(e);
+      $("#btn-agregar-excel").on("click", function(evento) {
+          agregarPreguntaExcel(evento);
         });
       //captura la variable grupos para add al modal form
     $('#modal-preguntas').on('show.bs.modal', function (event) {
-        //e.preventDefault;
         var button = $(event.relatedTarget);
         var miVariable = button.data('idgrupo'); // Extraer el valor de data-mi-variable
         // Actualizar el contenido del modal con la variable
@@ -470,7 +469,6 @@ function init()
       });
       //captura la variable grupos para add al modal form
     $('#modal-excel').on('show.bs.modal', function (event) {
-        //e.preventDefault;
         var button = $(event.relatedTarget);
         var miVariable = button.data('idgrupo'); // Extraer el valor de data-mi-variable
         // Actualizar el contenido del modal con la variable
@@ -486,8 +484,8 @@ function init()
         var file = this.files && this.files[0];
         if (!file) { limpiarCsv(); return; }
 
-        //Si la pantalla no tiene los elementos nuevos, el archivo no se veria por
-        //ningun lado y pareceria que no pasa nada. Mejor decirlo
+        //Si la pantalla no tiene los elementos nuevos, el archivo no se vería por
+        //ningún lado y parecería que no pasa nada. Mejor decirlo
         if (!$("#csvPrevia").length || !$("#csvNombre").length) {
             alert('La pantalla de carga masiva está desactualizada.\n\n' +
                   'Copia también el archivo Vista/GruposListasVista.php y vuelve a abrir con Ctrl + F5.');
@@ -497,8 +495,8 @@ function init()
         $("#csvNombre").text(file.name + '  (' + Math.max(1, Math.round(file.size / 1024)) + ' KB)');
 
         //Un .xlsx es un archivo comprimido: el navegador no puede leerlo sin una
-        //libreria extra, asi que la revision de esos la hace el servidor. La del
-        //CSV si se puede mostrar aqui mismo, fila por fila
+        //librería extra, así que la revisión de esos la hace el servidor. La del
+        //CSV si se puede mostrar aquí mismo, fila por fila
         var nombre = file.name.toLowerCase();
         if (nombre.slice(-5) === '.xlsx' || nombre.slice(-5) === '.xlsm') {
             $("#csvPrevia").html('<div class="hana-csv-previa"><div class="hana-csv-previa-cab">' +
@@ -554,14 +552,14 @@ function init()
 init();
 
 //Descarga la plantilla. Antes se hacia con window.location.href, que si el archivo
-//no esta lleva al usuario a una pagina de error y lo saca de la pantalla.
-//Aqui se comprueba primero que exista y, si falta, se dice exactamente que copiar
+//no esta lleva al usuario a una página de error y lo saca de la pantalla.
+//Aquí se comprueba primero que exista y, si falta, se dice exactamente que copiar
 function descargarPlantilla() {
     var ruta = '../public/preguntasExcel.xlsx';
 
     $.ajax({ url: ruta, type: 'HEAD' })
         .done(function () {
-            //Un enlace temporal: asi el navegador descarga el archivo sin salir de la pantalla
+            //Un enlace temporal: así el navegador descarga el archivo sin salir de la pantalla
             var enlace = document.createElement('a');
             enlace.href = ruta;
             enlace.download = 'preguntasExcel.xlsx';

@@ -36,54 +36,59 @@
     if (!is_file(__DIR__ . '/Global.php')) {
         hanaFalloConexion('Falta el archivo Conexion/Global.php. Cópialo de Conexion/Global.ejemplo.php y llena los datos de la base de datos (en XAMPP: usuario root, sin clave, base bd_hana_app).');
     }
-    //para indicarle a php que si el archivo ya esta incluido no lo vuelva a incluir
+    //require_once: si Global.php ya se cargó, no se vuelve a cargar
     require_once __DIR__ . '/Global.php';
 
     //Desde PHP 8.1 mysqli lanza una excepción si no puede conectarse: se atrapa para dar un mensaje claro
     try {
-        $conexion = new mysqli(DB_HOST,DB_USERNAME,DB_PASSWORD,DB_NAME);//Estan en global.php
-    } catch (\Throwable $e) {
-        hanaFalloConexion('No se pudo conectar a la base de datos "' . DB_NAME . '": ' . $e->getMessage()
+        $conexion = new mysqli(DB_HOST,DB_USERNAME,DB_PASSWORD,DB_NAME); //los datos vienen de Global.php
+    } catch (\Throwable $error) {
+        hanaFalloConexion('No se pudo conectar a la base de datos "' . DB_NAME . '": ' . $error->getMessage()
                           . '. Revisa DB_HOST, DB_USERNAME, DB_PASSWORD y DB_NAME en Conexion/Global.php, y que la base esté importada.');
     }
     if (mysqli_connect_errno()){
         hanaFalloConexion('No se pudo conectar a la base de datos: ' . mysqli_connect_error());
     }
         
-    mysqli_query( $conexion, 'SET NAMES "'.DB_ENCODE.'"');//Consulta a la base de datos insertar utf8
+    mysqli_query( $conexion, 'SET NAMES "'.DB_ENCODE.'"'); //codificación de los textos (DB_ENCODE, en Global.php)
     //Hora de Colombia también para la base: NOW() y CURDATE() dan la misma hora que date() en PHP
     mysqli_query( $conexion, "SET time_zone = '-05:00'");
 
-    if (!function_exists('ejecutarConsulta'))//Si la función no existe
+    //Las funciones se definen una sola vez, aunque este archivo se cargue desde varios lugares
+    if (!function_exists('ejecutarConsulta'))
     {
-            function ejecutarConsulta($sql)//Ejecuta la función
+            //Ejecuta una consulta y devuelve su resultado (false si falló)
+            function ejecutarConsulta($sql)
             {
-                    global $conexion;//Llama al objeto conexion
-                    $query = $conexion->query($sql);//Realiza la cunsulta con la sentencia recibida ($sql)
-                    return $query;//Resultado de la consulta
+                    global $conexion; //la conexión abierta arriba
+                    $resultado = $conexion->query($sql);
+                    return $resultado;
             }
 
-            function ejecutarConsultaSimpleFila($sql)//Consulta de una sola fila
+            //Ejecuta una consulta y devuelve solo su primera fila (null si no hay ninguna)
+            function ejecutarConsultaSimpleFila($sql)
             {
                     global $conexion;
-                    $query = $conexion->query($sql);
-                    $row = $query->fetch_assoc();
-                    return $row;
+                    $resultado = $conexion->query($sql);
+                    $fila = $resultado->fetch_assoc();
+                    return $fila;
             }
 
-            function ejecutarConsulta_retornarID($sql)//Consulta retorna id
+            //Ejecuta un INSERT y devuelve el ID que la base le dio al registro nuevo
+            function ejecutarConsulta_retornarID($sql)
             {
                     global $conexion;
-                    $query = $conexion->query($sql);
+                    $conexion->query($sql);
                     return $conexion->insert_id;
             }
 
             //Limpia un dato que viene del formulario antes de meterlo en una consulta:
-            //quita espacios, escapa comillas y convierte < > en texto para que no se ejecute como HTML
-            function limpiarCadena($str)
+            //quita los espacios de los extremos, escapa las comillas y las barras para la
+            //consulta, y convierte < > & " en texto para que no se ejecute como HTML
+            function limpiarCadena($texto)
             {
                     global $conexion;
-                    $str = mysqli_real_escape_string($conexion,trim($str));//Limpia la sentencia de caracteres especiales "<", "/", "\", ">", " ' "
-                    return htmlspecialchars($str);
+                    $texto = mysqli_real_escape_string($conexion, trim($texto));
+                    return htmlspecialchars($texto);
             }
     }

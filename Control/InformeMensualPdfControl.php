@@ -48,9 +48,9 @@ if (isset($_GET['desde']) || isset($_GET['hasta'])) {
     $periodo = InformeMensual::periodo($anio, $mes);
 }
 
-$I = new InformeMensual();
+$modeloInforme = new InformeMensual();
 $todos = in_array('20M', $modulos) || in_array('24M', $modulos); //ve todos los proyectos
-$proyectos = $I->proyectos((int)$_SESSION['Idcolaborador'], $todos);
+$proyectos = $modeloInforme->proyectos((int)$_SESSION['Idcolaborador'], $todos);
 if (!count($proyectos)) {
     infError(403, 'No tienes proyectos para el informe: no coordinas ninguno y tu rol no tiene "Tablero: ver todos los proyectos" (20M).');
 }
@@ -58,5 +58,5 @@ if (!count($proyectos)) {
 //El nombre de quien lo genera viene de la sesión (guardado ya escapado para HTML)
 $quien = isset($_SESSION['Nombre']) ? html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8') : '';
 
-$datos = $I->datos($periodo, $proyectos);
+$datos = $modeloInforme->datos($periodo, $proyectos);
 $datos['ceros'] = InformeMensual::ceros(); //lo que se muestra de un peaje sin datos

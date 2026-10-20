@@ -8,6 +8,7 @@
 */
 session_start();
 require_once __DIR__ . "/../Modelo/CronogramaModelo.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //las respuestas JSON llevan los textos como se escribieron (sin &amp;)
 require_once __DIR__ . "/../Modelo/HanaFechas.php";
 require_once __DIR__ . "/../Modelo/HanaConfig.php";
 require_once __DIR__ . "/AccesoHelper.php";
@@ -22,7 +23,7 @@ define('CRONO_MESES_ADELANTE', 12); //se planea hasta un año adelante
 function cronoError($codigo, $mensaje)
 {
     http_response_code($codigo);
-    echo json_encode(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
+    echo hanaJsonTexto(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -39,22 +40,22 @@ $esCoordinador = hanaEsCoordinador((int)$_SESSION['Idcolaborador']);
 $verTodos      = hanaTienePermiso('20M') || hanaTienePermiso('21M') || hanaTienePermiso('22M') || hanaTienePermiso('30M');
 if (!$esCoordinador && !hanaTienePermiso('5M') && !$verTodos) { cronoError(403, 'El cronograma lo llena el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.'); }
 
-$idUsuario     = (int)$_SESSION['IdUsuarios'];
+$idUsuario     = (int)$_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $usaCrono      = $esCoordinador;
 //ADMIN TEC (24M): planea y corrige el cronograma de cualquier proyecto, a nombre de su coordinador
 $cronoTodo     = hanaTienePermiso('24M');
 $adminVh       = hanaTienePermiso('5M');
-$C             = new Cronograma();
+$modeloCronograma             = new Cronograma();
 $hoy           = date('Y-m-d');
 list($primerEditable, $ultimoEditable) = HanaFechas::ventana();
 $ultimoPlan    = date('Y-m-d', strtotime('+' . CRONO_MESES_ADELANTE . ' months'));
 
 //El vehículo pedido, solo si esta persona lo puede reportar
-function cronoVehiculo($C, $idVehiculo, $idColaborador, $adminVh)
+function cronoVehiculo($modeloCronograma, $idVehiculo, $idColaborador, $adminVh)
 {
-    foreach ($C->vehiculosDe($idColaborador, $adminVh) as $v) {
-        if ((int)$v['ID_VEHICULO'] === (int)$idVehiculo) { return $v; }
+    foreach ($modeloCronograma->vehiculosDe($idColaborador, $adminVh) as $vehiculo) {
+        if ((int)$vehiculo['ID_VEHICULO'] === (int)$idVehiculo) { return $vehiculo; }
     }
     return null;
 }
@@ -63,16 +64,16 @@ function cronoVehiculo($C, $idVehiculo, $idColaborador, $adminVh)
 //festivo ('' si el administrador lo apagó: parámetro CRONO_VH_FINDE_DIAS)
 function cronoFindeHasta($hoy)
 {
-    $n = max(0, min(366, HanaConfig::num('CRONO_VH_FINDE_DIAS', 60)));
-    return $n > 0 ? date('Y-m-d', strtotime("$hoy +$n day")) : '';
+    $dias = max(0, min(366, HanaConfig::num('CRONO_VH_FINDE_DIAS', 60)));
+    return $dias > 0 ? date('Y-m-d', strtotime("$hoy +$dias day")) : '';
 }
 
 //El primer día pasado en que todavía se registra o corrige el vehículo de un sábado, domingo o
 //festivo ('' si el administrador lo apagó: parámetro CRONO_VH_FINDE_ATRAS)
 function cronoFindeDesde($hoy)
 {
-    $n = max(0, min(60, HanaConfig::num('CRONO_VH_FINDE_ATRAS', 7)));
-    return $n > 0 ? date('Y-m-d', strtotime("$hoy -$n day")) : '';
+    $dias = max(0, min(60, HanaConfig::num('CRONO_VH_FINDE_ATRAS', 7)));
+    return $dias > 0 ? date('Y-m-d', strtotime("$hoy -$dias day")) : '';
 }
 
 //¿Se puede registrar el estado del vehículo ese día? Hoy (o un día que el administrador habilitó);
@@ -98,46 +99,46 @@ function cronoTextoVehiculo($hoy)
 }
 
 //Un ítem del cronograma de esta persona (o de cualquiera, para el ADMIN TEC), que todavía se pueda modificar
-function cronoItemPropio($C, $idItem, $idColaborador, $primerEditable, $todo = false)
+function cronoItemPropio($modeloCronograma, $idItem, $idColaborador, $primerEditable, $todo = false)
 {
-    $it = $C->item($idItem);
-    if (!$it || ((int)$it['ID_COLABORADOR'] !== $idColaborador && !$todo)) { cronoError(404, 'No se encontró esa actividad en tu cronograma.'); }
+    $actividad = $modeloCronograma->item($idItem);
+    if (!$actividad || ((int)$actividad['ID_COLABORADOR'] !== $idColaborador && !$todo)) { cronoError(404, 'No se encontró esa actividad en tu cronograma.'); }
     //Un día pasado solo se toca si el administrador se lo habilitó a la persona
-    if ($it['FECHA'] < $primerEditable && !HanaFechas::habilitado($it['FECHA'], $idColaborador)) { cronoError(400, 'Ese día ya no se puede modificar.'); }
-    return $it;
+    if ($actividad['FECHA'] < $primerEditable && !HanaFechas::habilitado($actividad['FECHA'], $idColaborador)) { cronoError(400, 'Ese día ya no se puede modificar.'); }
+    return $actividad;
 }
 
 //Los proyectos que esta persona puede ver en el cronograma: los que coordina y,
 //con 20M o 21M, todos. Cada uno con su coordinador, sus centros y sus vehículos.
 //Solo el cronograma propio se edita; el de otro proyecto queda en consulta.
 //El ADMIN TEC (24M) edita el de todos los proyectos que tienen coordinador
-function cronoProyectos($C, $idColaborador, $verTodos)
+function cronoProyectos($modeloCronograma, $idColaborador, $verTodos)
 {
     $todo = hanaTienePermiso('24M');
-    $f = Organizacion::proyectos($idColaborador, $verTodos);
-    $res = array();
-    foreach ((array)$f as $p) {
-        $id = (int)$p['ID_PROYECTO'];
-        $coord = (int)$p['ID_COLABORADOR_COORDINADOR'];
-        $p['PROPIO'] = $coord > 0 && $coord === (int)$idColaborador;   //el cronograma es de quien lo está viendo
-        $p['EDITABLE'] = $p['PROPIO'] || ($coord > 0 && $todo);
-        $p['CENTROS'] = Organizacion::centrosDeProyecto($id, false);
-        $p['VEHICULOS'] = $C->vehiculosProyecto($id, $coord);
-        $res[$id] = $p;
+    $listaProyectos = Organizacion::proyectos($idColaborador, $verTodos);
+    $porId = array();
+    foreach ((array)$listaProyectos as $proyecto) {
+        $id = (int)$proyecto['ID_PROYECTO'];
+        $idCoordinador = (int)$proyecto['ID_COLABORADOR_COORDINADOR'];
+        $proyecto['PROPIO'] = $idCoordinador > 0 && $idCoordinador === (int)$idColaborador;   //el cronograma es de quien lo está viendo
+        $proyecto['EDITABLE'] = $proyecto['PROPIO'] || ($idCoordinador > 0 && $todo);
+        $proyecto['CENTROS'] = Organizacion::centrosDeProyecto($id, false);
+        $proyecto['VEHICULOS'] = $modeloCronograma->vehiculosProyecto($id, $idCoordinador);
+        $porId[$id] = $proyecto;
     }
-    return $res;
+    return $porId;
 }
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     //Lo que necesita la pantalla al abrir: proyectos que ve la persona y en cuál arrancar
     case 'config':
-        $proyectos = cronoProyectos($C, $idColaborador, $verTodos);
+        $proyectos = cronoProyectos($modeloCronograma, $idColaborador, $verTodos);
         //Arranca en el proyecto que coordina; si no coordina ninguno, en el primero que ve
         $inicial = 0;
-        foreach ($proyectos as $id => $p) { if ($p['EDITABLE']) { $inicial = $id; break; } }
+        foreach ($proyectos as $id => $proyecto) { if ($proyecto['EDITABLE']) { $inicial = $id; break; } }
         if (!$inicial && count($proyectos)) { $inicial = (int)key($proyectos); }
-        echo json_encode(array(
+        echo hanaJsonTexto(array(
             'hoy' => $hoy, 'primerEditable' => $primerEditable, 'ultimoEditable' => $ultimoEditable, 'ultimoPlan' => $ultimoPlan,
             'habilitados' => HanaFechas::habilitados($idColaborador), //los días pasados que el administrador le abrió
             'tipos' => Cronograma::$TIPOS, 'estadosVh' => Cronograma::$ESTADOS_VH, 'transportes' => Cronograma::$TRANSPORTES,
@@ -151,7 +152,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         ), JSON_UNESCAPED_UNICODE);
         break;
 
-    //El mes (op=mes) o los próximos 15 días desde hoy (op=proximos): lo
+    //El mes (op=mes) o los próximos 15 días desde hoy (op=próximos): lo
     //planeado, la situación de cada día y el estado del vehículo
     case 'mes':
     case 'proximos':
@@ -167,30 +168,30 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         }
 
         //El proyecto que se está viendo: su coordinador es la persona del cronograma
-        $proyectos = cronoProyectos($C, $idColaborador, $verTodos);
-        $idProy = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
-        if (!isset($proyectos[$idProy])) { cronoError(403, 'Ese proyecto no está entre los que puedes ver.'); }
-        $proy = $proyectos[$idProy];
-        $persona = (int)$proy['ID_COLABORADOR_COORDINADOR'];
+        $proyectos = cronoProyectos($modeloCronograma, $idColaborador, $verTodos);
+        $idProyectoPedido = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
+        if (!isset($proyectos[$idProyectoPedido])) { cronoError(403, 'Ese proyecto no está entre los que puedes ver.'); }
+        $proyecto = $proyectos[$idProyectoPedido];
+        $persona = (int)$proyecto['ID_COLABORADOR_COORDINADOR'];
         $conPersona = $persona > 0;
 
         //El vehículo tiene que ser de ese proyecto
-        $vh = array();
-        $idVh = isset($_GET['vehiculo']) ? (int)$_GET['vehiculo'] : 0;
-        foreach ($proy['VEHICULOS'] as $v) { if ((int)$v['ID_VEHICULO'] === $idVh) { $vh = $C->vehiculoDias($idVh, $desde, $hasta); break; } }
+        $diasVehiculo = array();
+        $idVehiculoPedido = isset($_GET['vehiculo']) ? (int)$_GET['vehiculo'] : 0;
+        foreach ($proyecto['VEHICULOS'] as $vehiculo) { if ((int)$vehiculo['ID_VEHICULO'] === $idVehiculoPedido) { $diasVehiculo = $modeloCronograma->vehiculoDias($idVehiculoPedido, $desde, $hasta); break; } }
 
-        echo json_encode(array(
-            'editable'    => $proy['EDITABLE'],
-            'propio'      => $proy['PROPIO'],
-            'coordinador' => $proy['COORDINADOR'],
-            'visitados'   => $conPersona ? (object)$C->centrosVisitados($persona, $desde, $hasta) : new stdClass(),
+        echo hanaJsonTexto(array(
+            'editable'    => $proyecto['EDITABLE'],
+            'propio'      => $proyecto['PROPIO'],
+            'coordinador' => $proyecto['COORDINADOR'],
+            'visitados'   => $conPersona ? (object)$modeloCronograma->centrosVisitados($persona, $desde, $hasta) : new stdClass(),
             'desde'       => $desde,
             'hasta'       => $hasta, //sin incluir
-            'items'       => $conPersona ? $C->items($persona, $desde, $hasta, $hoy) : array(),
-            'situaciones' => $conPersona ? (object)$C->situaciones($persona, $desde, $hasta) : new stdClass(),
+            'items'       => $conPersona ? $modeloCronograma->items($persona, $desde, $hasta, $hoy) : array(),
+            'situaciones' => $conPersona ? (object)$modeloCronograma->situaciones($persona, $desde, $hasta) : new stdClass(),
             //En qué peaje estuvo cada día (de Hoy en qué estás)
-            'lugares'     => $conPersona ? (object)$C->lugares($persona, $desde, $hasta) : new stdClass(),
-            'vehiculo'    => count($vh) ? $vh : new stdClass()
+            'lugares'     => $conPersona ? (object)$modeloCronograma->lugares($persona, $desde, $hasta) : new stdClass(),
+            'vehiculo'    => count($diasVehiculo) ? $diasVehiculo : new stdClass()
         ), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -202,12 +203,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         //De quién es el cronograma: el propio; el ADMIN TEC escribe en el del coordinador del proyecto que está viendo
         $duenio = $idColaborador;
         if ($cronoTodo && !empty($_POST['proyecto'])) {
-            $proyectos = cronoProyectos($C, $idColaborador, true);
-            $idProy = (int)$_POST['proyecto'];
-            if (!isset($proyectos[$idProy]) || (int)$proyectos[$idProy]['ID_COLABORADOR_COORDINADOR'] <= 0) {
+            $proyectos = cronoProyectos($modeloCronograma, $idColaborador, true);
+            $idProyectoPedido = (int)$_POST['proyecto'];
+            if (!isset($proyectos[$idProyectoPedido]) || (int)$proyectos[$idProyectoPedido]['ID_COLABORADOR_COORDINADOR'] <= 0) {
                 cronoError(400, 'Ese proyecto no tiene coordinador asignado en Configuración → Proyectos.');
             }
-            $duenio = (int)$proyectos[$idProy]['ID_COLABORADOR_COORDINADOR'];
+            $duenio = (int)$proyectos[$idProyectoPedido]['ID_COLABORADOR_COORDINADOR'];
         }
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         if ($fecha === '') { cronoError(400, 'La fecha no es válida.'); }
@@ -222,53 +223,53 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($tipo === 'VISITA') {
             $idCentro = isset($_POST['centro']) ? (int)$_POST['centro'] : 0;
             $valido = false;
-            foreach (hanaCentrosCoordinador($idColaborador) as $c) { if ((int)$c['ID_CENTRO_OP'] === $idCentro) { $valido = true; break; } }
+            foreach (hanaCentrosCoordinador($idColaborador) as $centro) { if ((int)$centro['ID_CENTRO_OP'] === $idCentro) { $valido = true; break; } }
             if (!$valido) { cronoError(400, 'Elige uno de los peajes de los proyectos que coordinas.'); }
         } elseif (in_array($tipo, array('REUNION', 'OTRO')) && $descripcion === null) {
             cronoError(400, 'Describe la actividad: con quién es la reunión, o qué vas a hacer.');
         }
 
-        $id = $C->agregar($duenio, $fecha, $tipo, $idCentro, $descripcion, date('Y-m-d H:i:s'));
+        $id = $modeloCronograma->agregar($duenio, $fecha, $tipo, $idCentro, $descripcion, date('Y-m-d H:i:s'));
         if (!$id) { cronoError(500, 'No se pudo agregar. Intenta de nuevo.'); }
-        echo json_encode(array('ok' => true, 'id' => $id, 'mensaje' => 'Agregado al cronograma.'), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto(array('ok' => true, 'id' => $id, 'mensaje' => 'Agregado al cronograma.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //Marcar realizada, cancelada, o devolverla a programada
     case 'estado':
         if (!$usaCrono) { cronoError(403, 'No tienes permiso para el cronograma.'); }
-        $it = cronoItemPropio($C, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable, $cronoTodo);
+        $actividad = cronoItemPropio($modeloCronograma, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable, $cronoTodo);
         $estado = isset($_POST['estado']) ? $_POST['estado'] : '';
         if (!in_array($estado, array('PROGRAMADA', 'REALIZADA', 'CANCELADA'), true)) { cronoError(400, 'Estado no válido.'); }
-        if ($estado === 'REALIZADA' && $it['FECHA'] > $ultimoEditable) { cronoError(400, 'Ese día todavía no llega: no se puede marcar como realizado.'); }
-        $obs = HanaVal::texto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 300);
-        if ($estado === 'CANCELADA' && $obs === null) { cronoError(400, 'Explica por qué se cancela.'); }
-        if (!$C->cambiarEstado($it['ID_CRONOGRAMA'], $estado, $obs)) { cronoError(500, 'No se pudo guardar. Intenta de nuevo.'); }
-        echo json_encode(array('ok' => true), JSON_UNESCAPED_UNICODE);
+        if ($estado === 'REALIZADA' && $actividad['FECHA'] > $ultimoEditable) { cronoError(400, 'Ese día todavía no llega: no se puede marcar como realizado.'); }
+        $observacion = HanaVal::texto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 300);
+        if ($estado === 'CANCELADA' && $observacion === null) { cronoError(400, 'Explica por qué se cancela.'); }
+        if (!$modeloCronograma->cambiarEstado($actividad['ID_CRONOGRAMA'], $estado, $observacion)) { cronoError(500, 'No se pudo guardar. Intenta de nuevo.'); }
+        echo hanaJsonTexto(array('ok' => true), JSON_UNESCAPED_UNICODE);
         break;
 
     //Quitar algo agregado por error: solo lo que todavía no ha pasado
     case 'quitar':
         if (!$usaCrono) { cronoError(403, 'No tienes permiso para el cronograma.'); }
-        $it = cronoItemPropio($C, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable, $cronoTodo);
-        if ($it['FECHA'] < $hoy) { cronoError(400, 'Lo de días pasados no se quita: se marca como cancelado, con el motivo.'); }
-        if (!$C->quitar($it['ID_CRONOGRAMA'])) { cronoError(500, 'No se pudo quitar. Intenta de nuevo.'); }
-        echo json_encode(array('ok' => true), JSON_UNESCAPED_UNICODE);
+        $actividad = cronoItemPropio($modeloCronograma, isset($_POST['id']) ? (int)$_POST['id'] : 0, $idColaborador, $primerEditable, $cronoTodo);
+        if ($actividad['FECHA'] < $hoy) { cronoError(400, 'Lo de días pasados no se quita: se marca como cancelado, con el motivo.'); }
+        if (!$modeloCronograma->quitar($actividad['ID_CRONOGRAMA'])) { cronoError(500, 'No se pudo quitar. Intenta de nuevo.'); }
+        echo hanaJsonTexto(array('ok' => true), JSON_UNESCAPED_UNICODE);
         break;
 
     //-----------------------------------------------------------------------
     // Estado del vehículo en un día
     //-----------------------------------------------------------------------
     case 'vehiculoDia':
-        $v = cronoVehiculo($C, isset($_POST['vehiculo']) ? (int)$_POST['vehiculo'] : 0, $idColaborador, $adminVh);
-        if (!$v) { cronoError(403, 'Ese vehículo no está a tu cargo.'); }
+        $vehiculo = cronoVehiculo($modeloCronograma, isset($_POST['vehiculo']) ? (int)$_POST['vehiculo'] : 0, $idColaborador, $adminVh);
+        if (!$vehiculo) { cronoError(403, 'Ese vehículo no está a tu cargo.'); }
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
         if ($fecha === '' || !cronoDiaVehiculo($fecha, $hoy, $idColaborador)) {
             cronoError(400, cronoTextoVehiculo($hoy));
         }
         $estado = isset($_POST['estado']) ? $_POST['estado'] : '';
         if (!isset(Cronograma::$ESTADOS_VH[$estado])) { cronoError(400, 'Elige el estado del vehículo.'); }
-        $obs = HanaVal::texto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 300);
-        if ($estado !== 'OPERATIVO' && $obs === null) { cronoError(400, 'Explica qué le pasa al vehículo.'); }
+        $observacion = HanaVal::texto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 300);
+        if ($estado !== 'OPERATIVO' && $observacion === null) { cronoError(400, 'Explica qué le pasa al vehículo.'); }
         //Si el vehículo no estaba operativo, cómo se transportó el coordinador ese día
         $transporte = null;
         if ($estado !== 'OPERATIVO') {
@@ -276,10 +277,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             if ($transporte === '' && !HanaConfig::si('CRONO_TRANSPORTE_OBLIGATORIO')) { $transporte = null; } //opcional
             elseif (!isset(Cronograma::$TRANSPORTES[$transporte])) { cronoError(400, 'Elige cómo te transportaste ese día (bus, taxi, aplicación...).'); }
         }
-        if (!$C->guardarVehiculoDia($v['ID_VEHICULO'], $fecha, $estado, $obs, $idColaborador, date('Y-m-d H:i:s'), $transporte)) {
+        if (!$modeloCronograma->guardarVehiculoDia($vehiculo['ID_VEHICULO'], $fecha, $estado, $observacion, $idColaborador, date('Y-m-d H:i:s'), $transporte)) {
             cronoError(500, 'No se pudo guardar. Intenta de nuevo.');
         }
-        echo json_encode(array('ok' => true), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto(array('ok' => true), JSON_UNESCAPED_UNICODE);
         break;
 
     //-----------------------------------------------------------------------
@@ -287,7 +288,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //-----------------------------------------------------------------------
     case 'catalogo':
         if (!$adminVh) { cronoError(403, 'No permitido: tu rol no administra vehículos.'); }
-        echo json_encode($C->catalogo(), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto($modeloCronograma->catalogo(), JSON_UNESCAPED_UNICODE);
         break;
 
     //Crea o edita un vehículo (solo los roles que administran vehículos)
@@ -296,16 +297,16 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         $placa = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', isset($_POST['placa']) ? $_POST['placa'] : ''));
         if (strlen($placa) < 5 || strlen($placa) > 10) { cronoError(400, 'La placa no es válida.'); }
-        if ($C->placaUsada($placa, $id)) { cronoError(400, "Ya existe un vehículo con la placa $placa."); }
-        $desc = HanaVal::texto(isset($_POST['descripcion']) ? $_POST['descripcion'] : '', 80);
-        $proy = isset($_POST['proyecto']) && (int)$_POST['proyecto'] > 0 ? (int)$_POST['proyecto'] : null;
-        $resp = isset($_POST['responsable']) && (int)$_POST['responsable'] > 0 ? (int)$_POST['responsable'] : null;
-        if ($resp && !Organizacion::colaboradorActivo($resp)) {
+        if ($modeloCronograma->placaUsada($placa, $id)) { cronoError(400, "Ya existe un vehículo con la placa $placa."); }
+        $descripcionVehiculo = HanaVal::texto(isset($_POST['descripcion']) ? $_POST['descripcion'] : '', 80);
+        $idProyecto = isset($_POST['proyecto']) && (int)$_POST['proyecto'] > 0 ? (int)$_POST['proyecto'] : null;
+        $idResponsable = isset($_POST['responsable']) && (int)$_POST['responsable'] > 0 ? (int)$_POST['responsable'] : null;
+        if ($idResponsable && !Organizacion::colaboradorActivo($idResponsable)) {
             cronoError(400, 'El responsable elegido no existe o está inactivo.');
         }
         $estado = isset($_POST['estado']) && (int)$_POST['estado'] === 0 ? 0 : 1;
-        if (!$C->guardarVehiculo($id, $placa, $desc, $proy, $resp, $estado)) { cronoError(500, 'No se pudo guardar el vehículo.'); }
-        echo json_encode(array('ok' => true, 'mensaje' => 'Vehículo guardado.'), JSON_UNESCAPED_UNICODE);
+        if (!$modeloCronograma->guardarVehiculo($id, $placa, $descripcionVehiculo, $idProyecto, $idResponsable, $estado)) { cronoError(500, 'No se pudo guardar el vehículo.'); }
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Vehículo guardado.'), JSON_UNESCAPED_UNICODE);
         break;
 
     default:

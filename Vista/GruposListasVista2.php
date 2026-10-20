@@ -1,11 +1,20 @@
 <?php
+/*
+  Pantalla sin uso: es la versión anterior de Grupos de listas y ninguna parte del
+  sistema la abre. Si alguien entra por la dirección, va a la pantalla vigente,
+  GruposListasVista.php. El código de abajo se conserva solo como referencia.
+*/
+header('Location: GruposListasVista.php');
+exit;
+?>
+<?php
 session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
-    if (in_array("12M",$modulosAcceso) or isset($_GET["op"])) {
+    if (in_array("12M",$modulosAcceso)) {
         include('head.php');
 ?>
-        <!-- Contenido aqui va todo el DIV del contenido.. -->
+        <!-- Contenido de la pantalla -->
         <div class="right_col" role="main">
             <div class="">
                 <div class="clearfix"></div>
@@ -141,7 +150,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                     <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                                                         <!--Al hacer click, muestra el formulario-->
                                                         <i class="fa fa-plus-square">
-                                                            <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                                                            <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                                                         </i> Nueva Lista
                                                     </button>
                                                 </SPAN>

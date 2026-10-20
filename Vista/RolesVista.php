@@ -5,7 +5,7 @@
   Pantalla para crear roles y marcar qué permisos tiene cada uno.
   La pantalla es solo el HTML: lo que hace cada botón está en Ajax/RolesAjax.js
   y los datos los entrega Control/RolesControl.php.
-  Permiso: 2M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+  Permiso: 2M (sin sesión va al inicio de sesión; sin el permiso, a la pantalla de inicio).
 */
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
@@ -18,7 +18,7 @@ include('head.php');
 
 
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -62,24 +62,21 @@ include('head.php');
                                                   <div class="row">
                            <div class="col-xs-12">
                              <label>Qué puede hacer este rol:</label>
-                             <p class="rd-ayuda" style="margin:2px 0 10px;">Un rol es un grupo de casillas; a cada usuario se le pone uno en Usuarios. El cargo de la persona no da permisos.
+                             <p class="rd-ayuda" style="margin:2px 0 10px;">Un rol es un grupo de casillas; a cada persona se le pone uno en Usuarios, y es lo que se muestra como su función.
                                Dónde trabaja cada quien sale de Proyectos (coordinador), Centros de operación (jefe de peaje) y Usuarios (peajes asignados).
                                El coordinador de cada proyecto ya usa las pantallas de "llenar" de su proyecto; si marcas una de esas casillas, el rol la usa en todos los proyectos.
                                Con 24M (ADMIN TEC) se crea, corrige y anula en todos los módulos y proyectos.</p>
                              <div class="roles-grupos">
                                <fieldset class="roles-grupo"><legend>Configuración</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r1" value="1M"> <span>Usuarios</span> <small>1M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r1" value="1M"> <span>Usuarios: el acceso de cada persona (rol, usuario, peajes y contraseña)</span> <small>1M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r2" value="2M"> <span>Permisos de usuario (esta pantalla)</span> <small>2M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r3" value="3M"> <span>Colaboradores</span> <small>3M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r4" value="4M"> <span>Cargos</span> <small>4M</small></label>
+                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r3" value="3M"> <span>Colaboradores: registrar personas y cambiar sus datos (al registrarlas se les crea el usuario)</span> <small>3M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r5" value="5M"> <span>Centros de operación (y fondos, vehículos y campos de casetas)</span> <small>5M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r6" value="6M"> <span>Proyectos</span> <small>6M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r24" value="24M"> <span>Parámetros del sistema y control total (crear, corregir y anular en todo)</span> <small>24M</small></label>
                                </fieldset>
                                <fieldset class="roles-grupo"><legend>Novedades</legend>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r7" value="7M"> <span>Títulos de novedades</span> <small>7M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r8" value="8M"> <span>Estados de relevancia</span> <small>8M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r9" value="9M"> <span>Observadores</span> <small>9M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r10" value="10M"> <span>Novedades (registrar y responder)</span> <small>10M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r16" value="16M"> <span>Ver todas las novedades (no solo las propias)</span> <small>16M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r42" value="42M"> <span>Asignar una novedad a una persona</span> <small>42M</small></label>
@@ -149,7 +146,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nuevo Registro
               </button>
             </SPAN>
@@ -190,11 +187,11 @@ include('head.php');
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/RolesAjax.js"></script>
+<script type="text/javascript" src="../Ajax/RolesAjax.js?v=2"></script>
 <?php
 }else{
   echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     
 }

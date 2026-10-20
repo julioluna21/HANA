@@ -15,25 +15,25 @@ $(function () {
 });
 
 //Fecha -> "AAAA-MM-DD"
-function isoInf(d) { return d.getFullYear() + '-' + rdDos(d.getMonth() + 1) + '-' + rdDos(d.getDate()); }
+function isoInf(fecha) { return fecha.getFullYear() + '-' + rdDos(fecha.getMonth() + 1) + '-' + rdDos(fecha.getDate()); }
 
 //Cada opción del selector llena las dos fechas. "Otras fechas" deja las que estén
 function aplicarPeriodo() {
-    var h = rdAFecha(hoyInf), a = h.getFullYear(), m = h.getMonth(), d = h.getDate();
+    var hoy = rdAFecha(hoyInf), anio = hoy.getFullYear(), mes = hoy.getMonth(), dia = hoy.getDate();
     var desde, hasta;
     switch ($('#iPeriodo').val()) {
-        case 'mes':              desde = new Date(a, m, 1);     hasta = new Date(a, m + 1, 0); break;
-        case 'mesAnterior':      desde = new Date(a, m - 1, 1); hasta = new Date(a, m, 0); break;
-        case 'quincena1':        desde = new Date(a, m, 1);     hasta = new Date(a, m, 15); break;
-        case 'quincena2':        desde = new Date(a, m, 16);    hasta = new Date(a, m + 1, 0); break;
+        case 'mes':              desde = new Date(anio, mes, 1);     hasta = new Date(anio, mes + 1, 0); break;
+        case 'mesAnterior':      desde = new Date(anio, mes - 1, 1); hasta = new Date(anio, mes, 0); break;
+        case 'quincena1':        desde = new Date(anio, mes, 1);     hasta = new Date(anio, mes, 15); break;
+        case 'quincena2':        desde = new Date(anio, mes, 16);    hasta = new Date(anio, mes + 1, 0); break;
         case 'quincenaAnterior': //la que acaba de terminar: del 1 al 15 de este mes, o la segunda del mes pasado
-            if (d > 15) { desde = new Date(a, m, 1); hasta = new Date(a, m, 15); }
-            else        { desde = new Date(a, m - 1, 16); hasta = new Date(a, m, 0); }
+            if (dia > 15) { desde = new Date(anio, mes, 1); hasta = new Date(anio, mes, 15); }
+            else        { desde = new Date(anio, mes - 1, 16); hasta = new Date(anio, mes, 0); }
             break;
-        case 'meses2':           desde = new Date(a, m - 1, 1); hasta = new Date(a, m + 1, 0); break;
-        case 'meses3':           desde = new Date(a, m - 2, 1); hasta = new Date(a, m + 1, 0); break;
-        case 'meses6':           desde = new Date(a, m - 5, 1); hasta = new Date(a, m + 1, 0); break;
-        case 'anio':             desde = new Date(a, 0, 1);     hasta = new Date(a, m + 1, 0); break;
+        case 'meses2':           desde = new Date(anio, mes - 1, 1); hasta = new Date(anio, mes + 1, 0); break;
+        case 'meses3':           desde = new Date(anio, mes - 2, 1); hasta = new Date(anio, mes + 1, 0); break;
+        case 'meses6':           desde = new Date(anio, mes - 5, 1); hasta = new Date(anio, mes + 1, 0); break;
+        case 'anio':             desde = new Date(anio, 0, 1);     hasta = new Date(anio, mes + 1, 0); break;
         default:                 enlacesInforme(); return;      //"Otras fechas": no se tocan
     }
     //Los meses van completos para que el informe se llame "Octubre de 2026"; en el campo se muestra hasta hoy
@@ -65,4 +65,4 @@ function enlacesInforme() {
 }
 
 //Un enlace desactivado no debe llevar a ningún lado
-$(document).on('click', '#btnVerInforme.disabled, #btnBajarInforme.disabled', function (e) { e.preventDefault(); });
+$(document).on('click', '#btnVerInforme.disabled, #btnBajarInforme.disabled', function (evento) { evento.preventDefault(); });

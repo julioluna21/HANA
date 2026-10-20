@@ -21,25 +21,25 @@ var NOMBRE_SIT = { LABORAL: 'Laboral', DESCANSO: 'Descanso', INCAPACIDAD: 'Incap
 
 $(function () {
     $.getJSON(URL_CRONO + '?op=config')
-        .done(function (c) {
-            cfgC = c;
+        .done(function (config) {
+            cfgC = config;
             //Abrir el cronograma cuenta como revisarlo hoy (para la alerta y el reporte
             //general). Solo para el coordinador: quien consulta otro proyecto no lo "revisa"
-            if (c.usaCrono) {
+            if (config.usaCrono) {
                 $.post('../Control/EstadoDiaControl.php?op=visto', { modulo: 'CRONOGRAMA' })
                     .always(function () { rdAlertaDia('cronograma', '#alertaDia'); });
             }
-            rdPeriodo('#cMes', '#cAnio', c.hoy);
+            rdPeriodo('#cMes', '#cAnio', config.hoy);
             //Se puede planear el año siguiente
-            $('#cAnio').prepend('<option value="' + (+c.hoy.substring(0, 4) + 1) + '">' + (+c.hoy.substring(0, 4) + 1) + '</option>');
+            $('#cAnio').prepend('<option value="' + (+config.hoy.substring(0, 4) + 1) + '">' + (+config.hoy.substring(0, 4) + 1) + '</option>');
             //Los proyectos que puede ver: arranca en el que coordina
-            var hp = '';
-            for (var i = 0; i < c.proyectos.length; i++) {
-                hp += '<option value="' + parseInt(c.proyectos[i].ID_PROYECTO, 10) + '">' + rdEsc(c.proyectos[i].NOM_PROYECTO) +
-                      (c.proyectos[i].PROPIO ? ' (el tuyo)' : '') + '</option>';
+            var htmlProyectos = '';
+            for (var i = 0; i < config.proyectos.length; i++) {
+                htmlProyectos += '<option value="' + parseInt(config.proyectos[i].ID_PROYECTO, 10) + '">' + rdEsc(config.proyectos[i].NOM_PROYECTO) +
+                      (config.proyectos[i].PROPIO ? ' (el tuyo)' : '') + '</option>';
             }
-            $('#cProyecto').html(hp || '<option value="">No tienes proyectos para ver</option>').val(String(c.proyectoInicial || ''));
-            $('#btnVehiculos').toggle(!!c.adminVh);
+            $('#cProyecto').html(htmlProyectos || '<option value="">No tienes proyectos para ver</option>').val(String(config.proyectoInicial || ''));
+            $('#btnVehiculos').toggle(!!config.adminVh);
             elegirProyecto();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir el cronograma.'); });
@@ -84,30 +84,30 @@ function elegirProyecto() {
     proyActual = null;
     for (var i = 0; i < cfgC.proyectos.length; i++) { if (+cfgC.proyectos[i].ID_PROYECTO === id) { proyActual = cfgC.proyectos[i]; } }
     if (!proyActual) { $('#calendario, #listaCrono').empty(); $('#cQuien').html('<p class="rd-vacio">No tienes proyectos para ver.</p>'); return; }
-    var hc = '<option value="0">Todos</option>';
-    proyActual.CENTROS.forEach(function (c) {
-        hc += '<option value="' + parseInt(c.ID_CENTRO_OP, 10) + '">' + (c.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(c.NOM_CENTRO_OP) + '</option>';
+    var htmlCentros = '<option value="0">Todos</option>';
+    proyActual.CENTROS.forEach(function (centro) {
+        htmlCentros += '<option value="' + parseInt(centro.ID_CENTRO_OP, 10) + '">' + (centro.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(centro.NOM_CENTRO_OP) + '</option>';
     });
-    $('#cCentro').html(hc);
-    var hv = '';
-    proyActual.VEHICULOS.forEach(function (v) {
-        hv += '<option value="' + parseInt(v.ID_VEHICULO, 10) + '">' + rdEsc(v.PLACA) + (v.DESCRIPCION ? ' · ' + rdEsc(v.DESCRIPCION) : '') + '</option>';
+    $('#cCentro').html(htmlCentros);
+    var htmlVehiculos = '';
+    proyActual.VEHICULOS.forEach(function (vehiculo) {
+        htmlVehiculos += '<option value="' + parseInt(vehiculo.ID_VEHICULO, 10) + '">' + rdEsc(vehiculo.PLACA) + (vehiculo.DESCRIPCION ? ' · ' + rdEsc(vehiculo.DESCRIPCION) : '') + '</option>';
     });
-    $('#cVehiculo').html(hv ? hv + '<option value="0">Sin vehículo</option>' : '<option value="0">El proyecto no tiene vehículo</option>');
+    $('#cVehiculo').html(htmlVehiculos ? htmlVehiculos + '<option value="0">Sin vehículo</option>' : '<option value="0">El proyecto no tiene vehículo</option>');
     cargarMes();
 }
 
 //Trae el mes del proyecto elegido (actividades, situación de cada día y vehículo)
 function cargarMes() {
     if (!proyActual) { return; }
-    var q = '&proyecto=' + proyActual.ID_PROYECTO + '&anio=' + $('#cAnio').val() + '&mes=' + $('#cMes').val() + '&vehiculo=' + ($('#cVehiculo').val() || 0);
-    $.getJSON(URL_CRONO + '?op=mes' + q)
-        .done(function (d) {
-            datosMes = d;
-            proyEditable = !!d.editable;
-            $('#cQuien').html(d.coordinador
-                ? '<i class="fa fa-user"></i> Coordinador del proyecto: <strong>' + rdEsc(d.coordinador) + '</strong>' +
-                  (!proyEditable ? ' <span class="adm-sello">Solo consulta</span>' : (d.propio ? '' : ' <span class="adm-sello">Lo editas como ADMIN TEC</span>'))
+    var filtros = '&proyecto=' + proyActual.ID_PROYECTO + '&anio=' + $('#cAnio').val() + '&mes=' + $('#cMes').val() + '&vehiculo=' + ($('#cVehiculo').val() || 0);
+    $.getJSON(URL_CRONO + '?op=mes' + filtros)
+        .done(function (respuesta) {
+            datosMes = respuesta;
+            proyEditable = !!respuesta.editable;
+            $('#cQuien').html(respuesta.coordinador
+                ? '<i class="fa fa-user"></i> Coordinador del proyecto: <strong>' + rdEsc(respuesta.coordinador) + '</strong>' +
+                  (!proyEditable ? ' <span class="adm-sello">Solo consulta</span>' : (respuesta.propio ? '' : ' <span class="adm-sello">Lo editas como ADMIN TEC</span>'))
                 : '<span class="rd-ayuda" style="display:inline">Este proyecto no tiene coordinador asignado.</span>');
             pintarCalendario();
             if (diaAbierto && $('#modalDia').is(':visible')) { abrirDia(diaAbierto); }
@@ -116,26 +116,26 @@ function cargarMes() {
 }
 
 //¿Ese día se visitó el peaje elegido? Por Hoy en qué estás o, si aún no pasa, por lo planeado
-function visitoCentro(f, datos) {
-    var idC = +($('#cCentro').val() || 0);
-    if (!idC) { return true; }
-    if ((datos.visitados && datos.visitados[f] || []).indexOf(idC) >= 0) { return true; }
+function visitoCentro(fecha, datos) {
+    var idCentro = +($('#cCentro').val() || 0);
+    if (!idCentro) { return true; }
+    if ((datos.visitados && datos.visitados[fecha] || []).indexOf(idCentro) >= 0) { return true; }
     //Lo planeado solo cuenta de hoy en adelante: en días pasados vale la visita real
-    if (f < cfgC.hoy) { return false; }
-    return datos.items.some(function (it) { return it.FECHA === f && it.TIPO === 'VISITA' && +it.ID_CENTRO_OP === idC && it.ESTADO_REAL !== 'CANCELADA'; });
+    if (fecha < cfgC.hoy) { return false; }
+    return datos.items.some(function (item) { return item.FECHA === fecha && item.TIPO === 'VISITA' && +item.ID_CENTRO_OP === idCentro && item.ESTADO_REAL !== 'CANCELADA'; });
 }
 
 //Con un peaje elegido: cuántas veces se visitó y cuándo
 function resumenCentro(datos, desde, hasta) {
-    var idC = +($('#cCentro').val() || 0);
-    if (!idC) { $('#cResumenCentro').empty(); return; }
+    var idCentro = +($('#cCentro').val() || 0);
+    if (!idCentro) { $('#cResumenCentro').empty(); return; }
     var hechas = [], planeadas = [];
-    for (var f = desde; f <= hasta; f = rdSumarDias(f, 1)) {
-        if ((datos.visitados && datos.visitados[f] || []).indexOf(idC) >= 0) { hechas.push(+f.substring(8, 10)); }
-        else if (f >= cfgC.hoy && visitoCentro(f, datos)) { planeadas.push(+f.substring(8, 10)); }
+    for (var fecha = desde; fecha <= hasta; fecha = rdSumarDias(fecha, 1)) {
+        if ((datos.visitados && datos.visitados[fecha] || []).indexOf(idCentro) >= 0) { hechas.push(+fecha.substring(8, 10)); }
+        else if (fecha >= cfgC.hoy && visitoCentro(fecha, datos)) { planeadas.push(+fecha.substring(8, 10)); }
     }
-    var nom = $('#cCentro option:selected').text();
-    $('#cResumenCentro').html('<div class="cd-revision"><strong>' + rdEsc(nom) + ':</strong> ' +
+    var nombre = $('#cCentro option:selected').text();
+    $('#cResumenCentro').html('<div class="cd-revision"><strong>' + rdEsc(nombre) + ':</strong> ' +
         (hechas.length ? 'visitado ' + hechas.length + (hechas.length === 1 ? ' día' : ' días') + ' (días ' + hechas.join(', ') + ')' : 'no se visitó en este periodo') +
         (planeadas.length ? ' · visita planeada: días ' + planeadas.join(', ') : '') + '</div>');
 }
@@ -153,28 +153,28 @@ function pintarCalendario() {
     var primero = new Date(anio, mes - 1, 1), dias = new Date(anio, mes, 0).getDate();
     var porDia = {};
     for (var i = 0; i < datosMes.items.length; i++) {
-        var it = datosMes.items[i];
-        (porDia[it.FECHA] = porDia[it.FECHA] || []).push(it);
+        var item = datosMes.items[i];
+        (porDia[item.FECHA] = porDia[item.FECHA] || []).push(item);
     }
 
-    var h = '';
-    ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].forEach(function (n) { h += '<div class="crono-cab">' + n + '</div>'; });
+    var html = '';
+    ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].forEach(function (nombreDia) { html += '<div class="crono-cab">' + nombreDia + '</div>'; });
     //Celdas vacías antes del día 1 (la semana empieza en lunes)
     var hueco = (primero.getDay() + 6) % 7;
-    for (var v = 0; v < hueco; v++) { h += '<div class="crono-dia crono-vacio"></div>'; }
+    for (var numHueco = 0; numHueco < hueco; numHueco++) { html += '<div class="crono-dia crono-vacio"></div>'; }
 
-    for (var d = 1; d <= dias; d++) {
-        var f = anio + '-' + rdDos(mes) + '-' + rdDos(d);
-        var its = porDia[f] || [], sit = datosMes.situaciones[f], vh = datosMes.vehiculo[f];
-        var cls = 'crono-dia' + (f === cfgC.hoy ? ' crono-hoy' : '') + (f < cfgC.hoy ? ' crono-pasado' : '') + (visitoCentro(f, datosMes) ? '' : ' crono-atenuado');
-        h += '<div class="' + cls + '" data-fecha="' + f + '" role="button" tabindex="0">' +
-             '<div class="crono-num">' + d + (sit ? ' <span class="crono-sit">' + rdEsc(NOMBRE_SIT[sit] || sit) + '</span>' : '') + '</div>';
-        for (var k = 0; k < its.length && k < 3; k++) { h += '<div class="crono-item crono-' + its[k].ESTADO_REAL + '">' + rdEsc(textoItem(its[k])) + '</div>'; }
-        if (its.length > 3) { h += '<div class="crono-mas">+' + (its.length - 3) + ' más</div>'; }
-        h += lineaLugar(f, datosMes) + lineaVh(f, datosMes, false);
-        h += '</div>';
+    for (var dia = 1; dia <= dias; dia++) {
+        var fecha = anio + '-' + rdDos(mes) + '-' + rdDos(dia);
+        var items = porDia[fecha] || [], situacion = datosMes.situaciones[fecha], vehiculoDia = datosMes.vehiculo[fecha];
+        var clase = 'crono-dia' + (fecha === cfgC.hoy ? ' crono-hoy' : '') + (fecha < cfgC.hoy ? ' crono-pasado' : '') + (visitoCentro(fecha, datosMes) ? '' : ' crono-atenuado');
+        html += '<div class="' + clase + '" data-fecha="' + fecha + '" role="button" tabindex="0">' +
+             '<div class="crono-num">' + dia + (situacion ? ' <span class="crono-sit">' + rdEsc(NOMBRE_SIT[situacion] || situacion) + '</span>' : '') + '</div>';
+        for (var numItem = 0; numItem < items.length && numItem < 3; numItem++) { html += '<div class="crono-item crono-' + items[numItem].ESTADO_REAL + '">' + rdEsc(textoItem(items[numItem])) + '</div>'; }
+        if (items.length > 3) { html += '<div class="crono-mas">+' + (items.length - 3) + ' más</div>'; }
+        html += lineaLugar(fecha, datosMes) + lineaVh(fecha, datosMes, false);
+        html += '</div>';
     }
-    $('#calendario').html(h);
+    $('#calendario').html(html);
     resumenCentro(datosMes, anio + '-' + rdDos(mes) + '-01', rdATexto(new Date(anio, mes, 0)));
 }
 
@@ -183,47 +183,47 @@ function pintarCalendario() {
 //   📍 en qué peaje estuvo (de Hoy en qué estás)
 //   🚗 la placa y el estado del vehículo
 //---------------------------------------------------------------------------
-var CORTO_VH = { OPERATIVO: 'Operativo', INOPERATIVO: 'Inoperativo', FALLA_FLOTA: 'Falla reportada' };
+var CORTO_VH = { OPERATIVO: 'Operativo', INOPERATIVO: 'Inoperativo' };
 
 //La placa del vehículo elegido en el filtro
 function placaElegida() {
-    var id = +($('#cVehiculo').val() || 0), vs = proyActual ? proyActual.VEHICULOS : [];
-    for (var i = 0; i < vs.length; i++) { if (+vs[i].ID_VEHICULO === id) { return vs[i].PLACA; } }
+    var id = +($('#cVehiculo').val() || 0), vehiculos = proyActual ? proyActual.VEHICULOS : [];
+    for (var i = 0; i < vehiculos.length; i++) { if (+vehiculos[i].ID_VEHICULO === id) { return vehiculos[i].PLACA; } }
     return '';
 }
 
 //Línea con el lugar donde estuvo la persona ese día (si se sabe)
-function lineaLugar(f, datos) {
-    var l = datos.lugares && datos.lugares[f];
-    return l ? '<div class="crono-lugar" title="Estuvo en ' + rdEsc(l) + '"><i class="fa fa-map-marker"></i> ' + rdEsc(l) + '</div>' : '';
+function lineaLugar(fecha, datos) {
+    var lugar = datos.lugares && datos.lugares[fecha];
+    return lugar ? '<div class="crono-lugar" title="Estuvo en ' + rdEsc(lugar) + '"><i class="fa fa-map-marker"></i> ' + rdEsc(lugar) + '</div>' : '';
 }
 
 //Con vehículo elegido: la placa y su estado; si el día ya pasó y no se registró, "Sin registro"
-function lineaVh(f, datos, largo) {
+function lineaVh(fecha, datos, largo) {
     var placa = placaElegida();
     if (!placa) { return ''; }
-    var vh = datos.vehiculo[f];
-    if (!vh && f > cfgC.hoy) { return ''; }
-    var est = vh ? vh.ESTADO_VH : 'SIN';
-    var txt = vh ? (largo ? cfgC.estadosVh[est] : CORTO_VH[est]) : 'Sin registro';
-    var h = '<div class="crono-vhtxt crono-vhtxt-' + rdEsc(est) + '" title="' + rdEsc(placa + ': ' + txt) + '"><i class="fa fa-car"></i> ' +
-            '<strong>' + rdEsc(placa) + '</strong> · ' + rdEsc(txt) +
-            (largo && vh && vh.OBSERVACION ? ' <span class="crono-vh-obs">— ' + rdEsc(vh.OBSERVACION) + '</span>' : '') + '</div>';
+    var vehiculoDia = datos.vehiculo[fecha];
+    if (!vehiculoDia && fecha > cfgC.hoy) { return ''; }
+    var estado = vehiculoDia ? vehiculoDia.ESTADO_VH : 'SIN';
+    var texto = vehiculoDia ? (largo ? cfgC.estadosVh[estado] : CORTO_VH[estado]) : 'Sin registro';
+    var html = '<div class="crono-vhtxt crono-vhtxt-' + rdEsc(estado) + '" title="' + rdEsc(placa + ': ' + texto) + '"><i class="fa fa-car"></i> ' +
+            '<strong>' + rdEsc(placa) + '</strong> · ' + rdEsc(texto) +
+            (largo && vehiculoDia && vehiculoDia.OBSERVACION ? ' <span class="crono-vh-obs">— ' + rdEsc(vehiculoDia.OBSERVACION) + '</span>' : '') + '</div>';
     //Si el vehículo no estaba operativo: cómo se transportó ese día
-    if (vh && vh.TRANSPORTE) {
-        h += '<div class="crono-transporte"><i class="fa ' + (TRANSPORTE_ICONO[vh.TRANSPORTE] || 'fa-road') + '"></i> ' +
-             (largo ? 'Se transportó en: ' + rdEsc(cfgC.transportes[vh.TRANSPORTE] || vh.TRANSPORTE)
-                    : rdEsc(TRANSPORTE_CORTO[vh.TRANSPORTE] || vh.TRANSPORTE)) + '</div>';
+    if (vehiculoDia && vehiculoDia.TRANSPORTE) {
+        html += '<div class="crono-transporte"><i class="fa ' + (TRANSPORTE_ICONO[vehiculoDia.TRANSPORTE] || 'fa-road') + '"></i> ' +
+             (largo ? 'Se transportó en: ' + rdEsc(cfgC.transportes[vehiculoDia.TRANSPORTE] || vehiculoDia.TRANSPORTE)
+                    : rdEsc(TRANSPORTE_CORTO[vehiculoDia.TRANSPORTE] || vehiculoDia.TRANSPORTE)) + '</div>';
     }
-    return h;
+    return html;
 }
 
 //"Visita Trapiche", "Reunión: comité", "Descanso"
-function textoItem(it) {
-    var t = cfgC.tipos[it.TIPO] || it.TIPO;
-    if (it.TIPO === 'VISITA' && it.NOM_CENTRO_OP) { t += ' ' + it.NOM_CENTRO_OP; }
-    if (it.DESCRIPCION) { t += (it.TIPO === 'VISITA' ? ' · ' : ': ') + it.DESCRIPCION; }
-    return t;
+function textoItem(item) {
+    var nombreTipo = cfgC.tipos[item.TIPO] || item.TIPO;
+    if (item.TIPO === 'VISITA' && item.NOM_CENTRO_OP) { nombreTipo += ' ' + item.NOM_CENTRO_OP; }
+    if (item.DESCRIPCION) { nombreTipo += (item.TIPO === 'VISITA' ? ' · ' : ': ') + item.DESCRIPCION; }
+    return nombreTipo;
 }
 
 //---------------------------------------------------------------------------
@@ -235,9 +235,9 @@ function pintarLista() {
     //Próximos 15 días: se piden aparte, porque pueden cruzar al mes siguiente
     if ($('#cDesdeHoy').is(':checked')) {
         $.getJSON(URL_CRONO + '?op=proximos&proyecto=' + (proyActual ? proyActual.ID_PROYECTO : 0) + '&vehiculo=' + ($('#cVehiculo').val() || 0))
-            .done(function (d) {
-                datosProximos = d;
-                dibujarLista(d, d.desde, rdSumarDias(d.hasta, -1));
+            .done(function (respuesta) {
+                datosProximos = respuesta;
+                dibujarLista(respuesta, respuesta.desde, rdSumarDias(respuesta.hasta, -1));
                 //Si la ventana de un día está abierta, se refresca con los datos nuevos
                 if (diaAbierto && $('#modalDia').is(':visible')) { abrirDia(diaAbierto); }
             })
@@ -253,34 +253,34 @@ function dibujarLista(datos, desde, hasta) {
     var porDia = {};
     for (var i = 0; i < datos.items.length; i++) { (porDia[datos.items[i].FECHA] = porDia[datos.items[i].FECHA] || []).push(datos.items[i]); }
 
-    var h = '', mostrados = 0;
+    var html = '', mostrados = 0;
     resumenCentro(datos, desde, hasta);
-    for (var f = desde; f <= hasta; f = rdSumarDias(f, 1)) {
-        if (!visitoCentro(f, datos)) { continue; } //con un peaje elegido, solo los días que se visitó
-        var d = +f.substring(8, 10);
-        var its = porDia[f] || [], sit = datos.situaciones[f], vh = datos.vehiculo[f];
-        var fecha = rdAFecha(f);
+    for (var fechaDia = desde; fechaDia <= hasta; fechaDia = rdSumarDias(fechaDia, 1)) {
+        if (!visitoCentro(fechaDia, datos)) { continue; } //con un peaje elegido, solo los días que se visitó
+        var dia = +fechaDia.substring(8, 10);
+        var items = porDia[fechaDia] || [], situacion = datos.situaciones[fechaDia], vehiculoDia = datos.vehiculo[fechaDia];
+        var fecha = rdAFecha(fechaDia);
         mostrados++;
-        h += '<div class="crono-l-dia' + (f === cfgC.hoy ? ' crono-l-hoy' : '') + (f < cfgC.hoy ? ' crono-l-pasado' : '') + '" data-fecha="' + f + '">' +
+        html += '<div class="crono-l-dia' + (fechaDia === cfgC.hoy ? ' crono-l-hoy' : '') + (fechaDia < cfgC.hoy ? ' crono-l-pasado' : '') + '" data-fecha="' + fechaDia + '">' +
              '<div class="crono-l-cab" role="button" tabindex="0"><strong>' + NOMBRE_DIA[fecha.getDay()].charAt(0).toUpperCase() + NOMBRE_DIA[fecha.getDay()].slice(1) +
-             ' ' + d + (d === 1 || f === desde ? ' de ' + NOMBRE_MES[fecha.getMonth() + 1] : '') + '</strong>' + (f === cfgC.hoy ? ' <span class="rd-tag rd-tag-ok">Hoy</span>' : '') +
-             (sit ? ' <span class="rd-tag">' + rdEsc(NOMBRE_SIT[sit] || sit) + '</span>' : '') +
-             '<span class="crono-l-abrir">' + (proyEditable && diaEditableC(f) ? 'Editar' : 'Ver') + ' <i class="fa fa-chevron-right"></i></span></div>';
+             ' ' + dia + (dia === 1 || fechaDia === desde ? ' de ' + NOMBRE_MES[fecha.getMonth() + 1] : '') + '</strong>' + (fechaDia === cfgC.hoy ? ' <span class="rd-tag rd-tag-ok">Hoy</span>' : '') +
+             (situacion ? ' <span class="rd-tag">' + rdEsc(NOMBRE_SIT[situacion] || situacion) + '</span>' : '') +
+             '<span class="crono-l-abrir">' + (proyEditable && diaEditableC(fechaDia) ? 'Editar' : 'Ver') + ' <i class="fa fa-chevron-right"></i></span></div>';
         //Las dos líneas fijas del día: dónde estuvo y el vehículo
-        var lug = lineaLugar(f, datos), veh = lineaVh(f, datos, true);
-        if (lug || veh) { h += '<div class="crono-l-item crono-l-fijas">' + lug + veh + '</div>'; }
-        if (!its.length) {
-            h += '<div class="crono-l-vacio">Nada planeado.</div>';
+        var lugar = lineaLugar(fechaDia, datos), vehiculo = lineaVh(fechaDia, datos, true);
+        if (lugar || vehiculo) { html += '<div class="crono-l-item crono-l-fijas">' + lugar + vehiculo + '</div>'; }
+        if (!items.length) {
+            html += '<div class="crono-l-vacio">Nada planeado.</div>';
         }
-        for (var k = 0; k < its.length; k++) {
-            var it = its[k];
-            h += '<div class="crono-l-item"><span class="crono-item crono-' + it.ESTADO_REAL + '">' + rdEsc(textoItem(it)) + '</span>' +
-                 (NOMBRE_ESTADO[it.ESTADO_REAL] ? ' <small>' + NOMBRE_ESTADO[it.ESTADO_REAL] + (parseInt(it.CONFIRMADA_HOY, 10) ? ' (según Hoy en qué estás)' : '') + '</small>' : '') +
-                 (it.OBSERVACION ? '<div class="rd-ayuda">' + rdEsc(it.OBSERVACION) + '</div>' : '') + '</div>';
+        for (var numItem = 0; numItem < items.length; numItem++) {
+            var item = items[numItem];
+            html += '<div class="crono-l-item"><span class="crono-item crono-' + item.ESTADO_REAL + '">' + rdEsc(textoItem(item)) + '</span>' +
+                 (NOMBRE_ESTADO[item.ESTADO_REAL] ? ' <small>' + NOMBRE_ESTADO[item.ESTADO_REAL] + (parseInt(item.CONFIRMADA_HOY, 10) ? ' (según Hoy en qué estás)' : '') + '</small>' : '') +
+                 (item.OBSERVACION ? '<div class="rd-ayuda">' + rdEsc(item.OBSERVACION) + '</div>' : '') + '</div>';
         }
-        h += '</div>';
+        html += '</div>';
     }
-    $('#listaCrono').html(h || '<p class="rd-vacio">' + (+($('#cCentro').val() || 0) ? 'Ese peaje no se visitó en estos días.' : 'No hay días para mostrar.') + '</p>');
+    $('#listaCrono').html(html || '<p class="rd-vacio">' + (+($('#cCentro').val() || 0) ? 'Ese peaje no se visitó en estos días.' : 'No hay días para mostrar.') + '</p>');
 }
 
 //---------------------------------------------------------------------------
@@ -295,74 +295,74 @@ function fuenteDe(fecha) {
 }
 
 //¿Ese día es festivo? (la lista viene del servidor)
-function esFestivoC(f) { return (cfgC.festivos || []).indexOf(f) !== -1; }
+function esFestivoC(fecha) { return (cfgC.festivos || []).indexOf(fecha) !== -1; }
 
 //¿Se puede registrar el estado del vehículo ese día? Hoy o un día habilitado; y los sábados,
 //domingos y festivos: por adelantado y también después, hasta donde digan los parámetros (la regla de verdad está en el servidor)
-function vhDiaPermitido(f) {
-    if (rdDiaPermitido(f, cfgC.hoy, cfgC.habilitados)) { return true; }
-    var dow = rdAFecha(f).getDay();
-    if (!(dow === 0 || dow === 6 || esFestivoC(f))) { return false; }
-    if (f > cfgC.hoy) { return !!cfgC.vhFindeHasta && f <= cfgC.vhFindeHasta; }
-    return !!cfgC.vhFindeDesde && f >= cfgC.vhFindeDesde;
+function vhDiaPermitido(fecha) {
+    if (rdDiaPermitido(fecha, cfgC.hoy, cfgC.habilitados)) { return true; }
+    var diaSemana = rdAFecha(fecha).getDay();
+    if (!(diaSemana === 0 || diaSemana === 6 || esFestivoC(fecha))) { return false; }
+    if (fecha > cfgC.hoy) { return !!cfgC.vhFindeHasta && fecha <= cfgC.vhFindeHasta; }
+    return !!cfgC.vhFindeDesde && fecha >= cfgC.vhFindeDesde;
 }
 
 //¿Ese día del cronograma se puede modificar? De hoy en adelante sí (se planea);
 //uno pasado, solo si el administrador lo habilitó
-function diaEditableC(f) {
-    return f >= cfgC.primerEditable || (cfgC.habilitados || []).indexOf(f) !== -1;
+function diaEditableC(fecha) {
+    return fecha >= cfgC.primerEditable || (cfgC.habilitados || []).indexOf(fecha) !== -1;
 }
 
 //Abre la ventana de un día con sus actividades y el estado del vehículo
 function abrirDia(fecha) {
     diaAbierto = fecha;
-    var d = rdAFecha(fecha);
-    $('#modalDiaTitulo').text(NOMBRE_DIA[d.getDay()] + ' ' + d.getDate() + ' de ' + NOMBRE_MES[d.getMonth() + 1]);
+    var fechaDia = rdAFecha(fecha);
+    $('#modalDiaTitulo').text(NOMBRE_DIA[fechaDia.getDay()] + ' ' + fechaDia.getDate() + ' de ' + NOMBRE_MES[fechaDia.getMonth() + 1]);
     var editable = proyEditable && diaEditableC(fecha) && fecha <= cfgC.ultimoPlan;
-    var ds = fuenteDe(fecha);
-    var its = ds.items.filter(function (x) { return x.FECHA === fecha; });
-    var h = '';
+    var datosFuente = fuenteDe(fecha);
+    var items = datosFuente.items.filter(function (itemDia) { return itemDia.FECHA === fecha; });
+    var html = '';
 
     {
-        var sit = ds.situaciones[fecha];
-        if (sit) {
-            h += '<p class="rd-ayuda" style="margin-top:0;">En "Hoy en qué estás": <strong>' + rdEsc(NOMBRE_SIT[sit] || sit) + '</strong>' +
-                 (ds.lugares && ds.lugares[fecha] ? ' · Estuvo en <strong>' + rdEsc(ds.lugares[fecha]) + '</strong>' : '') + '</p>';
+        var situacion = datosFuente.situaciones[fecha];
+        if (situacion) {
+            html += '<p class="rd-ayuda" style="margin-top:0;">En "Hoy en qué estás": <strong>' + rdEsc(NOMBRE_SIT[situacion] || situacion) + '</strong>' +
+                 (datosFuente.lugares && datosFuente.lugares[fecha] ? ' · Estuvo en <strong>' + rdEsc(datosFuente.lugares[fecha]) + '</strong>' : '') + '</p>';
         }
 
-        h += '<h5 class="rd-subtitulo" style="margin-top:0;">Cronograma</h5>';
-        if (!its.length) { h += '<p class="rd-vacio" style="padding:6px !important;">Nada planeado para este día.</p>'; }
-        for (var i = 0; i < its.length; i++) {
-            var it = its[i], id = parseInt(it.ID_CRONOGRAMA, 10);
-            h += '<div class="crono-fila"><div><span class="crono-item crono-' + it.ESTADO_REAL + '">' + rdEsc(textoItem(it)) + '</span>' +
-                 (NOMBRE_ESTADO[it.ESTADO_REAL] ? ' <small>' + NOMBRE_ESTADO[it.ESTADO_REAL] + (parseInt(it.CONFIRMADA_HOY, 10) ? ' (según Hoy en qué estás)' : '') + '</small>' : '') +
-                 (it.OBSERVACION ? '<div class="rd-ayuda">' + rdEsc(it.OBSERVACION) + '</div>' : '') + '</div>';
+        html += '<h5 class="rd-subtitulo" style="margin-top:0;">Cronograma</h5>';
+        if (!items.length) { html += '<p class="rd-vacio" style="padding:6px !important;">Nada planeado para este día.</p>'; }
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i], id = parseInt(item.ID_CRONOGRAMA, 10);
+            html += '<div class="crono-fila"><div><span class="crono-item crono-' + item.ESTADO_REAL + '">' + rdEsc(textoItem(item)) + '</span>' +
+                 (NOMBRE_ESTADO[item.ESTADO_REAL] ? ' <small>' + NOMBRE_ESTADO[item.ESTADO_REAL] + (parseInt(item.CONFIRMADA_HOY, 10) ? ' (según Hoy en qué estás)' : '') + '</small>' : '') +
+                 (item.OBSERVACION ? '<div class="rd-ayuda">' + rdEsc(item.OBSERVACION) + '</div>' : '') + '</div>';
             if (editable) {
-                h += '<div class="crono-acciones">';
-                if (it.ESTADO === 'PROGRAMADA' && it.TIPO !== 'DESCANSO' && it.TIPO !== 'VACACIONES' && fecha <= cfgC.ultimoEditable && !parseInt(it.CONFIRMADA_HOY, 10)) {
-                    h += '<button type="button" class="btn btn-success btn-xs btn-estado-crono" data-id="' + id + '" data-estado="REALIZADA">Realizada</button>';
+                html += '<div class="crono-acciones">';
+                if (item.ESTADO === 'PROGRAMADA' && item.TIPO !== 'DESCANSO' && item.TIPO !== 'VACACIONES' && fecha <= cfgC.ultimoEditable && !parseInt(item.CONFIRMADA_HOY, 10)) {
+                    html += '<button type="button" class="btn btn-success btn-xs btn-estado-crono" data-id="' + id + '" data-estado="REALIZADA">Realizada</button>';
                 }
-                if (it.ESTADO !== 'CANCELADA') {
-                    h += '<button type="button" class="btn btn-default btn-xs btn-estado-crono" data-id="' + id + '" data-estado="CANCELADA">Cancelar</button>';
+                if (item.ESTADO !== 'CANCELADA') {
+                    html += '<button type="button" class="btn btn-default btn-xs btn-estado-crono" data-id="' + id + '" data-estado="CANCELADA">Cancelar</button>';
                 } else {
-                    h += '<button type="button" class="btn btn-default btn-xs btn-estado-crono" data-id="' + id + '" data-estado="PROGRAMADA">Reactivar</button>';
+                    html += '<button type="button" class="btn btn-default btn-xs btn-estado-crono" data-id="' + id + '" data-estado="PROGRAMADA">Reactivar</button>';
                 }
-                if (fecha >= cfgC.hoy) { h += '<button type="button" class="btn btn-link btn-xs btn-quitar-crono" data-id="' + id + '" title="Quitar"><i class="fa fa-trash-o"></i></button>'; }
-                h += '</div>';
+                if (fecha >= cfgC.hoy) { html += '<button type="button" class="btn btn-link btn-xs btn-quitar-crono" data-id="' + id + '" title="Quitar"><i class="fa fa-trash-o"></i></button>'; }
+                html += '</div>';
             }
-            h += '</div>';
+            html += '</div>';
         }
 
         if (editable) {
-            var opT = '', opC = '';
-            $.each(cfgC.tipos, function (cod, nom) { opT += '<option value="' + rdEsc(cod) + '">' + rdEsc(nom) + '</option>'; });
-            for (var c = 0; c < cfgC.centros.length; c++) {
-                opC += '<option value="' + parseInt(cfgC.centros[c].ID_CENTRO_OP, 10) + '">' + rdEsc(cfgC.centros[c].NOM_CENTRO_OP) + '</option>';
+            var opcionesTipo = '', opcionesCentro = '';
+            $.each(cfgC.tipos, function (codigo, nombre) { opcionesTipo += '<option value="' + rdEsc(codigo) + '">' + rdEsc(nombre) + '</option>'; });
+            for (var numCentro = 0; numCentro < cfgC.centros.length; numCentro++) {
+                opcionesCentro += '<option value="' + parseInt(cfgC.centros[numCentro].ID_CENTRO_OP, 10) + '">' + rdEsc(cfgC.centros[numCentro].NOM_CENTRO_OP) + '</option>';
             }
-            h += '<div class="crono-nuevo"><div class="row">' +
-                 '<div class="form-group col-sm-4 col-xs-6"><label for="nuevoTipo">Qué:</label><select id="nuevoTipo" class="form-control input-sm">' + opT + '</select></div>' +
+            html += '<div class="crono-nuevo"><div class="row">' +
+                 '<div class="form-group col-sm-4 col-xs-6"><label for="nuevoTipo">Qué:</label><select id="nuevoTipo" class="form-control input-sm">' + opcionesTipo + '</select></div>' +
                  '<div class="form-group col-sm-8 col-xs-6" id="nuevoCentroGrupo"><label for="nuevoCentro">Peaje:</label><select id="nuevoCentro" class="form-control input-sm">' +
-                 (opC || '<option value="">Tus proyectos no tienen peajes activos</option>') + '</select></div>' +
+                 (opcionesCentro || '<option value="">Tus proyectos no tienen peajes activos</option>') + '</select></div>' +
                  '<div class="form-group col-xs-12"><label for="nuevoDesc">Detalle:</label><input type="text" id="nuevoDesc" class="form-control input-sm" maxlength="150" placeholder="Opcional"></div>' +
                  '</div><div class="rd-acciones"><button type="button" class="btn btn-success btn-sm" id="btnAgregarCrono"><i class="fa fa-plus"></i> Agregar</button></div></div>';
         }
@@ -372,20 +372,20 @@ function abrirDia(fecha) {
     //también se pueden dejar registrados por adelantado (nunca un día que ya pasó)
     var idVh = +($('#cVehiculo').val() || 0);
     if (idVh > 0) {
-        var vh = ds.vehiculo[fecha];
-        h += '<h5 class="rd-subtitulo">Vehículo ' + rdEsc($('#cVehiculo option:selected').text()) + '</h5>';
+        var vehiculoDia = datosFuente.vehiculo[fecha];
+        html += '<h5 class="rd-subtitulo">Vehículo ' + rdEsc($('#cVehiculo option:selected').text()) + '</h5>';
         if (proyEditable && vhDiaPermitido(fecha)) {
-            if (fecha > cfgC.hoy) { h += '<p class="rd-ayuda" style="margin-top:0;"><i class="fa fa-calendar-plus-o"></i> Es ' + (esFestivoC(fecha) ? 'festivo' : 'fin de semana') + ': puedes dejar registrado desde ya el estado del vehículo.</p>'; }
-            var opV = '', opTr = '<option value="">¿Cómo te transportaste?</option>';
-            $.each(cfgC.transportes, function (cod, nom) {
-                opTr += '<option value="' + rdEsc(cod) + '"' + (vh && vh.TRANSPORTE === cod ? ' selected' : '') + '>' + rdEsc(nom) + '</option>';
+            if (fecha > cfgC.hoy) { html += '<p class="rd-ayuda" style="margin-top:0;"><i class="fa fa-calendar-plus-o"></i> Es ' + (esFestivoC(fecha) ? 'festivo' : 'fin de semana') + ': puedes dejar registrado desde ya el estado del vehículo.</p>'; }
+            var opcionesVehiculo = '', opTr = '<option value="">¿Cómo te transportaste?</option>';
+            $.each(cfgC.transportes, function (codigo, nombre) {
+                opTr += '<option value="' + rdEsc(codigo) + '"' + (vehiculoDia && vehiculoDia.TRANSPORTE === codigo ? ' selected' : '') + '>' + rdEsc(nombre) + '</option>';
             });
-            $.each(cfgC.estadosVh, function (cod, nom) {
-                opV += '<option value="' + rdEsc(cod) + '"' + (vh && vh.ESTADO_VH === cod ? ' selected' : '') + '>' + rdEsc(nom) + '</option>';
+            $.each(cfgC.estadosVh, function (codigo, nombre) {
+                opcionesVehiculo += '<option value="' + rdEsc(codigo) + '"' + (vehiculoDia && vehiculoDia.ESTADO_VH === codigo ? ' selected' : '') + '>' + rdEsc(nombre) + '</option>';
             });
-            h += '<div class="row"><div class="form-group col-sm-5 col-xs-12"><select id="vhDiaEstado" class="form-control input-sm">' + opV + '</select></div>' +
+            html += '<div class="row"><div class="form-group col-sm-5 col-xs-12"><select id="vhDiaEstado" class="form-control input-sm">' + opcionesVehiculo + '</select></div>' +
                  '<div class="form-group col-sm-7 col-xs-12"><input type="text" id="vhDiaObs" class="form-control input-sm" maxlength="300" ' +
-                 'placeholder="Obligatoria si no está operativo" value="' + rdEsc(vh ? vh.OBSERVACION : '') + '"></div></div>' +
+                 'placeholder="Obligatoria si no está operativo" value="' + rdEsc(vehiculoDia ? vehiculoDia.OBSERVACION : '') + '"></div></div>' +
                  //Si el vehículo no estaba operativo, el coordinador igual tenía que llegar: cómo lo hizo
                  '<div class="row" id="vhDiaTransporteGrupo"><div class="form-group col-sm-5 col-xs-12">' +
                  '<label for="vhDiaTransporte" class="rd-ayuda" style="margin:0 0 3px;">Sin vehículo, ¿cómo llegaste?</label>' +
@@ -393,13 +393,13 @@ function abrirDia(fecha) {
                  '<div class="col-sm-7 col-xs-12 rd-ayuda" style="padding-top:22px;">Escribe en la observación el detalle: a dónde fuiste y qué pasó.</div></div>' +
                  '<div class="rd-acciones"><button type="button" class="btn btn-success btn-sm" id="btnGuardarVhDia"><i class="fa fa-save"></i> Guardar estado</button></div>';
         } else {
-            h += vh ? '<p><span class="crono-vh crono-vh-' + rdEsc(vh.ESTADO_VH) + '">' + rdEsc(cfgC.estadosVh[vh.ESTADO_VH]) + '</span> ' + rdEsc(vh.OBSERVACION || '') +
-                      (vh.TRANSPORTE ? '<br><i class="fa ' + (TRANSPORTE_ICONO[vh.TRANSPORTE] || 'fa-road') + '"></i> Se transportó en: ' + rdEsc(cfgC.transportes[vh.TRANSPORTE] || vh.TRANSPORTE) : '') + '</p>'
+            html += vehiculoDia ? '<p><span class="crono-vh crono-vh-' + rdEsc(vehiculoDia.ESTADO_VH) + '">' + rdEsc(cfgC.estadosVh[vehiculoDia.ESTADO_VH]) + '</span> ' + rdEsc(vehiculoDia.OBSERVACION || '') +
+                      (vehiculoDia.TRANSPORTE ? '<br><i class="fa ' + (TRANSPORTE_ICONO[vehiculoDia.TRANSPORTE] || 'fa-road') + '"></i> Se transportó en: ' + rdEsc(cfgC.transportes[vehiculoDia.TRANSPORTE] || vehiculoDia.TRANSPORTE) : '') + '</p>'
                     : '<p class="rd-ayuda">Sin registro para este día.</p>';
         }
     }
 
-    $('#modalDiaCuerpo').html(h);
+    $('#modalDiaCuerpo').html(html);
     $('#nuevoTipo').trigger('change');
     $('#vhDiaEstado').trigger('change');
     if (!$('#modalDia').is(':visible')) { $('#modalDia').modal('show'); }
@@ -420,8 +420,8 @@ function agregarItem() {
 //Cambia el estado de una actividad (cumplida, no cumplida...) y pide la observación si hace falta
 function cambiarEstado() {
     var id = $(this).data('id'), estado = $(this).data('estado');
-    var enviar = function (obs) {
-        $.post(URL_CRONO + '?op=estado', { id: id, estado: estado, observacion: obs || '' }, null, 'json')
+    var enviar = function (observacion) {
+        $.post(URL_CRONO + '?op=estado', { id: id, estado: estado, observacion: observacion || '' }, null, 'json')
             .done(function () { cargarMes(); })
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar.')); });
     };
@@ -467,11 +467,11 @@ function abrirVehiculos() {
     $('#formVh')[0].reset(); $('#vhId').val('');
     //Responsables: los colaboradores activos
     $.getJSON('../Control/ProyectoControl.php?op=colaboradores', function (lista) {
-        var h = '<option value="">Sin asignar</option>';
+        var html = '<option value="">Sin asignar</option>';
         for (var i = 0; i < lista.length; i++) {
-            h += '<option value="' + parseInt(lista[i].id, 10) + '">' + rdEsc(lista[i].nombre + (lista[i].cargo ? ' · ' + lista[i].cargo : '')) + '</option>';
+            html += '<option value="' + parseInt(lista[i].id, 10) + '">' + rdEsc(lista[i].nombre + (lista[i].rol ? ' · ' + lista[i].rol : '')) + '</option>';
         }
-        $('#vhResp').html(h);
+        $('#vhResp').html(html);
     });
     listarVehiculos();
 }
@@ -481,37 +481,37 @@ function listarVehiculos() {
     $.getJSON(URL_CRONO + '?op=catalogo')
         .done(function (filas) {
             catalogoVh = filas;
-            var h = '';
+            var html = '';
             for (var i = 0; i < filas.length; i++) {
-                var v = filas[i];
-                h += '<tr><td><strong>' + rdEsc(v.PLACA) + '</strong></td><td>' + rdEsc(v.DESCRIPCION) + '</td><td>' + rdEsc(v.RESPONSABLE || 'Sin asignar') + '</td>' +
-                     '<td>' + (parseInt(v.ESTADO, 10) === 1 ? '<span class="rd-tag rd-tag-ok">Activo</span>' : '<span class="rd-tag">Inactivo</span>') + '</td>' +
+                var vehiculo = filas[i];
+                html += '<tr><td><strong>' + rdEsc(vehiculo.PLACA) + '</strong></td><td>' + rdEsc(vehiculo.DESCRIPCION) + '</td><td>' + rdEsc(vehiculo.RESPONSABLE || 'Sin asignar') + '</td>' +
+                     '<td>' + (parseInt(vehiculo.ESTADO, 10) === 1 ? '<span class="rd-tag rd-tag-ok">Activo</span>' : '<span class="rd-tag">Inactivo</span>') + '</td>' +
                      '<td><button type="button" class="btn btn-default btn-xs btn-editar-vh" data-i="' + i + '"><i class="fa fa-pencil"></i> Editar</button></td></tr>';
             }
-            $('#filasVh').html(h || '<tr><td colspan="5" class="rd-vacio">Todavía no hay vehículos.</td></tr>');
+            $('#filasVh').html(html || '<tr><td colspan="5" class="rd-vacio">Todavía no hay vehículos.</td></tr>');
         })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron cargar los vehículos.')); });
 }
 
 //Carga un vehículo en el formulario para editarlo
 function editarVehiculo() {
-    var v = catalogoVh[$(this).data('i')];
-    $('#vhId').val(v.ID_VEHICULO); $('#vhPlaca').val(v.PLACA); $('#vhDesc').val(v.DESCRIPCION || '');
-    $('#vhResp').val(v.ID_COLABORADOR_RESPONSABLE ? String(v.ID_COLABORADOR_RESPONSABLE) : ''); $('#vhEstado').val(String(v.ESTADO));
+    var vehiculo = catalogoVh[$(this).data('i')];
+    $('#vhId').val(vehiculo.ID_VEHICULO); $('#vhPlaca').val(vehiculo.PLACA); $('#vhDesc').val(vehiculo.DESCRIPCION || '');
+    $('#vhResp').val(vehiculo.ID_COLABORADOR_RESPONSABLE ? String(vehiculo.ID_COLABORADOR_RESPONSABLE) : ''); $('#vhEstado').val(String(vehiculo.ESTADO));
     $('#vhPlaca').focus();
 }
 
 //Guarda el vehículo del formulario
-function guardarVehiculo(e) {
-    e.preventDefault();
+function guardarVehiculo(evento) {
+    evento.preventDefault();
     hanaBoton('#btnGuardarVh', true);
     $.post(URL_CRONO + '?op=guardarVehiculo', $('#formVh').serialize(), null, 'json')
-        .done(function (r) {
-            rdAviso(r.mensaje);
+        .done(function (respuesta) {
+            rdAviso(respuesta.mensaje);
             $('#formVh')[0].reset(); $('#vhId').val('');
             listarVehiculos();
             //El selector del calendario se actualiza con los cambios
-            $.getJSON(URL_CRONO + '?op=config', function (c) { cfgC.proyectos = c.proyectos; elegirProyecto(); });
+            $.getJSON(URL_CRONO + '?op=config', function (config) { cfgC.proyectos = config.proyectos; elegirProyecto(); });
         })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el vehículo.')); })
         .always(function () { hanaBoton('#btnGuardarVh', false); });

@@ -1,5 +1,14 @@
 <?php
 /*
+  Pantalla sin uso: los cargos se quitaron (script 35). Cada colaborador tiene su
+  rol, que es lo que hace en HANA, y se escoge en Usuarios. Si alguien entra
+  por la dirección, va al inicio. El código de abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
+/*
   HANA - Cargos
   ---------------------------------------------------------------------------
   Pantalla de los cargos que se le asignan a cada colaborador.
@@ -10,13 +19,13 @@
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
-if(in_array("4M",$modulosAcceso) or isset($_GET["op"])){    
+if(in_array("4M",$modulosAcceso)){    
     
 include('head.php');
 ?>
 
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -83,7 +92,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nuevo cargo
               </button>
             </SPAN>

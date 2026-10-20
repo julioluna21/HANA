@@ -2,154 +2,132 @@
 /*
   HANA - Colaboradores
   ---------------------------------------------------------------------------
-  Pantalla para registrar, editar y desactivar a las personas que trabajan en los proyectos.
-  La pantalla es solo el HTML: lo que hace cada botón está en Ajax/ColaboradoresAjax.js
-  y los datos los entrega Control/ColaboradoresControl.php.
-  Permiso: 3M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+  Las personas que trabajan en los proyectos: documento, nombre y correo.
+  Al registrar a una persona se le crea su usuario para entrar a HANA (su documento,
+  con una contraseña temporal que le llega por correo) y queda con el rol que se elija
+  entre los que no administran; por defecto, USUARIO BASE.
+  Su rol, su usuario, sus peajes y su contraseña se cambian en Usuarios (UsuariosVista.php).
+  Lo que hace cada botón está en Ajax/ColaboradoresAjax.js y los datos los entrega
+  Control/ColaboradoresControl.php.
+  Permiso: 3M (o 24M). Sin el permiso, vuelve al inicio.
 */
 session_start();
-if(isset($_SESSION['IdUsuarios'])){
-$modulosAcceso=explode(",",$_SESSION['Modulos']);    
-if(in_array("3M",$modulosAcceso) or isset($_GET["op"])){    
-    
+if (isset($_SESSION['IdUsuarios'])) {
+$modulosAcceso = explode(",", $_SESSION['Modulos']);
+if (in_array("3M", $modulosAcceso) || in_array("24M", $modulosAcceso)) {
+
 include('head.php');
+
 ?>
 
+<!-- Contenido de la pantalla -->
+<div class="right_col" role="main">
+  <div class="">
 
-  <!-- Contenido aqui va todo el DIV del contenido.. -->
-  <div class="right_col" role="main">
-    <div class="">
+    <div class="clearfix"></div>
 
-      <div class="clearfix"></div>
+    <div class="row">
+      <div class="col-md-12 col-xs-12">
 
+        <div class="x_panel">
+          <div class="x_title">
+            <h2>Colaboradores<small>Las personas que trabajan en los proyectos</small></h2>
+            <div class="clearfix"></div>
+          </div>
+          <div class="x_content">
 
-      <div class="row">
-        <div class="col-md-12 col-xs-12">
+            <!-- Formulario de la persona -->
+            <div class="panel-body" style="align-content: center;" id="formularioregistros">
 
+              <form name="formColaborador" id="formColaborador" method="POST">
+                <input type="hidden" name="idcolaborador" id="idcolaborador">
+                <div class="row">
+                  <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                    <label for="documento">Documento:</label>
+                    <input type="text" class="form-control" name="documento" id="documento" inputmode="numeric" maxlength="20" required>
+                  </div>
+                  <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                    <label for="persona">Nombre completo:</label>
+                    <input type="text" class="form-control" name="persona" id="persona" maxlength="100" required>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                    <label for="correo">Correo:</label>
+                    <!-- A este correo le llegan su usuario y su contraseña, los avisos y la recuperación de la clave -->
+                    <input type="email" class="form-control" name="correo" id="correo" maxlength="60" required>
+                  </div>
+                  <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                    <label for="rol">Rol (lo que hace en HANA):</label>
+                    <select name="rol" id="rol" class="form-control"></select>
+                    <!-- Al registrar se elige; después el rol se cambia en Usuarios -->
+                    <p class="rd-ayuda" style="margin-top:4px;" id="ayudaRol">Al registrarla se le crea su usuario (su documento) y le llega por correo con una contraseña temporal. Los roles que administran, como ADMIN TEC, se dan en Usuarios.</p>
+                  </div>
+                </div>
 
-          <div class="x_panel">
-            <div class="x_title">
-              <h2> Colaboradores </h2>
+                <div class="form-group col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                  <SPAN title="Guardar">
+                    <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar</button>
+                  </SPAN>
+                  <SPAN title="Cancelar">
+                    <button class="btn btn-primary" onclick="cancelarform()" type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar</button>
+                  </SPAN>
+                </div>
+              </form>
 
-              <div class="clearfix"></div>
             </div>
-            <div class="x_content">
-              <!-- Inicio Formulario -->
-              <div class="panel-body" style="align-content: center;" id="formularioregistros">
 
-                <form name="demo-form2" id="demo-form2" method="POST">
-                  <h2>Crear o editar un registro</h2>
-                  <div class="row">
-                    <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                      <label for="documento">Documento del colaborador:</label>
-                      <input type="hidden" class="form-control" name="idColaborador" id="idColaborador">
-                      <input type="number" class="form-control" name="documento" id="documento" required="" autofocus>
-                    </div>
-                    <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                      <label for="nombre">Nombre del colaborador:</label>
-                      <input type="text" class="form-control" name="nombre" id="nombre" required="" >
-                    </div>
-                    <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                      <label for="">Email del colaborador:</label>
-                      <!-- La validación del correo la hace type="email" (acepta mayúsculas y cualquier dominio) -->
-                      <input type="email" class="form-control" name="email" id="email" required>
-                    </div>
-                      <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                        <label for="selectCargo">Cargo:</label>
-                        <select class="form-control" style="width: 100%;" id="selectCargo" name="selectCargo">
-                          <option value=''>Seleccione un cargo...</option>
-                        </select>
-                      </div>
-
-                  </div>
-
-
-                  <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="">
-                    <SPAN title="Guardar Registro">
-                      <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar
-                      </button>
-                    </SPAN>
-                    <SPAN title="Cancelar Registro">
-                      <button class="btn btn-primary" onclick="cancelarform()" type="button"><i class="fa fa-arrow-circle-left"></i> Cancelar
-                      </button>
-                    </SPAN>
-                  </div>
-
-                </form>
-
-
-              </div>
-              <!-- Listado Registros-->
-
-              <!-- tabla con el listado de registros -->
-              <div id="listadoregistros">
-                <div class="x_panel">
-                  <div class="x_title">
-                    <h2>Listado Formulario</h2>
-                    <SPAN title="Agregar Registro" style="float:right">
-                      <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
-                      <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
-                        <!--Al hacer click, muestra el formulario-->
-                        <i class="fa fa-plus-square">
-                          <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
-                        </i> Nuevo Registro
-                      </button>
-                    </SPAN>
-                    <div class="clearfix"></div>
-                  </div>
-                  <div class="x_content">
-
-                    <div class="panel-body table-responsive">
-
-                      <table id="tbllistado" class="table table-striped table-bordered" style="width:100%; text-align: center">
-                        <thead>
-                          <th>ID</th>
-                          <th>DOCUMENTO</th>
-                          <th>NOMBRE</th>
-                          <th>CORREO</th>
-                          <th>CARGO</th>
-                          <th>ESTADO</th>
-                          <th>OPCIÓN</th>
-                        </thead>
-                        <tbody>
-
-                        </tbody>
-                      </table>
-                    </div>
-
+            <!-- Tabla de personas -->
+            <div id="listadoregistros">
+              <div class="x_panel">
+                <div class="x_title">
+                  <h2>Personas registradas</h2>
+                  <SPAN title="Registrar una persona" style="float:right">
+                    <button class="btn btn-success" id="btnagregar" onclick="nuevo()">
+                      <i class="fa fa-plus-square"></i> Nuevo colaborador
+                    </button>
+                  </SPAN>
+                  <div class="clearfix"></div>
+                </div>
+                <div class="x_content">
+                  <div class="panel-body table-responsive">
+                    <table id="tbllistado" class="table table-striped table-bordered" style="width:100%; text-align: center">
+                      <thead>
+                        <th style="min-width: 100px;">Documento</th>
+                        <th style="min-width: 220px;">Nombre</th>
+                        <th style="min-width: 180px;">Correo</th>
+                        <th style="min-width: 160px;">Rol</th>
+                        <th style="min-width: 140px;">Usuario</th>
+                        <th>Estado</th>
+                        <th style="min-width: 110px;">Opción</th>
+                      </thead>
+                      <tbody>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
-
-              <!-- end form for validations -->
             </div>
+
           </div>
         </div>
       </div>
     </div>
   </div>
-  <!-- /page content -->
+</div>
+<!-- /page content -->
 
-  <!-- footer content -->
-  <?php
-
-  include('footer.php');
-
-  ?>
-  <script type="text/javascript" src="../Ajax/ColaboradoresAjax.js?v=2"></script>
 <?php
 
+include('footer.php');
+
+?>
+<script type="text/javascript" src="../Ajax/ColaboradoresAjax.js?v=2"></script>
+<?php
 } else {
-  echo "<script> 
-  window.history.go(-1)
-  </script>"; 
-    
+  echo "<script>window.location.replace('InicioVista.php');</script>";
 }
-}else{    
-  echo "<script> 
-  <!--
-  window.location.replace('login.php'); 
-  //-->
-  </script>";
+} else {
+  echo "<script>window.location.replace('login.php');</script>";
 }
 ?>

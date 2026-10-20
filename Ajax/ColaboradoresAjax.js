@@ -1,96 +1,41 @@
 //Configuración - Colaboradores (Vista/ColaboradoresVista.php)
-//Tabla, formulario para crear o editar y el botón de desactivar. Habla con Control/ColaboradoresControl.php
+//Las personas que trabajan en los proyectos: documento, nombre y correo.
+//Al registrar a una persona se elige su rol (entre los que no administran) y el servidor
+//le crea el usuario; le llegan por correo el usuario y la contraseña temporal.
+//El rol, el usuario, los peajes y la contraseña se cambian después en Usuarios.
+//Habla con Control/ColaboradoresControl.php
 
-var tabla;//variable global
-//Función para guardar o editar
-function guardar(e)
-{
-    e.preventDefault(); //No se activará la acción predeterminada del evento
-    hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
-    var formData = new FormData($("#demo-form2")[0]);
-    $.ajax({
-        url: "../Control/ColaboradoresControl.php?op=guardar",
-        type: "POST",
-        data: formData,
-        contentType: false,
-        processData: false,
-        //Si el servidor responde con error se muestra el motivo real.
-        //El formulario NO se borra, para que el usuario pueda corregir y reintentar
-        error: function(xhr)
-        {
-            hanaErrorAjax(xhr, "No se pudo guardar el registro.");
-        },
-        success: function(datos)
-        {
-            limpiar(); //se limpia solo cuando el registro de verdad quedó guardado
-            mostrarform(false);
-            tabla.ajax.reload();
-            //Si se creó su usuario, el servidor manda los datos para entrar: se muestran tal cual
-            alert(typeof datos === "string" && datos.indexOf("Usuario:") >= 0 ? datos : "Registro guardado con éxito");
-        },
-        complete: function()
-        {
-            hanaBoton("#btnGuardar", false); //pase lo que pase, el botón vuelve a quedar disponible
-        }
-    });
-}
-//Trae un colaborador y lo carga en el formulario para editarlo
-function mostrar(idColaborador)
-{
-    hanaCargando(true); //ventana de "Cargando..." mientras llegan los datos del registro
-    $.post("../Control/ColaboradoresControl.php?op=mostrar",{idColaborador : idColaborador}, function(data)
-    {
-        hanaCargando(false);
-        data = JSON.parse(data);
-        mostrarform(true);
-        $("#idColaborador").val(data.ID_COLABORADOR);
-        $("#documento").val(data.DOC_COLABORADO);
-        $("#nombre").val(data.NOM_COLABORADOR);
-        $("#email").val(data.MAIL_COLABORADOR);
-        //El select2 de cargo se llena por AJAX, por lo que al abrir la edicion no
-        //tiene ninguna opcion cargada. Si solo se hace .val(id), el valor NO queda
-        //puesto, se envia vacio y el UPDATE falla porque el cargo es obligatorio.
-        //Por eso se crea aqui la opcion del cargo actual y luego se selecciona.
-        var idCargo  = data.ID_CARGO_COLABORADORES_COLABORADORES;
-        var nomCargo = data.NOM_CARGO_COLABORADORES ? data.NOM_CARGO_COLABORADORES : idCargo;
+var tabla; //la tabla de personas (DataTables)
+var URL_COL = '../Control/ColaboradoresControl.php';
 
-        if (idCargo) {
-            $("#selectCargo").empty()
-                             .append(new Option(nomCargo, idCargo, true, true))
-                             .trigger("change");
-        }
-    })
-    .fail(function(xhr){
-        hanaCargando(false);
-        hanaErrorAjax(xhr, "No se pudieron cargar los datos del registro.");
-    });
+//Arranca la pantalla: la tabla de personas; el formulario se abre con «Nuevo colaborador» o «Editar»
+function iniciar()
+{
+    mostrarform(false);
+    listar();
+    $("#formColaborador").on("submit", function (evento) { guardar(evento); });
 }
-//Desactiva un colaborador (pregunta antes)
-function anular(idColaborador){
-    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
-    hanaConfirmar("¿Desea anular este registro?", function(){
-        $.post("../Control/ColaboradoresControl.php?op=anular",{idColaborador : idColaborador}, function(data){
-            tabla.ajax.reload();
-            alert("Registro anulado con éxito");
-        })
-        .fail(function(xhr){
-            hanaErrorAjax(xhr, "No se pudo anular el registro.");
-        });
-    });
+
+//Los roles que se pueden dar al registrar (el básico sale elegido)
+function cargarRoles()
+{
+    $.post(URL_COL + "?op=roles", function (opciones) {
+        $("#rol").html(opciones);
+    }).fail(function (xhr) { hanaErrorAjax(xhr, "No se pudieron cargar los roles."); });
 }
-//Vuelve a activar un colaborador (pregunta antes)
-function activar(idColaborador){
-    //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
-    //Nota: hoy ninguna pantalla muestra el botón Activar y el controlador no tiene la opción "activar"
-    hanaConfirmar("¿Desea activar este registro?", function(){
-        $.post("../Control/ColaboradoresControl.php?op=activar",{idColaborador : idColaborador}, function(data){
-            tabla.ajax.reload();
-            alert("Registro activado con éxito");
-        })
-        .fail(function(xhr){
-            hanaErrorAjax(xhr, "No se pudo activar el registro.");
-        });
-    });
+
+//Muestra el formulario (true) o la tabla (false)
+function mostrarform(mostrar)
+{
+    if (mostrar) {
+        $('#formularioregistros').show();
+        $('#listadoregistros').hide();
+        $("#btnGuardar").prop("disabled", false);
+        $("#documento").focus();
+    } else {
+        $('#formularioregistros').hide();
+        $('#listadoregistros').show();
+    }
 }
 
 //Cierra el formulario sin guardar
@@ -99,99 +44,120 @@ function cancelarform()
     limpiar();
     mostrarform(false);
 }
+
 //Deja el formulario en blanco
 function limpiar()
 {
-    $("#idColaborador").val('');
-    $("#documento").val('');
-    $("#nombre").val('');
-    $("#email").val('');
-    $("#selectCargo").val('');
-    
-  
+    document.getElementById("formColaborador").reset();
+    $("#idcolaborador").val("");
+    $('#documento, #persona, #correo').prop('readonly', false);
+    $("#btnGuardar").show();
 }
-//Muestra el formulario (true) o la tabla (false)
-function mostrarform(flag)
-{
-    //limpia el formulario
-    if (flag)
-    {
-           // $('#myModal').modal('show');           
-    $("#selectCargo").select2({
-        ajax: {
-          url: '../Control/cargosControl.php?op=select',
-          dataType: 'json',
-          delay: 150,
-          data: function (params) {
-              var query = {
-                  search: params.term
-              }  
-              return query;
-          },
-          processResults: function (data) {
-            return {
-                results: $.map(data, function(obj) {
-                    return {
-                        id: obj.id,
-                        text: obj.text                        
-                    };
-                })                
-            };            
-          }
-      },
-      lenguage:'es',
-      cache: true,
-      placeholder: 'Seleccione un cargo...',
-      allowClear: true
-      });
 
-        $("#demo-form2").show();
-        $("#listadoregistros").hide();
-            $("#btnGuardar").prop("disabled",false);
-        $("#documento").focus();
-    }
-    else
-    {	
-        $("#demo-form2").hide();
-        $("#listadoregistros").show();
-             $("#btnGuardar").prop("disabled",false);             
-    }
+//Abre el formulario para registrar a una persona nueva, con los roles que se pueden dar
+function nuevo()
+{
+    limpiar();
+    cargarRoles();
+    $("#rol").prop("disabled", false);
+    $("#ayudaRol").text("Al registrarla se le crea su usuario (su documento) y le llega por correo con una contraseña temporal. Los roles que administran, como ADMIN TEC, se dan en Usuarios.");
+    mostrarform(true);
 }
-//Función Listar
+
+//La tabla de personas
 function listar()
 {
-    tabla=$('#tbllistado').dataTable(//Carga variable con datos datatable
-    {
-        "aProcessing": true,//Activamos el procesamiento del datatables
-        "aServerSide": true,//Paginación y filtrado realizados por el servidor
-        dom: 'Bfrtip',//Definimos los elementos del control de tabla Bfrtip
-        buttons: [
-                        
-                    ],
-        "ajax"://metodo ajax
-                            {
-                                    url: '../Control/ColaboradoresControl.php?op=listar',//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
-                                    dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
-                                    }
-                            },
-            "bDestroy": true,
-            "iDisplayLength": 10,//Paginación
-        "order": [[ 0, "desc" ]]//Ordenar (columna,orden)
+    tabla = $('#tbllistado').dataTable({
+        "aProcessing": true,
+        "aServerSide": true,
+        dom: 'Bfrtip',
+        buttons: [],
+        "ajax": {
+            url: URL_COL + '?op=listar',
+            type: "get",
+            dataType: "json",
+            error: function (xhr) { console.log(xhr.responseText); }
+        },
+        "bDestroy": true,
+        "iDisplayLength": 10,
+        "order": []
     }).DataTable();
-    
 }
-//Lo que se hace al abrir la pantalla
-function init()
+
+//Registra a la persona (y su usuario) o guarda los cambios de sus datos
+function guardar(evento)
 {
-    mostrarform(false)
-    listar()//lista 
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
-    {
-            guardar(e);//guarda o edita el registro
+    evento.preventDefault();
+    hanaBoton("#btnGuardar", true);
+    $.ajax({
+        url: URL_COL + "?op=guardar",
+        type: "POST",
+        data: new FormData($("#formColaborador")[0]),
+        contentType: false,
+        processData: false,
+        error: function (xhr) { hanaErrorAjax(xhr, "No se pudo guardar."); },
+        success: function (respuesta)
+        {
+            alert(respuesta); //el servidor responde con el mensaje exacto (y a dónde llegaron los datos para entrar)
+            if (hanaTipoMensaje(respuesta) !== "error") {
+                mostrarform(false);
+                limpiar();
+                tabla.ajax.reload();
+            }
+        },
+        complete: function () { hanaBoton("#btnGuardar", false); }
     });
 }
-init();
+
+//Trae a una persona y la carga en el formulario. El rol se ve, pero se cambia en Usuarios
+function mostrar(idColaborador)
+{
+    hanaCargando(true);
+    $.post(URL_COL + "?op=mostrar", { idcolaborador: idColaborador }, function (respuesta) {
+        hanaCargando(false);
+        var persona = JSON.parse(respuesta);
+        if (!persona) { alert("Esa persona ya no existe. Actualiza la página."); return; }
+        limpiar();
+        $("#idcolaborador").val(persona.ID_COLABORADOR);
+        $("#documento").val(persona.DOC_COLABORADOR);
+        $("#persona").val(persona.NOM_COLABORADOR);
+        $("#correo").val(persona.MAIL_COLABORADOR);
+        //El rol que tiene, solo para ver
+        $("#rol").html($('<option>').val(persona.ID_ROL_USUARIO_SISTEMA || '').text(persona.NOM_ROL_USUARIO_SISTEMA || 'Sin rol')).prop("disabled", true);
+        $("#ayudaRol").text("El rol, el usuario, los peajes y la contraseña se cambian en Usuarios.");
+        //A quien administra solo lo cambia quien tiene 24M: se muestra sin poder guardar
+        if (!persona.EDITABLE) {
+            $('#documento, #persona, #correo').prop('readonly', true);
+            $("#btnGuardar").hide();
+            $("#ayudaRol").text("Esta persona tiene un rol que administra el sistema: solo la cambia quien tiene la casilla 24M.");
+        }
+        mostrarform(true);
+    }).fail(function (xhr) {
+        hanaCargando(false);
+        hanaErrorAjax(xhr, "No se pudieron cargar los datos.");
+    });
+}
+
+//Desactiva a la persona (pregunta antes). No se borra: deja de entrar y de salir en las listas
+function anular(idColaborador)
+{
+    hanaConfirmar("¿Desactivar a esta persona? No podrá entrar y dejará de salir en las listas.", function () {
+        $.post(URL_COL + "?op=anular", { idcolaborador: idColaborador }, function (respuesta) {
+            alert(respuesta);
+            tabla.ajax.reload();
+        }).fail(function (xhr) { hanaErrorAjax(xhr, "No se pudo desactivar."); });
+    });
+}
+
+//Vuelve a activar a la persona (pregunta antes)
+function activar(idColaborador)
+{
+    hanaConfirmar("¿Activar a esta persona?", function () {
+        $.post(URL_COL + "?op=activar", { idcolaborador: idColaborador }, function (respuesta) {
+            alert(respuesta);
+            tabla.ajax.reload();
+        }).fail(function (xhr) { hanaErrorAjax(xhr, "No se pudo activar."); });
+    });
+}
+
+iniciar();

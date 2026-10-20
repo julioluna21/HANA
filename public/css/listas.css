@@ -1,5 +1,5 @@
 /* Listas de chequeo — estilos de la pantalla de diligenciamiento.
-   Acompana a Ajax/ListasAjax.js. Pensado primero para el celular,
+   Acompaña a Ajax/ListasAjax.js. Pensado primero para el celular,
    que es donde el personal diligencia en campo. */
 
 /* ---------------------------------------------------------------
@@ -46,8 +46,8 @@
 
 /* ---------------------------------------------------------------
    Botones Si / No / No aplica
-   Antes eran botones de radio pequenos, dificiles de tocar con el dedo.
-   El radio sigue existiendo (para que el formulario se envie igual),
+   Antes eran botones de radio pequeños, difíciles de tocar con el dedo.
+   El radio sigue existiendo (para que el formulario se envíe igual),
    pero se esconde y quien se ve es la etiqueta, del tamano de un dedo.
    --------------------------------------------------------------- */
 .hana-opciones{
@@ -71,7 +71,7 @@
 .hana-opcion span{
     display: block;
     text-align: center;
-    padding: 14px 6px;               /* alto comodo para tocar con el dedo */
+    padding: 14px 6px;               /* alto cómodo para tocar con el dedo */
     font-size: 15px;
     font-weight: bold;
     color: var(--hana-vino);
@@ -100,7 +100,7 @@
     background: #ffffff;
     border: 2px dashed #b9c2cb;
     border-radius: 8px;
-    touch-action: none;              /* al firmar con el dedo la pagina no se mueve */
+    touch-action: none;              /* al firmar con el dedo la página no se mueve */
     cursor: crosshair;
     display: block;
 }

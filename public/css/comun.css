@@ -1,4 +1,4 @@
-/* Estilos comunes de todas las pantallas. Acompana a Ajax/ComunAjax.js */
+/* Estilos comunes de todas las pantallas. Acompaña a Ajax/ComunAjax.js */
 
 /* Aviso de "Cargando..." de las tablas, centrado encima de la tabla */
 .dataTables_wrapper{ position: relative; }
@@ -6,7 +6,7 @@
 /* El pie de la tabla lleva dos elementos flotados: "Mostrando 1 a 10 de N" a la
    izquierda y la paginacion a la derecha. Como nadie limpiaba esos flotantes, la
    caja siguiente (por ejemplo el aviso de Notificaciones) se montaba encima.
-   Este es el patron con el que Bootstrap limpia flotantes */
+   Este es el patrón con el que Bootstrap limpia flotantes */
 .dataTables_wrapper:before,
 .dataTables_wrapper:after{
     content: " ";
@@ -40,7 +40,7 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before
     background-color: var(--hana-vino);
 }
 
-/* En pantallas pequenas la tabla no debe salirse del recuadro */
+/* En pantallas pequeñas la tabla no debe salirse del recuadro */
 @media (max-width: 767px){
     .dataTables_wrapper .dataTables_filter{ text-align: left; }
     .dataTables_wrapper .dataTables_filter input{ width: 100%; margin-left: 0; }
@@ -48,35 +48,35 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before
     .dataTables_wrapper .dataTables_info{ float: none; text-align: center; }
 }
 
-/* Tabla de novedades: tiene muchas columnas y necesita anchos minimos para leerse
-   en el computador. Antes estaban escritos dentro del HTML y se aplicaban tambien
+/* Tabla de novedades: tiene muchas columnas y necesita anchos mínimos para leerse
+   en el computador. Antes estaban escritos dentro del HTML y se aplicaban también
    en el celular, donde la tabla llegaba a 2.400px y tocaba desplazarse de lado.
    Ahora suman unos 1.150px: en computador caben todas y se leen bien, y en celular
-   DataTables Responsive esconde las que sobran detras del boton "+" de cada fila */
+   DataTables Responsive esconde las que sobran detrás del botón "+" de cada fila */
 #tbllistado.tabla-novedades th:nth-child(2){ min-width: 200px; } /* Titulo de la novedad */
 #tbllistado.tabla-novedades th:nth-child(3){ min-width: 105px; } /* Fecha registro */
 #tbllistado.tabla-novedades th:nth-child(4){ min-width: 135px; } /* Colaborador registro */
 #tbllistado.tabla-novedades th:nth-child(5){ min-width: 135px; } /* Colaborador asignado */
 #tbllistado.tabla-novedades th:nth-child(6){ min-width: 100px; } /* Proyecto */
-#tbllistado.tabla-novedades th:nth-child(7){ min-width: 100px; } /* Centro de operacion */
+#tbllistado.tabla-novedades th:nth-child(7){ min-width: 100px; } /* Centro de operación */
 #tbllistado.tabla-novedades th:nth-child(8){ min-width: 85px; }  /* Prioridad */
 #tbllistado.tabla-novedades th:nth-child(9){ min-width: 105px; } /* Fecha limite */
 #tbllistado.tabla-novedades th:nth-child(10){ min-width: 90px; } /* Estado respuesta */
 #tbllistado.tabla-novedades th:nth-child(11){ min-width: 90px; } /* Estado novedad */
 
 /* --------------------------------------------------------------------------
-   Correccion del diseno en celular
+   Corrección del diseño en celular
    public/css/chat.css trae la regla ".row { display: -webkit-box }", que viene
    de la plantilla de chat. Con eso las columnas de una fila quedan siempre una
    al lado de la otra y NO bajan en pantallas pequenas: por ejemplo, los filtros
    de Novedades llegaban a ocupar 1.572px de ancho en un celular de 390px.
-   Aqui se devuelve el comportamiento normal de Bootstrap (bloque con columnas
-   flotadas), sin modificar chat.css ni ninguna libreria.
+   Aquí se devuelve el comportamiento normal de Bootstrap (bloque con columnas
+   flotadas), sin modificar chat.css ni ninguna librería.
    -------------------------------------------------------------------------- */
 .row{
     display: block;
 }
-/* Bootstrap limpia los flotantes de las columnas con este patron */
+/* Bootstrap limpia los flotantes de las columnas con este patrón */
 .row:before,
 .row:after{
     content: " ";
@@ -91,21 +91,21 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before
     .form-group[class*="col-"]{ margin-bottom: 12px; }
 }
 
-/* Los paneles de la plantilla (.x_panel y .x_content) usan float, asi que su
+/* Los paneles de la plantilla (.x_panel y .x_content) usan float, así que su
    ancho lo define el contenido y no la pantalla. Con una tabla ancha, como la de
-   Novedades, el panel crecia hasta 850px dentro de un celular de 390px y arrastraba
-   toda la pagina. Al quitarles el float en pantallas pequenas, el panel se ajusta
-   al ancho real del telefono y DataTables Responsive puede esconder las columnas
-   que no caben detras del boton "+" de cada fila. En computador no cambia nada */
+   Novedades, el panel crecía hasta 850px dentro de un celular de 390px y arrastraba
+   toda la página. Al quitarles el float en pantallas pequeñas, el panel se ajusta
+   al ancho real del teléfono y DataTables Responsive puede esconder las columnas
+   que no caben detrás del botón "+" de cada fila. En computador no cambia nada */
 @media (max-width: 767px){
     .x_panel,
     .x_content{
         float: none;
         width: 100%;
     }
-    /* La tabla de Novedades tiene 12 columnas y aun asi no cabe en un celular.
+    /* La tabla de Novedades tiene 12 columnas y aun así no cabe en un celular.
        Se le deja su propia barra de desplazamiento horizontal dentro del panel,
-       en vez de que arrastre toda la pagina de lado */
+       en vez de que arrastre toda la página de lado */
     .panel-body.table-responsive,
     .dataTables_wrapper{
         max-width: 100%;
@@ -117,12 +117,12 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before
 /* ==========================================================================
    Dos barras de desplazamiento separadas
    --------------------------------------------------------------------------
-   Antes toda la pagina se desplazaba junta: al bajar por un listado largo el
-   menu lateral se iba con ella y tocaba volver hasta arriba para cambiar de
-   modulo. Ahora el menu se queda fijo con su propio desplazamiento, y el
+   Antes toda la página se desplazaba junta: al bajar por un listado largo el
+   menú lateral se iba con ella y tocaba volver hasta arriba para cambiar de
+   modulo. Ahora el menú se queda fijo con su propio desplazamiento, y el
    contenido tiene el suyo.
-   Solo aplica de tableta hacia arriba: en celular el menu se abre y se cierra,
-   y ahi lo natural es que la pagina se desplace completa.
+   Solo aplica de tableta hacia arriba: en celular el menú se abre y se cierra,
+   y ahí lo natural es que la página se desplace completa.
    ========================================================================== */
 @media (min-width: 768px){
 
@@ -133,7 +133,7 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before
        entera no se podía bajar. Ahora la página se desplaza normal; el menú
        sigue quieto porque es position: fixed, y la barra de arriba es sticky */
 
-    /* --- Menu lateral: fijo, con su propia barra --- */
+    /* --- Menú lateral: fijo, con su propia barra --- */
     .nav-md .container.body .col-md-3.left_col,
     .nav-sm .container.body .col-md-3.left_col{
         position: fixed;

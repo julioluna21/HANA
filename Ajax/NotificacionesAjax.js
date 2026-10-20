@@ -1,9 +1,9 @@
-//Pantalla de notificaciones automaticas por correo
+//Pantalla de notificaciones automáticas por correo
 //Trabaja sobre Vista/NotificacionesVista.php
 
 var tabla; //referencia a la DataTable del listado
 
-//Textos de ayuda segun la frecuencia elegida
+//Textos de ayuda según la frecuencia elegida
 var _ayudas = {
     "inmediato": "Se envía un correo cada vez que alguien termina de diligenciar esta lista.",
     "diario":    "Se envía un solo correo con todo lo diligenciado el día anterior, agrupado por persona.",
@@ -11,23 +11,23 @@ var _ayudas = {
 };
 
 //Arranque. Cada bloque va en su propio try/catch a proposito: si uno falla
-//(por ejemplo la tabla), los demas campos siguen funcionando igual
+//(por ejemplo la tabla), los demás campos siguen funcionando igual
 $(function () {
 
-    try { cargarListas(); }        catch (e) { console.log("cargarListas:", e); }
-    try { cargarColaboradores(); } catch (e) { console.log("cargarColaboradores:", e); }
-    try { listar(); }              catch (e) { console.log("listar:", e); }
+    try { cargarListas(); }        catch (error) { console.log("cargarListas:", error); }
+    try { cargarColaboradores(); } catch (error) { console.log("cargarColaboradores:", error); }
+    try { listar(); }              catch (error) { console.log("listar:", error); }
 
-    //Ayuda que cambia segun la frecuencia elegida
+    //Ayuda que cambia según la frecuencia elegida
     $("#frecuencia").on("change", function () {
         $("#ayudaFrecuencia").text(_ayudas[$(this).val()] || "");
     }).trigger("change");
 });
 
 //Llena el <select> con las listas de chequeo existentes.
-//OJO: se manda search= (vacio) a proposito. El controlador, si no recibe ese
-//parametro, usa '0' por defecto y termina buscando los nombres que contengan
-//un "0", devolviendo una lista vacia. Con search= vacio la consulta trae todas.
+//OJO: se manda search= (vacío) a propósito. El controlador, si no recibe ese
+//parámetro, usa '0' por defecto y termina buscando los nombres que contengan
+//un "0", devolviendo una lista vacía. Con search= vacío la consulta trae todas.
 function cargarListas() {
     $.getJSON("../Control/GruposListasControl.php?op=select&search=", function (data) {
         var html = '<option value="">-- Selecciona una lista --</option>';
@@ -60,7 +60,7 @@ function agregarColaborador() {
     //Se evita repetir el mismo correo dos veces
     if (actual.indexOf(correo) !== -1) { alert("Ese correo ya está en la lista."); return; }
 
-    //Si ya habia algo, se separa con coma
+    //Si ya había algo, se separa con coma
     $("#destinatarios").val(actual === "" ? correo : actual + ", " + correo);
     $("#buscarColaborador").val(""); //se deja listo para agregar otro
 }
@@ -75,9 +75,9 @@ function listar() {
             url: '../Control/NotificacionesControl.php?op=listar',
             type: 'get',
             dataType: 'json',
-            //Si la tabla notificaciones_listas no existe todavia, el error
-            //aparece aqui en la consola en vez de quedar en silencio
-            error: function (e) { console.log('Error al listar notificaciones:', e.responseText); }
+            //Si la tabla notificaciones_listas no existe todavía, el error
+            //aparece aquí en la consola en vez de quedar en silencio
+            error: function (xhr) { console.log('Error al listar notificaciones:', xhr.responseText); }
         },
         bDestroy: true,
         iDisplayLength: 10,
@@ -85,11 +85,11 @@ function listar() {
     }).DataTable();
 }
 
-//Guarda la configuracion (alta o edicion, segun si hay id)
-function guardaryeditar(e) {
-    e.preventDefault(); //no se recarga la pagina
+//Guarda la configuración (alta o edición, según si hay id)
+function guardaryeditar(evento) {
+    evento.preventDefault(); //no se recarga la página
 
-    //Validaciones basicas antes de mandar nada al servidor
+    //Validaciones básicas antes de mandar nada al servidor
     if (!$("#idGrupo").val()) { alert("Selecciona la lista de chequeo."); return false; }
 
     var dest = $.trim($("#destinatarios").val());
@@ -120,7 +120,7 @@ function guardaryeditar(e) {
     return false;
 }
 
-//Carga una notificacion existente en el formulario para editarla
+//Carga una notificación existente en el formulario para editarla
 function mostrar(id) {
     hanaCargando(true); //aviso de carga mientras llega la configuración
     $.post("../Control/NotificacionesControl.php?op=mostrar", { idNotificacion: id }, function (data) {
@@ -132,7 +132,7 @@ function mostrar(id) {
         $("#frecuencia").val(data.FRECUENCIA).trigger("change");
         $("#asunto").val(data.ASUNTO);
 
-        //Los correos se muestran separados por coma y espacio, mas comodos de leer
+        //Los correos se muestran separados por coma y espacio, mas cómodos de leer
         $("#destinatarios").val((data.DESTINATARIOS || "").split(",").join(", "));
 
         $('html, body').animate({ scrollTop: 0 }, 300); //sube al formulario
@@ -143,7 +143,7 @@ function mostrar(id) {
     });
 }
 
-//Desactiva una notificacion (no se borra)
+//Desactiva una notificación (no se borra)
 function anular(id) {
     hanaConfirmar("¿Desactivar esta notificación? Dejará de enviarse.", function () {
         $.post("../Control/NotificacionesControl.php?op=anular", { idNotificacion: id }, function () {
@@ -155,7 +155,7 @@ function anular(id) {
     });
 }
 
-//Reactiva una notificacion desactivada
+//Reactiva una notificación desactivada
 function activar(id) {
     $.post("../Control/NotificacionesControl.php?op=activar", { idNotificacion: id }, function () {
         tabla.ajax.reload();
@@ -171,7 +171,8 @@ function probarEnvio() {
     if (dest === "") { alert("Escribe primero los destinatarios."); return; }
 
     hanaBoton("#btnProbar", true, "Enviando...");
-    $.post("../Control/NotificacionesControl.php?op=probar", { destinatarios: dest })
+    //Si se está editando un aviso, la prueba queda enlazada a él en la bitácora
+    $.post("../Control/NotificacionesControl.php?op=probar", { destinatarios: dest, idNotificacion: $("#idNotificacion").val() || "" })
         .done(function () { alert("Correo de prueba enviado. Revisa la bandeja de entrada (y la carpeta de spam)."); })
         .fail(function (xhr) {
             //El servidor devuelve el motivo exacto del fallo (error de SMTP, correo mal escrito, etc.)
@@ -182,7 +183,7 @@ function probarEnvio() {
         });
 }
 
-//Deja el formulario en blanco, listo para una configuracion nueva
+//Deja el formulario en blanco, listo para una configuración nueva
 function limpiar() {
     $("#idNotificacion").val("");
     $("#idGrupo").val("");

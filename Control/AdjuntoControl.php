@@ -50,7 +50,7 @@ function adjError($codigo, $mensaje)
 }
 
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { adjError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
-$idUsuario = (int)$_SESSION['IdUsuarios'];
+$idUsuario = (int)$_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 
 //---------------------------------------------------------------------------
@@ -60,41 +60,41 @@ $idColaborador = (int)$_SESSION['Idcolaborador'];
 function adjAcceso($modulo, $idRegistro, $idUsuario, $idColaborador)
 {
     $coordina = array();
-    foreach (hanaProyectosCoordinados($idColaborador) as $p) { $coordina[(int)$p['ID_PROYECTO']] = true; }
+    foreach (hanaProyectosCoordinados($idColaborador) as $proyecto) { $coordina[(int)$proyecto['ID_PROYECTO']] = true; }
     $verTodos = hanaTienePermiso('20M') || hanaTienePermiso('21M') || hanaTienePermiso('22M');
 
     if ($modulo === 'COMUNICACION') {
         //Oficios como las RQ: los ve y les adjunta quien tenga el proyecto asignado (lo coordina,
         //es jefe de uno de sus peajes o tiene un peaje asignado en Usuarios); ADMIN TEC y 32M, todos
-        $p = (new Adjunto())->proyectoDeComunicacion($idRegistro);
-        if (!$p) { return null; }
-        $asignado = isset($coordina[$p]) || hanaTienePermiso('24M') || hanaTienePermiso('32M')
-            || Organizacion::tienePeajes($idColaborador, $idUsuario, $p);
+        $idProyecto = (new Adjunto())->proyectoDeComunicacion($idRegistro);
+        if (!$idProyecto) { return null; }
+        $asignado = isset($coordina[$idProyecto]) || hanaTienePermiso('24M') || hanaTienePermiso('32M')
+            || Organizacion::tienePeajes($idColaborador, $idUsuario, $idProyecto);
         $editar = HanaConfig::si('ADJUNTOS_COMUNICACIONES') && $asignado;
         return array('ver' => $asignado || $verTodos, 'editar' => $editar);
     }
 
     if ($modulo === 'LISTA') {
-        $r = (new Adjunto())->datosLista($idRegistro);
-        if (!$r) { return null; }
+        $lista = (new Adjunto())->datosLista($idRegistro);
+        if (!$lista) { return null; }
         //Quién diligencia listas en ese centro: quien tenga 11M y el centro asignado (o el ADMIN TEC)
-        $asignado = Organizacion::centroAsignado($idUsuario, (int)$r['CENTRO']);
-        $diligencia = hanaTienePermiso('11M') && ($asignado || isset($coordina[(int)$r['PROYECTO']]) || hanaTienePermiso('24M'));
+        $asignado = Organizacion::centroAsignado($idUsuario, (int)$lista['CENTRO']);
+        $diligencia = hanaTienePermiso('11M') && ($asignado || isset($coordina[(int)$lista['PROYECTO']]) || hanaTienePermiso('24M'));
         //Los archivos de una lista los cambia quien la llenó (o el ADMIN TEC), y solo si la lista es de hoy o de un día habilitado
-        $editar = HanaConfig::si('ADJUNTOS_LISTAS') && $diligencia && ((int)$r['DUENO'] === (int)$idColaborador || hanaTienePermiso('24M'))
-               && HanaFechas::enVentana($r['FECHA'], $idColaborador);
+        $editar = HanaConfig::si('ADJUNTOS_LISTAS') && $diligencia && ((int)$lista['DUENO'] === (int)$idColaborador || hanaTienePermiso('24M'))
+               && HanaFechas::enVentana($lista['FECHA'], $idColaborador);
         $ver = $diligencia || $asignado || $verTodos || hanaTienePermiso('12M');
         //El tablero (19M): el gerente de operaciones ve todo; el coordinador su proyecto; el jefe su peaje
         if (!$ver && hanaTienePermiso('19M')) {
-            $ver = Organizacion::esJefeDeCentro((int)$r['CENTRO'], $idColaborador);
+            $ver = Organizacion::esJefeDeCentro((int)$lista['CENTRO'], $idColaborador);
         }
         return array('ver' => $ver, 'editar' => $editar);
     }
 
     if ($modulo === 'RQ') {
         //Las fotos y soportes de una RQ: los ve quien puede abrir esa RQ (la misma regla de Requisiciones)
-        $m = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
-        $conRq = (bool)array_intersect(array('15M', '17M', '18M', '41M'), $m);
+        $misCasillas = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
+        $conRq = (bool)array_intersect(array('15M', '17M', '18M', '41M'), $misCasillas);
         $ver = ($conRq && (new Rq())->mostrar(hanaCondRQ('todas'), $idRegistro)) || $verTodos || hanaTienePermiso('24M');
         //También quien ve el peaje de la RQ en el reporte general, donde salen las fotos de las RQ por aprobar
         if (!$ver && hanaTienePermiso('19M')) {
@@ -112,21 +112,21 @@ function adjAcceso($modulo, $idRegistro, $idUsuario, $idColaborador)
 function adjCargar($modulo, $id, $idUsuario, $idColaborador, $paraEditar, $conRq = false)
 {
     $validos = $conRq ? array('COMUNICACION', 'LISTA', 'RQ') : array('COMUNICACION', 'LISTA');
-    $m = in_array($modulo, $validos, true) ? $modulo : '';
-    if ($m === '') { adjError(400, 'Módulo no válido.'); }
-    $a = adjAcceso($m, $id, $idUsuario, $idColaborador);
-    if (!$a || !$a['ver']) { adjError(404, 'No se encontró el registro, o no tienes acceso a él.'); }
-    if ($paraEditar && !$a['editar']) { adjError(403, 'No puedes cambiar los archivos de este registro (o los adjuntos están desactivados, o la lista ya no es de hoy ni de un día habilitado).'); }
-    return $a;
+    $moduloValido = in_array($modulo, $validos, true) ? $modulo : '';
+    if ($moduloValido === '') { adjError(400, 'Módulo no válido.'); }
+    $acceso = adjAcceso($moduloValido, $id, $idUsuario, $idColaborador);
+    if (!$acceso || !$acceso['ver']) { adjError(404, 'No se encontró el registro, o no tienes acceso a él.'); }
+    if ($paraEditar && !$acceso['editar']) { adjError(403, 'No puedes cambiar los archivos de este registro (o los adjuntos están desactivados, o la lista ya no es de hoy ni de un día habilitado).'); }
+    return $acceso;
 }
 
 //Un adjunto por su id, con el acceso de su registro
 function adjPorId($id, $idUsuario, $idColaborador, $paraEditar, $conRq = false)
 {
-    $x = (new Adjunto())->porId($id);
-    if (!$x) { adjError(404, 'No se encontró el archivo.'); }
-    adjCargar($x['MODULO'], $x['ID_REGISTRO'], $idUsuario, $idColaborador, $paraEditar, $conRq);
-    return $x;
+    $adjunto = (new Adjunto())->porId($id);
+    if (!$adjunto) { adjError(404, 'No se encontró el archivo.'); }
+    adjCargar($adjunto['MODULO'], $adjunto['ID_REGISTRO'], $idUsuario, $idColaborador, $paraEditar, $conRq);
+    return $adjunto;
 }
 
 $op = isset($_GET['op']) ? $_GET['op'] : '';
@@ -138,9 +138,9 @@ switch ($op) {
     case 'listar':
         $modulo = isset($_GET['modulo']) ? $_GET['modulo'] : '';
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-        $a = adjCargar($modulo, $id, $idUsuario, $idColaborador, false);
-        $f = (new Adjunto())->listar($modulo, $id);
-        echo json_encode(array('archivos' => $f ? $f : array(), 'editable' => $a['editar'],
+        $acceso = adjCargar($modulo, $id, $idUsuario, $idColaborador, false);
+        $archivos = (new Adjunto())->listar($modulo, $id);
+        echo json_encode(array('archivos' => $archivos ? $archivos : array(), 'editable' => $acceso['editar'],
                                'maxMb' => HanaConfig::num('ADJUNTOS_MAX_MB', 10), 'tipos' => array_keys($ADJ_TIPOS)), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -170,11 +170,11 @@ switch ($op) {
             $bytes = @file_get_contents($_FILES['archivos']['tmp_name'][$i]);
             if ($bytes === false) { $avisos[] = $nombre . ': no se pudo leer.'; continue; }
             //El archivo va dentro de la base como texto base64 (las fotos pesadas se achican antes)
-            $a = hanaArchivoTexto($bytes, $esFoto ? $info['mime'] : $ADJ_TIPOS[$ext]);
-            if (!hanaArchivoCabe($a['texto'])) { $avisos[] = hanaArchivoMuyGrande($nombre); continue; }
-            if ($a['achicada']) { $nombre = hanaArchivoNombreJpg($nombre); }
+            $archivo = hanaArchivoTexto($bytes, $esFoto ? $info['mime'] : $ADJ_TIPOS[$ext]);
+            if (!hanaArchivoCabe($archivo['texto'])) { $avisos[] = hanaArchivoMuyGrande($nombre); continue; }
+            if ($archivo['achicada']) { $nombre = hanaArchivoNombreJpg($nombre); }
             $nombre = function_exists('mb_substr') ? mb_substr($nombre, 0, 200) : substr($nombre, 0, 200);
-            if (!(new Adjunto())->guardar($modulo, $id, $nombre, $a['texto'], $a['tipo'], $a['tamano'], $idColaborador)) {
+            if (!(new Adjunto())->guardar($modulo, $id, $nombre, $archivo['texto'], $archivo['tipo'], $archivo['tamano'], $idColaborador)) {
                 $avisos[] = $nombre . ': no se pudo guardar en la base de datos.'; continue;
             }
             $guardados++;
@@ -185,28 +185,28 @@ switch ($op) {
 
     //Cambiar la descripción de un archivo
     case 'describir':
-        $x = adjPorId(isset($_POST['id']) ? (int)$_POST['id'] : 0, $idUsuario, $idColaborador, true);
-        $d = HanaVal::texto(isset($_POST['descripcion']) ? $_POST['descripcion'] : '', 200);
-        (new Adjunto())->describir((int)$x['ID_ADJUNTO'], $d);
+        $adjunto = adjPorId(isset($_POST['id']) ? (int)$_POST['id'] : 0, $idUsuario, $idColaborador, true);
+        $descripcion = HanaVal::texto(isset($_POST['descripcion']) ? $_POST['descripcion'] : '', 200);
+        (new Adjunto())->describir((int)$adjunto['ID_ADJUNTO'], $descripcion);
         echo json_encode(array('ok' => true, 'mensaje' => 'Descripción guardada.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //Quita un adjunto (se revisa antes que la persona pueda editar el registro)
     case 'borrar':
-        $x = adjPorId(isset($_POST['id']) ? (int)$_POST['id'] : 0, $idUsuario, $idColaborador, true);
-        (new Adjunto())->quitar((int)$x['ID_ADJUNTO']);
+        $adjunto = adjPorId(isset($_POST['id']) ? (int)$_POST['id'] : 0, $idUsuario, $idColaborador, true);
+        (new Adjunto())->quitar((int)$adjunto['ID_ADJUNTO']);
         echo json_encode(array('ok' => true, 'mensaje' => 'Archivo quitado.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //Entrega el archivo: en el navegador si es PDF o imagen; si no, se descarga.
     //Sirve también para las fotos y soportes de las RQ
     case 'ver':
-        $x = adjPorId(isset($_GET['id']) ? (int)$_GET['id'] : 0, $idUsuario, $idColaborador, false, true);
-        $partes = hanaArchivoPartes((new Adjunto())->contenido((int)$x['ID_ADJUNTO']));
+        $adjunto = adjPorId(isset($_GET['id']) ? (int)$_GET['id'] : 0, $idUsuario, $idColaborador, false, true);
+        $partes = hanaArchivoPartes((new Adjunto())->contenido((int)$adjunto['ID_ADJUNTO']));
         if (!$partes) { adjError(404, 'El archivo ya no está en el servidor.'); }
         list($tipo, $bytes) = $partes;
         $enLinea = !isset($_GET['descargar']) && (strpos($tipo, 'image/') === 0 || $tipo === 'application/pdf');
-        hanaArchivoEntregar($bytes, $tipo, $x['NOMBRE'], $enLinea);
+        hanaArchivoEntregar($bytes, $tipo, $adjunto['NOMBRE'], $enLinea);
         break;
 
     default:

@@ -41,12 +41,12 @@ if (isset($_SESSION['IdUsuarios'])) {
           <p class="rd-intro">Todo lo que llenan los coordinadores de todos los proyectos. Estas pantallas son de consulta:
             cada coordinador sigue llenando lo suyo en su propia pantalla.</p>
           <div class="rd-mosaicos">
-<?php foreach ($mosaicos as $m) {
-          if ($m[4] !== '' && !in_array($m[4], $modulosAcceso)) { continue; } ?>
-            <a href="<?php echo $m[0]; ?>" class="rd-mosaico">
-              <div class="rd-mosaico-icono"><i class="fa <?php echo $m[1]; ?>"></i></div>
-              <div class="rd-mosaico-titulo"><?php echo $m[2]; ?></div>
-              <div class="rd-mosaico-texto"><?php echo $m[3]; ?></div>
+<?php foreach ($mosaicos as $mosaico) {
+          if ($mosaico[4] !== '' && !in_array($mosaico[4], $modulosAcceso)) { continue; } ?>
+            <a href="<?php echo $mosaico[0]; ?>" class="rd-mosaico">
+              <div class="rd-mosaico-icono"><i class="fa <?php echo $mosaico[1]; ?>"></i></div>
+              <div class="rd-mosaico-titulo"><?php echo $mosaico[2]; ?></div>
+              <div class="rd-mosaico-texto"><?php echo $mosaico[3]; ?></div>
             </a>
 <?php } ?>
           </div>

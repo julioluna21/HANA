@@ -1,9 +1,11 @@
+//Archivo sin uso: ninguna pantalla lo carga. La versión vigente es Ajax/GruposListasnAjax.js.
+//Se conserva solo como referencia.
 var tabla;//variable global
 //Función para guardar o editar
 
-function guardar(e)
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     $("#btnGuardar").prop("disabled",true);
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -165,13 +167,13 @@ function listar()
         buttons: [
                         
                     ],
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/GruposListasControl.php?op=listar',//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
+                                    url: '../Control/GruposListasControl.php?op=listar',//página que realiza la operación
+                                    type : "get",//tipo de envío de datos
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -191,14 +193,14 @@ function listarPreguntas(idGrupoPreguntas)
         buttons: [
                         
                     ],
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/PreguntasListasControl.php?op=listar',//pagina que realiza la operación
-                                    type : "post",//tipo de envio de datos
+                                    url: '../Control/PreguntasListasControl.php?op=listar',//página que realiza la operación
+                                    type : "post",//tipo de envío de datos
                                     data: idGrupoPreguntas,
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -207,7 +209,7 @@ function listarPreguntas(idGrupoPreguntas)
     }).DataTable();
     
 }
-function agregarPregunta(e){
+function agregarPregunta(evento){
     //e.preventDefault();
     var formData1 = new FormData();
     formData1.append('idGrupo',$("#idGrupo").val());
@@ -251,7 +253,7 @@ function agregarPregunta(e){
      
 }
 
-function agregarPreguntaExcel(e){
+function agregarPreguntaExcel(evento){
     //e.preventDefault();
     var fileInput = $('#fileInput')[0];
     var file = fileInput.files[0];
@@ -287,20 +289,20 @@ function init()
 {
     mostrarform(false);
     listar();//lista 
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
+//al oprimir el botón del formulario
+    $("#demo-form2").on("submit",function(evento) //evento: el envío del formulario
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(evento); //guarda (nuevo o editado)
     });
 
     // Agrega un evento al botón "Agregar pregunta".
-    $("#btn-agregar-pregunta").on("click", function(e) {
-        agregarPregunta(e);
+    $("#btn-agregar-pregunta").on("click", function(evento) {
+        agregarPregunta(evento);
       });
 
       // Agrega un evento al botón "Agregar pregunta".
-      $("#btn-agregar-excel").on("click", function(e) {
-          agregarPreguntaExcel(e);
+      $("#btn-agregar-excel").on("click", function(evento) {
+          agregarPreguntaExcel(evento);
         });
       //captura la variable grupos para add al modal form
     $('#modal-preguntas').on('show.bs.modal', function (event) {

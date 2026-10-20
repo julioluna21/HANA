@@ -5,7 +5,7 @@
   Pantalla de los títulos con los que se clasifican las novedades.
   La pantalla es solo el HTML: lo que hace cada botón está en Ajax/TituloAjax.js
   y los datos los entrega Control/TituloControl.php.
-  Permiso: 7M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+  Permiso: 7M (sin sesión va al inicio de sesión; sin el permiso, a la pantalla de inicio).
 */
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
@@ -16,7 +16,7 @@ include('head.php');
 
 ?>
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -76,7 +76,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nuevo título
               </button>
             </SPAN>
@@ -121,7 +121,7 @@ include('footer.php');
 <?php
 }else{
   echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     
 }

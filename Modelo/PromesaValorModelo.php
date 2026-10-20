@@ -44,12 +44,12 @@ class PromesaValor
     public function reglas($idsCentros)
     {
         if (!count($idsCentros)) { return array(); }
-        $f = HanaDB::q("SELECT ID_PV_PROMESA, ID_CENTRO_OP, ID_CARGO_AUS, DESDE, HASTA, DIAS, CANTIDAD FROM pv_promesa
+        $filas = HanaDB::q("SELECT ID_PV_PROMESA, ID_CENTRO_OP, ID_CARGO_AUS, DESDE, HASTA, DIAS, CANTIDAD FROM pv_promesa
                          WHERE ID_CENTRO_OP IN (" . $this->marcas($idsCentros) . ")",
                        str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
-        $res = array();
-        foreach ((array)$f as $r) { $res[(int)$r['ID_CENTRO_OP']][(int)$r['ID_CARGO_AUS']][] = $r; }
-        return $res;
+        $porCentro = array();
+        foreach ((array)$filas as $fila) { $porCentro[(int)$fila['ID_CENTRO_OP']][(int)$fila['ID_CARGO_AUS']][] = $fila; }
+        return $porCentro;
     }
 
     //Los días de la semana que se pueden marcar: 1 = lunes ... 7 = domingo, F = festivos
@@ -58,10 +58,10 @@ class PromesaValor
 
     //¿La regla aplica ese día de la semana? Sin DIAS, aplica todos los días.
     //Un festivo cuenta si la regla marca "Festivos" o si marca su día de la semana
-    public static function aplicaDia($r, $fecha)
+    public static function aplicaDia($regla, $fecha)
     {
-        if (!isset($r['DIAS']) || $r['DIAS'] === null || $r['DIAS'] === '') { return true; }
-        $dias = explode(',', $r['DIAS']);
+        if (!isset($regla['DIAS']) || $regla['DIAS'] === null || $regla['DIAS'] === '') { return true; }
+        $dias = explode(',', $regla['DIAS']);
         if (in_array(date('N', strtotime($fecha)), $dias, true)) { return true; }
         return in_array('F', $dias, true) && HanaFechas::esFestivo($fecha);
     }
@@ -78,35 +78,35 @@ class PromesaValor
     public static function resolver($reglas, $fecha)
     {
         $gana = array(1 => null, 2 => null, 3 => null, 4 => null);
-        foreach ((array)$reglas as $r) {
-            if ($r['DESDE'] > $fecha) { continue; }                                  //todavía no empieza a regir
-            if ($r['HASTA'] !== null && $r['HASTA'] < $fecha) { continue; }         //un rango que ya terminó
-            if (!self::aplicaDia($r, $fecha)) { continue; }                         //no es uno de sus días
-            $conDias = isset($r['DIAS']) && $r['DIAS'] !== null && $r['DIAS'] !== '';
-            $nivel = $r['HASTA'] !== null ? ($conDias ? 1 : 2) : ($conDias ? 3 : 4);
-            if ($gana[$nivel] === null || self::masNueva($r, $gana[$nivel])) { $gana[$nivel] = $r; }
+        foreach ((array)$reglas as $regla) {
+            if ($regla['DESDE'] > $fecha) { continue; }                                  //todavía no empieza a regir
+            if ($regla['HASTA'] !== null && $regla['HASTA'] < $fecha) { continue; }         //un rango que ya terminó
+            if (!self::aplicaDia($regla, $fecha)) { continue; }                         //no es uno de sus días
+            $conDias = isset($regla['DIAS']) && $regla['DIAS'] !== null && $regla['DIAS'] !== '';
+            $nivel = $regla['HASTA'] !== null ? ($conDias ? 1 : 2) : ($conDias ? 3 : 4);
+            if ($gana[$nivel] === null || self::masNueva($regla, $gana[$nivel])) { $gana[$nivel] = $regla; }
         }
-        foreach ($gana as $r) { if ($r !== null) { return (int)$r['CANTIDAD']; } }
+        foreach ($gana as $regla) { if ($regla !== null) { return (int)$regla['CANTIDAD']; } }
         return null;
     }
 
     //Entre dos reglas, la que empieza después; si empiezan igual, la que se guardó de última
-    private static function masNueva($a, $b)
+    private static function masNueva($regla, $otra)
     {
-        if ($a['DESDE'] !== $b['DESDE']) { return $a['DESDE'] > $b['DESDE']; }
-        return (int)$a['ID_PV_PROMESA'] > (int)$b['ID_PV_PROMESA'];
+        if ($regla['DESDE'] !== $otra['DESDE']) { return $regla['DESDE'] > $otra['DESDE']; }
+        return (int)$regla['ID_PV_PROMESA'] > (int)$otra['ID_PV_PROMESA'];
     }
 
     //La promesa de un centro en un día: [idCargo] = personas (solo los cargos que tienen promesa definida)
     public function promesaDia($idCentro, $fecha)
     {
         $reglas = $this->reglas(array((int)$idCentro));
-        $res = array();
+        $porCargo = array();
         foreach ((isset($reglas[(int)$idCentro]) ? $reglas[(int)$idCentro] : array()) as $idCargo => $lista) {
-            $n = self::resolver($lista, $fecha);
-            if ($n !== null) { $res[(int)$idCargo] = $n; }
+            $personas = self::resolver($lista, $fecha);
+            if ($personas !== null) { $porCargo[(int)$idCargo] = $personas; }
         }
-        return $res;
+        return $porCargo;
     }
 
     //-----------------------------------------------------------------------
@@ -115,30 +115,30 @@ class PromesaValor
     //Lo registrado en un centro un día: [idCargo] = fila (cantidad, quién y cuándo)
     public function ejecutadoDia($idCentro, $fecha)
     {
-        $f = HanaDB::q("SELECT e.ID_CARGO_AUS, e.CANTIDAD, e.FEC_MODIFICACION, col.NOM_COLABORADOR AS QUIEN
+        $filas = HanaDB::q("SELECT e.ID_CARGO_AUS, e.CANTIDAD, e.FEC_MODIFICACION, col.NOM_COLABORADOR AS QUIEN
                           FROM pv_ejecutado e LEFT JOIN colaboradores col ON col.ID_COLABORADOR = e.ID_COLABORADOR
                          WHERE e.ID_CENTRO_OP = ? AND e.FECHA = ?", 'is', array((int)$idCentro, $fecha));
-        $res = array();
-        foreach ((array)$f as $x) { $res[(int)$x['ID_CARGO_AUS']] = $x; }
-        return $res;
+        $porCargo = array();
+        foreach ((array)$filas as $fila) { $porCargo[(int)$fila['ID_CARGO_AUS']] = $fila; }
+        return $porCargo;
     }
 
     //Las ausencias que el ausentismo tiene ese día en ese centro: [idCargo] = [ausencias, motivos[]].
     //Es el "porqué" de la diferencia: no se copia, se lee de aus_registro cada vez
     public function ausenciasDia($idCentro, $fecha)
     {
-        $f = HanaDB::q("SELECT r.ID_CARGO_AUS, n.NOMBRE, n.CUENTA_AUSENCIA, r.CANTIDAD
+        $filas = HanaDB::q("SELECT r.ID_CARGO_AUS, n.NOMBRE, n.CUENTA_AUSENCIA, r.CANTIDAD
                           FROM aus_registro r INNER JOIN aus_novedad n ON n.ID_NOVEDAD_AUS = r.ID_NOVEDAD_AUS
                          WHERE r.ID_CENTRO_OP = ? AND r.FECHA = ? ORDER BY n.ORDEN", 'is', array((int)$idCentro, $fecha));
-        $res = array();
-        foreach ((array)$f as $x) {
-            $c = (int)$x['ID_CARGO_AUS'];
-            if (!isset($res[$c])) { $res[$c] = array('ausencias' => 0, 'motivos' => array()); }
-            $cuenta = (int)$x['CUENTA_AUSENCIA'] === 1;
-            if ($cuenta) { $res[$c]['ausencias'] += (int)$x['CANTIDAD']; }           //un motivo marcado como "no es ausencia" no suma
-            $res[$c]['motivos'][] = array('nombre' => $x['NOMBRE'], 'n' => (int)$x['CANTIDAD'], 'cuenta' => $cuenta);
+        $porCargo = array();
+        foreach ((array)$filas as $fila) {
+            $idCargo = (int)$fila['ID_CARGO_AUS'];
+            if (!isset($porCargo[$idCargo])) { $porCargo[$idCargo] = array('ausencias' => 0, 'motivos' => array()); }
+            $cuenta = (int)$fila['CUENTA_AUSENCIA'] === 1;
+            if ($cuenta) { $porCargo[$idCargo]['ausencias'] += (int)$fila['CANTIDAD']; }           //un motivo marcado como "no es ausencia" no suma
+            $porCargo[$idCargo]['motivos'][] = array('nombre' => $fila['NOMBRE'], 'n' => (int)$fila['CANTIDAD'], 'cuenta' => $cuenta);
         }
-        return $res;
+        return $porCargo;
     }
 
     //Guarda el ejecutado de un día: $valores = [idCargo => personas].
@@ -146,29 +146,29 @@ class PromesaValor
     public function guardarDia($idCentro, $fecha, $valores, $idColaborador, $ahora)
     {
         $antes = $this->ejecutadoDia($idCentro, $fecha);
-        $n = 0;
-        foreach ($valores as $idCargo => $cant) {
-            if (isset($antes[$idCargo]) && (int)$antes[$idCargo]['CANTIDAD'] === (int)$cant) { continue; } //quedó igual
+        $cambiadas = 0;
+        foreach ($valores as $idCargo => $personas) {
+            if (isset($antes[$idCargo]) && (int)$antes[$idCargo]['CANTIDAD'] === (int)$personas) { continue; } //quedó igual
             $ok = HanaDB::q("INSERT INTO pv_ejecutado (ID_CENTRO_OP, FECHA, ID_CARGO_AUS, CANTIDAD, ID_COLABORADOR, FEC_MODIFICACION)
                              VALUES (?, ?, ?, ?, ?, ?)
                              ON DUPLICATE KEY UPDATE CANTIDAD = VALUES(CANTIDAD), ID_COLABORADOR = VALUES(ID_COLABORADOR), FEC_MODIFICACION = VALUES(FEC_MODIFICACION)",
-                            'isiiis', array((int)$idCentro, $fecha, (int)$idCargo, (int)$cant, (int)$idColaborador, $ahora));
+                            'isiiis', array((int)$idCentro, $fecha, (int)$idCargo, (int)$personas, (int)$idColaborador, $ahora));
             if ($ok === false) { return false; }                                     //algo falló: el controlador deshace todo
-            $n++;
+            $cambiadas++;
         }
-        return $n;
+        return $cambiadas;
     }
 
     //Qué centros ya tienen ejecutado ese día: [idCentro] = [personas, última vez que se guardó]
     public function avanceDia($idsCentros, $fecha)
     {
         if (!count($idsCentros)) { return array(); }
-        $f = HanaDB::q("SELECT ID_CENTRO_OP, SUM(CANTIDAD) AS EJECUTADO, MAX(FEC_MODIFICACION) AS ULTIMA FROM pv_ejecutado
+        $filas = HanaDB::q("SELECT ID_CENTRO_OP, SUM(CANTIDAD) AS EJECUTADO, MAX(FEC_MODIFICACION) AS ULTIMA FROM pv_ejecutado
                          WHERE FECHA = ? AND ID_CENTRO_OP IN (" . $this->marcas($idsCentros) . ") GROUP BY ID_CENTRO_OP",
                        's' . str_repeat('i', count($idsCentros)), array_merge(array($fecha), array_map('intval', $idsCentros)));
-        $res = array();
-        foreach ((array)$f as $x) { $res[(int)$x['ID_CENTRO_OP']] = array('ejecutado' => (int)$x['EJECUTADO'], 'ultima' => $x['ULTIMA']); }
-        return $res;
+        $avance = array();
+        foreach ((array)$filas as $fila) { $avance[(int)$fila['ID_CENTRO_OP']] = array('ejecutado' => (int)$fila['EJECUTADO'], 'ultima' => $fila['ULTIMA']); }
+        return $avance;
     }
 
     //Lo que le falta HOY a un coordinador: de los peajes de los proyectos que coordina (los suyos de verdad,
@@ -176,16 +176,16 @@ class PromesaValor
     //Devuelve [conPromesa, registrados]
     public function avanceCoordinador($idColaborador, $fecha)
     {
-        $f = HanaDB::q("SELECT c.ID_CENTRO_OP FROM centros_operacion c INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
-                         WHERE c.Estado = '1' AND p.Estado = '1' AND p.ID_COLABORADOR_COORDINADOR = ?", 'i', array((int)$idColaborador));
-        $ids = array_map(function ($x) { return (int)$x['ID_CENTRO_OP']; }, $f ? $f : array());
-        $con = 0; $listos = 0;
-        foreach ($this->resumenDia($ids, $fecha) as $r) {
-            if ($r['promesa'] <= 0) { continue; }                                    //sin promesa ese día no hay nada que registrar
-            $con++;
-            if ($r['ejecutado'] !== null) { $listos++; }
+        $filas = HanaDB::q("SELECT c.ID_CENTRO_OP FROM centros_operacion c INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
+                         WHERE c.ESTADO = '1' AND p.ESTADO = '1' AND p.ID_COLABORADOR_COORDINADOR = ?", 'i', array((int)$idColaborador));
+        $ids = array_map(function ($fila) { return (int)$fila['ID_CENTRO_OP']; }, $filas ? $filas : array());
+        $conPromesa = 0; $listos = 0;
+        foreach ($this->resumenDia($ids, $fecha) as $resumenCentro) {
+            if ($resumenCentro['promesa'] <= 0) { continue; }                                    //sin promesa ese día no hay nada que registrar
+            $conPromesa++;
+            if ($resumenCentro['ejecutado'] !== null) { $listos++; }
         }
-        return array($con, $listos);
+        return array($conPromesa, $listos);
     }
 
     //Para el tablero: de cada centro, la promesa del día y lo ejecutado.
@@ -193,15 +193,15 @@ class PromesaValor
     public function resumenDia($idsCentros, $fecha)
     {
         $reglas = $this->reglas($idsCentros);
-        $hecho = $this->avanceDia($idsCentros, $fecha);
-        $res = array();
+        $avance = $this->avanceDia($idsCentros, $fecha);
+        $resumen = array();
         foreach ($idsCentros as $idCentro) {
-            $idCentro = (int)$idCentro; $prom = 0;
-            foreach ((isset($reglas[$idCentro]) ? $reglas[$idCentro] : array()) as $lista) { $prom += (int)self::resolver($lista, $fecha); }
-            if ($prom <= 0 && !isset($hecho[$idCentro])) { continue; }               //ni promesa ni registro: no hay nada que mostrar
-            $res[$idCentro] = array('promesa' => $prom, 'ejecutado' => isset($hecho[$idCentro]) ? $hecho[$idCentro]['ejecutado'] : null);
+            $idCentro = (int)$idCentro; $promesa = 0;
+            foreach ((isset($reglas[$idCentro]) ? $reglas[$idCentro] : array()) as $lista) { $promesa += (int)self::resolver($lista, $fecha); }
+            if ($promesa <= 0 && !isset($avance[$idCentro])) { continue; }               //ni promesa ni registro: no hay nada que mostrar
+            $resumen[$idCentro] = array('promesa' => $promesa, 'ejecutado' => isset($avance[$idCentro]) ? $avance[$idCentro]['ejecutado'] : null);
         }
-        return $res;
+        return $resumen;
     }
 
     //-----------------------------------------------------------------------
@@ -214,22 +214,22 @@ class PromesaValor
         $dias = (int)date('t', strtotime($desde));
         $reglas = $this->reglas(array((int)$idCentro));
         $reglas = isset($reglas[(int)$idCentro]) ? $reglas[(int)$idCentro] : array();
-        $f = HanaDB::q("SELECT ID_CARGO_AUS, DAY(FECHA) AS DIA, CANTIDAD FROM pv_ejecutado
+        $filas = HanaDB::q("SELECT ID_CARGO_AUS, DAY(FECHA) AS DIA, CANTIDAD FROM pv_ejecutado
                          WHERE ID_CENTRO_OP = ? AND FECHA >= ? AND FECHA < ?", 'iss', array((int)$idCentro, $desde, $hasta));
-        $eje = array();
-        foreach ((array)$f as $x) { $eje[(int)$x['ID_CARGO_AUS']][(int)$x['DIA']] = (int)$x['CANTIDAD']; }
+        $ejecutado = array();
+        foreach ((array)$filas as $fila) { $ejecutado[(int)$fila['ID_CARGO_AUS']][(int)$fila['DIA']] = (int)$fila['CANTIDAD']; }
 
         $cargos = array();
-        foreach ((new Ausentismo())->cargos() as $c) {
-            $id = (int)$c['ID_CARGO_AUS'];
-            if (!Ausentismo::cargoAplica($c, $tipoCentro)) { continue; }             //un cargo de báscula no sale en un peaje
-            $prom = array();
-            for ($d = 1; $d <= $dias; $d++) {
-                $n = self::resolver(isset($reglas[$id]) ? $reglas[$id] : array(), sprintf('%04d-%02d-%02d', $anio, $mes, $d));
-                if ($n !== null && $n > 0) { $prom[$d] = $n; }
+        foreach ((new Ausentismo())->cargos() as $cargo) {
+            $id = (int)$cargo['ID_CARGO_AUS'];
+            if (!Ausentismo::cargoAplica($cargo, $tipoCentro)) { continue; }             //un cargo de báscula no sale en un peaje
+            $promesa = array();
+            for ($dia = 1; $dia <= $dias; $dia++) {
+                $personas = self::resolver(isset($reglas[$id]) ? $reglas[$id] : array(), sprintf('%04d-%02d-%02d', $anio, $mes, $dia));
+                if ($personas !== null && $personas > 0) { $promesa[$dia] = $personas; }
             }
-            if (!count($prom) && !isset($eje[$id])) { continue; }                    //cargo sin promesa ni registros en el mes
-            $cargos[] = array('id' => $id, 'nombre' => $c['NOMBRE'], 'promesa' => (object)$prom, 'ejecutado' => (object)(isset($eje[$id]) ? $eje[$id] : array()));
+            if (!count($promesa) && !isset($ejecutado[$id])) { continue; }                    //cargo sin promesa ni registros en el mes
+            $cargos[] = array('id' => $id, 'nombre' => $cargo['NOMBRE'], 'promesa' => (object)$promesa, 'ejecutado' => (object)(isset($ejecutado[$id]) ? $ejecutado[$id] : array()));
         }
         return array('diasMes' => $dias, 'cargos' => $cargos);
     }
@@ -240,12 +240,12 @@ class PromesaValor
     //Todas las reglas de un centro, para mostrarlas: primero las vigentes y lo más nuevo
     public function vigencias($idCentro)
     {
-        $f = HanaDB::q("SELECT p.ID_PV_PROMESA, p.ID_CARGO_AUS, ca.NOMBRE AS CARGO, p.DESDE, p.HASTA, p.DIAS, p.NOMBRE, p.CANTIDAD, p.FEC_MODIFICACION, col.NOM_COLABORADOR AS QUIEN
+        $filas = HanaDB::q("SELECT p.ID_PV_PROMESA, p.ID_CARGO_AUS, ca.NOMBRE AS CARGO, p.DESDE, p.HASTA, p.DIAS, p.NOMBRE, p.CANTIDAD, p.FEC_MODIFICACION, col.NOM_COLABORADOR AS QUIEN
                           FROM pv_promesa p
                           INNER JOIN aus_cargo ca ON ca.ID_CARGO_AUS = p.ID_CARGO_AUS
                           LEFT JOIN colaboradores col ON col.ID_COLABORADOR = p.ID_COLABORADOR
                          WHERE p.ID_CENTRO_OP = ? ORDER BY ca.ORDEN, ca.NOMBRE, p.DESDE DESC, p.ID_PV_PROMESA DESC", 'i', array((int)$idCentro));
-        return $f ? $f : array();
+        return $filas ? $filas : array();
     }
 
     //Guarda la promesa "de aquí en adelante": $valores = [idCargo => personas], rige desde $desde.
@@ -254,32 +254,32 @@ class PromesaValor
     {
         $reglas = $this->reglas(array((int)$idCentro));
         $reglas = isset($reglas[(int)$idCentro]) ? $reglas[(int)$idCentro] : array();
-        $n = 0;
-        foreach ($valores as $idCargo => $cant) {
-            $soloBase = array_filter(isset($reglas[$idCargo]) ? $reglas[$idCargo] : array(), function ($r) { return $r['HASTA'] === null && ($r['DIAS'] === null || $r['DIAS'] === ''); });
+        $cambiados = 0;
+        foreach ($valores as $idCargo => $personas) {
+            $soloBase = array_filter(isset($reglas[$idCargo]) ? $reglas[$idCargo] : array(), function ($regla) { return $regla['HASTA'] === null && ($regla['DIAS'] === null || $regla['DIAS'] === ''); });
             $actual = self::resolver($soloBase, $desde);                             //lo que regía ese día, sin mirar los rangos especiales
-            if ($actual === (int)$cant || ($actual === null && (int)$cant === 0)) { continue; } //nada que cambiar
+            if ($actual === (int)$personas || ($actual === null && (int)$personas === 0)) { continue; } //nada que cambiar
             $misma = HanaDB::fila("SELECT ID_PV_PROMESA FROM pv_promesa WHERE ID_CENTRO_OP = ? AND ID_CARGO_AUS = ? AND DESDE = ? AND HASTA IS NULL AND DIAS IS NULL",
                                   'iis', array((int)$idCentro, (int)$idCargo, $desde));
             if ($misma) {                                                            //ya había una regla que empieza ese mismo día: se corrige
                 $idMisma = (int)$misma['ID_PV_PROMESA'];
-                $otras = array_filter($soloBase, function ($r) use ($idMisma) { return (int)$r['ID_PV_PROMESA'] !== $idMisma; });
+                $otras = array_filter($soloBase, function ($regla) use ($idMisma) { return (int)$regla['ID_PV_PROMESA'] !== $idMisma; });
                 $antes = self::resolver($otras, $desde);                             //lo que regiría ese día si esta regla no existiera
-                if ($antes === (int)$cant || ($antes === null && (int)$cant === 0)) {
+                if ($antes === (int)$personas || ($antes === null && (int)$personas === 0)) {
                     //Volvió al número de antes: la regla sobra, se borra en vez de dejar dos filas que dicen lo mismo
                     $ok = HanaDB::q("DELETE FROM pv_promesa WHERE ID_PV_PROMESA = ?", 'i', array($idMisma));
                 } else {
                     $ok = HanaDB::q("UPDATE pv_promesa SET CANTIDAD = ?, ID_COLABORADOR = ?, FEC_MODIFICACION = ? WHERE ID_PV_PROMESA = ?",
-                                    'iisi', array((int)$cant, (int)$idColaborador, $ahora, $idMisma));
+                                    'iisi', array((int)$personas, (int)$idColaborador, $ahora, $idMisma));
                 }
             } else {
                 $ok = HanaDB::q("INSERT INTO pv_promesa (ID_CENTRO_OP, ID_CARGO_AUS, DESDE, HASTA, CANTIDAD, ID_COLABORADOR, FEC_MODIFICACION)
-                                 VALUES (?, ?, ?, NULL, ?, ?, ?)", 'iisiis', array((int)$idCentro, (int)$idCargo, $desde, (int)$cant, (int)$idColaborador, $ahora));
+                                 VALUES (?, ?, ?, NULL, ?, ?, ?)", 'iisiis', array((int)$idCentro, (int)$idCargo, $desde, (int)$personas, (int)$idColaborador, $ahora));
             }
             if ($ok === false) { return false; }
-            $n++;
+            $cambiados++;
         }
-        return $n;
+        return $cambiados;
     }
 
     //Guarda un rango especial (un puente festivo, una temporada): esos días la promesa es otra
@@ -339,35 +339,35 @@ class PromesaValor
                      'aus' => array(), 'ausSem' => array(0, 0, 0, 0, 0), 'diasReg' => 0, 'diasEsp' => 0);
     }
 
-    //Suma el acumulador $b dentro de $a
-    private static function sumar(&$a, $b)
+    //Suma el acumulador $origen dentro de $destino
+    private static function sumar(&$destino, $origen)
     {
-        $a['prom'] += $b['prom']; $a['eje'] += $b['eje'];
-        $a['diasReg'] += $b['diasReg']; $a['diasEsp'] += $b['diasEsp'];
-        for ($s = 0; $s < 5; $s++) { $a['semProm'][$s] += $b['semProm'][$s]; $a['semEje'][$s] += $b['semEje'][$s]; $a['ausSem'][$s] += $b['ausSem'][$s]; }
-        foreach ($b['aus'] as $idNov => $n) { $a['aus'][$idNov] = (isset($a['aus'][$idNov]) ? $a['aus'][$idNov] : 0) + $n; }
+        $destino['prom'] += $origen['prom']; $destino['eje'] += $origen['eje'];
+        $destino['diasReg'] += $origen['diasReg']; $destino['diasEsp'] += $origen['diasEsp'];
+        for ($semana = 0; $semana < 5; $semana++) { $destino['semProm'][$semana] += $origen['semProm'][$semana]; $destino['semEje'][$semana] += $origen['semEje'][$semana]; $destino['ausSem'][$semana] += $origen['ausSem'][$semana]; }
+        foreach ($origen['aus'] as $idNov => $personas) { $destino['aus'][$idNov] = (isset($destino['aus'][$idNov]) ? $destino['aus'][$idNov] : 0) + $personas; }
     }
 
     //Convierte un acumulador en la fila que se muestra: con diferencia, %, resultado y causa principal
-    private static function fila($a, $motivos)
+    private static function fila($acumulado, $motivos)
     {
-        $dif = $a['eje'] - $a['prom'];                                               //positivo: se ejecutó más de lo prometido
+        $diferencia = $acumulado['eje'] - $acumulado['prom'];                                               //positivo: se ejecutó más de lo prometido
         $aus = array(); $total = 0; $mayor = 0; $causa = null;
-        foreach ($motivos as $m) {
-            $n = isset($a['aus'][$m['id']]) ? (int)$a['aus'][$m['id']] : 0;
-            $aus[] = $n;
-            if (!$m['cuenta']) { continue; }                                         //un motivo marcado como "no es ausencia" se muestra, pero no suma
-            $total += $n;
-            if ($n > $mayor) { $mayor = $n; $causa = $m['nombre']; }                 //el motivo que más pesa
+        foreach ($motivos as $motivo) {
+            $personas = isset($acumulado['aus'][$motivo['id']]) ? (int)$acumulado['aus'][$motivo['id']] : 0;
+            $aus[] = $personas;
+            if (!$motivo['cuenta']) { continue; }                                         //un motivo marcado como "no es ausencia" se muestra, pero no suma
+            $total += $personas;
+            if ($personas > $mayor) { $mayor = $personas; $causa = $motivo['nombre']; }                 //el motivo que más pesa
         }
-        $sem = array();
-        for ($s = 0; $s < 5; $s++) { $sem[] = $a['semEje'][$s] - $a['semProm'][$s]; }
+        $difSemanas = array();
+        for ($semana = 0; $semana < 5; $semana++) { $difSemanas[] = $acumulado['semEje'][$semana] - $acumulado['semProm'][$semana]; }
         return array(
-            'prom' => $a['prom'], 'eje' => $a['eje'], 'dif' => $dif,
-            'pct' => $a['prom'] > 0 ? round(100 * $a['eje'] / $a['prom'], 1) : null,
-            'res' => ($a['prom'] === 0 && $a['eje'] === 0) ? 'SIN_DATOS' : ($dif > 0 ? 'MAS' : ($dif < 0 ? 'MENOS' : 'IGUAL')),
+            'prom' => $acumulado['prom'], 'eje' => $acumulado['eje'], 'dif' => $diferencia,
+            'pct' => $acumulado['prom'] > 0 ? round(100 * $acumulado['eje'] / $acumulado['prom'], 1) : null,
+            'res' => ($acumulado['prom'] === 0 && $acumulado['eje'] === 0) ? 'SIN_DATOS' : ($diferencia > 0 ? 'MAS' : ($diferencia < 0 ? 'MENOS' : 'IGUAL')),
             'aus' => $aus, 'ausTotal' => $total, 'causa' => $causa,
-            'sem' => $sem, 'ausSem' => $a['ausSem'], 'diasReg' => $a['diasReg'], 'diasEsp' => $a['diasEsp']
+            'sem' => $difSemanas, 'ausSem' => $acumulado['ausSem'], 'diasReg' => $acumulado['diasReg'], 'diasEsp' => $acumulado['diasEsp']
         );
     }
 
@@ -383,112 +383,112 @@ class PromesaValor
         //Hasta qué día se cuenta: si el mes va en curso, hasta hoy; si ya pasó, completo; si no ha llegado, nada
         $corte = $hoy < $inicioMes ? 0 : ($hoy >= $finMes ? $diasMes : (int)substr($hoy, 8, 2));
         //Los días pedidos, ajustados a los que tiene el mes: se suma de $desde a antes de $hasta
-        $d1 = max(1, min($diasMes, (int)$diaDesde));
-        $d2 = max($d1, min($diasMes, (int)$diaHasta));
-        $desde = sprintf('%04d-%02d-%02d', $anio, $mes, $d1);
-        $hasta = date('Y-m-d', strtotime(sprintf('%04d-%02d-%02d', $anio, $mes, $d2) . ' +1 day'));
+        $primerDia = max(1, min($diasMes, (int)$diaDesde));
+        $ultimoDia = max($primerDia, min($diasMes, (int)$diaHasta));
+        $desde = sprintf('%04d-%02d-%02d', $anio, $mes, $primerDia);
+        $hasta = date('Y-m-d', strtotime(sprintf('%04d-%02d-%02d', $anio, $mes, $ultimoDia) . ' +1 day'));
         //Las semanas que tocan esos días (con todo el mes, todas las que tiene el mes)
         $semanasRango = array();
-        for ($s = 0; $s < 5; $s++) {
-            $ini = $s * 7 + 1; $fin = $s === 4 ? $diasMes : $ini + 6;
-            if ($ini <= $diasMes && $ini <= $d2 && $fin >= $d1) { $semanasRango[] = $s; }
+        for ($semana = 0; $semana < 5; $semana++) {
+            $ini = $semana * 7 + 1; $fin = $semana === 4 ? $diasMes : $ini + 6;
+            if ($ini <= $diasMes && $ini <= $ultimoDia && $fin >= $primerDia) { $semanasRango[] = $semana; }
         }
 
-        $A = new Ausentismo();
+        $modeloAusentismo = new Ausentismo();
         $motivos = array();                                                          //las columnas de ausencias, en el orden del catálogo
-        foreach ($A->novedadesDelMes($anio, $mes) as $n) { $motivos[] = array('id' => (int)$n['ID_NOVEDAD_AUS'], 'nombre' => $n['NOMBRE'], 'cuenta' => (int)$n['CUENTA_AUSENCIA'] === 1); }
-        $cuentaMotivo = array(); foreach ($motivos as $m) { $cuentaMotivo[$m['id']] = $m['cuenta']; }
-        $todosCargos = $A->cargos();
+        foreach ($modeloAusentismo->novedadesDelMes($anio, $mes) as $novedad) { $motivos[] = array('id' => (int)$novedad['ID_NOVEDAD_AUS'], 'nombre' => $novedad['NOMBRE'], 'cuenta' => (int)$novedad['CUENTA_AUSENCIA'] === 1); }
+        $cuentaMotivo = array(); foreach ($motivos as $motivo) { $cuentaMotivo[$motivo['id']] = $motivo['cuenta']; }
+        $todosCargos = $modeloAusentismo->cargos();
         $filtro = array_map('intval', (array)$soloCargos);
-        $cargos = count($filtro) ? array_values(array_filter($todosCargos, function ($k) use ($filtro) { return in_array((int)$k['ID_CARGO_AUS'], $filtro, true); }))
+        $cargos = count($filtro) ? array_values(array_filter($todosCargos, function ($cargo) use ($filtro) { return in_array((int)$cargo['ID_CARGO_AUS'], $filtro, true); }))
                                  : $todosCargos;
-        $mira = array(); foreach ($cargos as $k) { $mira[(int)$k['ID_CARGO_AUS']] = true; }   //los cargos que entran en las cuentas
+        $cargosIncluidos = array(); foreach ($cargos as $cargo) { $cargosIncluidos[(int)$cargo['ID_CARGO_AUS']] = true; }   //los cargos que entran en las cuentas
 
-        $idsProy = array_map(function ($p) { return (int)$p['ID_PROYECTO']; }, $proyectos);
-        $vacio = array('periodo' => array('anio' => (int)$anio, 'mes' => (int)$mes, 'diasMes' => $diasMes, 'corte' => $corte, 'desde' => $d1, 'hasta' => $d2),
+        $idsProy = array_map(function ($proyecto) { return (int)$proyecto['ID_PROYECTO']; }, $proyectos);
+        $vacio = array('periodo' => array('anio' => (int)$anio, 'mes' => (int)$mes, 'diasMes' => $diasMes, 'corte' => $corte, 'desde' => $primerDia, 'hasta' => $ultimoDia),
                        'semanas' => self::$SEMANAS, 'semanasRango' => $semanasRango, 'motivos' => $motivos, 'proyectos' => array(), 'roles' => array(), 'total' => self::fila(self::ceros(), $motivos),
-                       'cargos' => array_map(function ($k) { return array('id' => (int)$k['ID_CARGO_AUS'], 'nombre' => $k['NOMBRE']); }, $todosCargos),
+                       'cargos' => array_map(function ($cargo) { return array('id' => (int)$cargo['ID_CARGO_AUS'], 'nombre' => $cargo['NOMBRE']); }, $todosCargos),
                        'filtroCargos' => $filtro);
         if (!count($idsProy)) { return $vacio; }
 
         //Los centros activos de esos proyectos (las básculas al final, como en el ausentismo)
-        $centros = HanaDB::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, c.ID_PROYECTO_CENTRO_OP AS ID_PROYECTO FROM centros_operacion c
-                               WHERE c.Estado = '1' AND c.ID_PROYECTO_CENTRO_OP IN (" . $this->marcas($idsProy) . ")
+        $centros = HanaDB::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, c.ID_PROYECTO FROM centros_operacion c
+                               WHERE c.ESTADO = '1' AND c.ID_PROYECTO IN (" . $this->marcas($idsProy) . ")
                                ORDER BY c.TIPO_CENTRO = 'BASCULA', c.NOM_CENTRO_OP", str_repeat('i', count($idsProy)), $idsProy);
         $centros = $centros ? $centros : array();
-        if ((int)$soloCentro > 0) { $centros = array_values(array_filter($centros, function ($c) use ($soloCentro) { return (int)$c['ID_CENTRO_OP'] === (int)$soloCentro; })); }
-        $idsCentros = array_map(function ($c) { return (int)$c['ID_CENTRO_OP']; }, $centros);
+        if ((int)$soloCentro > 0) { $centros = array_values(array_filter($centros, function ($centro) use ($soloCentro) { return (int)$centro['ID_CENTRO_OP'] === (int)$soloCentro; })); }
+        $idsCentros = array_map(function ($centro) { return (int)$centro['ID_CENTRO_OP']; }, $centros);
         if (!count($idsCentros)) { return $vacio; }
         $reglas = $this->reglas($idsCentros);
-        $m = $this->marcas($idsCentros);
+        $marcas = $this->marcas($idsCentros);
         $tipos = 'ss' . str_repeat('i', count($idsCentros));
         $params = array_merge(array($desde, $hasta), $idsCentros);
 
         //Lo más fino que se acumula: cada centro con cada cargo
         $acum = array();                                                             //[idCentro][idCargo] = acumulador
         $diasCentro = array();                                                       //[idCentro][dia] = true: ese día tiene ejecutado
-        $eje = HanaDB::q("SELECT ID_CENTRO_OP, ID_CARGO_AUS, DAY(FECHA) AS DIA, CANTIDAD FROM pv_ejecutado
-                           WHERE FECHA >= ? AND FECHA < ? AND ID_CENTRO_OP IN ($m)", $tipos, $params);
-        foreach ((array)$eje as $x) {
-            $ce = (int)$x['ID_CENTRO_OP']; $ca = (int)$x['ID_CARGO_AUS']; $d = (int)$x['DIA']; $s = self::semana($d);
-            if (!isset($mira[$ca])) { continue; }                                    //un cargo que quedó por fuera del filtro
-            if (!isset($acum[$ce][$ca])) { $acum[$ce][$ca] = self::ceros(); }
+        $ejecutados = HanaDB::q("SELECT ID_CENTRO_OP, ID_CARGO_AUS, DAY(FECHA) AS DIA, CANTIDAD FROM pv_ejecutado
+                           WHERE FECHA >= ? AND FECHA < ? AND ID_CENTRO_OP IN ($marcas)", $tipos, $params);
+        foreach ((array)$ejecutados as $fila) {
+            $idCentro = (int)$fila['ID_CENTRO_OP']; $idCargo = (int)$fila['ID_CARGO_AUS']; $dia = (int)$fila['DIA']; $semana = self::semana($dia);
+            if (!isset($cargosIncluidos[$idCargo])) { continue; }                                    //un cargo que quedó por fuera del filtro
+            if (!isset($acum[$idCentro][$idCargo])) { $acum[$idCentro][$idCargo] = self::ceros(); }
             //La promesa de ESE día para ESE cargo (solo cuenta porque el día sí se registró)
-            $p = (int)self::resolver(isset($reglas[$ce][$ca]) ? $reglas[$ce][$ca] : array(), sprintf('%04d-%02d-%02d', $anio, $mes, $d));
-            $acum[$ce][$ca]['prom'] += $p; $acum[$ce][$ca]['semProm'][$s] += $p;
-            $acum[$ce][$ca]['eje'] += (int)$x['CANTIDAD']; $acum[$ce][$ca]['semEje'][$s] += (int)$x['CANTIDAD'];
-            $diasCentro[$ce][$d] = true;
+            $promesaDia = (int)self::resolver(isset($reglas[$idCentro][$idCargo]) ? $reglas[$idCentro][$idCargo] : array(), sprintf('%04d-%02d-%02d', $anio, $mes, $dia));
+            $acum[$idCentro][$idCargo]['prom'] += $promesaDia; $acum[$idCentro][$idCargo]['semProm'][$semana] += $promesaDia;
+            $acum[$idCentro][$idCargo]['eje'] += (int)$fila['CANTIDAD']; $acum[$idCentro][$idCargo]['semEje'][$semana] += (int)$fila['CANTIDAD'];
+            $diasCentro[$idCentro][$dia] = true;
         }
         //El ausentismo de los mismos días: el porqué
-        $aus = HanaDB::q("SELECT ID_CENTRO_OP, ID_CARGO_AUS, ID_NOVEDAD_AUS, DAY(FECHA) AS DIA, CANTIDAD FROM aus_registro
-                           WHERE FECHA >= ? AND FECHA < ? AND ID_CENTRO_OP IN ($m)", $tipos, $params);
-        foreach ((array)$aus as $x) {
-            $ce = (int)$x['ID_CENTRO_OP']; $ca = (int)$x['ID_CARGO_AUS']; $nv = (int)$x['ID_NOVEDAD_AUS'];
-            if (!isset($cuentaMotivo[$nv])) { continue; }                            //un motivo que ya no está activo: no tiene columna
-            if (!isset($mira[$ca])) { continue; }                                    //un cargo que quedó por fuera del filtro
-            if (!isset($acum[$ce][$ca])) { $acum[$ce][$ca] = self::ceros(); }
-            $acum[$ce][$ca]['aus'][$nv] = (isset($acum[$ce][$ca]['aus'][$nv]) ? $acum[$ce][$ca]['aus'][$nv] : 0) + (int)$x['CANTIDAD'];
-            if ($cuentaMotivo[$nv]) { $acum[$ce][$ca]['ausSem'][self::semana((int)$x['DIA'])] += (int)$x['CANTIDAD']; }
+        $ausencias = HanaDB::q("SELECT ID_CENTRO_OP, ID_CARGO_AUS, ID_NOVEDAD_AUS, DAY(FECHA) AS DIA, CANTIDAD FROM aus_registro
+                           WHERE FECHA >= ? AND FECHA < ? AND ID_CENTRO_OP IN ($marcas)", $tipos, $params);
+        foreach ((array)$ausencias as $fila) {
+            $idCentro = (int)$fila['ID_CENTRO_OP']; $idCargo = (int)$fila['ID_CARGO_AUS']; $idNovedad = (int)$fila['ID_NOVEDAD_AUS'];
+            if (!isset($cuentaMotivo[$idNovedad])) { continue; }                            //un motivo que ya no está activo: no tiene columna
+            if (!isset($cargosIncluidos[$idCargo])) { continue; }                                    //un cargo que quedó por fuera del filtro
+            if (!isset($acum[$idCentro][$idCargo])) { $acum[$idCentro][$idCargo] = self::ceros(); }
+            $acum[$idCentro][$idCargo]['aus'][$idNovedad] = (isset($acum[$idCentro][$idCargo]['aus'][$idNovedad]) ? $acum[$idCentro][$idCargo]['aus'][$idNovedad] : 0) + (int)$fila['CANTIDAD'];
+            if ($cuentaMotivo[$idNovedad]) { $acum[$idCentro][$idCargo]['ausSem'][self::semana((int)$fila['DIA'])] += (int)$fila['CANTIDAD']; }
         }
 
         //Se arma de abajo hacia arriba: cargo → peaje → proyecto → total, y aparte por cargo (rol)
         $total = self::ceros(); $porRol = array(); $porProyecto = array();
-        foreach ($proyectos as $p) { $porProyecto[(int)$p['ID_PROYECTO']] = array('id' => (int)$p['ID_PROYECTO'], 'nombre' => $p['NOM_PROYECTO'], 'acum' => self::ceros(), 'centros' => array()); }
-        foreach ($centros as $c) {
-            $ce = (int)$c['ID_CENTRO_OP']; $idP = (int)$c['ID_PROYECTO'];
-            $aCentro = self::ceros(); $filasCargo = array(); $conPromesa = false;
-            foreach ($cargos as $k) {
-                $ca = (int)$k['ID_CARGO_AUS'];
-                $tieneRegla = isset($reglas[$ce][$ca]);
-                if (!isset($acum[$ce][$ca]) && !$tieneRegla) { continue; }           //ese cargo no existe en este peaje
+        foreach ($proyectos as $proyecto) { $porProyecto[(int)$proyecto['ID_PROYECTO']] = array('id' => (int)$proyecto['ID_PROYECTO'], 'nombre' => $proyecto['NOM_PROYECTO'], 'acum' => self::ceros(), 'centros' => array()); }
+        foreach ($centros as $centro) {
+            $idCentro = (int)$centro['ID_CENTRO_OP']; $idProyecto = (int)$centro['ID_PROYECTO'];
+            $acumCentro = self::ceros(); $filasCargo = array(); $conPromesa = false;
+            foreach ($cargos as $cargo) {
+                $idCargo = (int)$cargo['ID_CARGO_AUS'];
+                $tieneRegla = isset($reglas[$idCentro][$idCargo]);
+                if (!isset($acum[$idCentro][$idCargo]) && !$tieneRegla) { continue; }           //ese cargo no existe en este peaje
                 if ($tieneRegla) { $conPromesa = true; }
-                $a = isset($acum[$ce][$ca]) ? $acum[$ce][$ca] : self::ceros();
-                self::sumar($aCentro, $a);
-                if (!isset($porRol[$ca])) { $porRol[$ca] = array('id' => $ca, 'nombre' => $k['NOMBRE'], 'acum' => self::ceros()); }
-                self::sumar($porRol[$ca]['acum'], $a);
-                $filasCargo[] = array('id' => $ca, 'nombre' => $k['NOMBRE'], 'fila' => self::fila($a, $motivos));
+                $acumulado = isset($acum[$idCentro][$idCargo]) ? $acum[$idCentro][$idCargo] : self::ceros();
+                self::sumar($acumCentro, $acumulado);
+                if (!isset($porRol[$idCargo])) { $porRol[$idCargo] = array('id' => $idCargo, 'nombre' => $cargo['NOMBRE'], 'acum' => self::ceros()); }
+                self::sumar($porRol[$idCargo]['acum'], $acumulado);
+                $filasCargo[] = array('id' => $idCargo, 'nombre' => $cargo['NOMBRE'], 'fila' => self::fila($acumulado, $motivos));
             }
             //Días: cuántos se registraron y cuántos se esperaban (los que ya pasaron, dentro de los días pedidos, y tenían promesa)
-            $aCentro['diasReg'] = isset($diasCentro[$ce]) ? count($diasCentro[$ce]) : 0;
+            $acumCentro['diasReg'] = isset($diasCentro[$idCentro]) ? count($diasCentro[$idCentro]) : 0;
             if ($conPromesa) {
-                for ($d = $d1; $d <= min($d2, $corte); $d++) {
-                    $hay = 0; $f = sprintf('%04d-%02d-%02d', $anio, $mes, $d);
-                    foreach ($reglas[$ce] as $idCa => $lista) { if (isset($mira[(int)$idCa])) { $hay += (int)self::resolver($lista, $f); } }
-                    if ($hay > 0) { $aCentro['diasEsp']++; }
+                for ($dia = $primerDia; $dia <= min($ultimoDia, $corte); $dia++) {
+                    $promesaDelDia = 0; $fecha = sprintf('%04d-%02d-%02d', $anio, $mes, $dia);
+                    foreach ($reglas[$idCentro] as $idCargoRegla => $lista) { if (isset($cargosIncluidos[(int)$idCargoRegla])) { $promesaDelDia += (int)self::resolver($lista, $fecha); } }
+                    if ($promesaDelDia > 0) { $acumCentro['diasEsp']++; }
                 }
             }
-            $aCentro['diasEsp'] = max($aCentro['diasEsp'], $aCentro['diasReg']);     //lo registrado nunca supera lo esperado
-            self::sumar($porProyecto[$idP]['acum'], $aCentro);
-            self::sumar($total, $aCentro);
-            $porProyecto[$idP]['centros'][] = array('id' => $ce, 'nombre' => $c['NOM_CENTRO_OP'], 'tipo' => $c['TIPO_CENTRO'],
-                                                    'conPromesa' => $conPromesa, 'fila' => self::fila($aCentro, $motivos), 'cargos' => $filasCargo);
+            $acumCentro['diasEsp'] = max($acumCentro['diasEsp'], $acumCentro['diasReg']);     //lo registrado nunca supera lo esperado
+            self::sumar($porProyecto[$idProyecto]['acum'], $acumCentro);
+            self::sumar($total, $acumCentro);
+            $porProyecto[$idProyecto]['centros'][] = array('id' => $idCentro, 'nombre' => $centro['NOM_CENTRO_OP'], 'tipo' => $centro['TIPO_CENTRO'],
+                                                    'conPromesa' => $conPromesa, 'fila' => self::fila($acumCentro, $motivos), 'cargos' => $filasCargo);
         }
 
         $salida = $vacio;
-        foreach ($porProyecto as $p) { $p['fila'] = self::fila($p['acum'], $motivos); unset($p['acum']); $salida['proyectos'][] = $p; }
-        foreach ($cargos as $k) {                                                    //los cargos en el orden del catálogo
-            $ca = (int)$k['ID_CARGO_AUS'];
-            if (isset($porRol[$ca])) { $salida['roles'][] = array('id' => $ca, 'nombre' => $k['NOMBRE'], 'fila' => self::fila($porRol[$ca]['acum'], $motivos)); }
+        foreach ($porProyecto as $proyecto) { $proyecto['fila'] = self::fila($proyecto['acum'], $motivos); unset($proyecto['acum']); $salida['proyectos'][] = $proyecto; }
+        foreach ($cargos as $cargo) {                                                    //los cargos en el orden del catálogo
+            $idCargo = (int)$cargo['ID_CARGO_AUS'];
+            if (isset($porRol[$idCargo])) { $salida['roles'][] = array('id' => $idCargo, 'nombre' => $cargo['NOMBRE'], 'fila' => self::fila($porRol[$idCargo]['acum'], $motivos)); }
         }
         $salida['total'] = self::fila($total, $motivos);
         return $salida;

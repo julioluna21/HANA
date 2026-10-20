@@ -1,5 +1,5 @@
-//Configuracion comun de todas las pantallas del sistema
-//Necesita jQuery y DataTables, por eso se carga en footer.php despues de ellas
+//Configuración común de todas las pantallas del sistema
+//Necesita jQuery y DataTables, por eso se carga en footer.php después de ellas
 
 (function ($) {
     if (!$) { return; } //sin jQuery no hay nada que configurar
@@ -11,12 +11,12 @@
         $(document).ajaxStop(function () { NProgress.done(); });
     }
 
-    //Tablas: se configuran aqui una sola vez y aplica a todas las pantallas
+    //Tablas: se configuran aquí una sola vez y aplica a todas las pantallas
     if ($.fn.dataTable) {
         $.extend(true, $.fn.dataTable.defaults, {
             processing: true,       //muestra "Cargando..." mientras llegan los datos
             autoWidth: false,       //deja que la tabla se ajuste al ancho de la pantalla
-            //Textos de la tabla en espanol
+            //Textos de la tabla en español
             language: {
                 sProcessing: '<i class="fa fa-spinner fa-spin"></i> Cargando...',
                 sLengthMenu: 'Mostrar _MENU_ registros',
@@ -47,7 +47,7 @@
         if ($.fn.dataTable.Responsive) {
             $.extend(true, $.fn.dataTable.defaults, {
                 responsive: true,
-                //La primera y la ultima columna (nombre y botones) nunca se esconden
+                //La primera y la última columna (nombre y botones) nunca se esconden
                 columnDefs: [
                     { responsivePriority: 1, targets: 0 },
                     { responsivePriority: 2, targets: -1 }

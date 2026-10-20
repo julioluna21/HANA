@@ -6,6 +6,7 @@
 */
 session_start();
 require_once __DIR__ . "/../Modelo/ArqueoModelo.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //las respuestas JSON llevan los textos como se escribieron (sin &amp;)
 require_once __DIR__ . "/../Modelo/HanaFechas.php";
 require_once __DIR__ . "/AccesoHelper.php";
 
@@ -17,7 +18,7 @@ date_default_timezone_set('America/Bogota');
 function arqError($codigo, $mensaje)
 {
     http_response_code($codigo);
-    echo json_encode(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
+    echo hanaJsonTexto(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -30,7 +31,7 @@ if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { arqError(401,
 $esCoordinador = hanaEsCoordinador((int)$_SESSION['Idcolaborador']);
 if (!$esCoordinador && !hanaTienePermiso('5M')) { arqError(403, 'Los arqueos los hace el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.'); }
 
-$idUsuario     = (int)$_SESSION['IdUsuarios'];
+$idUsuario     = (int)$_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $puedeArquear  = $esCoordinador;
 //Autorizar fondos: casilla 36M en Roles. Si quien la tiene es coordinador, solo en los peajes
@@ -45,20 +46,20 @@ if ($puedeFondos && !hanaTienePermiso('24M')) {
 }
 //Los campos del arqueo de casetas los configura quien maneja fondos (5M) o el administrador (24M)
 $puedeCampos   = $puedeFondos || hanaTienePermiso('24M');
-$A             = new Arqueo();
+$modeloArqueo             = new Arqueo();
 $hoy           = date('Y-m-d');
 list($primerEditable, $ultimoEditable) = HanaFechas::ventana(); //solo hoy (los días habilitados van aparte)
 
 //Los centros de los proyectos que coordina, con su id como llave
 $centros = array();
-foreach (hanaCentrosCoordinador($idColaborador) as $c) { $centros[(int)$c['ID_CENTRO_OP']] = $c; }
+foreach (hanaCentrosCoordinador($idColaborador) as $centro) { $centros[(int)$centro['ID_CENTRO_OP']] = $centro; }
 
 //¿Puede ver este arqueo? Solo si es de uno de sus centros
-function arqCargar($A, $centros, $idArqueo)
+function arqCargar($modeloArqueo, $centros, $idArqueo)
 {
-    $a = $A->mostrar($idArqueo);
-    if (!$a || !isset($centros[(int)$a['ID_CENTRO_OP']])) { arqError(404, 'No se encontró el arqueo, o no es de tus centros.'); }
-    return $a;
+    $arqueo = $modeloArqueo->mostrar($idArqueo);
+    if (!$arqueo || !isset($centros[(int)$arqueo['ID_CENTRO_OP']])) { arqError(404, 'No se encontró el arqueo, o no es de tus centros.'); }
+    return $arqueo;
 }
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
@@ -70,14 +71,14 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'campos':
         $idCentro = isset($_GET['centro']) ? (int)$_GET['centro'] : 0;
         if (!isset($centros[$idCentro]) && !$puedeCampos) { arqError(403, 'Ese peaje no es de los tuyos.'); }
-        echo json_encode($A->conceptosCaseta($idCentro), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto($modeloArqueo->conceptosCaseta($idCentro), JSON_UNESCAPED_UNICODE);
         break;
 
     //La configuración: todos los peajes y los campos del elegido (0 = los de todos los peajes)
     case 'camposConfig':
         if (!$puedeCampos) { arqError(403, 'Los campos los configura quien administra los fondos (5M) o los parámetros (24M).'); }
         $idCentro = isset($_GET['centro']) ? (int)$_GET['centro'] : 0;
-        echo json_encode(array('centros' => $A->centrosConFondos(), 'campos' => $A->conceptosConfig($idCentro)), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto(array('centros' => $modeloArqueo->centrosConFondos(), 'campos' => $modeloArqueo->conceptosConfig($idCentro)), JSON_UNESCAPED_UNICODE);
         break;
 
     //Crea o edita un campo de documento (vales, tirillas, etc.) que se pide en el arqueo de un peaje
@@ -90,29 +91,19 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $rol = isset($_POST['rol']) ? $_POST['rol'] : '';
         if (!isset(Arqueo::$ROLES[$rol])) { arqError(400, 'Elige cómo se comporta el campo.'); }
         $estado = isset($_POST['estado']) && $_POST['estado'] === '0' ? 0 : 1;
-        $A->guardarConcepto($idCampo, $idCentro, $nombre, $rol, isset($_POST['orden']) ? (int)$_POST['orden'] : 99, $estado);
-        echo json_encode(array('ok' => true, 'mensaje' => $idCampo ? 'Campo actualizado.' : 'Campo agregado.'), JSON_UNESCAPED_UNICODE);
-        break;
-
-    //Quitar o volver a poner en un peaje un campo que es de todos
-    case 'ocultarCampo':
-        if (!$puedeCampos) { arqError(403, 'No tienes permiso para configurar los campos.'); }
-        $idCentro = isset($_POST['centro']) ? (int)$_POST['centro'] : 0;
-        if ($idCentro <= 0) { arqError(400, 'Elige el peaje.'); }
-        $ocultar = isset($_POST['ocultar']) && $_POST['ocultar'] === '1';
-        $A->ocultarConcepto(isset($_POST['id']) ? (int)$_POST['id'] : 0, $idCentro, $ocultar);
-        echo json_encode(array('ok' => true, 'mensaje' => $ocultar ? 'El campo ya no sale en este peaje.' : 'El campo vuelve a salir en este peaje.'), JSON_UNESCAPED_UNICODE);
+        $modeloArqueo->guardarConcepto($idCampo, $idCentro, $nombre, $rol, isset($_POST['orden']) ? (int)$_POST['orden'] : 99, $estado);
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => $idCampo ? 'Campo actualizado.' : 'Campo agregado.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //Lo que necesita la pantalla al abrir: los peajes de la persona con sus fondos autorizados
     case 'config':
-        $fondos = $A->fondos(array_keys($centros));
+        $fondos = $modeloArqueo->fondos(array_keys($centros));
         $lista = array();
-        foreach ($centros as $id => $c) {
-            $c['FONDOS'] = isset($fondos[$id]) ? $fondos[$id] : new stdClass();
-            $lista[] = $c;
+        foreach ($centros as $id => $centro) {
+            $centro['FONDOS'] = isset($fondos[$id]) ? $fondos[$id] : new stdClass();
+            $lista[] = $centro;
         }
-        echo json_encode(array(
+        echo hanaJsonTexto(array(
             'hoy' => $hoy, 'primerEditable' => $primerEditable, 'ultimoEditable' => $ultimoEditable,
             'habilitados' => HanaFechas::habilitados($idColaborador), //los días que el administrador le abrió
             'tipos' => Arqueo::$TIPOS, 'efectivo' => Arqueo::$EFECTIVO, 'documentos' => Arqueo::$DOCUMENTOS,
@@ -128,16 +119,16 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($anio < 2000 || $anio > 2100 || $mes < 1 || $mes > 12) { arqError(400, 'El periodo no es válido.'); }
         $desde = sprintf('%04d-%02d-01', $anio, $mes);
         $hasta = date('Y-m-d', strtotime("$desde +1 month"));
-        echo json_encode($A->listar(array_keys($centros), $desde, $hasta,
+        echo hanaJsonTexto($modeloArqueo->listar(array_keys($centros), $desde, $hasta,
                                     isset($_GET['centro']) ? (int)$_GET['centro'] : 0,
                                     isset($_GET['tipo']) ? $_GET['tipo'] : ''), JSON_UNESCAPED_UNICODE);
         break;
 
     //Un arqueo con todo su detalle, y si quien lo mira lo puede anular
     case 'mostrar':
-        $a = arqCargar($A, $centros, isset($_GET['id']) ? (int)$_GET['id'] : 0);
-        $a['PUEDE_ANULAR'] = (int)$a['ESTADO'] === 1 && ((int)$a['ID_COLABORADOR_ARQUEA'] === $idColaborador || $puedeAnularOtros);
-        echo json_encode($a, JSON_UNESCAPED_UNICODE);
+        $arqueo = arqCargar($modeloArqueo, $centros, isset($_GET['id']) ? (int)$_GET['id'] : 0);
+        $arqueo['PUEDE_ANULAR'] = (int)$arqueo['ESTADO'] === 1 && ((int)$arqueo['ID_COLABORADOR_ARQUEA'] === $idColaborador || $puedeAnularOtros);
+        echo hanaJsonTexto($arqueo, JSON_UNESCAPED_UNICODE);
         break;
 
     //-----------------------------------------------------------------------
@@ -153,7 +144,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!isset($centros[$idCentro])) { arqError(400, 'Elige uno de los centros de los proyectos que coordinas.'); }
 
         //El arqueo de casetas no tiene fondo fijo: el valor esperado lo trae el propio arqueo
-        $fondo = $tipo === 'CASETA' ? 0 : $A->fondo($idCentro, $tipo);
+        $fondo = $tipo === 'CASETA' ? 0 : $modeloArqueo->fondo($idCentro, $tipo);
         if ($fondo === null) {
             arqError(400, $centros[$idCentro]['NOM_CENTRO_OP'] . ' no tiene fondo de ' . strtolower(Arqueo::$TIPOS[$tipo])
                           . ' autorizado. Pide que lo configuren en "Fondos autorizados".');
@@ -177,22 +168,22 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($tipo === 'CASETA') {
             $caseta = HanaVal::texto(isset($_POST['caseta']) ? $_POST['caseta'] : '', 30);
             if ($caseta === null) { arqError(400, 'Escribe la caseta.'); }
-            $campos = $A->conceptosCaseta($idCentro);
-            if (!count(array_filter($campos, function ($c) { return $c['ROL'] === 'ESPERADO'; }))) {
+            $campos = $modeloArqueo->conceptosCaseta($idCentro);
+            if (!count(array_filter($campos, function ($campo) { return $campo['ROL'] === 'ESPERADO'; }))) {
                 arqError(400, 'Este peaje no tiene un campo de "valor esperado" (el recaudo de la caseta). Pide que lo configuren en "Campos del arqueo de casetas".');
             }
             $valores = isset($_POST['campo']) ? (array)$_POST['campo'] : array();
             $lineas = array(); $esperado = 0; $recaudo = 0;
-            foreach ($campos as $c) {
-                $id = (int)$c['ID_CONCEPTO'];
+            foreach ($campos as $campo) {
+                $id = (int)$campo['ID_CONCEPTO'];
                 $crudo = isset($valores[$id]) ? trim($valores[$id]) : '';
                 $valor = ($crudo === '') ? 0.0 : HanaVal::pesos($crudo);
-                if ($valor === null) { arqError(400, 'El valor de "' . $c['NOMBRE'] . '" no es válido.'); }
-                if ($c['ROL'] === 'ESPERADO') { $esperado += $valor; }
-                elseif ($c['ROL'] === 'SUMA') { $recaudo += $valor; }
-                elseif ($c['ROL'] === 'RESTA') { $recaudo -= $valor; }
-                //El campo va por su ID (con FK); CONCEPTO y NOMBRE guardan cómo era el campo ese día
-                $lineas[] = array('clase' => 'CASETA', 'concepto' => $c['ROL'], 'idConcepto' => $id, 'nombre' => $c['NOMBRE'], 'fecha' => null, 'valor' => $valor, 'obs' => null);
+                if ($valor === null) { arqError(400, 'El valor de "' . $campo['NOMBRE'] . '" no es válido.'); }
+                if ($campo['ROL'] === 'ESPERADO') { $esperado += $valor; }
+                elseif ($campo['ROL'] === 'SUMA') { $recaudo += $valor; }
+                elseif ($campo['ROL'] === 'RESTA') { $recaudo -= $valor; }
+                //El campo va por su ID; NOMBRE y ROL guardan cómo era el campo ese día
+                $lineas[] = array('idConcepto' => $id, 'nombre' => $campo['NOMBRE'], 'rol' => $campo['ROL'], 'fecha' => null, 'valor' => $valor, 'obs' => null);
             }
             if ($esperado <= 0) { arqError(400, 'Escribe el recaudo de la caseta (el valor esperado).'); }
             $diferencia = round($recaudo - $esperado, 2);
@@ -200,25 +191,36 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             if ($diferencia != 0 && $observacion === null) { arqError(400, 'El recaudo no cuadra con la caseta. Explica la novedad en la observación.'); }
 
             HanaDB::iniciar();
-            $id = $A->insertar(array(
+            $id = $modeloArqueo->insertar(array(
                 'tipo' => 'CASETA', 'centro' => $idCentro, 'caseta' => $caseta, 'fecha' => $fecha, 'hora' => $hora, 'horaFin' => $horaFin,
-                'responsable' => $responsable, 'cargo' => 'RECOLECTORA', 'colaborador' => $idColaborador, 'fondo' => $esperado,
-                'efectivo' => $recaudo, 'documentos' => 0, 'total' => $recaudo, 'diferencia' => $diferencia,
+                'responsable' => $responsable, 'cargo' => 'RECOLECTORA', 'colaborador' => $idColaborador,
+                //En casetas no se guarda fondo ni billetes aparte: el valor esperado y lo contado
+                //son líneas del arqueo (los campos), y de ahí se calculan el total y la diferencia
+                'fondo' => null, 'billetes' => null,
                 'observacion' => $observacion, 'ahora' => date('Y-m-d H:i:s')
             ), $lineas);
             if (!$id) { HanaDB::deshacer(); arqError(500, 'No se pudo guardar el arqueo. No quedó nada registrado; intenta de nuevo.'); }
             HanaDB::confirmar();
-            echo json_encode(array('ok' => true, 'id' => $id,
+            echo hanaJsonTexto(array('ok' => true, 'id' => $id,
                 'mensaje' => $diferencia == 0 ? 'Arqueo de caseta registrado. Cuadra con el recaudo.'
                            : 'Arqueo de caseta registrado con un ' . ($diferencia < 0 ? 'faltante' : 'sobrante') . ' de $' . number_format(abs($diferencia), 0, ',', '.') . '.'),
                 JSON_UNESCAPED_UNICODE);
             break;
         }
 
-        //--- Efectivo: un valor por concepto del tipo. Billetes y monedas (EFECTIVO) no se guardan
-        //como línea: solo suman al total de efectivo del arqueo (arqueo.TOTAL_EFECTIVO) ---
+        //Los conceptos fijos de este tipo (arqueo_concepto con CODIGO): cada línea apunta al suyo
+        $fijos = $modeloArqueo->conceptosFijos($tipo);
+        $linea = function ($codigo, $fecha, $valor, $obs) use ($fijos) {
+            if (!isset($fijos[$codigo])) { arqError(500, 'Falta el concepto ' . $codigo . ' en la base (script 30). No se guardó nada.'); }
+            return array('idConcepto' => (int)$fijos[$codigo]['ID_CONCEPTO'], 'nombre' => $fijos[$codigo]['NOMBRE'], 'rol' => $fijos[$codigo]['ROL'],
+                         'fecha' => $fecha, 'valor' => $valor, 'obs' => $obs);
+        };
+
+        //--- Efectivo: un valor por concepto del tipo. Billetes y monedas (EFECTIVO) no son una línea:
+        //van en arqueo.BILLETES_MONEDAS. Los demás conceptos del recambio sí son líneas ---
         $lineas = array();
         $efectivo = 0;
+        $billetes = 0.0;
         $valores = isset($_POST['efectivo']) ? (array)$_POST['efectivo'] : array();
         $obsEf   = isset($_POST['efectivoObs']) ? (array)$_POST['efectivoObs'] : array();
         foreach (Arqueo::$EFECTIVO[$tipo] as $codigo => $nombre) {
@@ -226,36 +228,34 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $valor = ($crudo === '') ? 0.0 : HanaVal::pesos($crudo);
             if ($valor === null) { arqError(400, "El valor de \"$nombre\" no es válido."); }
             $efectivo += $valor;
-            if ($codigo === 'EFECTIVO') { continue; } //va solo en el total
-            $lineas[] = array('clase' => 'EFECTIVO', 'concepto' => $codigo, 'fecha' => null, 'valor' => $valor,
-                              'obs' => HanaVal::texto(isset($obsEf[$codigo]) ? $obsEf[$codigo] : '', 300));
+            if ($codigo === 'EFECTIVO') { $billetes = $valor; continue; } //va en BILLETES_MONEDAS, no como línea
+            $lineas[] = $linea($codigo, null, $valor, HanaVal::texto(isset($obsEf[$codigo]) ? $obsEf[$codigo] : '', 300));
         }
 
         //--- Documentos (solo caja menor): facturas, reintegros, recibos y faltantes ---
         $documentos = 0;
         if ($tipo === 'CAJA_MENOR') {
-            $dF = isset($_POST['docFecha'])    ? (array)$_POST['docFecha']    : array();
-            $dC = isset($_POST['docConcepto']) ? (array)$_POST['docConcepto'] : array();
-            $dV = isset($_POST['docValor'])    ? (array)$_POST['docValor']    : array();
-            $dO = isset($_POST['docObs'])      ? (array)$_POST['docObs']      : array();
+            $docFechas = isset($_POST['docFecha'])    ? (array)$_POST['docFecha']    : array();
+            $docConceptos = isset($_POST['docConcepto']) ? (array)$_POST['docConcepto'] : array();
+            $docValores = isset($_POST['docValor'])    ? (array)$_POST['docValor']    : array();
+            $docObservaciones = isset($_POST['docObs'])      ? (array)$_POST['docObs']      : array();
             //Tope de documentos: más de 26 ya no caben legibles en la hoja del formato
-            $conValor = count(array_filter(array_map('trim', array_map('strval', $dV)), 'strlen'));
+            $conValor = count(array_filter(array_map('trim', array_map('strval', $docValores)), 'strlen'));
             if ($conValor > 26) { arqError(400, 'Un arqueo admite máximo 26 documentos. Si hay más, divídelos en dos arqueos.'); }
-            foreach ($dV as $i => $crudo) {
+            foreach ($docValores as $i => $crudo) {
                 if (trim((string)$crudo) === '') { continue; } //renglón vacío
-                $n = $i + 1;
+                $numeroDoc = $i + 1;
                 $valor = HanaVal::pesos($crudo);
-                if ($valor === null || $valor <= 0) { arqError(400, "El valor del documento $n no es válido."); }
-                $concepto = isset($dC[$i]) ? $dC[$i] : '';
-                if (!isset(Arqueo::$DOCUMENTOS[$concepto])) { arqError(400, "Elige el concepto del documento $n."); }
-                $fDoc = null;
-                if (isset($dF[$i]) && trim($dF[$i]) !== '') {
-                    $fDoc = HanaVal::fecha($dF[$i]);
-                    if ($fDoc === '' || $fDoc > $fecha) { arqError(400, "La fecha del documento $n no es válida o es posterior al arqueo."); }
+                if ($valor === null || $valor <= 0) { arqError(400, "El valor del documento $numeroDoc no es válido."); }
+                $concepto = isset($docConceptos[$i]) ? $docConceptos[$i] : '';
+                if (!isset(Arqueo::$DOCUMENTOS[$concepto])) { arqError(400, "Elige el concepto del documento $numeroDoc."); }
+                $fechaDoc = null;
+                if (isset($docFechas[$i]) && trim($docFechas[$i]) !== '') {
+                    $fechaDoc = HanaVal::fecha($docFechas[$i]);
+                    if ($fechaDoc === '' || $fechaDoc > $fecha) { arqError(400, "La fecha del documento $numeroDoc no es válida o es posterior al arqueo."); }
                 }
                 $documentos += $valor;
-                $lineas[] = array('clase' => 'DOCUMENTO', 'concepto' => $concepto, 'fecha' => $fDoc, 'valor' => $valor,
-                                  'obs' => HanaVal::texto(isset($dO[$i]) ? $dO[$i] : '', 300));
+                $lineas[] = $linea($concepto, $fechaDoc, $valor, HanaVal::texto(isset($docObservaciones[$i]) ? $docObservaciones[$i] : '', 300));
             }
         }
 
@@ -269,16 +269,16 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($total <= 0) { arqError(400, 'El arqueo no tiene ningún valor contado.'); }
 
         HanaDB::iniciar();
-        $id = $A->insertar(array(
+        $id = $modeloArqueo->insertar(array(
             'tipo' => $tipo, 'centro' => $idCentro, 'fecha' => $fecha, 'hora' => $hora, 'horaFin' => $horaFin,
             'responsable' => $responsable, 'cargo' => $cargo, 'colaborador' => $idColaborador, 'fondo' => $fondo,
-            'efectivo' => $efectivo, 'documentos' => $documentos, 'total' => $total, 'diferencia' => $diferencia,
+            'billetes' => $billetes, //el total y la diferencia no se guardan: salen de los billetes y las líneas
             'observacion' => $observacion, 'ahora' => date('Y-m-d H:i:s')
         ), $lineas);
         if (!$id) { HanaDB::deshacer(); arqError(500, 'No se pudo guardar el arqueo. No quedó nada registrado; intenta de nuevo.'); }
         HanaDB::confirmar();
 
-        echo json_encode(array('ok' => true, 'id' => $id,
+        echo hanaJsonTexto(array('ok' => true, 'id' => $id,
             'mensaje' => $diferencia == 0 ? 'Arqueo registrado. El fondo cuadra.'
                        : 'Arqueo registrado con una diferencia de $' . number_format(abs($diferencia), 0, ',', '.')
                          . ($diferencia < 0 ? ' (faltante).' : ' (sobrante).')), JSON_UNESCAPED_UNICODE);
@@ -288,15 +288,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     // Anular (no se borra: queda con el motivo)
     //-----------------------------------------------------------------------
     case 'anular':
-        $a = arqCargar($A, $centros, isset($_POST['id']) ? (int)$_POST['id'] : 0);
-        if ((int)$a['ESTADO'] !== 1) { arqError(400, 'Este arqueo ya estaba anulado.'); }
-        if ((int)$a['ID_COLABORADOR_ARQUEA'] !== $idColaborador && !$puedeAnularOtros) {
+        $arqueo = arqCargar($modeloArqueo, $centros, isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        if ((int)$arqueo['ESTADO'] !== 1) { arqError(400, 'Este arqueo ya estaba anulado.'); }
+        if ((int)$arqueo['ID_COLABORADOR_ARQUEA'] !== $idColaborador && !$puedeAnularOtros) {
             arqError(403, 'Solo quien hizo el arqueo puede anularlo.');
         }
         $motivo = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 300);
         if ($motivo === null) { arqError(400, 'Explica por qué se anula el arqueo.'); }
-        if (!$A->anular($a['ID_ARQUEO'], $motivo)) { arqError(500, 'No se pudo anular. Intenta de nuevo.'); }
-        echo json_encode(array('ok' => true, 'mensaje' => 'Arqueo anulado. Queda en el historial.'), JSON_UNESCAPED_UNICODE);
+        if (!$modeloArqueo->anular($arqueo['ID_ARQUEO'], $motivo)) { arqError(500, 'No se pudo anular. Intenta de nuevo.'); }
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Arqueo anulado. Queda en el historial.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //-----------------------------------------------------------------------
@@ -304,9 +304,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //-----------------------------------------------------------------------
     case 'fondos':
         if (!$puedeFondos) { arqError(403, 'Autorizar fondos necesita el permiso 36M en tu rol.'); }
-        $lista = $A->centrosConFondos();
-        if ($centrosFondo !== null) { $lista = array_values(array_filter($lista, function ($c) use ($centrosFondo) { return in_array((int)$c['ID_CENTRO_OP'], $centrosFondo, true); })); }
-        echo json_encode($lista, JSON_UNESCAPED_UNICODE);
+        $lista = $modeloArqueo->centrosConFondos();
+        if ($centrosFondo !== null) { $lista = array_values(array_filter($lista, function ($centro) use ($centrosFondo) { return in_array((int)$centro['ID_CENTRO_OP'], $centrosFondo, true); })); }
+        echo hanaJsonTexto($lista, JSON_UNESCAPED_UNICODE);
         break;
 
     //Guarda el fondo autorizado de un peaje (necesita el permiso 36M)
@@ -316,18 +316,18 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($centrosFondo !== null && !in_array($idCentro, $centrosFondo, true)) { arqError(403, 'Solo autorizas fondos de los peajes de tu proyecto.'); }
         $existe = Organizacion::centroActivo($idCentro);
         if (!$existe) { arqError(400, 'Ese centro no existe o está inactivo.'); }
-        foreach (array_keys(Arqueo::$TIPOS) as $t) {
-            $crudo = isset($_POST[$t]) ? trim($_POST[$t]) : '';
+        foreach (array_keys(Arqueo::$TIPOS) as $tipoFondo) {
+            $crudo = isset($_POST[$tipoFondo]) ? trim($_POST[$tipoFondo]) : '';
             $valor = null;
             if ($crudo !== '') {
                 $valor = HanaVal::pesos($crudo);
-                if ($valor === null || $valor <= 0) { arqError(400, 'El fondo de ' . strtolower(Arqueo::$TIPOS[$t]) . ' no es válido.'); }
+                if ($valor === null || $valor <= 0) { arqError(400, 'El fondo de ' . strtolower(Arqueo::$TIPOS[$tipoFondo]) . ' no es válido.'); }
             }
-            if (!$A->guardarFondo($idCentro, $t, $valor, $idColaborador, date('Y-m-d H:i:s'))) {
+            if (!$modeloArqueo->guardarFondo($idCentro, $tipoFondo, $valor, $idColaborador, date('Y-m-d H:i:s'))) {
                 arqError(500, 'No se pudo guardar el fondo. Intenta de nuevo.');
             }
         }
-        echo json_encode(array('ok' => true, 'mensaje' => 'Fondos guardados.'), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Fondos guardados.'), JSON_UNESCAPED_UNICODE);
         break;
 
     default:

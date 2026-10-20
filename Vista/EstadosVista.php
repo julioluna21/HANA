@@ -1,5 +1,15 @@
 <?php
 /*
+  Pantalla sin uso: los estados de relevancia se quitaron (script 35). Las
+  prioridades son ALTO, MEDIO y BAJO y sus días se cambian en Parámetros del
+  sistema. Si alguien entra por la dirección, va al inicio. El código de abajo se
+  conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
+/*
   HANA - Estados de prioridad
   ---------------------------------------------------------------------------
   Pantalla de las prioridades de las novedades (alta, media, baja...) y los días para atenderlas.
@@ -15,7 +25,7 @@ if(in_array("8M",$modulosAcceso)){
 include('head.php');    
 
 ?>
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -80,7 +90,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nuevo estado
               </button>
             </SPAN>
@@ -122,7 +132,7 @@ include('head.php');
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/EstadoAjax.js"></script>
+<script type="text/javascript" src="../Ajax/EstadoAjax.js?v=2"></script>
 <?php
 }else{
   echo "<script> 

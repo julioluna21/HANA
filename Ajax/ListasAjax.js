@@ -14,7 +14,7 @@ function previsualizarFirma(input) {
     if (img && input.files && input.files[0]) {
         var reader = new FileReader();
         //Cuando termina de leer la foto, la muestra como vista previa
-        reader.onload = function (e) { img.src = e.target.result; img.style.display = 'block'; };
+        reader.onload = function (evento) { img.src = evento.target.result; img.style.display = 'block'; };
         reader.readAsDataURL(input.files[0]);
     } else if (img) {
         img.src = ''; img.style.display = 'none';
@@ -28,17 +28,17 @@ function marcarFaltante(elemento) {
     if (caja.length) { caja.addClass('campo-faltante'); }
 }
 
-//Limpia los resaltados de una validacion anterior
+//Limpia los resaltados de una validación anterior
 function limpiarFaltantes() {
     $('.campo-faltante').removeClass('campo-faltante');
 }
 
-//Revisa que el Centro Operativo y TODAS las preguntas esten respondidas
+//Revisa que el Centro Operativo y TODAS las preguntas estén respondidas
 //Devuelve true si esta completo, false si falta algo
 function validarFormulario() {
     limpiarFaltantes(); //se parte de cero en cada intento
 
-    var faltantes = []; //aqui se va guardando el nombre de lo que falta
+    var faltantes = []; //aquí se va guardando el nombre de lo que falta
 
     //1) Centro Operativo. Solo se exige cuando el <select> esta visible,
     //porque al consultar un registro ya guardado se muestra #centro1 (solo lectura)
@@ -50,28 +50,28 @@ function validarFormulario() {
         }
     }
 
-    //2) Preguntas. Todas las respuestas se llaman answer_<ID>, asi que primero
+    //2) Preguntas. Todas las respuestas se llaman answer_<ID>, así que primero
     //se juntan los nombres distintos (los radio comparten nombre entre si)
     var nombres = [];
     $("#demo-form2 [name^='answer_']").each(function () {
-        var n = $(this).attr('name');
-        if (nombres.indexOf(n) === -1) { nombres.push(n); }
+        var nombreCampo = $(this).attr('name');
+        if (nombres.indexOf(nombreCampo) === -1) { nombres.push(nombreCampo); }
     });
 
     $.each(nombres, function (i, nombre) {
         var campos = $("#demo-form2 [name='" + nombre + "']"); //puede ser 1 campo o varios radios
         var primero = campos.first();
-        //Se usa la misma funcion que alimenta la barra de avance, para que
-        //lo que la barra cuenta como respondido sea exactamente lo que la validacion acepta
+        //Se usa la misma función que alimenta la barra de avance, para que
+        //lo que la barra cuenta como respondido sea exactamente lo que la validación acepta
         var respondido = estaRespondida(nombre);
 
         if (!respondido) {
             marcarFaltante(primero);
 
-            //Se toma el numero que aparece en la etiqueta ("No.3 ...") para el aviso
+            //Se toma el número que aparece en la etiqueta ("No.3 ...") para el aviso
             var etiqueta = primero.closest('.form-group').find('label').first().text();
-            var num = etiqueta.match(/No\.\s*(\d+)/); //captura el numero de la pregunta
-            faltantes.push(num ? ("Pregunta No." + num[1]) : "Una pregunta");
+            var numero = etiqueta.match(/No\.\s*(\d+)/); //captura el número de la pregunta
+            faltantes.push(numero ? ("Pregunta No." + numero[1]) : "Una pregunta");
         }
     });
 
@@ -84,7 +84,7 @@ function validarFormulario() {
         $('html, body').animate({ scrollTop: primerFaltante.offset().top - 120 }, 300);
     }
 
-    //Mensaje con el detalle. Se listan maximo 10 para que no quede gigante
+    //Mensaje con el detalle. Se listan máximo 10 para que no quede gigante
     var detalle = faltantes.slice(0, 10).join("\n- ");
     var extra = (faltantes.length > 10) ? ("\n... y " + (faltantes.length - 10) + " m\u00e1s.") : "";
 
@@ -95,11 +95,11 @@ function validarFormulario() {
 }
 
 //Revisa que la lista esté completa y la guarda
-function guardar(e) {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+function guardar(evento) {
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
 
     //Antes de enviar nada se revisa que el formulario este completo.
-    //Si falta algo se corta aqui y NO se guarda ni se deshabilita el boton
+    //Si falta algo se corta aquí y NO se guarda ni se deshabilita el botón
     if (!validarFormulario()) { return; }
 
     hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
@@ -120,9 +120,9 @@ function guardar(e) {
                 alert(mensaje);
             };
             //Si eligió archivos mientras llenaba la lista, se suben ya, colgados de la lista nueva
-            var r = null; try { r = typeof datos === 'string' ? JSON.parse(datos) : datos; } catch (x) { r = null; }
-            if (adjnPendientes.length && r && r.idLista) {
-                adjnSubir(r.idLista, function (msg) { terminar(msg); });
+            var resultado = null; try { resultado = typeof datos === 'string' ? JSON.parse(datos) : datos; } catch (error) { resultado = null; }
+            if (adjnPendientes.length && resultado && resultado.idLista) {
+                adjnSubir(resultado.idLista, function (mensaje) { terminar(mensaje); });
             } else {
                 terminar("Lista guardada con éxito");
             }
@@ -137,7 +137,7 @@ function guardar(e) {
     });
 }
 //Función para editar respuestas
-function guardarEditarRespuesta(e) {
+function guardarEditarRespuesta(evento) {
     idLista = $("#idLista").val();
     hanaBoton("#btnModalGuardar", true);
     var formData = new FormData($("#modal-form2")[0]);
@@ -161,7 +161,7 @@ function guardarEditarRespuesta(e) {
         }
     });
 }
-//muestra preguntas ok
+//Abre el formulario de un tipo de lista con sus preguntas, para llenarla
 function mostrarPreguntas(idGrupo) {
     var nombreColaborador = $("#nombreColaborador").val();
     hanaCargando(true, "Cargando las preguntas..."); //aviso mientras llegan las preguntas
@@ -176,7 +176,7 @@ function mostrarPreguntas(idGrupo) {
         hanaErrorAjax(xhr, "No se pudieron cargar las preguntas de la lista.");
     });
 }
-//muestra respuestas ok
+//Abre una lista ya diligenciada con lo que se respondió, para verla o corregirla
 function mostrarRespuestas(idLista) {
     $("#btnGuardar").hide();
     hanaCargando(true, "Cargando las respuestas..."); //aviso mientras llegan las respuestas
@@ -191,12 +191,12 @@ function mostrarRespuestas(idLista) {
         hanaErrorAjax(xhr, "No se pudieron cargar las respuestas.");
     });
 }
-//GENERA FORM PREGUNTAS ok
+//Arma el formulario con un campo por pregunta, según su tipo de respuesta
 function generateDynamicForm(data) {
     var formContainer = $('#formDinamico');
     formContainer.empty();
     $("#centro1").hide();
-    var idGrupo = data[0].ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO;
+    var idGrupo = data[0].ID_GRUPO_LISTA_CHEQUEO;
     $("#idGrupo").val(idGrupo);
 
     //Encabezado con el nombre de la lista
@@ -213,22 +213,22 @@ function generateDynamicForm(data) {
 
     // Iterar sobre las preguntas y tipos de respuesta
     $.each(data, function (index, question) {
-        var idP = question.ID_DETALLE_GRUPO_LISTA_CHEQUEO;
+        var idProyecto = question.ID_DETALLE_GRUPO_LISTA_CHEQUEO;
         nPregunta = index + 1;
         var questionHtml = '<div class="form-group col-lg-10 col-md-10 col-sm-10 col-xs-10" style="box-shadow: 0 1px 3px 0 rgba(26,26,26,.12);margin-left: 2%; border-radius: 10px; background-color: #fff;">';
-        questionHtml += '<div class="lista-pregunta"><label>No.' + nPregunta + "   " + question.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO + '</label></div>';
+        questionHtml += '<div class="lista-pregunta"><label>No.' + nPregunta + "   " + question.PREGUNTA + '</label></div>';
 
         if (question.TIPO_RESPUESTA === 'si/no') {
             //Botones grandes en vez de los radio pequenos: en campo se responde con el dedo.
-            //El input radio sigue existiendo (lo esconde el CSS), asi el formulario se envia igual
+            //El input radio sigue existiendo (lo esconde el CSS), así el formulario se envía igual
             questionHtml += '<div class="hana-opciones">';
-            questionHtml += '  <label class="hana-opcion hana-opcion-si"><input type="radio" name="answer_' + idP + '" value="1"><span>S\u00ed</span></label>';
-            questionHtml += '  <label class="hana-opcion hana-opcion-no"><input type="radio" name="answer_' + idP + '" value="2"><span>No</span></label>';
-            questionHtml += '  <label class="hana-opcion hana-opcion-na"><input type="radio" name="answer_' + idP + '" value="3"><span>No aplica</span></label>';
+            questionHtml += '  <label class="hana-opcion hana-opcion-si"><input type="radio" name="answer_' + idProyecto + '" value="1"><span>S\u00ed</span></label>';
+            questionHtml += '  <label class="hana-opcion hana-opcion-no"><input type="radio" name="answer_' + idProyecto + '" value="2"><span>No</span></label>';
+            questionHtml += '  <label class="hana-opcion hana-opcion-na"><input type="radio" name="answer_' + idProyecto + '" value="3"><span>No aplica</span></label>';
             questionHtml += '</div>';
             //Los radio con el mismo name se desmarcan solos entre sí: no hace falta más código
         } else if (question.TIPO_RESPUESTA === 'lista') {
-            questionHtml += '<select class="form-control" name="answer_' + idP + '">';
+            questionHtml += '<select class="form-control" name="answer_' + idProyecto + '">';
             questionHtml += '<option value="">Seleccione...</option>';
             questionHtml += '<option value="Bueno">Bueno</option>';
             questionHtml += '<option value="Regular">Regular</option>';
@@ -236,21 +236,21 @@ function generateDynamicForm(data) {
             questionHtml += '<option value="No Aplica">No Aplica</option>';
             questionHtml += '</select>';
         } else if (question.TIPO_RESPUESTA === 'texto') {
-            questionHtml += '<input class="form-control" type="text" name="answer_' + idP + '">';
+            questionHtml += '<input class="form-control" type="text" name="answer_' + idProyecto + '">';
         } else if (question.TIPO_RESPUESTA === 'fecha') {
-            questionHtml += '<input class="form-control" type="date" name="answer_' + idP + '">';
+            questionHtml += '<input class="form-control" type="date" name="answer_' + idProyecto + '">';
         } else if (question.TIPO_RESPUESTA === 'datetime') {
-            questionHtml += '<input class="form-control" type="time" name="answer_' + idP + '">';
+            questionHtml += '<input class="form-control" type="time" name="answer_' + idProyecto + '">';
         } else if (question.TIPO_RESPUESTA === 'firma') {
             //Se firma con el dedo (o con el mouse) sobre la pantalla
-            questionHtml += construirFirma(idP, '');
+            questionHtml += construirFirma(idProyecto, '');
         }
 
         questionHtml += '</div>';
         formContainer.append(questionHtml);
     });
 
-    //Los lienzos de firma se activan cuando ya estan dibujados en la pantalla
+    //Los lienzos de firma se activan cuando ya están dibujados en la pantalla
     activarFirmas();
 
     //Cada vez que se responde algo se actualiza el avance y se guarda el borrador
@@ -290,7 +290,7 @@ function construirFirma(idPregunta, valorInicial) {
 }
 
 //Una foto se reduce a 1200 px de lado mayor y se pasa a JPG, con fondo blanco
-//(las PNG transparentes saldrian negras). Asi pesa poco en la base y se ve en el
+//(las PNG transparentes saldrían negras). Así pesa poco en la base y se ve en el
 //Reporte general y en el correo, que ya aceptan firmas JPG
 function firmaDesdeFoto(archivo, listo) {
     var url = (window.URL || window.webkitURL).createObjectURL(archivo);
@@ -303,16 +303,16 @@ function firmaDesdeFoto(archivo, listo) {
     //La foto se achica a máximo 1200 px antes de subirla, para que no pese tanto
     img.onload = function () {
         (window.URL || window.webkitURL).revokeObjectURL(url);
-        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height, mayor = Math.max(w, h);
-        if (mayor > 1200) { w = Math.round(w * 1200 / mayor); h = Math.round(h * 1200 / mayor); }
-        var c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        var cx = c.getContext('2d');
-        cx.fillStyle = '#ffffff';
-        cx.fillRect(0, 0, w, h);
-        cx.drawImage(img, 0, 0, w, h);
-        var dato = c.toDataURL('image/jpeg', 0.8);
-        if (dato.length > 1500000) { dato = c.toDataURL('image/jpeg', 0.6); } //una foto muy cargada baja de calidad
+        var ancho = img.naturalWidth || img.width, alto = img.naturalHeight || img.height, mayor = Math.max(ancho, alto);
+        if (mayor > 1200) { ancho = Math.round(ancho * 1200 / mayor); alto = Math.round(alto * 1200 / mayor); }
+        var lienzoFoto = document.createElement('canvas');
+        lienzoFoto.width = ancho; lienzoFoto.height = alto;
+        var contexto = lienzoFoto.getContext('2d');
+        contexto.fillStyle = '#ffffff';
+        contexto.fillRect(0, 0, ancho, alto);
+        contexto.drawImage(img, 0, 0, ancho, alto);
+        var dato = lienzoFoto.toDataURL('image/jpeg', 0.8);
+        if (dato.length > 1500000) { dato = lienzoFoto.toDataURL('image/jpeg', 0.6); } //una foto muy cargada baja de calidad
         listo(dato);
     };
     img.src = url;
@@ -348,7 +348,7 @@ function activarFirmas() {
         var hayTrazo = false;
 
         //Pinta lo que haya en el campo (firma o foto) sin deformarlo, centrado en el recuadro.
-        //Si es una foto (JPG) no se dibuja encima: al guardar el lienzo se perderia su tamano real
+        //Si es una foto (JPG) no se dibuja encima: al guardar el lienzo se perdería su tamano real
         function pintarValor() {
             var valor = campo.val();
             ctx.clearRect(0, 0, lienzo.width, lienzo.height);
@@ -363,36 +363,36 @@ function activarFirmas() {
             var img = new Image();
             //Si ya había una firma guardada, se dibuja en el lienzo
             img.onload = function () {
-                var e = Math.min(lienzo.width / img.width, lienzo.height / img.height);
-                var w = img.width * e, h = img.height * e;
-                ctx.drawImage(img, (lienzo.width - w) / 2, (lienzo.height - h) / 2, w, h);
+                var escala = Math.min(lienzo.width / img.width, lienzo.height / img.height);
+                var anchoFirma = img.width * escala, altoFirma = img.height * escala;
+                ctx.drawImage(img, (lienzo.width - anchoFirma) / 2, (lienzo.height - altoFirma) / 2, anchoFirma, altoFirma);
                 pincel();
             };
             img.src = valor;
         }
         pintarValor();
 
-        //Posicion del dedo o del mouse dentro del lienzo
-        function punto(e) {
-            var r = lienzo.getBoundingClientRect();
-            var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
-            return { x: t.clientX - r.left, y: t.clientY - r.top };
+        //Posición del dedo o del mouse dentro del lienzo
+        function punto(evento) {
+            var bordes = lienzo.getBoundingClientRect();
+            var toque = (evento.touches && evento.touches[0]) ? evento.touches[0] : evento;
+            return { x: toque.clientX - bordes.left, y: toque.clientY - bordes.top };
         }
         //Empieza un trazo de la firma (con el mouse o con el dedo)
-        function empezar(e) {
+        function empezar(evento) {
             if (lienzo.dataset.foto === '1') { return; } //sobre una foto no se firma
-            e.preventDefault();
+            evento.preventDefault();
             dibujando = true;
-            var p = punto(e);
+            var posicion = punto(evento);
             ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
+            ctx.moveTo(posicion.x, posicion.y);
         }
         //Sigue el trazo mientras se mueve el dedo o el mouse
-        function mover(e) {
+        function mover(evento) {
             if (!dibujando) { return; }
-            e.preventDefault();
-            var p = punto(e);
-            ctx.lineTo(p.x, p.y);
+            evento.preventDefault();
+            var posicion = punto(evento);
+            ctx.lineTo(posicion.x, posicion.y);
             ctx.stroke();
             hayTrazo = true;
         }
@@ -414,13 +414,13 @@ function activarFirmas() {
         lienzo.addEventListener('touchmove', mover, { passive: false });
         lienzo.addEventListener('touchend', terminar);
 
-        //Boton para volver a empezar (borra la firma o quita la foto)
+        //Botón para volver a empezar (borra la firma o quita la foto)
         borrar.off('click.firma').on('click.firma', function () {
             campo.val('').trigger('change');
             pintarValor();
         });
 
-        //Foto: con la camara o eligiendo una imagen del equipo. Queda en el mismo campo
+        //Foto: con la cámara o eligiendo una imagen del equipo. Queda en el mismo campo
         caja.find('.hana-firma-tomar').off('click.firma').on('click.firma', function () { caja.find('.hana-firma-camara').val('')[0].click(); });
         caja.find('.hana-firma-subir').off('click.firma').on('click.firma', function () { caja.find('.hana-firma-archivo').val('')[0].click(); });
         caja.find('.hana-firma-camara, .hana-firma-archivo').off('change.firma').on('change.firma', function () {
@@ -438,13 +438,13 @@ function activarFirmas() {
     });
 }
 
-//Cuenta cuantas preguntas hay y cuantas estan respondidas
-//Sirve tanto para la barra de avance como para la validacion al guardar
+//Cuenta cuantas preguntas hay y cuantas están respondidas
+//Sirve tanto para la barra de avance como para la validación al guardar
 function contarRespuestas() {
     var nombres = [];
     $("#demo-form2 [name^='answer_']").each(function () {
-        var n = $(this).attr('name');
-        if (nombres.indexOf(n) === -1) { nombres.push(n); }
+        var nombreCampo = $(this).attr('name');
+        if (nombres.indexOf(nombreCampo) === -1) { nombres.push(nombreCampo); }
     });
 
     var hechas = 0;
@@ -461,14 +461,14 @@ function estaRespondida(nombre) {
     if (!primero.length) { return false; }
 
     if (primero.is(':radio')) {
-        //Si/No/No aplica: basta con que alguna opcion este marcada
+        //Si/No/No aplica: basta con que alguna opción este marcada
         return campos.filter(':checked').length > 0;
     }
     if (primero.is(':file')) {
         //Firma cargada como archivo (formato anterior): debe haber un archivo elegido
         return primero[0].files && primero[0].files.length > 0;
     }
-    //Texto, lista, fecha, hora y la firma dibujada: no puede quedar vacio
+    //Texto, lista, fecha, hora y la firma dibujada: no puede quedar vacío
     return $.trim(primero.val() || "") !== "";
 }
 
@@ -477,13 +477,13 @@ function actualizarProgreso() {
     var barra = $('#hanaProgreso');
     if (!barra.length) { return; }
 
-    var c = contarRespuestas();
-    var pct = c.total ? Math.round((c.hechas / c.total) * 100) : 0;
+    var conteo = contarRespuestas();
+    var porcentaje = conteo.total ? Math.round((conteo.hechas / conteo.total) * 100) : 0;
 
-    $('#hanaProgresoRelleno').css('width', pct + '%');
-    $('#hanaProgresoTexto').text(c.hechas + ' de ' + c.total + ' respondidas');
+    $('#hanaProgresoRelleno').css('width', porcentaje + '%');
+    $('#hanaProgresoTexto').text(conteo.hechas + ' de ' + conteo.total + ' respondidas');
 
-    var falta = c.total - c.hechas;
+    var falta = conteo.total - conteo.hechas;
     var aviso = $('#hanaProgresoFalta');
     if (falta > 0) {
         aviso.attr('class', 'hana-progreso-pendiente').text('Faltan ' + falta);
@@ -492,31 +492,27 @@ function actualizarProgreso() {
     }
 }
 //Deja elegido en el select el centro que corresponde
-function selectCentroId(sel) {
-    //console.log("sel: ",sel)
-    /**
-    permite preseleccionar un select2
-    */
+//Deja elegido un peaje en el buscador (select2). Sin uso: ninguna pantalla la llama
+function selectCentroId(seleccion) {
 
     $('#selectCentro').select2({
         ajax: {
             url: '../Control/ListasControl.php'
         }
     });
-    // Fetch the preselected item, and add to the control
-    var studentSelect = $('#selectCentro');
+    //Se trae el peaje y se agrega como opción ya elegida
+    var selectorCentro = $('#selectCentro');
     $.ajax({
         type: 'GET',
-        url: '../Control/ListasControl.php?op=selectCentro&search=' + sel
+        url: '../Control/ListasControl.php?op=selectCentro&search=' + seleccion
     }).then(function (data) {
         data = JSON.parse(data);
-        //console.log(data[0].id)
-        // create the option and append to Select2
+        //La opción nueva, marcada como elegida
         var option = new Option(data[0].text, data[0].id, true, true);
-        studentSelect.append(option).trigger('change');
+        selectorCentro.append(option).trigger('change');
 
-        // manually trigger the `select2:select` event
-        studentSelect.trigger({
+        //Se avisa a select2, como si la persona la hubiera elegido
+        selectorCentro.trigger({
             type: 'select2:select',
             params: {
                 data: data
@@ -525,7 +521,7 @@ function selectCentroId(sel) {
     });
 }
 
-//Genera inputs ok
+//Arma el formulario con las respuestas guardadas, listo para corregir
 function mostrarRespuestasForm(data) {
     $("#listadoRespuestas").hide();
 
@@ -563,7 +559,7 @@ function mostrarRespuestasForm(data) {
     var groupHtml = '<div class="row"><div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" style="margin-left: 3%;"><h3>' + data[0].NOM_GRUPO + '</h3></div></div><div class="col-12" style="margin: 1.2%;width: 95%;height: 3px;background-color: #E3E6EA;"></div>';
     formContainer.append(groupHtml);
 
-    //Barra con el boton para corregir toda la lista de una vez, en vez de
+    //Barra con el botón para corregir toda la lista de una vez, en vez de
     //entrar pregunta por pregunta. Si la lista ya no es de hoy, se explica por que
     if (editable) {
         formContainer.append(
@@ -584,23 +580,23 @@ function mostrarRespuestasForm(data) {
     $.each(data, function (index, question) {
         questionRespuesta = question.RESPUESTA;
         nPregunta = index + 1;
-        var idP = question.ID_PREGUNTA;
+        var idProyecto = question.ID_PREGUNTA;
 
         var questionHtml = '<div class="row">';
         questionHtml += '<div class="form-group col-lg-9 col-md-9 col-sm-9 col-xs-9" style="box-shadow: 0 1px 3px 0 rgba(26,26,26,.12);margin-left: 2%; border-radius: 10px; background-color: #fff;">';
         questionHtml += '<div class="lista-pregunta"><label>No.' + nPregunta + "   " + question.PREGUNTA + '</label></div>';
         //Cada respuesta lleva su propio identificador: es lo que permite guardarlas todas juntas
-        questionHtml += '<input type="hidden" name="resp_' + idP + '" value="' + question.ID_RESPUESTA + '">';
+        questionHtml += '<input type="hidden" name="resp_' + idProyecto + '" value="' + question.ID_RESPUESTA + '">';
 
         if (question.TIPO_RESPUESTA === 'si/no') {
             //Los mismos botones grandes del diligenciamiento. Empiezan bloqueados
             questionHtml += '<div class="hana-opciones">';
-            questionHtml += '  <label class="hana-opcion hana-opcion-si"><input type="radio" name="answer_' + idP + '" value="1"' + (questionRespuesta == 1 ? ' checked' : '') + ' disabled><span>S\u00ed</span></label>';
-            questionHtml += '  <label class="hana-opcion hana-opcion-no"><input type="radio" name="answer_' + idP + '" value="2"' + (questionRespuesta == 2 ? ' checked' : '') + ' disabled><span>No</span></label>';
-            questionHtml += '  <label class="hana-opcion hana-opcion-na"><input type="radio" name="answer_' + idP + '" value="3"' + (questionRespuesta == 3 ? ' checked' : '') + ' disabled><span>No aplica</span></label>';
+            questionHtml += '  <label class="hana-opcion hana-opcion-si"><input type="radio" name="answer_' + idProyecto + '" value="1"' + (questionRespuesta == 1 ? ' checked' : '') + ' disabled><span>S\u00ed</span></label>';
+            questionHtml += '  <label class="hana-opcion hana-opcion-no"><input type="radio" name="answer_' + idProyecto + '" value="2"' + (questionRespuesta == 2 ? ' checked' : '') + ' disabled><span>No</span></label>';
+            questionHtml += '  <label class="hana-opcion hana-opcion-na"><input type="radio" name="answer_' + idProyecto + '" value="3"' + (questionRespuesta == 3 ? ' checked' : '') + ' disabled><span>No aplica</span></label>';
             questionHtml += '</div>';
         } else if (question.TIPO_RESPUESTA === 'lista') {
-            questionHtml += '<select class="form-control" style="margin-bottom: 1%;" name="answer_' + idP + '" disabled>';
+            questionHtml += '<select class="form-control" style="margin-bottom: 1%;" name="answer_' + idProyecto + '" disabled>';
             questionHtml += '<option value="">Seleccione...</option>';
             questionHtml += '<option value="Bueno" ' + (questionRespuesta == 'Bueno' ? 'selected' : '') + '>Bueno</option>';
             questionHtml += '<option value="Regular" ' + (questionRespuesta == 'Regular' ? 'selected' : '') + '>Regular</option>';
@@ -608,21 +604,21 @@ function mostrarRespuestasForm(data) {
             questionHtml += '<option value="No Aplica" ' + (questionRespuesta == 'No Aplica' ? 'selected' : '') + '>No Aplica</option>';
             questionHtml += '</select>';
         } else if (question.TIPO_RESPUESTA === 'texto') {
-            questionHtml += '<input class="form-control" style="margin-bottom: 1%;" type="text" name="answer_' + idP + '" value="' + questionRespuesta + '" readonly>';
+            questionHtml += '<input class="form-control" style="margin-bottom: 1%;" type="text" name="answer_' + idProyecto + '" value="' + questionRespuesta + '" readonly>';
         } else if (question.TIPO_RESPUESTA === 'fecha') {
-            questionHtml += '<input class="form-control" style="margin-bottom: 1%;" type="date" name="answer_' + idP + '" value="' + questionRespuesta + '" readonly>';
+            questionHtml += '<input class="form-control" style="margin-bottom: 1%;" type="date" name="answer_' + idProyecto + '" value="' + questionRespuesta + '" readonly>';
         } else if (question.TIPO_RESPUESTA === 'datetime') {
-            questionHtml += '<input class="form-control" style="margin-bottom: 1%;" type="text" name="answer_' + idP + '" value="' + questionRespuesta + '" readonly>';
+            questionHtml += '<input class="form-control" style="margin-bottom: 1%;" type="text" name="answer_' + idProyecto + '" value="' + questionRespuesta + '" readonly>';
         } else if (question.TIPO_RESPUESTA === 'firma') {
             //Mientras no se edite se ve la firma guardada; al editar aparece el lienzo
             questionHtml += '<div class="firma-guardada"><img src="' + questionRespuesta + '" style="max-width: 200px; max-height: 150px; display:block;" /></div>';
-            questionHtml += '<div class="firma-editable" style="display:none;">' + construirFirma(idP, questionRespuesta) + '</div>';
+            questionHtml += '<div class="firma-editable" style="display:none;">' + construirFirma(idProyecto, questionRespuesta) + '</div>';
         }
         questionHtml += '</div>';
 
-        //Se conserva el boton de corregir una sola respuesta, para quien prefiera ese camino
+        //Se conserva el botón de corregir una sola respuesta, para quien prefiera ese camino
         if (editable) {
-            questionHtml += '<div class="form-group col-lg-2 col-md-2 col-sm-2 col-xs-2" style="margin: 1%;"><SPAN title="Corregir esta respuesta"><button class="btn btn-success btnEditaRespuesta" type="button" style="height: 50px;width: 50px;" data-toggle="modal" data-target="#respuestaModal" data-idpregunta="' + idP + '" data-pregunta="' + question.PREGUNTA + '" data-idlista="' + lista + '" data-respuesta="' + questionRespuesta + '" data-idrespuesta="' + question.ID_RESPUESTA + '" data-tipo="' + question.TIPO_RESPUESTA + '" data-grupo="' + data[0].NOM_GRUPO + '" ><i class="fa fa-pencil"></i></button></SPAN></div>';
+            questionHtml += '<div class="form-group col-lg-2 col-md-2 col-sm-2 col-xs-2" style="margin: 1%;"><SPAN title="Corregir esta respuesta"><button class="btn btn-success btnEditaRespuesta" type="button" style="height: 50px;width: 50px;" data-toggle="modal" data-target="#respuestaModal" data-idpregunta="' + idProyecto + '" data-pregunta="' + question.PREGUNTA + '" data-idlista="' + lista + '" data-respuesta="' + questionRespuesta + '" data-idrespuesta="' + question.ID_RESPUESTA + '" data-tipo="' + question.TIPO_RESPUESTA + '" data-grupo="' + data[0].NOM_GRUPO + '" ><i class="fa fa-pencil"></i></button></SPAN></div>';
         }
         questionHtml += '</div>';
         formContainer.append(questionHtml);
@@ -634,7 +630,7 @@ function mostrarRespuestasForm(data) {
         construirModalRespuesta($(this));
     });
 
-    //Botones de la edicion completa
+    //Botones de la edición completa
     $('#btnEditarTodas').on('click', function () { activarEdicionTotal(true); });
     $('#btnCancelarEdicion').on('click', function () { mostrarRespuestas(lista); }); //recarga tal como esta guardado
     $('#btnGuardarTodasResp').on('click', function () { guardarTodasRespuestas(lista); });
@@ -685,10 +681,10 @@ function activarEdicionTotal(activar) {
     $('.btnEditaRespuesta').toggle(!activar);
 }
 
-//Envia de una sola vez todas las respuestas corregidas
+//Envía de una sola vez todas las respuestas corregidas
 function guardarTodasRespuestas(idLista) {
-    var fd = new FormData();
-    fd.append('idLista', idLista);
+    var formulario = new FormData();
+    formulario.append('idLista', idLista);
 
     var enviadas = 0;
     $('#formDinamico [name^="resp_"]').each(function () {
@@ -696,10 +692,10 @@ function guardarTodasRespuestas(idLista) {
         var valor = valorRespuesta(idPregunta);
         if (valor === null) { return; } //sin responder: no se toca lo que ya estaba
 
-        fd.append('resp_' + idPregunta, $(this).val());   //identificador de esa respuesta
-        fd.append('answer_' + idPregunta, valor);         //el valor nuevo
+        formulario.append('resp_' + idPregunta, $(this).val());   //identificador de esa respuesta
+        formulario.append('answer_' + idPregunta, valor);         //el valor nuevo
         //El servidor exige que venga un idRespuesta; se manda el primero
-        if (enviadas === 0) { fd.append('idRespuesta', $(this).val()); }
+        if (enviadas === 0) { formulario.append('idRespuesta', $(this).val()); }
         enviadas++;
     });
 
@@ -712,14 +708,14 @@ function guardarTodasRespuestas(idLista) {
     if ($('#centro').is(':visible')) {
         var nuevoCentro = $('#selectCentro').val();
         if (!nuevoCentro) { alert('Elige el centro operativo.'); return; }
-        fd.append('idCentro', nuevoCentro);
+        formulario.append('idCentro', nuevoCentro);
     }
 
     hanaBoton('#btnGuardarTodasResp', true);
     $.ajax({
         url: "../Control/ListasControl.php?op=editarUnaRespuesta",
         type: "POST",
-        data: fd,
+        data: formulario,
         contentType: false,
         processData: false,
         success: function () {
@@ -744,8 +740,8 @@ function valorRespuesta(idPregunta) {
         var marcado = campos.filter(':checked');
         return marcado.length ? marcado.val() : null;
     }
-    var v = $.trim(campos.first().val() || '');
-    return v === '' ? null : v;
+    var valor = $.trim(campos.first().val() || '');
+    return valor === '' ? null : valor;
 }
 
 //Arma la ventana para corregir una sola respuesta
@@ -790,7 +786,7 @@ function construirModalRespuesta(boton) {
     } else if (tipo === 'datetime') {
         html += '<input class="form-control" style="margin-bottom: 1%;" type="text" name="answer_' + idPregunta + '" value="' + respuesta + '">';
     } else if (tipo === 'firma') {
-        //Tambien aqui se firma en pantalla, en vez de subir un archivo
+        //También aquí se firma en pantalla, en vez de subir un archivo
         html += construirFirma(idPregunta, respuesta);
     }
     html += '</div></div>';
@@ -808,7 +804,7 @@ function controlarStartTime() {//agrega fecha hora en real time
     if (scriptActivo) {
         //Reloj del formulario: fecha y hora de la lista
         today = new Date();
-        if (diaListaFecha) { var pf = diaListaFecha.split('-'); today.setFullYear(+pf[0], +pf[1] - 1, +pf[2]); } //un día habilitado, con la hora de ahora
+        if (diaListaFecha) { var partesFecha = diaListaFecha.split('-'); today.setFullYear(+partesFecha[0], +partesFecha[1] - 1, +partesFecha[2]); } //un día habilitado, con la hora de ahora
         Y = today.getFullYear();
         M = today.getMonth() + 1;
         M = checkTime(M);
@@ -826,13 +822,14 @@ function controlarStartTime() {//agrega fecha hora en real time
 //Hoy o un día habilitado: cambia el día de la lista nueva y vuelve a revisar si ya
 //existe una lista de ese grupo para ese centro en ese día
 $(document).on('click', '#diaLista [data-fecha]', function () {
-    var f = $(this).attr('data-fecha');
-    diaListaFecha = (f === diasLista.hoy) ? '' : f; //hoy no necesita fecha fija: usa el reloj
-    rdMarcarDia('#diaLista', f);
+    var fecha = $(this).attr('data-fecha');
+    diaListaFecha = (fecha === diasLista.hoy) ? '' : fecha; //hoy no necesita fecha fija: usa el reloj
+    rdMarcarDia('#diaLista', fecha);
     if ($('#selectCentro').val()) { $('#selectCentro').trigger('change'); }
 });
 
-//Anula una lista diligenciada (pregunta antes)
+//Anulaba una lista diligenciada. Sin uso: ninguna pantalla tiene el botón, y el
+//servidor ya no atiende "anular" (responde que no está disponible)
 function anular(idLista) {
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea anular esta lista?", function () {
@@ -845,7 +842,8 @@ function anular(idLista) {
         });
     });
 }
-//Vuelve a activar una lista diligenciada (pregunta antes)
+//Volvía a activar una lista diligenciada. Sin uso: ninguna pantalla tiene el
+//botón, y el servidor no tiene la operación "activar"
 function activar(idLista) {
     //Pregunta con la ventana del sistema; solo si responde Sí se hace el cambio
     hanaConfirmar("¿Desea activar esta lista?", function () {
@@ -863,7 +861,6 @@ function cancelarform() {
     limpiar();
     mostrarform(false);
 
-    //location.reload();
 }
 //Deja el formulario en blanco
 function limpiar() {
@@ -872,7 +869,7 @@ function limpiar() {
     $("#nombre").val("");    
     $('#selectCentro').val('').trigger('change');
 }
-//funcion ok
+//Buscador de colaboradores (select2)
 function selectColaborador() {
     $("#nombreColaborador").select2({
         ajax: {
@@ -887,10 +884,10 @@ function selectColaborador() {
             },
             processResults: function (data) {
                 return {
-                    results: $.map(data, function (obj) {
+                    results: $.map(data, function (opcion) {
                         return {
-                            id: obj.id,
-                            text: obj.text
+                            id: opcion.id,
+                            text: opcion.text
                         };
                     })
                 };
@@ -902,7 +899,7 @@ function selectColaborador() {
         allowClear: true
     });
 }
-//funcion ok
+//Buscador de peajes: solo los asignados a la persona (select2)
 function selectCentro() {
     $("#selectCentro").select2({
         ajax: {
@@ -917,10 +914,10 @@ function selectCentro() {
             },
             processResults: function (data) {
                 return {
-                    results: $.map(data, function (obj) {
+                    results: $.map(data, function (opcion) {
                         return {
-                            id: obj.id,
-                            text: obj.text
+                            id: opcion.id,
+                            text: opcion.text
                         };
                     })
                 };
@@ -950,22 +947,21 @@ function preseleccionarCentroUnico() {
         }
     });
 }
-//funcion ok
+//Muestra el formulario (true) o vuelve al listado (false)
 function mostrarform(flag) {
     //limpia el formulario
     if (flag) {
-        // $('#myModal').modal('show');
         $("#demo-form2").show();
 
         scriptActivo = true;
         adjnPreparar(); //lista nueva: se pueden elegir archivos mientras se llena
         //Lista nueva: es de hoy; solo si el administrador habilitó otro día se puede escoger
         diaListaFecha = '';
-        $.getJSON('../Control/ListasControl.php?op=dias', function (d) {
-            diasLista = d;
-            rdBotonesDia('#diaLista', d.hoy, d.habilitados, 'btn-sm');
-            rdMarcarDia('#diaLista', d.hoy);
-            $('#diaLista').toggle(d.habilitados.length > 0); //sin días habilitados no hay nada que escoger
+        $.getJSON('../Control/ListasControl.php?op=dias', function (respuesta) {
+            diasLista = respuesta;
+            rdBotonesDia('#diaLista', respuesta.hoy, respuesta.habilitados, 'btn-sm');
+            rdMarcarDia('#diaLista', respuesta.hoy);
+            $('#diaLista').toggle(respuesta.habilitados.length > 0); //sin días habilitados no hay nada que escoger
         });
         controlarStartTime();
         //selectColaborador();
@@ -983,7 +979,7 @@ function mostrarform(flag) {
 
     }
 }
-//Función Listar grupos ok
+//Tabla de tipos de lista que se pueden llenar
 function listar() {
     tabla = $('#tbllistado').dataTable(//Carga variable con datos datatable
         {
@@ -993,17 +989,14 @@ function listar() {
         buttons: [
                         
                     ],
-            "ajax"://metodo ajax
+            "ajax"://método ajax
             {
-                url: '../Control/ListasControl.php?op=listar',//pagina que realiza la operación
-                type: "get",//tipo de envio de datos
+                url: '../Control/ListasControl.php?op=listar',//página que realiza la operación
+                type: "get",//tipo de envío de datos
                 dataType: "json",//tipo de datos
-                error: function (e) {//si error muestra mensaje
-                    console.log(e.responseText);
-                }/*,
-                complete: function(data){
-                  console.log(data)
-                }*/
+                error: function (xhr) { //si falla, se muestra el motivo
+                    console.log(xhr.responseText);
+                }
             },
             "bDestroy": true,
             "iDisplayLength": 10,//Paginación
@@ -1011,7 +1004,7 @@ function listar() {
         }).DataTable();
 
 }
-//Función ok
+//Tabla de las preguntas de un tipo de lista
 function listarPreguntas(idGrupoPreguntas) {
     var idGrupoPreguntas = { 'idGrupoPreguntas': idGrupoPreguntas };
     tabla = $('#tblPreguntas').dataTable(//Carga variable con datos datatable
@@ -1022,14 +1015,14 @@ function listarPreguntas(idGrupoPreguntas) {
         buttons: [
                         
                     ],
-            "ajax"://metodo ajax
+            "ajax"://método ajax
             {
-                url: '../Control/PreguntasListasControl.php?op=listar',//pagina que realiza la operación
-                type: "post",//tipo de envio de datos
+                url: '../Control/PreguntasListasControl.php?op=listar',//página que realiza la operación
+                type: "post",//tipo de envío de datos
                 data: idGrupoPreguntas,
                 dataType: "json",//tipo de datos
-                error: function (e) {//si error muestra mensaje
-                    console.log(e.responseText);
+                error: function (xhr) { //si falla, se muestra el motivo
+                    console.log(xhr.responseText);
                 }
             },
             "bDestroy": true,
@@ -1038,7 +1031,7 @@ function listarPreguntas(idGrupoPreguntas) {
         }).DataTable();
 
 }
-//Función ok
+//Tabla de listas diligenciadas de un tipo, con su avance
 function listarRespuestas(idGrupo) {
 
     $("#listadoregistros").hide();
@@ -1052,14 +1045,14 @@ function listarRespuestas(idGrupo) {
         buttons: [
                         
                     ],
-            "ajax"://metodo ajax
+            "ajax"://método ajax
             {
-                url: '../Control/ListasControl.php?op=listarPorCentro',//listarRespuestas',//pagina que realiza la operación
-                type: "post",//tipo de envio de datos
+                url: '../Control/ListasControl.php?op=listarPorCentro',//listarRespuestas',//página que realiza la operación
+                type: "post",//tipo de envío de datos
                 data: idGrupo,
                 dataType: "json",//tipo de datos
-                error: function (e) {//si error muestra mensaje
-                    console.log(e.responseText);
+                error: function (xhr) { //si falla, se muestra el motivo
+                    console.log(xhr.responseText);
                 }
             },
             "bDestroy": true,
@@ -1068,20 +1061,20 @@ function listarRespuestas(idGrupo) {
         }).DataTable();
 
 }
-//Llena el selector de posicion con las preguntas del grupo
+//Llena el selector de posición con las preguntas del grupo
 var _dragOrdenEl = null;
 //Carga las preguntas de la lista para elegir en qué posición va la nueva y para reordenarlas
 function cargarPosiciones(idGrupo) {
-    var sel = $("#posicion-pregunta");
-    sel.html('<option value="final">Al final</option>');
+    var selectorPosicion = $("#posicion-pregunta");
+    selectorPosicion.html('<option value="final">Al final</option>');
     var lista = $("#listaOrden"); lista.empty();
     window.grupoReorden = idGrupo;
     if (!idGrupo) return;
     $.post("../Control/PreguntasListasControl.php?op=posiciones", { idGrupoPreguntas: idGrupo }, function (datos) {
-        var arr; try { arr = JSON.parse(datos); } catch (e) { return; }
-        $.each(arr, function (i, q) {
-            sel.append('<option value="' + q.id + '">Despues de: ' + q.pregunta + '</option>');
-            lista.append('<li class="list-group-item orden-item" draggable="true" data-id="' + q.id + '" style="cursor:move;"><i class="fa fa-bars" style="margin-right:8px;color:#999;"></i>' + q.pregunta + '</li>');
+        var preguntas; try { preguntas = JSON.parse(datos); } catch (error) { return; }
+        $.each(preguntas, function (i, pregunta) {
+            selectorPosicion.append('<option value="' + pregunta.id + '">Despues de: ' + pregunta.pregunta + '</option>');
+            lista.append('<li class="list-group-item orden-item" draggable="true" data-id="' + pregunta.id + '" style="cursor:move;"><i class="fa fa-bars" style="margin-right:8px;color:#999;"></i>' + pregunta.pregunta + '</li>');
         });
         initDragOrden();
     });
@@ -1092,20 +1085,20 @@ function initDragOrden() {
     var lista = document.getElementById('listaOrden');
     if (!lista || lista.getAttribute('data-dnd') === '1') return;
     lista.setAttribute('data-dnd', '1');
-    lista.addEventListener('dragstart', function (e) {
-        var it = e.target.closest ? e.target.closest('.orden-item') : null;
-        if (it) { _dragOrdenEl = it; setTimeout(function(){ it.style.opacity = '0.4'; }, 0); }
+    lista.addEventListener('dragstart', function (evento) {
+        var fila = evento.target.closest ? evento.target.closest('.orden-item') : null;
+        if (fila) { _dragOrdenEl = fila; setTimeout(function(){ fila.style.opacity = '0.4'; }, 0); }
     });
     lista.addEventListener('dragend', function () { if (_dragOrdenEl) _dragOrdenEl.style.opacity = ''; });
-    lista.addEventListener('dragover', function (e) {
-        e.preventDefault();
-        var target = e.target.closest ? e.target.closest('.orden-item') : null;
+    lista.addEventListener('dragover', function (evento) {
+        evento.preventDefault();
+        var target = evento.target.closest ? evento.target.closest('.orden-item') : null;
         if (!target || target === _dragOrdenEl) return;
         var rect = target.getBoundingClientRect();
-        var after = (e.clientY - rect.top) > rect.height / 2;
+        var after = (evento.clientY - rect.top) > rect.height / 2;
         lista.insertBefore(_dragOrdenEl, after ? target.nextSibling : target);
     });
-    lista.addEventListener('drop', function (e) { e.preventDefault(); guardarOrden(); });
+    lista.addEventListener('drop', function (evento) { evento.preventDefault(); guardarOrden(); });
 }
 
 //Persiste el nuevo orden de las preguntas del grupo
@@ -1114,12 +1107,12 @@ function guardarOrden() {
     $("#listaOrden .orden-item").each(function () { ids.push($(this).attr("data-id")); });
     if (!ids.length) return;
     $.post("../Control/PreguntasListasControl.php?op=reordenar", { idGrupoPreguntas: window.grupoReorden, orden: ids }, function () {
-        if (typeof tabla !== 'undefined' && tabla) { try { tabla.ajax.reload(null, false); } catch (e) {} }
+        if (typeof tabla !== 'undefined' && tabla) { try { tabla.ajax.reload(null, false); } catch (error) {} }
     });
 }
 
 //Revisa y agrega una pregunta a la lista
-function agregarPregunta(e) {
+function agregarPregunta(evento) {
     //Validaciones antes de enviar: si falta algo se avisa aquí, sin ir al servidor
     if ($.trim($("#pregunta").val()) === "") { alert("Escribe el texto de la pregunta."); return; }
     if ($("#tipo-respuesta").val() === "")   { alert("Selecciona el tipo de respuesta."); return; }
@@ -1154,23 +1147,23 @@ function agregarPregunta(e) {
 //Lo que se hace al abrir la pantalla
 function init() {
     mostrarform(false)
-    listar();//lista OK
-    //al oprimir el boton del formulario
-    $("#demo-form2").on("submit", function (e)//e = variable que contiene el objeto
+    listar(); //la tabla de tipos de lista
+    //al oprimir el botón del formulario
+    $("#demo-form2").on("submit", function (evento) //evento: el envío del formulario
     {
-        guardar(e);//guarda o edita el registro
+        guardar(evento);//guarda o edita el registro
     });
-    //al oprimir el boton del formulario
-    $("#btnModalGuardar").on("click", function (e)//e = variable que contiene el objeto
+    //al oprimir el botón del formulario
+    $("#btnModalGuardar").on("click", function (evento) //evento: el clic en el botón
     {
-        guardarEditarRespuesta(e);//guarda la respuesta corregida
+        guardarEditarRespuesta(evento);//guarda la respuesta corregida
     });
     // Agrega un evento al botón "Agregar pregunta".
-    $("#btn-agregar-pregunta").on("click", function (e) {
-        agregarPregunta(e);
+    $("#btn-agregar-pregunta").on("click", function (evento) {
+        agregarPregunta(evento);
     });
     // Agrega un evento al botón "Agregar pregunta".
-    $("#btnAtras").on("click", function (e) {
+    $("#btnAtras").on("click", function (evento) {
         $(location).attr('href', '../Vista/ListasVista.php');
     });
     // Agrega un evento al botón "Agregar pregunta" NO SE USA.
@@ -1190,11 +1183,9 @@ function init() {
         cargarPosiciones(miVariable);
     });
     $("#tblRespuestas").on("mouseover", ".imagen-avance", function () {
-        //console.log("hover")
         $(this).css("transform", "scale(1.5)");
     });
     $("#tblRespuestas").on("mouseout", ".imagen-avance", function () {
-        //console.log("hoverout")
         $(this).css("transform", "scale(1)");
     });
 
@@ -1209,8 +1200,8 @@ function init() {
         var selectCentro = $(this).val();
         var idGrupo = $("#idGrupo").val();
         var date = new Date();
-        if (diaListaFecha) { var pf = diaListaFecha.split('-'); date.setFullYear(+pf[0], +pf[1] - 1, +pf[2]); } //el día elegido
-        //Fecha local, no UTC: toISOString() adelantaba el dia despues de las 7 p.m.
+        if (diaListaFecha) { var partesFecha = diaListaFecha.split('-'); date.setFullYear(+partesFecha[0], +partesFecha[1] - 1, +partesFecha[2]); } //el día elegido
+        //Fecha local, no UTC: toISOString() adelantaba el día después de las 7 p.m.
         var fechaEncuesta = date.getFullYear() + '-' +
                             ('0' + (date.getMonth() + 1)).slice(-2) + '-' +
                             ('0' + date.getDate()).slice(-2);
@@ -1219,9 +1210,6 @@ function init() {
             if (data) {
                 alert("Ya tienes una lista creada para la estación y fecha seleccionada.\n Puedes verla y editarla en la opción 'Mostrar Respuestas'");
                 mostrarform(false);
-                //$("#selectCentro").attr("readonly", true)
-                //$("#demo-form2").hide();
-                //listarRespuestas(idGrupo);
 
             }
         });
@@ -1230,11 +1218,11 @@ function init() {
 init();
 
 //=================================================================
-//  Borrador automatico
+//  Borrador automático
 //  En campo la señal se cae, la sesión vence o se cierra el navegador
 //  por error. Para no perder lo respondido, se guarda en el mismo teléfono
 //  mientras se diligencia y, al volver a abrir la lista, se ofrece recuperarlo.
-//  No viaja a ningun lado: se queda en el dispositivo.
+//  No viaja a ningún lado: se queda en el dispositivo.
 //=================================================================
 
 var borradorGrupo = null;   //lista que se esta diligenciando
@@ -1261,18 +1249,18 @@ function guardarBorrador() {
             if (campo.is(':radio')) {
                 if (campo.is(':checked')) { datos.respuestas[nombre] = campo.val(); }
             } else if (!campo.is(':file')) {
-                //Los archivos no se pueden guardar asi; la firma dibujada si, porque es texto
-                var v = campo.val();
-                if (v) { datos.respuestas[nombre] = v; }
+                //Los archivos no se pueden guardar así; la firma dibujada si, porque es texto
+                var valor = campo.val();
+                if (valor) { datos.respuestas[nombre] = valor; }
             }
         });
 
         try {
             localStorage.setItem(borradorClave(borradorGrupo), JSON.stringify(datos));
-        } catch (e) {
+        } catch (error) {
             //Si el navegador no deja guardar (modo privado o sin espacio) se sigue
             //trabajando normal: el borrador es una ayuda, no un requisito
-            console.log('No se pudo guardar el borrador:', e);
+            console.log('No se pudo guardar el borrador:', error);
         }
     }, 400);
 }
@@ -1282,13 +1270,13 @@ function restaurarBorrador(idGrupo) {
     borradorGrupo = idGrupo;
 
     var guardado = null;
-    try { guardado = localStorage.getItem(borradorClave(idGrupo)); } catch (e) { return; }
+    try { guardado = localStorage.getItem(borradorClave(idGrupo)); } catch (error) { return; }
     if (!guardado) { return; }
 
     var datos;
-    try { datos = JSON.parse(guardado); } catch (e) { limpiarBorrador(); return; }
+    try { datos = JSON.parse(guardado); } catch (error) { limpiarBorrador(); return; }
 
-    //Un borrador de hace mas de dos dias ya no sirve: se descarta solo
+    //Un borrador de hace mas de dos días ya no sirve: se descarta solo
     if (!datos.fecha || (new Date().getTime() - datos.fecha) > 172800000) {
         limpiarBorrador();
         return;
@@ -1328,7 +1316,7 @@ function aplicarBorrador(datos) {
         }
     });
 
-    //El centro de operacion tambien se recupera, si sigue disponible
+    //El centro de operación también se recupera, si sigue disponible
     if (datos.centro) {
         var centro = $("#selectCentro");
         if (centro.find('option[value="' + datos.centro + '"]').length) {
@@ -1344,10 +1332,10 @@ function aplicarBorrador(datos) {
     alert('Se recuperaron tus respuestas. Rev\u00edsalas antes de enviar la lista.');
 }
 
-//Borra el borrador. Se llama al enviar la lista con exito o al descartarlo
+//Borra el borrador. Se llama al enviar la lista con éxito o al descartarlo
 function limpiarBorrador() {
     if (!borradorGrupo) { return; }
-    try { localStorage.removeItem(borradorClave(borradorGrupo)); } catch (e) {}
+    try { localStorage.removeItem(borradorClave(borradorGrupo)); } catch (error) {}
 }
 
 //===========================================================================
@@ -1371,7 +1359,7 @@ function adjnPreparar() {
           '<div class="adjn-zona" id="adjnZona">' +
             '<i class="fa fa-cloud-upload"></i> Arrastra aquí fotos o documentos, o ' +
             '<button type="button" class="btn btn-default btn-sm" id="adjnElegir"><i class="fa fa-plus"></i> Adjuntar archivos</button>' +
-            '<input type="file" id="adjnInput" multiple hidden accept="' + ADJN_TIPOS.map(function (e) { return '.' + e; }).join(',') + '">' +
+            '<input type="file" id="adjnInput" multiple hidden accept="' + ADJN_TIPOS.map(function (extension) { return '.' + extension; }).join(',') + '">' +
           '</div>' +
           '<div class="adjn-chips" id="adjnChips"></div>' +
           '<p class="adj-vacio" id="adjnAyuda">Se suben al guardar la lista. Fotos, PDF, Word o Excel; máximo ' + (window.HANA_ADJ_MAX_MB || 10) + ' MB cada uno.</p>' +
@@ -1380,18 +1368,18 @@ function adjnPreparar() {
 }
 
 //Tamaño de un archivo en KB o MB, para mostrarlo
-function adjnTam(b) { return b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB'; }
+function adjnTam(bytes) { return bytes < 1024 * 1024 ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : (bytes / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB'; }
 
 //Agrega los archivos elegidos a la lista de pendientes, revisando tipo y tamaño
 function adjnAgregar(lista) {
     var max = (window.HANA_ADJ_MAX_MB || 10) * 1024 * 1024, avisos = [];
-    Array.prototype.forEach.call(lista || [], function (f) {
-        var ext = (f.name.split('.').pop() || '').toLowerCase();
-        if (ADJN_TIPOS.indexOf(ext) < 0) { avisos.push(f.name + ': ese tipo de archivo no se permite.'); return; }
-        if (f.size > max) { avisos.push(f.name + ': pasa de ' + (window.HANA_ADJ_MAX_MB || 10) + ' MB.'); return; }
+    Array.prototype.forEach.call(lista || [], function (archivo) {
+        var ext = (archivo.name.split('.').pop() || '').toLowerCase();
+        if (ADJN_TIPOS.indexOf(ext) < 0) { avisos.push(archivo.name + ': ese tipo de archivo no se permite.'); return; }
+        if (archivo.size > max) { avisos.push(archivo.name + ': pasa de ' + (window.HANA_ADJ_MAX_MB || 10) + ' MB.'); return; }
         //el mismo archivo dos veces no se repite
-        if (adjnPendientes.some(function (x) { return x.name === f.name && x.size === f.size; })) { return; }
-        adjnPendientes.push(f);
+        if (adjnPendientes.some(function (pendiente) { return pendiente.name === archivo.name && pendiente.size === archivo.size; })) { return; }
+        adjnPendientes.push(archivo);
     });
     adjnPintar(avisos);
 }
@@ -1400,32 +1388,32 @@ function adjnAgregar(lista) {
 var adjnMinis = [];
 //Pinta los archivos pendientes con su miniatura y el botón para quitarlos
 function adjnPintar(avisos) {
-    adjnMinis.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+    adjnMinis.forEach(function (urlTemporal) { try { URL.revokeObjectURL(urlTemporal); } catch (error) {} });
     adjnMinis = [];
-    var h = adjnPendientes.map(function (f, i) {
-        var esImg = /^image\//.test(f.type), esPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+    var html = adjnPendientes.map(function (archivo, i) {
+        var esImg = /^image\//.test(archivo.type), esPdf = archivo.type === 'application/pdf' || /\.pdf$/i.test(archivo.name);
         var mini = '';
-        if (esImg) { var u = URL.createObjectURL(f); adjnMinis.push(u); mini = '<img class="adjn-chip-mini" src="' + u + '" alt="">'; }
+        if (esImg) { var urlMiniatura = URL.createObjectURL(archivo); adjnMinis.push(urlMiniatura); mini = '<img class="adjn-chip-mini" src="' + urlMiniatura + '" alt="">'; }
         //Una foto o un PDF se pueden ver antes de guardar: se toca la etiqueta (menos la ✕)
-        return '<span class="adjn-chip' + (esImg || esPdf ? ' adjn-chip-ver' : '') + '" data-i="' + i + '" title="' + (esImg || esPdf ? 'Ver ' : '') + rdEsc(f.name) + '">' +
+        return '<span class="adjn-chip' + (esImg || esPdf ? ' adjn-chip-ver' : '') + '" data-i="' + i + '" title="' + (esImg || esPdf ? 'Ver ' : '') + rdEsc(archivo.name) + '">' +
                (mini || '<i class="fa ' + (esPdf ? 'fa-file-pdf-o' : 'fa-file-o') + '"></i>') + ' ' +
-               '<span class="adjn-nom">' + rdEsc(f.name) + '</span> <small>' + adjnTam(f.size) + '</small>' +
-               '<button type="button" class="adjn-quitar" data-i="' + i + '" aria-label="Quitar ' + rdEsc(f.name) + '">&times;</button></span>';
+               '<span class="adjn-nom">' + rdEsc(archivo.name) + '</span> <small>' + adjnTam(archivo.size) + '</small>' +
+               '<button type="button" class="adjn-quitar" data-i="' + i + '" aria-label="Quitar ' + rdEsc(archivo.name) + '">&times;</button></span>';
     }).join('');
-    $('#adjnChips').html(h + ((avisos && avisos.length) ? '<div class="adjn-aviso"><i class="fa fa-exclamation-triangle"></i> ' + avisos.map(rdEsc).join('<br>') + '</div>' : ''));
+    $('#adjnChips').html(html + ((avisos && avisos.length) ? '<div class="adjn-aviso"><i class="fa fa-exclamation-triangle"></i> ' + avisos.map(rdEsc).join('<br>') + '</div>' : ''));
 }
 
 //Sube los archivos elegidos, colgados de la lista recién guardada (Archivos de la lista)
 function adjnSubir(idLista, alTerminar) {
-    var fd = new FormData();
-    fd.append('modulo', 'LISTA'); fd.append('id', idLista);
-    adjnPendientes.forEach(function (f) { fd.append('archivos[]', f, f.name); });
-    var n = adjnPendientes.length;
-    $.ajax({ url: '../Control/AdjuntoControl.php?op=subir', type: 'POST', data: fd, contentType: false, processData: false, dataType: 'json' })
-        .done(function (r) {
-            var msg = 'Lista guardada con éxito. ' + (r && r.mensaje ? r.mensaje : n + ' archivo(s) adjunto(s).');
-            if (r && r.avisos && r.avisos.length) { msg += '\n\nNo se adjuntaron:\n' + r.avisos.join('\n'); }
-            adjnPendientes = []; alTerminar(msg);
+    var formulario = new FormData();
+    formulario.append('modulo', 'LISTA'); formulario.append('id', idLista);
+    adjnPendientes.forEach(function (archivo) { formulario.append('archivos[]', archivo, archivo.name); });
+    var cantidad = adjnPendientes.length;
+    $.ajax({ url: '../Control/AdjuntoControl.php?op=subir', type: 'POST', data: formulario, contentType: false, processData: false, dataType: 'json' })
+        .done(function (respuesta) {
+            var mensaje = 'Lista guardada con éxito. ' + (respuesta && respuesta.mensaje ? respuesta.mensaje : cantidad + ' archivo(s) adjunto(s).');
+            if (respuesta && respuesta.avisos && respuesta.avisos.length) { mensaje += '\n\nNo se adjuntaron:\n' + respuesta.avisos.join('\n'); }
+            adjnPendientes = []; alTerminar(mensaje);
         })
         .fail(function (xhr) {
             adjnPendientes = [];
@@ -1435,11 +1423,11 @@ function adjnSubir(idLista, alTerminar) {
 
 $(document).on('click', '#adjnElegir', function () { $('#adjnInput').trigger('click'); });
 $(document).on('change', '#adjnInput', function () { adjnAgregar(this.files); this.value = ''; });
-$(document).on('click', '.adjn-quitar', function (e) { e.stopPropagation(); adjnPendientes.splice(+$(this).data('i'), 1); adjnPintar(); });
+$(document).on('click', '.adjn-quitar', function (evento) { evento.stopPropagation(); adjnPendientes.splice(+$(this).data('i'), 1); adjnPintar(); });
 $(document).on('click', '.adjn-chip-ver', function () {
-    var f = adjnPendientes[+$(this).data('i')];
-    if (f && window.hanaVerArchivoLocal) { window.hanaVerArchivoLocal(f); }
+    var archivo = adjnPendientes[+$(this).data('i')];
+    if (archivo && window.hanaVerArchivoLocal) { window.hanaVerArchivoLocal(archivo); }
 });
-$(document).on('dragover dragenter', '#adjnZona', function (e) { e.preventDefault(); $(this).addClass('arrastrando'); });
-$(document).on('dragleave drop', '#adjnZona', function (e) { e.preventDefault(); $(this).removeClass('arrastrando'); });
-$(document).on('drop', '#adjnZona', function (e) { adjnAgregar(e.originalEvent.dataTransfer.files); });
+$(document).on('dragover dragenter', '#adjnZona', function (evento) { evento.preventDefault(); $(this).addClass('arrastrando'); });
+$(document).on('dragleave drop', '#adjnZona', function (evento) { evento.preventDefault(); $(this).removeClass('arrastrando'); });
+$(document).on('drop', '#adjnZona', function (evento) { adjnAgregar(evento.originalEvent.dataTransfer.files); });

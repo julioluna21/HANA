@@ -1,6 +1,6 @@
 <?php
-//Pantalla de administracion de notificaciones automaticas por correo
-//Permite decidir a quien y cada cuanto se envian los reportes de cada lista de chequeo
+//Pantalla de administración de notificaciones automáticas por correo
+//Permite decidir a quien y cada cuanto se envían los reportes de cada lista de chequeo
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -20,7 +20,7 @@ include('head.php');
     <div class="row">
       <div class="col-md-12 col-xs-12">
 
-        <!-- Formulario de configuracion -->
+        <!-- Formulario de configuración -->
         <div class="x_panel">
           <div class="x_title">
             <h2><i class="fa fa-envelope-o"></i> Notificaciones automáticas</h2>
@@ -34,7 +34,7 @@ include('head.php');
             <br />
             <form class="form-horizontal form-label-left" id="frmNotificaciones" onsubmit="return guardaryeditar(event);">
 
-              <!-- Campo oculto: vacio = alta, con valor = edicion -->
+              <!-- Campo oculto: vacío = alta, con valor = edición -->
               <input type="hidden" id="idNotificacion" name="idNotificacion">
 
               <div class="form-group">
@@ -53,7 +53,7 @@ include('head.php');
                     <option value="diario">Resumen diario — todo lo del día anterior</option>
                     <option value="semanal">Resumen semanal — todo lo de los últimos 7 días</option>
                   </select>
-                  <!-- Aclaracion que cambia segun la opcion elegida -->
+                  <!-- Aclaración que cambia según la opción elegida -->
                   <span class="help-block" id="ayudaFrecuencia"></span>
                 </div>
               </div>
@@ -61,7 +61,7 @@ include('head.php');
               <div class="form-group">
                 <label class="control-label col-md-3 col-sm-3 col-xs-12">Destinatarios <span class="required">*</span></label>
                 <div class="col-md-6 col-sm-6 col-xs-12">
-                  <!-- Campo de texto normal: siempre se puede escribir, no depende de librerias -->
+                  <!-- Campo de texto normal: siempre se puede escribir, no depende de librerías -->
                   <input type="text" id="destinatarios" name="destinatarios" class="form-control"
                          placeholder="correo1@empresa.com, correo2@empresa.com">
                   <span class="help-block">
@@ -96,7 +96,7 @@ include('head.php');
               <div class="form-group">
                 <div class="col-md-6 col-md-offset-3">
                   <button type="submit" class="btn btn-primary" id="btnGuardar"><i class="fa fa-save"></i> Guardar</button>
-                  <!-- Manda un correo de prueba antes de dejarlo automatico -->
+                  <!-- Manda un correo de prueba antes de dejarlo automático -->
                   <button type="button" class="btn btn-info" id="btnProbar" onclick="probarEnvio()"><i class="fa fa-paper-plane"></i> Enviar prueba</button>
                   <button type="button" class="btn btn-default" onclick="limpiar()">Limpiar</button>
                 </div>
@@ -137,11 +137,11 @@ include('head.php');
 <?php
 include('footer.php');
 ?>
-<script type="text/javascript" src="../Ajax/NotificacionesAjax.js?v=2"></script>
+<script type="text/javascript" src="../Ajax/NotificacionesAjax.js?v=3"></script>
 <?php
 } else {
-  //Con sesion pero sin permiso: se devuelve a la pantalla anterior
-  echo "<script> window.history.go(-1) </script>";
+  //Con sesión pero sin permiso: va al inicio (volver atrás dejaba la página en blanco si se abrió desde un enlace)
+  echo "<script> window.location.replace('InicioVista.php'); </script>";
 }
 } else {
   //Sin sesion: al login

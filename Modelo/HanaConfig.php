@@ -37,15 +37,15 @@ class HanaConfig
                                      'Esos días el estado del vehículo se puede dejar registrado por adelantado. Los demás días, solo hoy. Con 0 se apaga.', 'NUMERO', 0, 366, '60'),
         'CRONO_VH_FINDE_ATRAS'  => array('Reglas del reporte diario', 'Días hacia atrás para corregir el vehículo de sábados, domingos y festivos',
                                      'Después de un sábado, domingo o festivo, cuántos días quedan para registrar o corregir el estado del vehículo de ese día (por ejemplo, el lunes se corrige el fin de semana). Con 0 se apaga.', 'NUMERO', 0, 60, '7'),
-        'NOV_AUTO_PRIORIDAD'    => array('Reglas del reporte diario', 'Prioridad de las novedades que abre una lista',
-                                     'Número (ID) de la prioridad en Configuración → Estados de relevancia. De ahí salen también los días para cerrarla.', 'NUMERO', 1, 9999, '2'),
-        'NOV_AUTO_OBSERVADOR'   => array('Reglas del reporte diario', 'Observador de las novedades que abre una lista',
-                                     'Número (ID) del observador en Configuración → Observadores.', 'NUMERO', 1, 9999, '2'),
 
         'VACANTE_DIAS_ANS'      => array('Plazos', 'Acuerdo de servicio de las vacantes (días hábiles)',
                                      'Días hábiles, sin festivos, para cubrir una vacante. Aplica a las vacantes nuevas; las registradas conservan su fecha.', 'NUMERO', 1, 60, '5'),
         'COMUNICACION_DIAS_RESPUESTA' => array('Plazos', 'Plazo para atender una comunicación (días)', null, 'NUMERO', 0, 60, '2'),
         'RQ_DIAS_APROBACION'    => array('Plazos', 'Días para aprobar o rechazar una RQ', 'Después de este plazo la RQ se marca como atrasada.', 'NUMERO', 1, 60, '3'),
+        'NOV_DIAS_ALTO'         => array('Plazos', 'Días para atender una novedad de prioridad ALTO',
+                                     'La fecha límite de una novedad nueva es el día en que se reporta más estos días. Las novedades ya registradas conservan su fecha.', 'NUMERO', 1, 60, '4'),
+        'NOV_DIAS_MEDIO'        => array('Plazos', 'Días para atender una novedad de prioridad MEDIO', null, 'NUMERO', 1, 60, '6'),
+        'NOV_DIAS_BAJO'         => array('Plazos', 'Días para atender una novedad de prioridad BAJO', null, 'NUMERO', 1, 60, '8'),
 
         'AUS_MESES_CORREGIBLES' => array('Ausentismo', 'Meses anteriores que se pueden corregir',
                                      'Además del mes actual, cuántos meses atrás se pueden corregir mientras no estén cerrados.', 'NUMERO', 0, 12, '1'),
@@ -78,8 +78,8 @@ class HanaConfig
         'POWERBI_ACTIVO'        => array('Power BI', 'Power BI puede leer los datos del ausentismo',
                                      'Con un usuario de HANA que tenga el permiso 27M (por ejemplo, uno con el rol LECTOR POWER BI). Si se apaga, Power BI no recibe datos.', 'SI_NO', null, null, '1'),
 
-        'USUARIO_AUTOMATICO'    => array('Usuarios', 'Crear el usuario automáticamente al registrar un colaborador',
-                                     'Usuario = su número de documento; contraseña temporal al azar que se muestra en pantalla (no se envía por correo); rol USUARIO BASE.', 'SI_NO', null, null, '1'),
+        'USUARIO_AUTOMATICO'    => array('Usuarios', 'Poner el usuario automáticamente al registrar a una persona',
+                                     'Al registrarla en Colaboradores queda con su número de documento como usuario y una contraseña temporal al azar, que le llega por correo (si el correo no sale, se muestra en pantalla). Apagado, queda sin usuario y se le pone en Usuarios.', 'SI_NO', null, null, '1'),
     );
 
     private static $valores = null;
@@ -90,15 +90,15 @@ class HanaConfig
         if (self::$valores !== null) { return; }
         self::$valores = array();
         try {
-            $f = HanaDB::q("SELECT CLAVE, VALOR FROM configuracion");
-            //Si la tabla no existe (no se ha corrido el script 03), q() devuelve false:
+            $filas = HanaDB::q("SELECT CLAVE, VALOR FROM configuracion");
+            //Si la tabla de parámetros no existe (base sin actualizar), q() devuelve false:
             //se usan los valores por defecto, sin avisos en pantalla
-            if (is_array($f)) {
-                foreach ($f as $x) { self::$valores[$x['CLAVE']] = $x['VALOR']; }
+            if (is_array($filas)) {
+                foreach ($filas as $fila) { self::$valores[$fila['CLAVE']] = $fila['VALOR']; }
             }
-        } catch (Throwable $e) {
-            //Sin la tabla (no se ha corrido el script 03): valores por defecto
-            error_log('HANA - parámetros no disponibles: ' . $e->getMessage());
+        } catch (Throwable $error) {
+            //Sin la tabla de parámetros: valores por defecto
+            error_log('HANA - parámetros no disponibles: ' . $error->getMessage());
         }
     }
 
@@ -137,9 +137,9 @@ class HanaConfig
     public static function definicion($clave)
     {
         if (!isset(self::PARAMETROS[$clave])) { return null; }
-        $p = self::PARAMETROS[$clave];
-        return array('CLAVE' => $clave, 'GRUPO' => $p[0], 'NOMBRE' => $p[1], 'AYUDA' => $p[2], 'TIPO' => $p[3],
-                     'MINIMO' => $p[4], 'MAXIMO' => $p[5], 'DEFECTO' => $p[6],
+        $parametro = self::PARAMETROS[$clave];
+        return array('CLAVE' => $clave, 'GRUPO' => $parametro[0], 'NOMBRE' => $parametro[1], 'AYUDA' => $parametro[2], 'TIPO' => $parametro[3],
+                     'MINIMO' => $parametro[4], 'MAXIMO' => $parametro[5], 'DEFECTO' => $parametro[6],
                      'ORDEN' => array_search($clave, array_keys(self::PARAMETROS), true) + 1);
     }
 
@@ -149,19 +149,19 @@ class HanaConfig
         $guardados = array();
         foreach ((array)HanaDB::q("SELECT c.CLAVE, c.VALOR, c.ID_COLABORADOR_MODIFICA, c.FEC_MODIFICACION, col.NOM_COLABORADOR AS MODIFICO
                                       FROM configuracion c
-                                      LEFT JOIN colaboradores col ON col.ID_COLABORADOR = c.ID_COLABORADOR_MODIFICA") as $g) {
-            $guardados[$g['CLAVE']] = $g;
+                                      LEFT JOIN colaboradores col ON col.ID_COLABORADOR = c.ID_COLABORADOR_MODIFICA") as $guardado) {
+            $guardados[$guardado['CLAVE']] = $guardado;
         }
         $lista = array();
         foreach (array_keys(self::PARAMETROS) as $clave) {
-            $d = self::definicion($clave);
-            $g = isset($guardados[$clave]) ? $guardados[$clave] : null;
-            $d['VALOR'] = $g ? (string)$g['VALOR'] : $d['DEFECTO'];
-            $d['ID_COLABORADOR_MODIFICA'] = $g ? $g['ID_COLABORADOR_MODIFICA'] : null;
-            $d['FEC_MODIFICACION'] = $g ? $g['FEC_MODIFICACION'] : null;
-            $d['MODIFICO'] = $g ? $g['MODIFICO'] : null;
-            unset($d['DEFECTO']);
-            $lista[] = $d;
+            $definicion = self::definicion($clave);
+            $guardado = isset($guardados[$clave]) ? $guardados[$clave] : null;
+            $definicion['VALOR'] = $guardado ? (string)$guardado['VALOR'] : $definicion['DEFECTO'];
+            $definicion['ID_COLABORADOR_MODIFICA'] = $guardado ? $guardado['ID_COLABORADOR_MODIFICA'] : null;
+            $definicion['FEC_MODIFICACION'] = $guardado ? $guardado['FEC_MODIFICACION'] : null;
+            $definicion['MODIFICO'] = $guardado ? $guardado['MODIFICO'] : null;
+            unset($definicion['DEFECTO']);
+            $lista[] = $definicion;
         }
         return $lista;
     }

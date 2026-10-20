@@ -1,3 +1,5 @@
+//Archivo sin uso: lo cargaba la pantalla anterior de novedades (Vista/novedadesVista2.php).
+//La pantalla vigente usa Ajax/novedadnuevoAjax.js. Se conserva solo como referencia.
 var tabla;//variable global
 //Función que se ejecuta al inicio
 function init()
@@ -5,15 +7,15 @@ function init()
     mostrarcontenedor(true);
     mostrarform(false)
     listar('todo',0,'','');//lista 
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
+//al oprimir el botón del formulario
+    $("#demo-form2").on("submit",function(evento) //evento: el envío del formulario
     {
-            guardar(e);//guarda o edita el articulo
+            guardar(evento); //guarda (nuevo o editado)
     });
     
-    $("#respuesta").on("submit",function(e)//e = variable que contiene el objeto
+    $("#respuesta").on("submit",function(evento) //evento: el envío del formulario
     {
-            respuesta(e);//guarda o edita el articulo
+            respuesta(evento); //guarda la respuesta
     });
     
     $.post("../Control/TituloControl.php?op=select",function(data){
@@ -80,7 +82,7 @@ function mostrarform(flag)
 {
     limpiar()
     if (flag)
-    {//partes de la pagina que se muestran o se ocultan
+    {//partes de la página que se muestran o se ocultan
             $('#formularioregistros').show();
             $('#listadoregistros').hide();
             $("#btnGuardar").prop("disabled",false);
@@ -98,7 +100,7 @@ function mostrarform(flag)
 function mostrarcontenedor(flag)
 {
     if (flag)
-    {//partes de la pagina que se muestran o se ocultan
+    {//partes de la página que se muestran o se ocultan
             $('#tablasform').show();
             $('#novedadeschat').hide();
             mostrarform(false);
@@ -154,13 +156,13 @@ function listar(validador,validador2,fechai,fechaf)
         last: 'Último'
       }},
         
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/NovedadesControl.php?op=listar&validador='+validador+"&validador2="+validador2+"&fechai="+fechai+"&fechaf="+fechaf,//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
+                                    url: '../Control/NovedadesControl.php?op=listar&validador='+validador+"&validador2="+validador2+"&fechai="+fechai+"&fechaf="+fechaf,//página que realiza la operación
+                                    type : "get",//tipo de envío de datos
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -171,9 +173,9 @@ function listar(validador,validador2,fechai,fechaf)
     
 }
 //Función para guardar o editar
-function guardar(e)
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     $("#btnGuardar").prop("disabled",true);
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -197,9 +199,9 @@ function guardar(e)
     limpiar();
 }
 
-function respuesta(e)
+function respuesta(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     
     var estado=$("#estadoNovedad").val();  
     var permisoau=$("#esdaoauditoria").val();      

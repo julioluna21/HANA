@@ -8,39 +8,39 @@ var paginaA = '';
 var filasA = [];
 
 //Pequeñas ayudas para armar HTML: una etiqueta de color y una fila de "no hay datos"
-function tagA(txt, clase) { return '<span class="rd-tag ' + (clase || '') + '">' + txt + '</span>'; }
-function vacioA(n, txt) { return '<tr><td colspan="' + n + '" class="rd-vacio">' + txt + '</td></tr>'; }
+function tagA(texto, clase) { return '<span class="rd-tag ' + (clase || '') + '">' + texto + '</span>'; }
+function vacioA(columnas, texto) { return '<tr><td colspan="' + columnas + '" class="rd-vacio">' + texto + '</td></tr>'; }
 //Arma las <option> de un select a partir de una lista (con una primera opción opcional)
 function opcionesA(lista, valor, texto, primero) {
-    var h = primero !== undefined ? '<option value="0">' + rdEsc(primero) + '</option>' : '';
-    for (var i = 0; i < lista.length; i++) { h += '<option value="' + parseInt(lista[i][valor], 10) + '">' + rdEsc(lista[i][texto]) + '</option>'; }
-    return h;
+    var html = primero !== undefined ? '<option value="0">' + rdEsc(primero) + '</option>' : '';
+    for (var i = 0; i < lista.length; i++) { html += '<option value="' + parseInt(lista[i][valor], 10) + '">' + rdEsc(lista[i][texto]) + '</option>'; }
+    return html;
 }
 //Junta los filtros que tenga la página (mes, año, proyecto...) para mandarlos en la URL
 function filtrosA() {
-    var q = '';
-    ['Mes', 'Anio', 'Proyecto', 'Centro', 'Persona', 'Tipo'].forEach(function (n) {
-        var el = $('#a' + n);
-        if (el.length) { q += '&' + n.toLowerCase() + '=' + encodeURIComponent(el.val() || 0); }
+    var filtros = '';
+    ['Mes', 'Anio', 'Proyecto', 'Centro', 'Persona', 'Tipo'].forEach(function (filtro) {
+        var campo = $('#a' + filtro);
+        if (campo.length) { filtros += '&' + filtro.toLowerCase() + '=' + encodeURIComponent(campo.val() || 0); }
     });
-    return q;
+    return filtros;
 }
 
 $(function () {
     paginaA = $('#admPagina').data('pagina');
     $.getJSON(URL_ADM + '?op=config')
-        .done(function (c) {
-            cfgA = c;
-            rdPeriodo('#aMes', '#aAnio', c.hoy);
+        .done(function (config) {
+            cfgA = config;
+            rdPeriodo('#aMes', '#aAnio', config.hoy);
             //Vacantes y comunicaciones arrancan en "todas las abiertas"
             if ($('#aMes option[value="0"]').length) { $('#aMes').val('0'); $('#aAnio').prop('disabled', true); }
-            $('#aProyecto').html(opcionesA(c.proyectos, 'ID_PROYECTO', 'NOM_PROYECTO', 'Todos los proyectos'));
-            $('#aPersona').html(opcionesA(c.personas, 'ID_COLABORADOR', 'NOM_COLABORADOR',
+            $('#aProyecto').html(opcionesA(config.proyectos, 'ID_PROYECTO', 'NOM_PROYECTO', 'Todos los proyectos'));
+            $('#aPersona').html(opcionesA(config.personas, 'ID_COLABORADOR', 'NOM_COLABORADOR',
                                           paginaA === 'cronograma' ? undefined : 'Todas las personas'));
             if ($('#aTipo').length) {
-                var ht = '<option value="">Todos</option>';
-                $.each(c.tiposArqueo, function (k, v) { ht += '<option value="' + rdEsc(k) + '">' + rdEsc(v) + '</option>'; });
-                $('#aTipo').html(ht);
+                var htmlTipos = '<option value="">Todos</option>';
+                $.each(config.tiposArqueo, function (clave, nombre) { htmlTipos += '<option value="' + rdEsc(clave) + '">' + rdEsc(nombre) + '</option>'; });
+                $('#aTipo').html(htmlTipos);
             }
             llenarCentrosA();
             cargarA();
@@ -60,8 +60,8 @@ $(function () {
 //Los centros del proyecto elegido
 function llenarCentrosA() {
     if (!$('#aCentro').length) { return; }
-    var p = +($('#aProyecto').val() || 0);
-    var lista = cfgA.centros.filter(function (c) { return !p || +c.ID_PROYECTO === p; });
+    var idProyecto = +($('#aProyecto').val() || 0);
+    var lista = cfgA.centros.filter(function (centro) { return !idProyecto || +centro.ID_PROYECTO === idProyecto; });
     $('#aCentro').html(opcionesA(lista, 'ID_CENTRO_OP', 'NOM_CENTRO_OP', 'Todos los centros'));
 }
 
@@ -74,9 +74,9 @@ function cargarA() {
     }
     $('#admResultado').css('opacity', .5);
     $.getJSON(URL_ADM + '?op=' + op + filtrosA())
-        .done(function (d) {
+        .done(function (respuesta) {
             $('#admResultado').css('opacity', 1);
-            ({ hoy: pintarHoyA, arqueos: pintarArqueosA, cronograma: pintarCronoA, vacantes: pintarVacA, comunicaciones: pintarComA })[paginaA](d);
+            ({ hoy: pintarHoyA, arqueos: pintarArqueosA, cronograma: pintarCronoA, vacantes: pintarVacA, comunicaciones: pintarComA })[paginaA](respuesta);
         })
         .fail(function (xhr) { $('#admResultado').css('opacity', 1); hanaErrorAjax(xhr, 'No se pudo consultar.'); });
 }
@@ -84,25 +84,25 @@ function cargarA() {
 //---------------------------------------------------------------------------
 // Hoy en qué estás
 //---------------------------------------------------------------------------
-function pintarHoyA(f) {
-    var h = '', personas = {};
-    for (var i = 0; i < f.length; i++) {
-        var r = f[i], lab = r.SITUACION === 'LABORAL';
-        personas[r.ID_COLABORADOR] = true;
-        var donde = [r.LUGARES, r.LUGAR_OTRO].filter(function (x) { return x; }).join(' · ');
-        h += '<tr><td class="rd-nowrap">' + rdFecha(r.FECHA) + '</td><td>' + rdEsc(r.NOM_COLABORADOR) + '</td>' +
-             '<td>' + tagA(rdEsc(cfgA.situaciones[r.SITUACION] || r.SITUACION), lab ? 'rd-tag-ok' : '') + '</td>' +
-             '<td>' + rdEsc(lab ? donde : '') + (r.OBSERVACION ? '<br><small>' + rdEsc(r.OBSERVACION) + '</small>' : '') + '</td>' +
-             '<td class="rd-nowrap">' + (lab && r.HORA_INGRESO ? rdHora(r.HORA_INGRESO) + ' – ' + (r.HORA_SALIDA ? rdHora(r.HORA_SALIDA) : '…') : '') + '</td>' +
-             '<td><small>' + (lab ? rdRecortar(r.ACTIVIDAD, 90) : '') + '</small></td>' +
-             '<td class="rd-nowrap"><small>' + rdFecha(String(r.FEC_MODIFICACION || r.FEC_REGISTRO).substring(0, 10)) + ' ' +
-                 rdHora(String(r.FEC_MODIFICACION || r.FEC_REGISTRO).substring(11)) + '</small></td>' +
-             '<td><button type="button" class="btn btn-success btn-xs btn-adm-hoy" data-persona="' + parseInt(r.ID_COLABORADOR, 10) +
-                 '" data-fecha="' + rdEsc(r.FECHA) + '"><i class="fa fa-eye"></i> Ver</button></td></tr>';
+function pintarHoyA(filas) {
+    var html = '', personas = {};
+    for (var i = 0; i < filas.length; i++) {
+        var registro = filas[i], esLaboral = registro.SITUACION === 'LABORAL';
+        personas[registro.ID_COLABORADOR] = true;
+        var donde = [registro.LUGARES, registro.LUGAR_OTRO].filter(function (lugar) { return lugar; }).join(' · ');
+        html += '<tr><td class="rd-nowrap">' + rdFecha(registro.FECHA) + '</td><td>' + rdEsc(registro.NOM_COLABORADOR) + '</td>' +
+             '<td>' + tagA(rdEsc(cfgA.situaciones[registro.SITUACION] || registro.SITUACION), esLaboral ? 'rd-tag-ok' : '') + '</td>' +
+             '<td>' + rdEsc(esLaboral ? donde : '') + (registro.OBSERVACION ? '<br><small>' + rdEsc(registro.OBSERVACION) + '</small>' : '') + '</td>' +
+             '<td class="rd-nowrap">' + (esLaboral && registro.HORA_INGRESO ? rdHora(registro.HORA_INGRESO) + ' – ' + (registro.HORA_SALIDA ? rdHora(registro.HORA_SALIDA) : '…') : '') + '</td>' +
+             '<td><small>' + (esLaboral ? rdRecortar(registro.ACTIVIDAD, 90) : '') + '</small></td>' +
+             '<td class="rd-nowrap"><small>' + rdFecha(String(registro.FEC_MODIFICACION || registro.FEC_REGISTRO).substring(0, 10)) + ' ' +
+                 rdHora(String(registro.FEC_MODIFICACION || registro.FEC_REGISTRO).substring(11)) + '</small></td>' +
+             '<td><button type="button" class="btn btn-success btn-xs btn-adm-hoy" data-persona="' + parseInt(registro.ID_COLABORADOR, 10) +
+                 '" data-fecha="' + rdEsc(registro.FECHA) + '"><i class="fa fa-eye"></i> Ver</button></td></tr>';
     }
-    $('#admResumen').html(tagA(f.length + (f.length === 1 ? ' registro' : ' registros'), 'rd-tag-ok') + ' ' +
+    $('#admResumen').html(tagA(filas.length + (filas.length === 1 ? ' registro' : ' registros'), 'rd-tag-ok') + ' ' +
                           tagA(Object.keys(personas).length + (Object.keys(personas).length === 1 ? ' persona' : ' personas')));
-    $('#admFilas').html(h || vacioA(8, 'No hay registros en este mes.'));
+    $('#admFilas').html(html || vacioA(8, 'No hay registros en este mes.'));
 }
 
 //Abre en una ventana el detalle del reporte diario de una persona en una fecha
@@ -110,16 +110,16 @@ function verHoyA(persona, fecha) {
     $('#admModalCuerpo').html('<p class="rd-vacio">Cargando...</p>');
     $('#admModal').modal('show');
     $.getJSON(URL_ADM + '?op=hoyDetalle&persona=' + encodeURIComponent(persona) + '&fecha=' + encodeURIComponent(fecha))
-        .done(function (r) {
-            $('#admModalTitulo').text(r.NOM_COLABORADOR + ' · ' + rdFecha(r.FECHA));
-            var lab = r.SITUACION === 'LABORAL';
-            var h = '<p>' + tagA(rdEsc(cfgA.situaciones[r.SITUACION] || r.SITUACION), lab ? 'rd-tag-ok' : '') +
-                    (lab && r.HORA_INGRESO ? ' ' + rdHora(r.HORA_INGRESO) + ' – ' + (r.HORA_SALIDA ? rdHora(r.HORA_SALIDA) : '…') : '') + '</p>';
-            var donde = (r.LUGARES || []).concat(r.LUGAR_OTRO ? [r.LUGAR_OTRO] : []);
-            if (donde.length) { h += '<p><strong>Dónde:</strong> ' + rdEsc(donde.join(' · ')) + '</p>'; }
-            if (r.ACTIVIDAD) { h += '<p><strong>Qué hizo:</strong><br>' + rdParrafo(r.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
-            if (r.OBSERVACION) { h += '<p><strong>Observación:</strong> ' + rdEsc(r.OBSERVACION) + '</p>'; }
-            $('#admModalCuerpo').html(h);
+        .done(function (respuesta) {
+            $('#admModalTitulo').text(respuesta.NOM_COLABORADOR + ' · ' + rdFecha(respuesta.FECHA));
+            var esLaboral = respuesta.SITUACION === 'LABORAL';
+            var html = '<p>' + tagA(rdEsc(cfgA.situaciones[respuesta.SITUACION] || respuesta.SITUACION), esLaboral ? 'rd-tag-ok' : '') +
+                    (esLaboral && respuesta.HORA_INGRESO ? ' ' + rdHora(respuesta.HORA_INGRESO) + ' – ' + (respuesta.HORA_SALIDA ? rdHora(respuesta.HORA_SALIDA) : '…') : '') + '</p>';
+            var donde = (respuesta.LUGARES || []).concat(respuesta.LUGAR_OTRO ? [respuesta.LUGAR_OTRO] : []);
+            if (donde.length) { html += '<p><strong>Dónde:</strong> ' + rdEsc(donde.join(' · ')) + '</p>'; }
+            if (respuesta.ACTIVIDAD) { html += '<p><strong>Qué hizo:</strong><br>' + rdParrafo(respuesta.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
+            if (respuesta.OBSERVACION) { html += '<p><strong>Observación:</strong> ' + rdEsc(respuesta.OBSERVACION) + '</p>'; }
+            $('#admModalCuerpo').html(html);
         })
         .fail(function (xhr) { $('#admModal').modal('hide'); alert(rdError(xhr, 'No se pudo abrir el registro.')); });
 }
@@ -127,27 +127,27 @@ function verHoyA(persona, fecha) {
 //---------------------------------------------------------------------------
 // Arqueos
 //---------------------------------------------------------------------------
-function difA(d) {
-    d = parseFloat(d) || 0;
-    return d === 0 ? tagA('<i class="fa fa-check"></i> Cuadra', 'rd-tag-ok') : tagA((d < 0 ? 'Faltante ' : 'Sobrante ') + rdPesos(Math.abs(d)), 'rd-tag-mal');
+function difA(diferencia) {
+    diferencia = parseFloat(diferencia) || 0;
+    return diferencia === 0 ? tagA('<i class="fa fa-check"></i> Cuadra', 'rd-tag-ok') : tagA((diferencia < 0 ? 'Faltante ' : 'Sobrante ') + rdPesos(Math.abs(diferencia)), 'rd-tag-mal');
 }
 
 //Pinta la tabla de arqueos con el conteo de cuántos cuadran y cuántos tienen diferencia
-function pintarArqueosA(f) {
-    var h = '', total = 0, cuadran = 0, dif = 0;
-    for (var i = 0; i < f.length; i++) {
-        var a = f[i], vig = parseInt(a.ESTADO, 10) === 1, d = parseFloat(a.DIFERENCIA);
-        if (vig) { total++; if (d === 0) { cuadran++; } else { dif++; } }
-        h += '<tr' + (vig ? '' : ' class="rd-anulado"') + '><td class="rd-nowrap">' + rdFecha(a.FECHA) + ' <small>' + rdHora(a.HORA) + '</small></td>' +
-             '<td>' + rdEsc(cfgA.tiposArqueo[a.TIPO] || a.TIPO) + '</td><td>' + rdEsc(a.NOM_CENTRO_OP) + '</td><td>' + rdEsc(a.NOM_PROYECTO) + '</td>' +
-             '<td>' + rdEsc(a.RESPONSABLE) + '</td><td>' + rdEsc(a.ARQUEA || '') + '</td>' +
-             '<td class="rd-num-col">' + rdPesos(a.TOTAL_ARQUEO) + '</td><td class="rd-num-col">' + rdPesos(a.FONDO_AUTORIZADO) + '</td>' +
-             '<td>' + (vig ? difA(d) : tagA('Anulado')) + '</td>' +
-             '<td class="rd-nowrap"><button type="button" class="btn btn-success btn-xs btn-adm-arq" data-id="' + parseInt(a.ID_ARQUEO, 10) + '"><i class="fa fa-eye"></i> Ver</button> ' +
-             '<a class="btn btn-default btn-xs" target="_blank" rel="noopener" href="ArqueoPdfVista.php?ver=1&id=' + parseInt(a.ID_ARQUEO, 10) + '"><i class="fa fa-file-pdf-o"></i> PDF</a></td></tr>';
+function pintarArqueosA(filas) {
+    var html = '', total = 0, cuadran = 0, diferenciaArqueo = 0;
+    for (var i = 0; i < filas.length; i++) {
+        var arqueo = filas[i], vigente = parseInt(arqueo.ESTADO, 10) === 1, diferencia = parseFloat(arqueo.DIFERENCIA);
+        if (vigente) { total++; if (diferencia === 0) { cuadran++; } else { diferenciaArqueo++; } }
+        html += '<tr' + (vigente ? '' : ' class="rd-anulado"') + '><td class="rd-nowrap">' + rdFecha(arqueo.FECHA) + ' <small>' + rdHora(arqueo.HORA) + '</small></td>' +
+             '<td>' + rdEsc(cfgA.tiposArqueo[arqueo.TIPO] || arqueo.TIPO) + '</td><td>' + rdEsc(arqueo.NOM_CENTRO_OP) + '</td><td>' + rdEsc(arqueo.NOM_PROYECTO) + '</td>' +
+             '<td>' + rdEsc(arqueo.RESPONSABLE) + '</td><td>' + rdEsc(arqueo.ARQUEA || '') + '</td>' +
+             '<td class="rd-num-col">' + rdPesos(arqueo.TOTAL_ARQUEO) + '</td><td class="rd-num-col">' + rdPesos(arqueo.FONDO_AUTORIZADO) + '</td>' +
+             '<td>' + (vigente ? difA(diferencia) : tagA('Anulado')) + '</td>' +
+             '<td class="rd-nowrap"><button type="button" class="btn btn-success btn-xs btn-adm-arq" data-id="' + parseInt(arqueo.ID_ARQUEO, 10) + '"><i class="fa fa-eye"></i> Ver</button> ' +
+             '<a class="btn btn-default btn-xs" target="_blank" rel="noopener" href="ArqueoPdfVista.php?ver=1&id=' + parseInt(arqueo.ID_ARQUEO, 10) + '"><i class="fa fa-file-pdf-o"></i> PDF</a></td></tr>';
     }
-    $('#admResumen').html(tagA(total + ' arqueos') + ' ' + tagA(cuadran + ' cuadran', 'rd-tag-ok') + ' ' + (dif ? tagA(dif + ' con diferencia', 'rd-tag-mal') : ''));
-    $('#admFilas').html(h || vacioA(10, 'No hay arqueos con estos filtros.'));
+    $('#admResumen').html(tagA(total + ' arqueos') + ' ' + tagA(cuadran + ' cuadran', 'rd-tag-ok') + ' ' + (diferenciaArqueo ? tagA(diferenciaArqueo + ' con diferencia', 'rd-tag-mal') : ''));
+    $('#admFilas').html(html || vacioA(10, 'No hay arqueos con estos filtros.'));
 }
 
 //Abre en una ventana el detalle de un arqueo
@@ -155,23 +155,23 @@ function verArqueoA(id) {
     $('#admModalCuerpo').html('<p class="rd-vacio">Cargando...</p>');
     $('#admModal').modal('show');
     $.getJSON(URL_ADM + '?op=arqueo&id=' + encodeURIComponent(id))
-        .done(function (a) {
-            $('#admModalTitulo').text('Arqueo de ' + (cfgA.tiposArqueo[a.TIPO] || a.TIPO).toLowerCase() + ' · ' + a.NOM_CENTRO_OP + ' · ' + rdFecha(a.FECHA));
-            var h = '<p><strong>Responsable:</strong> ' + rdEsc(a.RESPONSABLE) + ' · <strong>Arqueó:</strong> ' + rdEsc(a.ARQUEA || '') + ' · ' +
-                    (parseInt(a.ESTADO, 10) === 1 ? difA(a.DIFERENCIA) : tagA('Anulado: ' + rdEsc(a.MOTIVO_ANULACION || ''))) + '</p>';
-            h += '<table class="table rd-tabla rd-tabla-compacta"><thead><tr><th>Concepto</th><th>Fecha</th><th>Observación</th><th class="rd-num-col">Valor</th></tr></thead><tbody>';
-            for (var i = 0; i < a.LINEAS.length; i++) {
-                var l = a.LINEAS[i];
-                //Casetas: el renglón trae el nombre que tenía el campo ese día
-                var nom = l.NOMBRE || (l.CLASE === 'DOCUMENTO' ? cfgA.documentos[l.CONCEPTO] : (cfgA.efectivo[a.TIPO] || {})[l.CONCEPTO]);
-                h += '<tr><td>' + rdEsc(nom || l.CONCEPTO) + '</td><td>' + rdFecha(l.FECHA) + '</td><td>' + rdEsc(l.OBSERVACION || '') + '</td><td class="rd-num-col">' + rdPesos(l.VALOR) + '</td></tr>';
+        .done(function (arqueo) {
+            $('#admModalTitulo').text('Arqueo de ' + (cfgA.tiposArqueo[arqueo.TIPO] || arqueo.TIPO).toLowerCase() + ' · ' + arqueo.NOM_CENTRO_OP + ' · ' + rdFecha(arqueo.FECHA));
+            var html = '<p><strong>Responsable:</strong> ' + rdEsc(arqueo.RESPONSABLE) + ' · <strong>Arqueó:</strong> ' + rdEsc(arqueo.ARQUEA || '') + ' · ' +
+                    (parseInt(arqueo.ESTADO, 10) === 1 ? difA(arqueo.DIFERENCIA) : tagA('Anulado: ' + rdEsc(arqueo.MOTIVO_ANULACION || ''))) + '</p>';
+            html += '<table class="table rd-tabla rd-tabla-compacta"><thead><tr><th>Concepto</th><th>Fecha</th><th>Observación</th><th class="rd-num-col">Valor</th></tr></thead><tbody>';
+            for (var i = 0; i < arqueo.LINEAS.length; i++) {
+                var linea = arqueo.LINEAS[i];
+                //Cada renglón trae el nombre que tenía el concepto el día del arqueo
+                var nombre = linea.NOMBRE || linea.CODIGO;
+                html += '<tr><td>' + rdEsc(nombre) + '</td><td>' + rdFecha(linea.FECHA) + '</td><td>' + rdEsc(linea.OBSERVACION || '') + '</td><td class="rd-num-col">' + rdPesos(linea.VALOR) + '</td></tr>';
             }
-            h += '</tbody><tfoot><tr><th colspan="3">Total arqueo</th><th class="rd-num-col">' + rdPesos(a.TOTAL_ARQUEO) + '</th></tr>' +
-                 '<tr><th colspan="3">Fondo autorizado</th><th class="rd-num-col">' + rdPesos(a.FONDO_AUTORIZADO) + '</th></tr>' +
-                 '<tr><th colspan="3">Diferencia</th><th class="rd-num-col">' + rdPesos(a.DIFERENCIA) + '</th></tr></tfoot></table>';
-            if (a.OBSERVACION) { h += '<p><strong>Observación:</strong> ' + rdEsc(a.OBSERVACION) + '</p>'; }
-            h += '<div class="rd-acciones"><a class="btn btn-success" target="_blank" rel="noopener" href="ArqueoPdfVista.php?ver=1&id=' + parseInt(a.ID_ARQUEO, 10) + '"><i class="fa fa-file-pdf-o"></i> Ver PDF</a></div>';
-            $('#admModalCuerpo').html(h);
+            html += '</tbody><tfoot><tr><th colspan="3">Total arqueo</th><th class="rd-num-col">' + rdPesos(arqueo.TOTAL_ARQUEO) + '</th></tr>' +
+                 '<tr><th colspan="3">Fondo autorizado</th><th class="rd-num-col">' + rdPesos(arqueo.FONDO_AUTORIZADO) + '</th></tr>' +
+                 '<tr><th colspan="3">Diferencia</th><th class="rd-num-col">' + rdPesos(arqueo.DIFERENCIA) + '</th></tr></tfoot></table>';
+            if (arqueo.OBSERVACION) { html += '<p><strong>Observación:</strong> ' + rdEsc(arqueo.OBSERVACION) + '</p>'; }
+            html += '<div class="rd-acciones"><a class="btn btn-success" target="_blank" rel="noopener" href="ArqueoPdfVista.php?ver=1&id=' + parseInt(arqueo.ID_ARQUEO, 10) + '"><i class="fa fa-file-pdf-o"></i> Ver PDF</a></div>';
+            $('#admModalCuerpo').html(html);
         })
         .fail(function (xhr) { $('#admModal').modal('hide'); alert(rdError(xhr, 'No se pudo abrir el arqueo.')); });
 }
@@ -179,81 +179,81 @@ function verArqueoA(id) {
 //---------------------------------------------------------------------------
 // Cronograma y vehículo de una persona (vista de lista, solo lectura)
 //---------------------------------------------------------------------------
-function pintarCronoA(d) {
+function pintarCronoA(datos) {
     var NOMBRE_DIA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     var EST = { PROGRAMADA: 'Programada', REALIZADA: 'Realizada', NO_REALIZADA: 'No realizada', CANCELADA: 'Cancelada', AUSENCIA: '' };
     var porDia = {};
-    for (var i = 0; i < d.items.length; i++) { (porDia[d.items[i].FECHA] = porDia[d.items[i].FECHA] || []).push(d.items[i]); }
-    var ultimo = rdSumarDias(d.hasta, -1), h = '', hechas = 0, total = 0;
-    for (var f = d.desde; f <= ultimo; f = rdSumarDias(f, 1)) {
-        var its = porDia[f] || [], sit = d.situaciones[f], fecha = rdAFecha(f);
-        var vhs = d.vehiculos.map(function (v) { return v.DIAS[f] ? { placa: v.PLACA, e: v.DIAS[f] } : null; }).filter(function (x) { return x; });
-        var lug = d.lugares && d.lugares[f];
-        if (!its.length && !sit && !vhs.length) { continue; } //solo los días con algo
-        h += '<div class="crono-l-dia' + (f === cfgA.hoy ? ' crono-l-hoy' : '') + '"><div class="crono-l-cab" style="cursor:default;"><strong>' +
-             NOMBRE_DIA[fecha.getDay()] + ' ' + fecha.getDate() + '</strong>' + (f === cfgA.hoy ? ' ' + tagA('Hoy', 'rd-tag-ok') : '') +
-             (sit ? ' ' + tagA(rdEsc(cfgA.situaciones[sit] || sit)) : '');
-        h += '</div>';
+    for (var i = 0; i < datos.items.length; i++) { (porDia[datos.items[i].FECHA] = porDia[datos.items[i].FECHA] || []).push(datos.items[i]); }
+    var ultimo = rdSumarDias(datos.hasta, -1), html = '', hechas = 0, total = 0;
+    for (var dia = datos.desde; dia <= ultimo; dia = rdSumarDias(dia, 1)) {
+        var items = porDia[dia] || [], situacion = datos.situaciones[dia], fecha = rdAFecha(dia);
+        var vehiculos = datos.vehiculos.map(function (vehiculo) { return vehiculo.DIAS[dia] ? { placa: vehiculo.PLACA, e: vehiculo.DIAS[dia] } : null; }).filter(function (conDato) { return conDato; });
+        var lugar = datos.lugares && datos.lugares[dia];
+        if (!items.length && !situacion && !vehiculos.length) { continue; } //solo los días con algo
+        html += '<div class="crono-l-dia' + (dia === cfgA.hoy ? ' crono-l-hoy' : '') + '"><div class="crono-l-cab" style="cursor:default;"><strong>' +
+             NOMBRE_DIA[fecha.getDay()] + ' ' + fecha.getDate() + '</strong>' + (dia === cfgA.hoy ? ' ' + tagA('Hoy', 'rd-tag-ok') : '') +
+             (situacion ? ' ' + tagA(rdEsc(cfgA.situaciones[situacion] || situacion)) : '');
+        html += '</div>';
         //Las dos líneas fijas del día: dónde estuvo y el vehículo (placa y estado)
-        var fijas = (lug ? '<div class="crono-lugar"><i class="fa fa-map-marker"></i> ' + rdEsc(lug) + '</div>' : '');
-        vhs.forEach(function (x) {
-            fijas += '<div class="crono-vhtxt crono-vhtxt-' + rdEsc(x.e.ESTADO_VH) + '"><i class="fa fa-car"></i> <strong>' + rdEsc(x.placa) + '</strong> · ' +
-                     rdEsc(cfgA.estadosVh[x.e.ESTADO_VH]) + (x.e.OBSERVACION ? ' <span class="crono-vh-obs">— ' + rdEsc(x.e.OBSERVACION) + '</span>' : '') + '</div>' +
-                     (x.e.TRANSPORTE ? '<div class="crono-transporte"><i class="fa fa-road"></i> Se transportó en: ' + rdEsc(cfgA.transportes[x.e.TRANSPORTE] || x.e.TRANSPORTE) + '</div>' : '');
+        var fijas = (lugar ? '<div class="crono-lugar"><i class="fa fa-map-marker"></i> ' + rdEsc(lugar) + '</div>' : '');
+        vehiculos.forEach(function (vehiculo) {
+            fijas += '<div class="crono-vhtxt crono-vhtxt-' + rdEsc(vehiculo.e.ESTADO_VH) + '"><i class="fa fa-car"></i> <strong>' + rdEsc(vehiculo.placa) + '</strong> · ' +
+                     rdEsc(cfgA.estadosVh[vehiculo.e.ESTADO_VH]) + (vehiculo.e.OBSERVACION ? ' <span class="crono-vh-obs">— ' + rdEsc(vehiculo.e.OBSERVACION) + '</span>' : '') + '</div>' +
+                     (vehiculo.e.TRANSPORTE ? '<div class="crono-transporte"><i class="fa fa-road"></i> Se transportó en: ' + rdEsc(cfgA.transportes[vehiculo.e.TRANSPORTE] || vehiculo.e.TRANSPORTE) + '</div>' : '');
         });
-        if (fijas) { h += '<div class="crono-l-item crono-l-fijas">' + fijas + '</div>'; }
-        for (var k = 0; k < its.length; k++) {
-            var it = its[k];
-            if (it.ESTADO_REAL !== 'AUSENCIA' && it.ESTADO_REAL !== 'CANCELADA') { total++; if (it.ESTADO_REAL === 'REALIZADA') { hechas++; } }
-            var txt = (cfgA.tiposCrono[it.TIPO] || it.TIPO) + (it.NOM_CENTRO_OP ? ' ' + it.NOM_CENTRO_OP : '') + (it.DESCRIPCION ? ': ' + it.DESCRIPCION : '');
-            h += '<div class="crono-l-item"><span class="crono-item crono-' + it.ESTADO_REAL + '">' + rdEsc(txt) + '</span>' +
-                 (EST[it.ESTADO_REAL] ? ' <small>' + EST[it.ESTADO_REAL] + (parseInt(it.CONFIRMADA_HOY, 10) ? ' (según Hoy en qué estás)' : '') + '</small>' : '') +
-                 (it.OBSERVACION ? '<div class="rd-ayuda">' + rdEsc(it.OBSERVACION) + '</div>' : '') + '</div>';
+        if (fijas) { html += '<div class="crono-l-item crono-l-fijas">' + fijas + '</div>'; }
+        for (var numVisita = 0; numVisita < items.length; numVisita++) {
+            var visita = items[numVisita];
+            if (visita.ESTADO_REAL !== 'AUSENCIA' && visita.ESTADO_REAL !== 'CANCELADA') { total++; if (visita.ESTADO_REAL === 'REALIZADA') { hechas++; } }
+            var texto = (cfgA.tiposCrono[visita.TIPO] || visita.TIPO) + (visita.NOM_CENTRO_OP ? ' ' + visita.NOM_CENTRO_OP : '') + (visita.DESCRIPCION ? ': ' + visita.DESCRIPCION : '');
+            html += '<div class="crono-l-item"><span class="crono-item crono-' + visita.ESTADO_REAL + '">' + rdEsc(texto) + '</span>' +
+                 (EST[visita.ESTADO_REAL] ? ' <small>' + EST[visita.ESTADO_REAL] + (parseInt(visita.CONFIRMADA_HOY, 10) ? ' (según Hoy en qué estás)' : '') + '</small>' : '') +
+                 (visita.OBSERVACION ? '<div class="rd-ayuda">' + rdEsc(visita.OBSERVACION) + '</div>' : '') + '</div>';
         }
-        h += '</div>';
+        html += '</div>';
     }
     $('#admResumen').html(tagA(hechas + ' de ' + total + ' actividades realizadas', hechas === total && total ? 'rd-tag-ok' : '') + ' ' +
-                          (d.vehiculos.length ? tagA(d.vehiculos.length + (d.vehiculos.length === 1 ? ' vehículo a su cargo' : ' vehículos a su cargo')) : ''));
-    $('#admResultado').html(h ? '<div class="crono-lista">' + h + '</div>' : '<p class="rd-vacio">Nada registrado para esta persona en este mes.</p>');
+                          (datos.vehiculos.length ? tagA(datos.vehiculos.length + (datos.vehiculos.length === 1 ? ' vehículo a su cargo' : ' vehículos a su cargo')) : ''));
+    $('#admResultado').html(html ? '<div class="crono-lista">' + html + '</div>' : '<p class="rd-vacio">Nada registrado para esta persona en este mes.</p>');
 }
 
 //---------------------------------------------------------------------------
 // Vacantes
 //---------------------------------------------------------------------------
-function pintarVacA(f) {
-    var R = { CUMPLE: tagA('Cumple', 'rd-tag-ok'), NO_CUMPLE: tagA('No cumple', 'rd-tag-mal'), EN_TIEMPO: tagA('En tiempo', 'rd-tag-pend'), VENCIDA: tagA('Fuera del acuerdo', 'rd-tag-mal') };
-    var h = '', ab = 0, fuera = 0;
-    for (var i = 0; i < f.length; i++) {
-        var v = f[i], abierta = v.ESTADO_VACANTE === 'ABIERTA';
-        if (abierta) { ab++; if (v.RESULTADO_ANS === 'VENCIDA') { fuera++; } }
-        h += '<tr' + (v.ESTADO_VACANTE === 'CANCELADA' ? ' class="rd-anulado"' : '') + '><td>' + rdEsc(v.NUMERO_RQ_GH || '') + '</td>' +
-             '<td>' + rdEsc(v.NOM_PROYECTO) + '</td><td>' + rdEsc(v.NOM_CENTRO_OP) + '</td><td>' + rdEsc(v.CARGO) + '</td>' +
-             '<td>' + rdFecha(v.FECHA_VACANTE) + '</td><td>' + rdFecha(v.FECHA_ANS) + '</td><td>' + rdFecha(v.FECHA_CIERRE) + '</td>' +
-             '<td class="rd-num-col">' + (abierta ? v.DIAS_A_HOY + ' a hoy' : (v.TIEMPO_CIERRE !== null ? v.TIEMPO_CIERRE + ' en cerrar' : '')) + '</td>' +
-             '<td>' + rdEsc(v.MOTIVO) + '</td><td>' + rdEsc(cfgA.estadosVacante[v.ESTADO_VACANTE]) + '</td><td>' + (R[v.RESULTADO_ANS] || '') + '</td>' +
-             '<td>' + rdEsc(v.NOMBRE_REEMPLAZO || '') + '</td>' +
-             '<td>' + rdEsc((v.ESTADO_GH ? cfgA.estadosGh[v.ESTADO_GH] : '') + (v.FECHA_COMPROMISO_GH ? ' ' + rdFecha(v.FECHA_COMPROMISO_GH) : '')) + '</td></tr>';
+function pintarVacA(filas) {
+    var ETIQUETA_RESULTADO = { CUMPLE: tagA('Cumple', 'rd-tag-ok'), NO_CUMPLE: tagA('No cumple', 'rd-tag-mal'), EN_TIEMPO: tagA('En tiempo', 'rd-tag-pend'), VENCIDA: tagA('Fuera del acuerdo', 'rd-tag-mal') };
+    var html = '', abiertas = 0, fuera = 0;
+    for (var i = 0; i < filas.length; i++) {
+        var vacante = filas[i], abierta = vacante.ESTADO_VACANTE === 'ABIERTA';
+        if (abierta) { abiertas++; if (vacante.RESULTADO_ANS === 'VENCIDA') { fuera++; } }
+        html += '<tr' + (vacante.ESTADO_VACANTE === 'CANCELADA' ? ' class="rd-anulado"' : '') + '><td>' + rdEsc(vacante.NUMERO_RQ_GH || '') + '</td>' +
+             '<td>' + rdEsc(vacante.NOM_PROYECTO) + '</td><td>' + rdEsc(vacante.NOM_CENTRO_OP) + '</td><td>' + rdEsc(vacante.CARGO) + '</td>' +
+             '<td>' + rdFecha(vacante.FECHA_VACANTE) + '</td><td>' + rdFecha(vacante.FECHA_ANS) + '</td><td>' + rdFecha(vacante.FECHA_CIERRE) + '</td>' +
+             '<td class="rd-num-col">' + (abierta ? vacante.DIAS_A_HOY + ' a hoy' : (vacante.TIEMPO_CIERRE !== null ? vacante.TIEMPO_CIERRE + ' en cerrar' : '')) + '</td>' +
+             '<td>' + rdEsc(vacante.MOTIVO) + '</td><td>' + rdEsc(cfgA.estadosVacante[vacante.ESTADO_VACANTE]) + '</td><td>' + (ETIQUETA_RESULTADO[vacante.RESULTADO_ANS] || '') + '</td>' +
+             '<td>' + rdEsc(vacante.NOMBRE_REEMPLAZO || '') + '</td>' +
+             '<td>' + rdEsc((vacante.ESTADO_GH ? cfgA.estadosGh[vacante.ESTADO_GH] : '') + (vacante.FECHA_COMPROMISO_GH ? ' ' + rdFecha(vacante.FECHA_COMPROMISO_GH) : '')) + '</td></tr>';
     }
-    $('#admResumen').html(tagA(f.length + ' vacantes') + ' ' + tagA(ab + ' abiertas', 'rd-tag-pend') + ' ' + (fuera ? tagA(fuera + ' fuera del acuerdo', 'rd-tag-mal') : ''));
-    $('#admFilas').html(h || vacioA(13, 'No hay vacantes con estos filtros.'));
+    $('#admResumen').html(tagA(filas.length + ' vacantes') + ' ' + tagA(abiertas + ' abiertas', 'rd-tag-pend') + ' ' + (fuera ? tagA(fuera + ' fuera del acuerdo', 'rd-tag-mal') : ''));
+    $('#admFilas').html(html || vacioA(13, 'No hay vacantes con estos filtros.'));
 }
 
 //---------------------------------------------------------------------------
 // Comunicaciones
 //---------------------------------------------------------------------------
-function pintarComA(f) {
-    var R = { CUMPLE: tagA('Cumple', 'rd-tag-ok'), NO_CUMPLE: tagA('No cumple', 'rd-tag-mal'), EN_TIEMPO: tagA('En tiempo', 'rd-tag-pend'), VENCIDA: tagA('Fuera de tiempo', 'rd-tag-mal') };
-    var h = '', ab = 0, fuera = 0;
-    for (var i = 0; i < f.length; i++) {
-        var m = f[i], abierta = parseInt(m.ABIERTA, 10) === 1;
-        if (abierta) { ab++; if (m.RESULTADO === 'VENCIDA') { fuera++; } }
-        h += '<tr><td>' + rdEsc(cfgA.tiposCom[m.TIPO]) + '</td><td>' + rdEsc(m.NOM_PROYECTO) + (m.NOM_CENTRO_OP ? '<br><small>' + rdEsc(m.NOM_CENTRO_OP) + '</small>' : '') + '</td>' +
-             '<td>' + rdEsc(m.RADICADO || '') + '</td><td>' + rdFecha(m.FECHA_RECEPCION) + '</td><td>' + rdEsc(cfgA.medios[m.MEDIO] || m.MEDIO) + '</td>' +
-             '<td>' + rdEsc(m.REMITENTE) + '</td><td>' + rdEsc(m.ASUNTO) + (m.RESPUESTA ? '<br><small>' + rdEsc(m.RESPUESTA) + '</small>' : '') + '</td>' +
-             '<td>' + rdEsc(m.RESPONSABLE) + '</td><td>' + rdFecha(m.FECHA_ATENCION) + '</td>' +
-             '<td class="rd-num-col">' + (abierta ? m.DIAS_ABIERTA : m.TIEMPO_CIERRE) + '</td><td>' + (R[m.RESULTADO] || '') + '</td>' +
-             '<td>' + (abierta ? tagA('Abierta', 'rd-tag-pend') + (m.PENDIENTE_DE ? '<br><small>' + rdEsc(cfgA.pendiente[m.PENDIENTE_DE]) + '</small>' : '') : tagA('Cerrada')) + '</td></tr>';
+function pintarComA(filas) {
+    var ETIQUETA_RESULTADO = { CUMPLE: tagA('Cumple', 'rd-tag-ok'), NO_CUMPLE: tagA('No cumple', 'rd-tag-mal'), EN_TIEMPO: tagA('En tiempo', 'rd-tag-pend'), VENCIDA: tagA('Fuera de tiempo', 'rd-tag-mal') };
+    var html = '', abiertas = 0, fuera = 0;
+    for (var i = 0; i < filas.length; i++) {
+        var oficio = filas[i], abierta = parseInt(oficio.ABIERTA, 10) === 1;
+        if (abierta) { abiertas++; if (oficio.RESULTADO === 'VENCIDA') { fuera++; } }
+        html += '<tr><td>' + rdEsc(cfgA.tiposCom[oficio.TIPO]) + '</td><td>' + rdEsc(oficio.NOM_PROYECTO) + (oficio.NOM_CENTRO_OP ? '<br><small>' + rdEsc(oficio.NOM_CENTRO_OP) + '</small>' : '') + '</td>' +
+             '<td>' + rdEsc(oficio.RADICADO || '') + '</td><td>' + rdFecha(oficio.FECHA_RECEPCION) + '</td><td>' + rdEsc(cfgA.medios[oficio.MEDIO] || oficio.MEDIO) + '</td>' +
+             '<td>' + rdEsc(oficio.REMITENTE) + '</td><td>' + rdEsc(oficio.ASUNTO) + (oficio.RESPUESTA ? '<br><small>' + rdEsc(oficio.RESPUESTA) + '</small>' : '') + '</td>' +
+             '<td>' + rdEsc(oficio.REGISTRO || '') + '</td><td>' + rdFecha(oficio.FECHA_ATENCION) + '</td>' +
+             '<td class="rd-num-col">' + (abierta ? oficio.DIAS_ABIERTA : oficio.TIEMPO_CIERRE) + '</td><td>' + (ETIQUETA_RESULTADO[oficio.RESULTADO] || '') + '</td>' +
+             '<td>' + (abierta ? tagA('Abierta', 'rd-tag-pend') + (oficio.PENDIENTE_DE ? '<br><small>' + rdEsc(cfgA.pendiente[oficio.PENDIENTE_DE]) + '</small>' : '') : tagA('Cerrada')) + '</td></tr>';
     }
-    $('#admResumen').html(tagA(f.length + ' comunicaciones') + ' ' + tagA(ab + ' abiertas', 'rd-tag-pend') + ' ' + (fuera ? tagA(fuera + ' fuera de tiempo', 'rd-tag-mal') : ''));
-    $('#admFilas').html(h || vacioA(12, 'No hay comunicaciones con estos filtros.'));
+    $('#admResumen').html(tagA(filas.length + ' comunicaciones') + ' ' + tagA(abiertas + ' abiertas', 'rd-tag-pend') + ' ' + (fuera ? tagA(fuera + ' fuera de tiempo', 'rd-tag-mal') : ''));
+    $('#admFilas').html(html || vacioA(12, 'No hay comunicaciones con estos filtros.'));
 }

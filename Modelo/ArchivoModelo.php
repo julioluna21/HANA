@@ -20,8 +20,8 @@ class Archivo
     {
         static $max = null;
         if ($max === null) {
-            $f = HanaDB::fila("SELECT @@max_allowed_packet AS M");
-            $max = $f ? (int)$f['M'] : 0;
+            $fila = HanaDB::fila("SELECT @@max_allowed_packet AS M");
+            $max = $fila ? (int)$fila['M'] : 0;
         }
         return $max;
     }

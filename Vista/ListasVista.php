@@ -1,4 +1,15 @@
 <?php
+/*
+  HANA - Listas de chequeo (diligenciar)
+  ---------------------------------------------------------------------------
+  Pantalla donde el coordinador o el jefe de peaje llena las listas de chequeo
+  del día y las consulta después. La pantalla es solo el HTML: lo que hace cada
+  botón está en Ajax/ListasAjax.js (con Ajax/ReporteComun.js) y los datos los
+  entrega Control/ListasControl.php.
+  Permiso: 11M para llenarlas; 12M y 21M para consultarlas. Si el módulo está
+  apagado en Parámetros, vuelve al reporte diario. Sin sesión va al inicio de
+  sesión; sin el permiso, a la pantalla de inicio.
+*/
 session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
@@ -8,41 +19,14 @@ if (isset($_SESSION['IdUsuarios'])) {
     //Las listas las diligencia quien tenga 11M en sus permisos. También las
     //ven quien las administra (12M) y la administración del reporte (21M)
     $esCoordinador = pagEsCoordinador();
-    if (in_array("11M", $modulosAcceso) or in_array("12M", $modulosAcceso) or in_array("21M", $modulosAcceso) or isset($_GET["op"])) {
+    if (in_array("11M", $modulosAcceso) or in_array("12M", $modulosAcceso) or in_array("21M", $modulosAcceso)) {
         include('head.php');
 ?>  
         <!-- Estilos de la lista de chequeo: botones grandes, barra de avance y firma en pantalla -->
         <link href="../public/css/listas.css?v=2" rel="stylesheet">
         <link href="../public/css/reporte.css?v=16" rel="stylesheet">
-        <!-- Contenido aqui va todo el DIV del contenido.. -->
+        <!-- Contenido de la pantalla -->
 
-        <!--script type="text/javascript">
-            function startTime() {
-                today = new Date();
-                Y = today.getUTCFullYear();
-                M = today.getUTCMonth() + 1;
-                M = checkTime(M);
-                D = today.getUTCDate();
-                D = checkTime(D);
-                h = today.getHours();
-                m = today.getMinutes();
-                s = today.getSeconds();
-                m = checkTime(m);
-                s = checkTime(s);
-                document.getElementById('fechaEncuesta').value = Y + "-" + M + "-" + D + " " + h + ":" + m + ":" + s;
-                t = setTimeout('startTime()', 500);
-            }
-
-            function checkTime(i) {
-                if (i < 10) {
-                    i = "0" + i;
-                }
-                return i;
-            }
-            window.onload = function() {
-                startTime();
-            }
-        </script-->
         <div class="right_col" role="main">
             <div class="">
                 <div class="row">
@@ -70,12 +54,6 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                 <input type="hidden" class="form-control" name="nombreColaborador" id="nombreColaborador" value="<?php echo $_SESSION['Idcolaborador'] ?>">
 
                                             </div>
-                                            <!--div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                                                <label for="nombreColaborador">Nombre del colaborador:</label>
-                                                <select class="form-control" style="width: 100%;" id="nombreColaborador" name="nombreColaborador">
-                                                    <option value=''>Seleccione un colaborador...</option>
-                                                </select>
-                                            </div-->
                                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" id="centro1">
                                                 <label for="selectCentro">Centro Operativo:</label>
                                                 <input class="form-control" name="selectCentro1" id="selectCentro1" value="" readonly>
@@ -214,9 +192,9 @@ if (isset($_SESSION['IdUsuarios'])) {
                 border: 2px solid #6E1A1E !important;
                 border-radius: 10px;
                 background-color: #fff5f5 !important;
-                animation: parpadeoFaltante .6s ease-in-out 2; /* llama la atencion */
+                animation: parpadeoFaltante .6s ease-in-out 2; /* llama la atención */
             }
-            /* Etiqueta de la pregunta faltante, tambien en rojo */
+            /* Etiqueta de la pregunta faltante, también en rojo */
             .campo-faltante > div:first-child{ background-color: #6E1A1E !important; }
 
             @keyframes parpadeoFaltante{
@@ -231,12 +209,12 @@ if (isset($_SESSION['IdUsuarios'])) {
           var HANA_ADJ_LISTAS = <?php echo pagParametroSi('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
           var HANA_ADJ_MAX_MB = <?php echo (int)max(1, pagParametroNum('ADJUNTOS_MAX_MB', 10)); ?>;
         </script>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=9"></script>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=10"></script>
         <script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script>
 <?php
     } else {
         echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     }
 } else {

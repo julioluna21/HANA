@@ -26,15 +26,15 @@ if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { parError(401,
 if (!hanaTienePermiso('24M')) { parError(403, 'No tienes permiso para los parámetros del sistema.'); }
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $ahora = date('Y-m-d H:i:s');
-$P = new Parametros();
+$modeloParametros = new Parametros();
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     //Todos los parámetros, más los cargos y novedades de ausentismo, para la pantalla de Parámetros
     case 'listar':
         $par = HanaConfig::lista();
-        $cargos = $P->cargos();
-        $novedades = $P->novedades();
+        $cargos = $modeloParametros->cargos();
+        $novedades = $modeloParametros->novedades();
         echo json_encode(array('parametros' => $par ? $par : array(), 'cargos' => $cargos ? $cargos : array(),
                                'novedades' => $novedades ? $novedades : array()), JSON_UNESCAPED_UNICODE);
         break;
@@ -44,27 +44,18 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $valores = isset($_POST['valores']) && is_array($_POST['valores']) ? $_POST['valores'] : array();
         $cambios = 0;
         foreach ($valores as $clave => $valor) {
-            $d = HanaConfig::definicion((string)$clave);
-            if (!$d) { parError(400, 'Parámetro desconocido: ' . $clave); }
+            $definicion = HanaConfig::definicion((string)$clave);
+            if (!$definicion) { parError(400, 'Parámetro desconocido: ' . $clave); }
             $valor = trim((string)$valor);
-            if ($d['TIPO'] === 'SI_NO') {
-                if ($valor !== '0' && $valor !== '1') { parError(400, '"' . $d['NOMBRE'] . '" debe ser sí o no.'); }
+            if ($definicion['TIPO'] === 'SI_NO') {
+                if ($valor !== '0' && $valor !== '1') { parError(400, '"' . $definicion['NOMBRE'] . '" debe ser sí o no.'); }
             } else {
-                if (!preg_match('/^\d{1,4}$/', $valor)) { parError(400, '"' . $d['NOMBRE'] . '" debe ser un número entero.'); }
-                if (($d['MINIMO'] !== null && (int)$valor < (int)$d['MINIMO']) || ($d['MAXIMO'] !== null && (int)$valor > (int)$d['MAXIMO'])) {
-                    parError(400, '"' . $d['NOMBRE'] . '" debe estar entre ' . $d['MINIMO'] . ' y ' . $d['MAXIMO'] . '.');
+                if (!preg_match('/^\d{1,4}$/', $valor)) { parError(400, '"' . $definicion['NOMBRE'] . '" debe ser un número entero.'); }
+                if (($definicion['MINIMO'] !== null && (int)$valor < (int)$definicion['MINIMO']) || ($definicion['MAXIMO'] !== null && (int)$valor > (int)$definicion['MAXIMO'])) {
+                    parError(400, '"' . $definicion['NOMBRE'] . '" debe estar entre ' . $definicion['MINIMO'] . ' y ' . $definicion['MAXIMO'] . '.');
                 }
             }
-            //Prioridad y observador de las novedades automáticas: el número tiene que existir en su catálogo
-            if ($clave === 'NOV_AUTO_PRIORIDAD'
-                && !$P->existePrioridad((int)$valor)) {
-                parError(400, 'No existe una prioridad con el número ' . (int)$valor . ' (Configuración → Estados de relevancia).');
-            }
-            if ($clave === 'NOV_AUTO_OBSERVADOR'
-                && !$P->existeObservador((int)$valor)) {
-                parError(400, 'No existe un observador con el número ' . (int)$valor . ' (Configuración → Observadores).');
-            }
-            if ($valor === (string)HanaConfig::valor($clave, $d['DEFECTO'])) { continue; }
+            if ($valor === (string)HanaConfig::valor($clave, $definicion['DEFECTO'])) { continue; }
             HanaConfig::guardar($clave, $valor, $idColaborador, $ahora);
             $cambios++;
         }
@@ -84,15 +75,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($nombre === null) { parError(400, 'Escribe el nombre.'); }
         $orden = isset($_POST['orden']) ? (int)$_POST['orden'] : 0;
         $estado = isset($_POST['estado']) && $_POST['estado'] === '0' ? 0 : 1;
-        if ($P->nombreRepetido($esCargo, $nombre, $id)) { parError(400, 'Ya existe uno con ese nombre.'); }
+        if ($modeloParametros->nombreRepetido($esCargo, $nombre, $id)) { parError(400, 'Ya existe uno con ese nombre.'); }
         if ($esCargo) {
             $aplica = isset($_POST['aplica']) ? $_POST['aplica'] : 'PEAJE';
             if (!in_array($aplica, array('PEAJE', 'BASCULA', 'AMBOS'), true)) { parError(400, 'Elige en qué centros aplica.'); }
-            $ok = $P->guardarCargo($id, $nombre, $aplica, $orden, $estado);
+            $ok = $modeloParametros->guardarCargo($id, $nombre, $aplica, $orden, $estado);
         } else {
             $cuenta = isset($_POST['cuenta']) && $_POST['cuenta'] === '0' ? 0 : 1;
             $cargo = isset($_POST['cargo']) && (int)$_POST['cargo'] > 0 ? (int)$_POST['cargo'] : null;
-            $ok = $P->guardarNovedad($id, $nombre, $cuenta, $cargo, $orden, $estado);
+            $ok = $modeloParametros->guardarNovedad($id, $nombre, $cuenta, $cargo, $orden, $estado);
         }
         if (!$ok) { parError(500, 'No se pudo guardar.'); }
         $msg = $esCargo ? ($id ? 'Cargo actualizado.' : 'Cargo creado.') : ($id ? 'Novedad actualizada.' : 'Novedad creada.');
@@ -112,25 +103,25 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
 
         //1. Lo que se puede revisar sin enviar nada
-        $rev = array();
-        $cta = hanaCorreoDatos(); //la cuenta que se usa: la de Global.php si es real; si no, la de respaldo
-        $host = $cta['host'];
-        $rev[] = array('Cuenta de correo', true, 'Servidor ' . $host . ':' . $cta['port'] . ' (' . $cta['secure'] . '), cuenta ' . $cta['user']
-                       . ($cta['pass'] === HANA_CORREO_PASSWORD ? ' (la del sistema original)' : ' (la de Global.php)'));
-        $rev[] = array('Extensión openssl de PHP', extension_loaded('openssl'), extension_loaded('openssl') ? 'Activa' : 'Sin ella no se puede usar SSL ni TLS');
+        $revision = array();
+        $cuentaCorreo = hanaCorreoDatos(); //la cuenta que se usa: la de Global.php si es real; si no, la de respaldo
+        $host = $cuentaCorreo['host'];
+        $revision[] = array('Cuenta de correo', true, 'Servidor ' . $host . ':' . $cuentaCorreo['port'] . ' (' . $cuentaCorreo['secure'] . '), cuenta ' . $cuentaCorreo['user']
+                       . ($cuentaCorreo['pass'] === HANA_CORREO_PASSWORD ? ' (la del sistema original)' : ' (la de Global.php)'));
+        $revision[] = array('Extensión openssl de PHP', extension_loaded('openssl'), extension_loaded('openssl') ? 'Activa' : 'Sin ella no se puede usar SSL ni TLS');
         if ($host !== '') {
             $ip = gethostbyname($host);
-            $rev[] = array('El nombre del servidor se encuentra (DNS)', $ip !== $host, $ip !== $host ? $host . ' = ' . $ip : 'No se encontró ' . $host);
+            $revision[] = array('El nombre del servidor se encuentra (DNS)', $ip !== $host, $ip !== $host ? $host . ' = ' . $ip : 'No se encontró ' . $host);
             //¿El hosting deja salir conexiones a esos puertos? Si no, es un bloqueo del servidor
-            foreach (array(465, 587, 25) as $pt) {
-                $t0 = microtime(true);
-                $sock = @fsockopen($host, $pt, $errno, $errstr, 5);
-                $rev[] = array('Conexión a ' . $host . ':' . $pt, (bool)$sock,
-                               $sock ? 'Abre en ' . round((microtime(true) - $t0) * 1000) . ' ms' : 'No abre (' . ($errstr ?: 'sin respuesta') . '). Si ninguno abre, el hosting bloquea la salida de correo');
-                if ($sock) { fclose($sock); }
+            foreach (array(465, 587, 25) as $puerto) {
+                $inicio = microtime(true);
+                $conexionPuerto = @fsockopen($host, $puerto, $errno, $errstr, 5);
+                $revision[] = array('Conexión a ' . $host . ':' . $puerto, (bool)$conexionPuerto,
+                               $conexionPuerto ? 'Abre en ' . round((microtime(true) - $inicio) * 1000) . ' ms' : 'No abre (' . ($errstr ?: 'sin respuesta') . '). Si ninguno abre, el hosting bloquea la salida de correo');
+                if ($conexionPuerto) { fclose($conexionPuerto); }
             }
         }
-        $rev[] = array('mail() de PHP (correo del servidor)', function_exists('mail') && !in_array('mail', array_map('trim', explode(',', (string)ini_get('disable_functions')))),
+        $revision[] = array('mail() de PHP (correo del servidor)', function_exists('mail') && !in_array('mail', array_map('trim', explode(',', (string)ini_get('disable_functions')))),
                        function_exists('mail') ? 'Disponible' : 'Deshabilitado en este servidor');
 
         //2. El envío real, con todos los intentos
@@ -145,25 +136,25 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                     . date('d/m/Y') . ' a las ' . date('H:i') . '.</p><p style="margin:0;">Si te llegó, el correo del sistema está funcionando.</p>');
         $diag = array();
         $ok = hanaEnviar($mail, 'PRUEBA', $diag);
-        echo json_encode(array('ok' => $ok, 'revision' => $rev, 'intentos' => $diag), JSON_UNESCAPED_UNICODE);
+        echo json_encode(array('ok' => $ok, 'revision' => $revision, 'intentos' => $diag), JSON_UNESCAPED_UNICODE);
         break;
 
     //Los últimos envíos de correo, con su resultado
     case 'correoLog':
-        $f = Bitacora::ultimosCorreos(60);
-        echo json_encode($f ? $f : array(), JSON_UNESCAPED_UNICODE);
+        $envios = Bitacora::ultimosCorreos(60);
+        echo json_encode($envios ? $envios : array(), JSON_UNESCAPED_UNICODE);
         break;
 
     //-----------------------------------------------------------------------
     // Días habilitados: el reporte diario solo se llena HOY. Si alguien
     // necesita registrar o corregir otro día, el administrador se lo abre
-    // aquí y después se lo cierra (tabla dia_habilitado, script 15)
+    // aquí y después se lo cierra (tabla dia_habilitado)
     //-----------------------------------------------------------------------
     case 'diasHabilitados':
         //Las personas a las que se les puede abrir un día: primero quienes coordinan un proyecto
         $personas = Organizacion::personasConProyectos();
         //Los días: arriba los que siguen abiertos; debajo los ya cerrados, para que quede el rastro
-        $dias = $P->diasHabilitados();
+        $dias = $modeloParametros->diasHabilitados();
         if ($dias === false) { parError(500, 'Falta la tabla de días habilitados. Corre el script 15_DIA_HABILITADO_Y_HOY.sql.'); }
         echo json_encode(array('hoy' => HanaFechas::hoy(), 'personas' => $personas ? $personas : array(), 'dias' => $dias),
                          JSON_UNESCAPED_UNICODE);
@@ -184,8 +175,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($fecha < date('Y-m-d', strtotime("$hoyCol -366 days")) || $fecha > date('Y-m-d', strtotime("$hoyCol +31 days"))) {
             parError(400, 'El día debe estar entre un año atrás y un mes adelante.');
         }
-        if ($P->estadoDia($persona, $fecha) === 1) { parError(400, 'Esa persona ya tiene habilitado ese día.'); }
-        $ok = $P->habilitarDia($persona, $fecha, $motivo, $idColaborador, $ahora);
+        if ($modeloParametros->estadoDia($persona, $fecha) === 1) { parError(400, 'Esa persona ya tiene habilitado ese día.'); }
+        $ok = $modeloParametros->habilitarDia($persona, $fecha, $motivo, $idColaborador, $ahora);
         if (!$ok) { parError(500, 'No se pudo habilitar el día.'); }
         echo json_encode(array('ok' => true, 'mensaje' => 'Día habilitado. La persona ya puede registrar o corregir ese día.'), JSON_UNESCAPED_UNICODE);
         break;
@@ -193,10 +184,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //Cierra un día que estaba abierto. La fila se conserva con quién y cuándo lo cerró
     case 'deshabilitarDia':
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-        $d = $P->estadoDiaPorId($id);
-        if ($d === null) { parError(404, 'Ese día habilitado no existe.'); }
-        if ($d === 0) { parError(400, 'Ese día ya estaba deshabilitado.'); }
-        $ok = $P->deshabilitarDia($id, $idColaborador, $ahora);
+        $estadoDia = $modeloParametros->estadoDiaPorId($id);
+        if ($estadoDia === null) { parError(404, 'Ese día habilitado no existe.'); }
+        if ($estadoDia === 0) { parError(400, 'Ese día ya estaba deshabilitado.'); }
+        $ok = $modeloParametros->deshabilitarDia($id, $idColaborador, $ahora);
         if (!$ok) { parError(500, 'No se pudo deshabilitar el día.'); }
         echo json_encode(array('ok' => true, 'mensaje' => 'Día deshabilitado. Vuelve a quedar solo de consulta.'), JSON_UNESCAPED_UNICODE);
         break;

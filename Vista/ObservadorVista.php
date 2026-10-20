@@ -1,5 +1,14 @@
 <?php
 /*
+  Pantalla sin uso: Observadores se quitó (quien reporta la novedad queda como
+  quien la vio). Si alguien entra por la dirección, va al inicio. El código de
+  abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
+/*
   HANA - Observadores
   ---------------------------------------------------------------------------
   Pantalla de los observadores que se pueden poner a una novedad.
@@ -17,7 +26,7 @@ include('head.php');
 ?>
 
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -77,7 +86,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nuevo observador
               </button>
             </SPAN>

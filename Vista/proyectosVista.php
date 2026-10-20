@@ -5,18 +5,18 @@
   Pantalla de los proyectos (concesiones) y quién coordina cada uno.
   La pantalla es solo el HTML: lo que hace cada botón está en Ajax/ProyectoAjax.js
   y los datos los entrega Control/ProyectoControl.php.
-  Permiso: 6M (sin sesión o sin el permiso, vuelve al inicio de sesión).
+  Permiso: 6M (sin sesión va al inicio de sesión; sin el permiso, a la pantalla de inicio).
 */
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
-if(in_array("6M",$modulosAcceso) or isset($_GET["op"])){    
+if(in_array("6M",$modulosAcceso)){    
     
 include('head.php');
 ?>
 
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -85,7 +85,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nuevo proyecto
               </button>
             </SPAN>
@@ -128,12 +128,12 @@ include('head.php');
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/ProyectoAjax.js"></script>
+<script type="text/javascript" src="../Ajax/ProyectoAjax.js?v=2"></script>
 <?php
 
 }else{   
   echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
     
 }

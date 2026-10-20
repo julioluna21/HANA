@@ -66,7 +66,6 @@ if (isset($_SESSION['IdUsuarios'])) {
             <span class="crono-item crono-CANCELADA">Cancelada</span>
             <span class="crono-vh crono-vh-OPERATIVO">Vehículo operativo</span>
             <span class="crono-vh crono-vh-INOPERATIVO">Inoperativo</span>
-            <span class="crono-vh crono-vh-FALLA_FLOTA">Falla reportada</span>
           </div>
           <p class="rd-ayuda">Toca un día para planear, marcar lo que hiciste o registrar el estado del vehículo.
             Las visitas a un peaje quedan realizadas solas si ese día lo marcaste en "Hoy en qué estás".
@@ -133,7 +132,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/CronogramaAjax.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/CronogramaAjax.js?v=14"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

@@ -9,10 +9,10 @@
   Permiso: 10M. Ver una novedad o su foto también se permite desde la campana de avisos,
   siempre que el rol de la persona pueda ver esa novedad (AccesoHelper.php).
 */
-session_start();//inicia la session, permite guardar variables de sesion
+session_start(); //la sesión dice quién es la persona y qué permisos tiene
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('10M'), array('select', 'roles', 'mostrarnovedad', 'foto')); //Novedades: 10M. Ver una novedad o su foto (desde la campana) solo pide sesión
-require_once "../Modelo/NovedadModelo.php";//Utilizará este archivo
+require_once "../Modelo/NovedadModelo.php"; //consultas de novedades
 require_once "AccesoHelper.php"; //quién puede ver qué: la misma regla para novedades, RQ y campana
 require_once __DIR__ . '/ArchivoHelper.php'; //las fotos se guardan en la base como texto base64
 require '../public/PHPMailer-master/src/Exception.php';
@@ -22,26 +22,59 @@ require_once __DIR__ . '/CorreoConfig.php'; //cuenta de correo y plantilla de lo
                 use PHPMailer\PHPMailer\PHPMailer;
                 use PHPMailer\PHPMailer\Exception;
 
-$Novedades=new Novedades();//objeto del modelo: con él se hacen las consultas
-setlocale(LC_ALL,'es-Es');// Activa la localización con el sistema para mostrar en español
-date_default_timezone_set("America/Lima");
-//carga las variables con los valores recibidos y limpia los que no se usaran
-$idnovedad=isset($_POST["IDnovedad"])? limpiarCadena($_POST["IDnovedad"]):"";
-$idtitulo=isset($_POST["titulo"])? limpiarCadena($_POST["titulo"]):"";
-$idcolaborador=isset($_POST["colaborador"])? limpiarCadena($_POST["colaborador"]):"";
-$idestado=isset($_POST["prioridad"])? limpiarCadena($_POST["prioridad"]):"";
-$idcentroOP=isset($_POST["centroop"])? limpiarCadena($_POST["centroop"]):"";
-$idobservador=isset($_POST["observador"])? limpiarCadena($_POST["observador"]):"";
-$validez=isset($_POST["validez"])? limpiarCadena($_POST["validez"]):"";    
-$estadonovedad=isset($_POST["estadoNovedad"])? limpiarCadena($_POST["estadoNovedad"]):"";
-$novedad=isset($_POST["novedad"])? limpiarCadena($_POST["novedad"]):"";
-$rolDestino=isset($_POST["rolDestino"])? intval($_POST["rolDestino"]):0; //rol al que se notifica
-$fecha=date("Y-m-d_H:i:s");
-$fecha2=date("Y-m-j H:i:s");
+$modeloNovedades = new Novedades(); //objeto del modelo: con él se hacen las consultas
+setlocale(LC_ALL, 'es-Es');      //fechas en español
+date_default_timezone_set("America/Bogota");
+
+//Lo que llega del formulario. Los textos se guardan como en los demás módulos de
+//siempre (con limpiarCadena: ya convertidos para HTML), así que se pintan tal cual
+$idNovedad     = isset($_POST["IDnovedad"]) ? intval($_POST["IDnovedad"]) : 0;     //vacío = novedad nueva; con número = respuesta
+$idTitulo      = isset($_POST["titulo"]) ? intval($_POST["titulo"]) : 0;
+$idAsignado = isset($_POST["colaborador"]) ? intval($_POST["colaborador"]) : 0; //a quién se asigna (con 42M)
+$prioridad     = isset($_POST["prioridad"]) ? strtoupper(trim(limpiarCadena($_POST["prioridad"]))) : ""; //ALTO, MEDIO o BAJO
+$idCentro    = isset($_POST["centroop"]) ? intval($_POST["centroop"]) : 0;
+$validez       = isset($_POST["validez"]) ? limpiarCadena($_POST["validez"]) : "";
+$estadoElegido = isset($_POST["estadoNovedad"]) ? trim((string)$_POST["estadoNovedad"]) : ""; //estado que deja la respuesta: '', 2, 3 o 4
+//La descripción, o el texto de la respuesta. Los saltos de línea quedan como uno solo (\n),
+//como los cuenta la pantalla
+$novedad       = isset($_POST["novedad"]) && is_string($_POST["novedad"]) ? limpiarCadena(str_replace("\r\n", "\n", $_POST["novedad"])) : "";
+$rolDestino    = isset($_POST["rolDestino"]) ? intval($_POST["rolDestino"]) : 0;     //rol al que se notifica
+$fecha  = date("Y-m-d_H:i:s"); //ahora, como se guarda en las novedades
+$fechaCalculo = date("Y-m-j H:i:s"); //ahora, para calcular la fecha límite
+
+//Largo máximo de los textos (la descripción es varchar(600) en la base)
+const NOV_LARGO_DESCRIPCION = 600;
+const NOV_LARGO_RESPUESTA = 5000;
+//Cuántos caracteres ocupa el texto ya guardado: < > " ' & ocupan más de uno (&amp;...)
+function novLargoGuardado($textoGuardado)
+{
+    return mb_strlen(stripcslashes((string)$textoGuardado), 'UTF-8'); //limpiarCadena agrega barras para la consulta (\n, \'...) que no se guardan
+}
 
 //Sin la casilla 42M (asignar novedades) la novedad queda asignada a quien la registra
-if(!hanaTienePermiso(PERMISO_ASIGNAR_NOVEDAD)){
-$idcolaborador=$_SESSION['Idcolaborador'];   
+if (!hanaTienePermiso(PERMISO_ASIGNAR_NOVEDAD)) {
+    $idAsignado = (int)$_SESSION['Idcolaborador'];
+}
+
+//Las reglas de una respuesta, las mismas que muestra la pantalla:
+//  - una novedad Cerrada ya no recibe respuestas;
+//  - una Finalizada solo la responde quien tiene permiso de auditoría;
+//  - Cerrar (4) pide permiso de auditoría;
+//  - responder sin cambiar el estado (un comentario) también pide auditoría:
+//    los demás escogen En proceso (2) o Finalizada (3);
+//  - el texto es obligatorio.
+//Devuelve el mensaje para la persona, o '' si la respuesta se puede guardar
+function novProblemaRespuesta($estadoActual, $estadoNuevo, $texto, $esAuditoria)
+{
+    if ($estadoActual === 0) { return 'esa novedad ya no existe. Actualiza la página.'; }
+    if (!in_array((string)$estadoNuevo, array('', '2', '3', '4'), true)) { return 'ese estado no existe. Escoge En proceso, Finalizada o Cerrada.'; }
+    if ($estadoActual === Novedades::CERRADA) { return 'esta novedad ya está cerrada: no recibe más respuestas.'; }
+    if ($estadoActual === Novedades::FINALIZADA && !$esAuditoria) { return 'esta novedad ya está finalizada: solo quien tiene permiso de auditoría puede responderla o cerrarla.'; }
+    if ((string)$estadoNuevo === '4' && !$esAuditoria) { return 'cerrar una novedad pide el permiso de auditoría.'; }
+    if ((string)$estadoNuevo === '' && !$esAuditoria) { return 'escoge el estado de la respuesta: En proceso o Finalizada.'; }
+    if (trim(html_entity_decode(stripcslashes($texto), ENT_QUOTES, 'UTF-8')) === '') { return 'escribe la respuesta.'; }
+    if (novLargoGuardado($texto) > NOV_LARGO_RESPUESTA) { return 'la respuesta es muy larga: máximo ' . NOV_LARGO_RESPUESTA . ' caracteres.'; }
+    return '';
 }
 
 //Fotos de las novedades: se guardan dentro del registro, como texto base64
@@ -62,8 +95,8 @@ function novGuardarFoto($campo)
     if (!$info || !isset($NOV_TIPOS_FOTO[$info[2]])) { return ''; }
     $bytes = @file_get_contents($_FILES[$campo]['tmp_name']);
     if ($bytes === false) { return ''; }
-    $a = hanaArchivoTexto($bytes, $NOV_TIPOS_FOTO[$info[2]][1]);
-    return hanaArchivoCabe($a['texto']) ? $a['texto'] : false;
+    $foto = hanaArchivoTexto($bytes, $NOV_TIPOS_FOTO[$info[2]][1]);
+    return hanaArchivoCabe($foto['texto']) ? $foto['texto'] : false;
 }
 
 //Lo que va en el src de la imagen: la dirección que entrega la foto (no el texto de la foto,
@@ -91,18 +124,35 @@ function correoenvio($correo,$mensaje,$asunto,$nombre='',$boton=null){
 //$destinatarios = array(array('correo' => ..., 'nombre' => ...), ...)
 //Devuelve true si le llegó a todas (o si no había a quién avisar)
 function correoenvioRol($destinatarios,$mensaje,$asunto,$boton=null){
-                         $bien = true;
-                         foreach ($destinatarios as $d) {
-                             if (!correoenvio($d['correo'], $mensaje, $asunto, $d['nombre'], $boton)) { $bien = false; }
+                         $todosEnviados = true;
+                         foreach ($destinatarios as $destinatario) {
+                             if (!correoenvio($destinatario['correo'], $mensaje, $asunto, $destinatario['nombre'], $boton)) { $todosEnviados = false; }
                          }
-                         return $bien;
+                         return $todosEnviados;
 }
 
-//opciones
+//Operaciones
 switch ($_GET["op"])
     {
-            case 'guardar'://primer caso
-                if (empty($idnovedad)){
+            case 'guardar':
+                if (!$idNovedad) {
+                    //-----------------------------------------------------------
+                    // Novedad nueva
+                    //-----------------------------------------------------------
+                    //La descripción: obligatoria y de máximo 600 caracteres
+                    if (trim(html_entity_decode(stripcslashes($novedad), ENT_QUOTES, 'UTF-8')) === '') {
+                        echo 'Error: escribe la descripción de la novedad.';
+                        break;
+                    }
+                    if (novLargoGuardado($novedad) > NOV_LARGO_DESCRIPCION) {
+                        echo 'Error: la descripción es muy larga: máximo ' . NOV_LARGO_DESCRIPCION . ' caracteres (los símbolos < > " \' & ocupan más de uno). Hazla más corta.';
+                        break;
+                    }
+                    //Título, centro y persona asignada: que existan y estén activos
+                    if (!$modeloNovedades->tituloActivo($idTitulo)) { echo 'Error: elige el título de la novedad.'; break; }
+                    if (!$modeloNovedades->centroActivo($idCentro)) { echo 'Error: elige el centro de operación.'; break; }
+                    if ($idAsignado <= 0) { echo 'Error: elige a quién se le asigna la novedad.'; break; }
+                    if (!$modeloNovedades->colaboradorActivo($idAsignado)) { echo 'Error: la persona asignada no existe o está inactiva.'; break; }
 
                     //El rol a notificar es obligatorio al crear una novedad
                     if (!hanaRolValido($rolDestino)) {
@@ -110,81 +160,83 @@ switch ($_GET["op"])
                         break;
                     }
 
-                    $rspta=$Novedades->diaslimites($idestado);
-                    $dias=$rspta['DIAS_ESTADOS_RELEVANCIAS'];
-                    $date_now = date('Y-m-j H:i:s', strtotime($fecha2));   
-                    $date_past = strtotime('+'.$dias.' days', strtotime($date_now));
-                    $date_past = date ('Y-m-j H:i:s' ,$date_past);
+                    //La prioridad: ALTO, MEDIO o BAJO. Sus días están en Parámetros del sistema
+                    if (!NovedadPrioridad::valida($prioridad)) {
+                        echo 'Error: elige la prioridad de la novedad (ALTO, MEDIO o BAJO).';
+                        break;
+                    }
+                    //La fecha límite: hoy más los días de su prioridad
+                    $diasParaAtender = $modeloNovedades->diasParaAtender($prioridad);
+                    $fechaLimite = date('Y-m-j H:i:s', strtotime('+' . $diasParaAtender . ' days', strtotime($fechaCalculo)));
                     $imagen = novGuardarFoto('miarchivo2');
                     if ($imagen === false) {
                         echo 'Error: ' . hanaArchivoMuyGrande('La foto');
                         break;
                     }
-                    if($rspta=$Novedades->insertar($fecha,$_SESSION['Idcolaborador'],$idcentroOP,$idcolaborador,$idobservador,$idtitulo,$novedad,$imagen,$validez,$idestado,$date_past,$rolDestino)){
-						
-						//El aviso va a todas las personas del ROL elegido.
-						//Además, la novedad aparece en la campana de cada persona de ese rol
-						$idNueva = $rspta;
-						$datos = $Novedades->correo($idNueva);
-						//Las personas del rol, con su nombre, para escribirle a cada una
-						$destinatarios = array();
-						$lista = $Novedades->correosDeRol($rolDestino, $_SESSION['Idcolaborador']);
-						while ($lista && ($c = $lista->fetch_assoc())) { $destinatarios[] = array('correo' => $c['MAIL_COLABORADOR'], 'nombre' => $c['NOM_COLABORADOR']); }
+                    $idNueva = $modeloNovedades->insertar($fecha, $_SESSION['Idcolaborador'], $idCentro, $idAsignado, $idTitulo, $novedad, $imagen, $validez, $prioridad, $fechaLimite, $rolDestino);
+                    if (!$idNueva) {
+                        echo 'Error: no se pudo guardar la novedad';
+                        break;
+                    }
 
-						//El correo: qué pasó, dónde, qué tan urgente y para cuándo
-						$fila = function ($etq, $valor) { return '<tr><td style="padding:6px 12px 6px 0;color:#7A716E;white-space:nowrap;vertical-align:top;">'.$etq.'</td><td style="padding:6px 0;font-weight:bold;">'.$valor.'</td></tr>'; };
-						$mensaje = '<p style="margin:0 0 12px;">Se registró una novedad para tu rol en <strong>HANA</strong>. Estos son los datos:</p>'
-						         . '<table cellpadding="0" cellspacing="0" style="margin:0 0 14px;font-size:14px;">'
-						         . ($datos ? $fila('Tipo', $datos['NOM_TITULO_NOVEDADES_HALLAZGOS']) . $fila('Centro', $datos['NOM_CENTRO_OP']) . $fila('Relevancia', $datos['NOMBRE_ESTADOS_RELEVANCIA']) : '')
-						         . $fila('Atender antes de', date('d/m/Y', strtotime($date_past)))
-						         . '</table>'
-						         . '<div style="background:#FBF8F6;border-left:4px solid #6E1A1E;border-radius:6px;padding:12px 14px;margin:0 0 6px;">'.nl2br($novedad).'</div>';
+                    //El aviso va a todas las personas del ROL elegido.
+                    //Además, la novedad aparece en la campana de cada persona de ese rol
+                    $datos = $modeloNovedades->correo($idNueva);
+                    //Las personas del rol, con su nombre, para escribirle a cada una
+                    $destinatarios = array();
+                    $lista = $modeloNovedades->correosDeRol($rolDestino, $_SESSION['Idcolaborador']);
+                    while ($lista && ($personaDelRol = $lista->fetch_assoc())) { $destinatarios[] = array('correo' => $personaDelRol['MAIL_COLABORADOR'], 'nombre' => $personaDelRol['NOM_COLABORADOR']); }
 
-						if (correoenvioRol($destinatarios, $mensaje, "Nueva novedad para tu rol", array('texto' => 'Ver la novedad', 'url' => hanaUrlSistema('novedadesVista.php')))) {
-							echo "Novedad registrada con éxito";
-						} else {
-							echo "La novedad se registró, pero no fue posible enviar la notificación por correo electrónico";
-						}
+                    //El correo: qué pasó, dónde, qué tan urgente y para cuándo
+                    $filaCorreo = function ($etiqueta, $valor) { return '<tr><td style="padding:6px 12px 6px 0;color:#7A716E;white-space:nowrap;vertical-align:top;">'.$etiqueta.'</td><td style="padding:6px 0;font-weight:bold;">'.$valor.'</td></tr>'; };
+                    $mensaje = '<p style="margin:0 0 12px;">Se registró una novedad para tu rol en <strong>HANA</strong>. Estos son los datos:</p>'
+                             . '<table cellpadding="0" cellspacing="0" style="margin:0 0 14px;font-size:14px;">'
+                             . ($datos ? $filaCorreo('Tipo', $datos['NOM_TITULO_NOVEDADES_HALLAZGOS']) . $filaCorreo('Centro', $datos['NOM_CENTRO_OP']) . $filaCorreo('Prioridad', $datos['PRIORIDAD']) : '')
+                             . $filaCorreo('Atender antes de', date('d/m/Y', strtotime($fechaLimite)))
+                             . '</table>'
+                             . '<div style="background:#FBF8F6;border-left:4px solid #6E1A1E;border-radius:6px;padding:12px 14px;margin:0 0 6px;">'.nl2br(stripcslashes($novedad)).'</div>';
 
-					}else{
-						echo 'Error: no se pudo guardar la novedad';
-					}
-					
-					  
-                    
-                }else{
+                    if (correoenvioRol($destinatarios, $mensaje, "Nueva novedad para tu rol", array('texto' => 'Ver la novedad', 'url' => hanaUrlSistema('novedadesVista.php')))) {
+                        echo "Novedad registrada con éxito";
+                    } else {
+                        echo "La novedad se registró, pero no fue posible enviar la notificación por correo electrónico";
+                    }
+
+                } else {
+                    //-----------------------------------------------------------
+                    // Respuesta a una novedad
+                    //-----------------------------------------------------------
                     //Responder también exige poder ver la novedad
-                    if (!hanaPuedeVerNovedad($idnovedad)) {
+                    if (!hanaPuedeVerNovedad($idNovedad)) {
                         echo 'Error: no tienes permiso sobre esta novedad.';
                         break;
                     }
-                    
-                    if($estadonovedad==3){
+                    $esAuditoria = isset($_SESSION['Auditoria']) && (int)$_SESSION['Auditoria'] === 1; //puede cerrar novedades
+                    $problema = novProblemaRespuesta($modeloNovedades->estadoActual($idNovedad), $estadoElegido, $novedad, $esAuditoria);
+                    if ($problema !== '') { echo 'Error: ' . $problema; break; }
+
+                    //Finalizada: se guarda la fecha y, si la hay, la foto del cierre
+                    if ($estadoElegido === '3') {
                         $imagen = novGuardarFoto('miarchivo');
                         if ($imagen === false) {
                             echo 'Error: ' . hanaArchivoMuyGrande('La foto del cierre');
                             break;
                         }
-                        if ($imagen !== '') { $Novedades->imagencierre($idnovedad,$imagen); }
-                        $rspta=$Novedades->editarfecha($idnovedad,$fecha);
+                        if ($imagen !== '') { $modeloNovedades->guardarFotoCierre($idNovedad, $imagen); }
+                        $modeloNovedades->guardarFechaCierre($idNovedad, $fecha);
                     }
-                    
-                    if($estadonovedad==""){
-                    $estadonovedad=0;
-                    }else{
-                     $rspta=$Novedades->editarEstado($idnovedad,$estadonovedad);    
-                    }
-                    $rspta=$Novedades->insertarRespuesta($idnovedad,$_SESSION['Idcolaborador'],$fecha,$novedad,$estadonovedad);
-                    echo $rspta ? "Respuesta guardada con éxito" : "No se pudo guardar la respuesta";
+                    //Sin estado es un comentario: la novedad sigue como estaba
+                    if ($estadoElegido !== '') { $modeloNovedades->editarEstado($idNovedad, (int)$estadoElegido); }
+                    $guardada = $modeloNovedades->insertarRespuesta($idNovedad, $_SESSION['Idcolaborador'], $fecha, $novedad, (int)$estadoElegido);
+                    echo $guardada ? "Respuesta guardada con éxito" : "No se pudo guardar la respuesta";
                 }
-                            
             break;
-        
+
             //Los roles para el selector "Rol a notificar", y si puede ver todas
             case 'roles':
                     $roles = array();
-                    $r = hanaRolesActivos();
-                    while ($r && ($f = $r->fetch_assoc())) { $roles[] = array('id' => (int)$f['id'], 'nombre' => html_entity_decode($f['nombre'], ENT_QUOTES, 'UTF-8')); }
+                    $rolesActivos = hanaRolesActivos();
+                    while ($rolesActivos && ($rol = $rolesActivos->fetch_assoc())) { $roles[] = array('id' => (int)$rol['id'], 'nombre' => html_entity_decode($rol['nombre'], ENT_QUOTES, 'UTF-8')); }
                     echo json_encode(array('roles' => $roles, 'verTodas' => hanaTienePermiso(PERMISO_VER_TODAS_NOVEDADES)), JSON_UNESCAPED_UNICODE);
                     break;
 
@@ -193,35 +245,35 @@ switch ($_GET["op"])
 
                     //Aunque alguien escriba el número de otra novedad a mano, el
                     //servidor solo la entrega si su rol puede verla
-                    if (!hanaPuedeVerNovedad($idnovedad)) {
+                    if (!hanaPuedeVerNovedad($idNovedad)) {
                         http_response_code(403);
                         echo json_encode(array('error' => 'No tienes permiso para ver esta novedad.'));
                         break;
                     }
-                    $rspta=$Novedades->mostrar($idnovedad);
-                    $arreglo= Array();
-                    $arreglo['titulo']=$rspta['NOM_TITULO_NOVEDADES_HALLAZGOS'];
-                    $arreglo['fechacreacion']=$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'];
-                    $imagencierre = $rspta['NOM_FOTO_FIN_NOVEDADES_HALLAZGOS'] != '' ? novFotoSrc($rspta['NOM_FOTO_FIN_NOVEDADES_HALLAZGOS'], $idnovedad, 'fin') : '';
-                    $fotoInicial = novFotoSrc($rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS'], $idnovedad, 'ini');
+                    $datosNovedad=$modeloNovedades->mostrar($idNovedad);
+                    $respuestaPantalla= Array();
+                    $respuestaPantalla['titulo']=$datosNovedad['NOM_TITULO_NOVEDADES_HALLAZGOS'];
+                    $respuestaPantalla['fechacreacion']=$datosNovedad['FEC_CREACION'];
+                    $imagencierre = $datosNovedad['FOTO_CIERRE'] != '' ? novFotoSrc($datosNovedad['FOTO_CIERRE'], $idNovedad, 'fin') : '';
+                    $fotoInicial = novFotoSrc($datosNovedad['FOTO_REPORTE'], $idNovedad, 'ini');
                     $contenido="";
                 
         
-                    if($_SESSION['Idcolaborador']==$rspta['ID_COLABORADOR_NOVEDADES_HALLAZGOS']){
+                    if($_SESSION['Idcolaborador']==$datosNovedad['ID_COLABORADOR_REPORTA']){
                         
                          $contenido=$contenido.'<div class="row justify-content-end ">
                             <div class="col-auto">
                                 <div class="card bg-primary text-white">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <span style=" font-weight: bold;">Observador novedad:</span>'.$rspta['NOM_OBSERVADOR_NOVEDADES_HALLAZGOS'].'<br>
-                                        <span style=" font-weight: bold;">Centro operativo:</span>'.$rspta['NOM_CENTRO_OP'].'<br>    
-                                        <span style=" font-weight: bold;">Novedad asignada a:</span>'.$rspta['asignado'].'<br>  
-                                        <span style=" font-weight: bold;">Validez novedad:</span>'.$rspta['VALIDEZ_NOVEDADES_HALLAZGOS'].'<br>  
-                                        <span style=" font-weight: bold;">Prioridad:</span>'.$rspta['NOMBRE_ESTADOS_RELEVANCIA'].'<br>       
+                                        <span style=" font-weight: bold;">Reportó:</span>'.$datosNovedad['NOM_COLABORADOR'].'<br>
+                                        <span style=" font-weight: bold;">Centro operativo:</span>'.$datosNovedad['NOM_CENTRO_OP'].'<br>    
+                                        <span style=" font-weight: bold;">Novedad asignada a:</span>'.$datosNovedad['asignado'].'<br>  
+                                        <span style=" font-weight: bold;">Validez novedad:</span>'.$datosNovedad['VALIDEZ'].'<br>  
+                                        <span style=" font-weight: bold;">Prioridad:</span>'.$datosNovedad['PRIORIDAD'].'<br>       
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
+                                            <small class="opacity-60">'.$datosNovedad['NOM_COLABORADOR']." ".$datosNovedad['FEC_CREACION'].'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -233,10 +285,10 @@ switch ($_GET["op"])
                                 <div class="card bg-primary text-white">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <span style=" font-weight: bold;">Novedad:<br></span>'.nl2br($rspta['DESCR_NOVEDADES_HALLAZGOS']).'     
+                                        <span style=" font-weight: bold;">Novedad:<br></span>'.nl2br($datosNovedad['DESCRIPCION']).'     
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
+                                            <small class="opacity-60">'.$datosNovedad['NOM_COLABORADOR']." ".$datosNovedad['FEC_CREACION'].'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -244,7 +296,7 @@ switch ($_GET["op"])
                         </div>
                         ';
                         
-                        if($rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS']!=""){
+                        if($datosNovedad['FOTO_REPORTE']!=""){
                           $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
                                 <span class="badge badge-secondary">FOTO DE EVIDENCIA DE LA NOVEDAD</span>
@@ -261,7 +313,7 @@ switch ($_GET["op"])
                                         <a><img src="'.$fotoInicial.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
+                                            <small class="opacity-60">'.$datosNovedad['NOM_COLABORADOR']." ".$datosNovedad['FEC_CREACION'].'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -277,14 +329,14 @@ switch ($_GET["op"])
                                 <div class="card bg-secondary">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <span style=" font-weight: bold;">Observador novedad:</span>'.$rspta['NOM_OBSERVADOR_NOVEDADES_HALLAZGOS'].'<br>
-                                        <span style=" font-weight: bold;">Centro operativo:</span>'.$rspta['NOM_CENTRO_OP'].'<br>    
-                                        <span style=" font-weight: bold;">Novedad asignada a:</span>'.$rspta['asignado'].'<br>  
-                                        <span style=" font-weight: bold;">Validez novedad:</span>'.$rspta['VALIDEZ_NOVEDADES_HALLAZGOS'].'<br>  
-                                        <span style=" font-weight: bold;">Prioridad:</span>'.$rspta['NOMBRE_ESTADOS_RELEVANCIA'].'<br>       
+                                        <span style=" font-weight: bold;">Reportó:</span>'.$datosNovedad['NOM_COLABORADOR'].'<br>
+                                        <span style=" font-weight: bold;">Centro operativo:</span>'.$datosNovedad['NOM_CENTRO_OP'].'<br>    
+                                        <span style=" font-weight: bold;">Novedad asignada a:</span>'.$datosNovedad['asignado'].'<br>  
+                                        <span style=" font-weight: bold;">Validez novedad:</span>'.$datosNovedad['VALIDEZ'].'<br>  
+                                        <span style=" font-weight: bold;">Prioridad:</span>'.$datosNovedad['PRIORIDAD'].'<br>       
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
+                                            <small class="opacity-60">'.$datosNovedad['NOM_COLABORADOR']." ".$datosNovedad['FEC_CREACION'].'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -296,10 +348,10 @@ switch ($_GET["op"])
                                 <div class="card bg-secondary">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        <span style=" font-weight: bold;">Novedad:</span><br>'.nl2br($rspta['DESCR_NOVEDADES_HALLAZGOS']).'     
+                                        <span style=" font-weight: bold;">Novedad:</span><br>'.nl2br($datosNovedad['DESCRIPCION']).'     
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
+                                            <small class="opacity-60">'.$datosNovedad['NOM_COLABORADOR']." ".$datosNovedad['FEC_CREACION'].'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -307,7 +359,7 @@ switch ($_GET["op"])
                         </div>
                         ';
                         
-                        if($rspta['NOM_FOTO_INI_NOVEDADES_HALLAZGOS']!=""){
+                        if($datosNovedad['FOTO_REPORTE']!=""){
                           $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
                                 <span class="badge badge-secondary">FOTO DE EVIDENCIA DE LA NOVEDAD</span>
@@ -324,7 +376,7 @@ switch ($_GET["op"])
                                         <a ><img src="'.$fotoInicial.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$rspta['NOM_COLABORADOR']." ".$rspta['FEC_CREACION_NOVEDADES_HALLAZGOS'].'</small>
+                                            <small class="opacity-60">'.$datosNovedad['NOM_COLABORADOR']." ".$datosNovedad['FEC_CREACION'].'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -335,47 +387,48 @@ switch ($_GET["op"])
                     }
         
         
-                    $rspta=$Novedades->mostrarRespuesta($idnovedad);
-                    $estadon="";
-                    while ($reg=$rspta->fetch_object()){
-                        $estadon="";
-                        switch($reg->ESTADO_NOVEDAD)
+                    //La conversación: cada respuesta con el estado en que dejó la novedad
+                    $respuestas=$modeloNovedades->mostrarRespuesta($idNovedad);
+                    $nombreEstado="";
+                    while ($respuestaNovedad=$respuestas->fetch_object()){
+                        $nombreEstado="";
+                        switch($respuestaNovedad->ESTADO_NOVEDAD)
                         {
                             //El número del estado se cambia por su nombre para mostrarlo en la tabla
                             case 0:
-                                $estadon="Observador";
+                                $nombreEstado="Comentario"; //respuesta que no cambió el estado
                                 break;    
                             case 2:
-                                $estadon="En proceso";
+                                $nombreEstado="En proceso";
                                 break;
                             case 3:
-                                $estadon="Finalizada";
+                                $nombreEstado="Finalizada";
                                 break;
                             case 4:
-                                $estadon="Cerrada";
+                                $nombreEstado="Cerrada";
                                 break;    
                         }
                          
                         
-                        if($_SESSION['Idcolaborador']==$reg->ID_COLABORADOR_RESPUESTA){
+                        if($_SESSION['Idcolaborador']==$respuestaNovedad->ID_COLABORADOR_RESPUESTA){
                             
                             $contenido=$contenido.'<div class="row justify-content-end ">
                              <div class="col-auto">
                                 <div class="card bg-primary text-white">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        '.nl2br($reg->DESCR_RESPUESTA_NOVEDAD_HALLAZGOS).'     
+                                        '.nl2br($respuestaNovedad->DESCR_RESPUESTA_NOVEDAD_HALLAZGOS).'     
                                         </p><br>
                                         <div>
-                                            <span style=" font-weight: bold;" class="opacity-60">ESTADO: '.$estadon.'</span><br> 
-                                            <small class="opacity-60">'.$reg->NOM_COLABORADOR." ".$reg->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
+                                            <span style=" font-weight: bold;" class="opacity-60">ESTADO: '.$nombreEstado.'</span><br> 
+                                            <small class="opacity-60">'.$respuestaNovedad->NOM_COLABORADOR." ".$respuestaNovedad->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>';
                             
-                        if($reg->ESTADO_NOVEDAD==3 and $imagencierre!=""){
+                        if($respuestaNovedad->ESTADO_NOVEDAD==3 and $imagencierre!=""){
                             
                             $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
@@ -393,7 +446,7 @@ switch ($_GET["op"])
                                         <a ><img src="'.$imagencierre.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$reg->NOM_COLABORADOR." ".$reg->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
+                                            <small class="opacity-60">'.$respuestaNovedad->NOM_COLABORADOR." ".$respuestaNovedad->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -410,18 +463,18 @@ switch ($_GET["op"])
                                 <div class="card bg-secondary">
                                     <div class="card-body p-2">
                                         <p class="mb-0">
-                                        '.nl2br($reg->DESCR_RESPUESTA_NOVEDAD_HALLAZGOS).'    
+                                        '.nl2br($respuestaNovedad->DESCR_RESPUESTA_NOVEDAD_HALLAZGOS).'    
                                         </p><br>
                                         <div>
-                                            <span style=" font-weight: bold;" class="opacity-60">ESTADO: '.$estadon.'</span><br>
-                                            <small class="opacity-60">'.$reg->NOM_COLABORADOR." ".$reg->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
+                                            <span style=" font-weight: bold;" class="opacity-60">ESTADO: '.$nombreEstado.'</span><br>
+                                            <small class="opacity-60">'.$respuestaNovedad->NOM_COLABORADOR." ".$respuestaNovedad->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>';    
                             
-                        if($reg->ESTADO_NOVEDAD==3 and $imagencierre!=""){
+                        if($respuestaNovedad->ESTADO_NOVEDAD==3 and $imagencierre!=""){
                             
                             $contenido=$contenido.'<div class="row mb-4">
                             <div class="col text-center">
@@ -438,7 +491,7 @@ switch ($_GET["op"])
                                         <a><img src="'.$imagencierre.'" class="img-rounded" alt="Foto de la novedad" style="width: 350px;"></a>   
                                         </p><br>
                                         <div>
-                                            <small class="opacity-60">'.$reg->NOM_COLABORADOR." ".$reg->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
+                                            <small class="opacity-60">'.$respuestaNovedad->NOM_COLABORADOR." ".$respuestaNovedad->FEC_RESPUESTA_NOVEDAD_HALLAZGOS.'</small>
                                         </div>
                                     </div>
                                 </div>
@@ -453,23 +506,24 @@ switch ($_GET["op"])
                         
                     }
                    
-                    $arreglo['contenido']=$contenido;
-                    $arreglo['estado']=$estadon;
-                    $arreglo['permiso']=$_SESSION['Audititoria'];
-                    //Codificar el resultado utilizando json
-                    echo json_encode($arreglo);
+                    $respuestaPantalla['contenido']=$contenido;
+                    $respuestaPantalla['estado']=$nombreEstado;
+                    $respuestaPantalla['permiso']=$_SESSION['Auditoria'];
+                    //La pantalla recibe el detalle armado, el estado y si la persona puede cerrar novedades
+                    echo json_encode($respuestaPantalla);
             break;        
         
-            case 'listar'://lo pide la tabla de la pantalla al cargar
+            //La tabla de novedades (la pide la pantalla al cargar y al cambiar los filtros)
+            case 'listar':
         
         
                    
         
-                    $rspta=$Novedades->centrosOP($_SESSION['IdUsuarios']);//trae los registros para la tabla
-                     $centrosoperativos= Array();
-                     while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
+                    $misCentros=$modeloNovedades->centrosAsignados($_SESSION['Idcolaborador']); //los centros asignados a la persona
+                     $centrosOperativos= Array();
+                     while ($centroAsignado=$misCentros->fetch_object())
                      {
-                         $centrosoperativos[]=$reg->ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP;
+                         $centrosOperativos[]=$centroAsignado->ID_CENTRO_OP;
                          
                      }
         
@@ -482,93 +536,98 @@ switch ($_GET["op"])
                         'desde' => isset($_GET['fechai']) ? $_GET['fechai'] : '',
                         'hasta' => isset($_GET['fechaf']) ? $_GET['fechaf'] : ''
                     );
-                    $val = isset($_GET['validador']) ? $_GET['validador'] : 'todo';
-                    if ($val === 'usuario') {
+                    $validador = isset($_GET['validador']) ? $_GET['validador'] : 'todo';
+                    if ($validador === 'usuario') {
                         $filtros['asignadoA'] = intval($_SESSION['Idcolaborador']);
-                    } elseif ($val !== 'todo' && ctype_digit((string)$val)) {
-                        $filtros['proyecto'] = intval($val);
+                    } elseif ($validador !== 'todo' && ctype_digit((string)$validador)) {
+                        $filtros['proyecto'] = intval($validador);
                     }
                     $filtros['estado'] = isset($_GET['validador2']) ? max(0, intval($_GET['validador2'])) : 0;
 
-                    $rspta=$Novedades->listarFiltrado(hanaCondNovedades($vista), $filtros);
+                    $novedades=$modeloNovedades->listarFiltrado(hanaCondNovedades($vista), $filtros);
                      
                     
                    
-                    //Vamos a declarar un array
-                    $data= Array();
+                    //Una fila de la tabla por cada novedad
+                    $filasTabla= Array();
         
-                    while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
+                    while ($filaNovedad=$novedades->fetch_object())
                     {
                         
                         
-                      $bot="";  
-                     if(in_array($reg->ID_CENTRO_OP,$centrosoperativos)){
+                      //El botón del ojo: mostrar() abre la novedad para responderla y solover()
+                      //solo para leerla. Se responde si el peaje es de los asignados a la persona
+                      //y la novedad sigue abierta (una Finalizada solo la responde auditoría)
+                      $botones="";  
+                     if(in_array($filaNovedad->ID_CENTRO_OP,$centrosOperativos)){
                          
                          
-                        if($reg->ESTADO_NOVEDAD!=3 and $reg->ESTADO_NOVEDAD!=4){
-                        $bot='<SPAN title="Editar">
-                                            <button class="btn btn-success" onclick="mostrar('.$reg->ID_NOVEDADES_HALLAZGOS.')">
+                        if($filaNovedad->ESTADO_NOVEDAD!=3 and $filaNovedad->ESTADO_NOVEDAD!=4){
+                        $botones='<SPAN title="Editar">
+                                            <button class="btn btn-success" onclick="mostrar('.$filaNovedad->ID_NOVEDADES_HALLAZGOS.')">
                                                     <i class="fa fa-eye" style="color:white;"></i></button></SPAN>';     
                             
-                        }else if($reg->ESTADO_NOVEDAD==3 and $_SESSION['Audititoria']==1){
-                        $bot='<SPAN title="Editar">
-                                            <button class="btn btn-success" onclick="mostrar('.$reg->ID_NOVEDADES_HALLAZGOS.')">
+                        }else if($filaNovedad->ESTADO_NOVEDAD==3 and $_SESSION['Auditoria']==1){
+                        $botones='<SPAN title="Editar">
+                                            <button class="btn btn-success" onclick="mostrar('.$filaNovedad->ID_NOVEDADES_HALLAZGOS.')">
                                                     <i class="fa fa-eye" style="color:white;"></i></button></SPAN>';     
-                        }else if(($reg->ESTADO_NOVEDAD==3 and $_SESSION['Audititoria']==0) or $reg->ESTADO_NOVEDAD==4){
-                            $bot='<SPAN title="Editar">
-                                            <button class="btn btn-success" onclick="solover('.$reg->ID_NOVEDADES_HALLAZGOS.')">
+                        }else if(($filaNovedad->ESTADO_NOVEDAD==3 and $_SESSION['Auditoria']==0) or $filaNovedad->ESTADO_NOVEDAD==4){
+                            $botones='<SPAN title="Editar">
+                                            <button class="btn btn-success" onclick="solover('.$filaNovedad->ID_NOVEDADES_HALLAZGOS.')">
                                                     <i class="fa fa-eye" style="color:white;"></i></button></SPAN>'; 
                             
                         }
                   
                      }else{
                          
-                        $bot='<SPAN title="Editar">
-                        <button class="btn btn-success" onclick="solover('.$reg->ID_NOVEDADES_HALLAZGOS.')">
+                        $botones='<SPAN title="Editar">
+                        <button class="btn btn-success" onclick="solover('.$filaNovedad->ID_NOVEDADES_HALLAZGOS.')">
                         <i class="fa fa-eye" style="color:white;"></i></button></SPAN>';   
                          
                      }    
                
-                        $estadon="";
-                         switch($reg->ESTADO_NOVEDAD)
+                        $nombreEstado="";
+                         switch($filaNovedad->ESTADO_NOVEDAD)
                         {
                                      
                             //El número del estado se cambia por su nombre para mostrarlo en la tabla
                             case 1:
-                                $estadon="Asignada";
+                                $nombreEstado="Asignada";
                                 break;     
                             case 2:
-                                $estadon="En proceso";
+                                $nombreEstado="En proceso";
                                 break;
                             case 3:
-                                $estadon="Finalizada";
+                                $nombreEstado="Finalizada";
                                 break;
                             case 4:
-                                $estadon="Cerrada";
+                                $nombreEstado="Cerrada";
                                 break;    
                         }
                         
-                         $est="";
-                         if($reg->FEC_CIERRE_NOVEDAD_HALLAZGOS!=null and $reg->ESTADO_NOVEDAD>=3){
+                         //Mano arriba (verde) si se atendió o va a tiempo; abajo (roja) si pasó la fecha límite.
+                         //Una novedad finalizada o cerrada se mide con su fecha de cierre; una abierta, con hoy
+                         $indicadorPlazo="";
+                         if($filaNovedad->FEC_CIERRE!=null and $filaNovedad->ESTADO_NOVEDAD>=3){
                              
-                        if($reg->FEC_CIERRE_NOVEDAD_HALLAZGOS>$reg->FECHA_LIMITE_NOVEDAD){
-                         $est='<SPAN title="estado">                        
+                        if($filaNovedad->FEC_CIERRE>$filaNovedad->FECHA_LIMITE){
+                         $indicadorPlazo='<SPAN title="estado">                        
                                     <i class="fa fa-thumbs-down" style="color: red;
                          font-size: 25px; "></i></SPAN>';
                     }else{
-                       $est='<SPAN title="estado">                        
+                       $indicadorPlazo='<SPAN title="estado">                        
                         <i class="fa fa-thumbs-up" style="color: green;
                          font-size: 25px; "></i></SPAN>'; 
                          }  
                              
                          }else{    
                              
-                         if($fecha>$reg->FECHA_LIMITE_NOVEDAD){
-                         $est='<SPAN title="estado">                        
+                         if($fecha>$filaNovedad->FECHA_LIMITE){
+                         $indicadorPlazo='<SPAN title="estado">                        
                                     <i class="fa fa-thumbs-down" style="color: red;
                          font-size: 25px; "></i></SPAN>';
                         }else{
-                        $est='<SPAN title="estado">                        
+                        $indicadorPlazo='<SPAN title="estado">                        
                         <i class="fa fa-thumbs-up" style="color: green;
                          font-size: 25px; "></i></SPAN>'; 
                          }
@@ -577,28 +636,29 @@ switch ($_GET["op"])
                          }
                         
                         
-                            $data[]=array(//arreglo con los datos de las columnas
-                                    "0"=>$reg->ID_NOVEDADES_HALLAZGOS,
-                                    "1"=>'<SPAN title="'.$reg->DESCR_NOVEDADES_HALLAZGOS.'">'.$reg->NOM_TITULO_NOVEDADES_HALLAZGOS.'</SPAN>',
-                                    "2"=>$reg->FEC_CREACION_NOVEDADES_HALLAZGOS,
-                                    "3"=>$reg->NOM_COLABORADOR,
-                                    "4"=>$reg->asignado,
-                                    "5"=>$reg->NOM_PROYECTO,
-                                    "6"=>$reg->NOM_CENTRO_OP,
-                                    "7"=>$reg->NOMBRE_ESTADOS_RELEVANCIA,
-                                    "8"=>$reg->FECHA_LIMITE_NOVEDAD,
-                                    "9"=>$est,
-                                    "10"=>$estadon,
-                                    "11"=>$bot,
+                            $filasTabla[]=array( //columnas de la tabla, en orden
+                                    "0"=>$filaNovedad->ID_NOVEDADES_HALLAZGOS,
+                                    "1"=>'<SPAN title="'.$filaNovedad->DESCRIPCION.'">'.$filaNovedad->NOM_TITULO_NOVEDADES_HALLAZGOS.'</SPAN>',
+                                    "2"=>$filaNovedad->FEC_CREACION,
+                                    "3"=>$filaNovedad->NOM_COLABORADOR,
+                                    "4"=>$filaNovedad->asignado,
+                                    "5"=>$filaNovedad->NOM_PROYECTO,
+                                    "6"=>$filaNovedad->NOM_CENTRO_OP,
+                                    "7"=>$filaNovedad->PRIORIDAD,
+                                    "8"=>$filaNovedad->FECHA_LIMITE,
+                                    "9"=>$indicadorPlazo,
+                                    "10"=>$nombreEstado,
+                                    "11"=>$botones,
                             );
                     }
                  
-                    $results = array(//variable con el resultado del arreglo
-                            "sEcho"=>1, //Información para el datatables
-                            "iTotalRecords"=>count($data), //enviamos el total registros al datatable
-                            "iTotalDisplayRecords"=>count($data), //enviamos el total registros a visualizar
-                            "aaData"=>$data);
-                    echo json_encode($results);//muestra el resultado
+                    //El formato que espera DataTables
+                    $respuestaTabla = array(
+                            "sEcho"=>1,
+                            "iTotalRecords"=>count($filasTabla),
+                            "iTotalDisplayRecords"=>count($filasTabla),
+                            "aaData"=>$filasTabla);
+                    echo json_encode($respuestaTabla);
             break;
 		
             //Entrega la foto de una novedad (f=ini la del registro, f=fin la del cierre),
@@ -606,7 +666,7 @@ switch ($_GET["op"])
             case 'foto':
                     $idFoto = isset($_GET['id']) ? intval($_GET['id']) : 0;
                     if (!hanaPuedeVerNovedad($idFoto)) { http_response_code(403); echo 'No tienes permiso para ver esta foto.'; break; }
-                    $fotos = $Novedades->fotos($idFoto);
+                    $fotos = $modeloNovedades->fotos($idFoto);
                     $cual = (isset($_GET['f']) && $_GET['f'] === 'fin') ? 'FIN' : 'INI';
                     $valor = $fotos ? (string)$fotos[$cual] : '';
                     $partes = hanaArchivoPartes($valor);
@@ -620,15 +680,15 @@ switch ($_GET["op"])
 		     //Opciones del filtro de proyectos (todas, las asignadas a mí o un proyecto)
 		     case 'select':
                 try {
-                        $rspta = $Novedades->proyectos();
+                        $proyectos = $modeloNovedades->proyectos();
                         echo "<option value='todo'>Todos</option><option value='usuario'>Asignadas a mi usuario</option>";
-                        while ($reg = $rspta->fetch_object()) //mientras exista objeto en la respuesta
+                        while ($proyecto = $proyectos->fetch_object())
                         {
-                                echo "<option value='$reg->ID_PROYECTO'>$reg->NOM_PROYECTO</option>";
+                                echo "<option value='$proyecto->ID_PROYECTO'>$proyecto->NOM_PROYECTO</option>";
                         }
-                } catch (\Throwable $th) {
+                } catch (\Throwable $error) {
                         http_response_code(404);
-                        echo json_encode($th);
+                        echo json_encode($error);
                 }
                 break;
           

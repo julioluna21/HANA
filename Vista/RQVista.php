@@ -16,7 +16,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         include('head.php');
 ?>
 <!-- Estilos del módulo -->
-<link href="../public/css/rq.css?v=3" rel="stylesheet">
+<link href="../public/css/rq.css?v=4" rel="stylesheet">
 
 <!-- page content -->
 <div class="right_col" role="main">
@@ -207,7 +207,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/RQAjax.js?v=8"></script>
+<script type="text/javascript" src="../Ajax/RQAjax.js?v=10"></script>
 
 <?php
     } else {

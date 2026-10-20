@@ -1,11 +1,12 @@
+//Archivo sin uso: la pantalla de Cargos se quitó. Se conserva solo como referencia.
 //Configuración - Cargos (Vista/cargosVista.php)
 //Tabla, formulario y el botón de desactivar. Habla con Control/cargosControl.php
 
 var tabla;//variable global
 //Función para guardar o editar
-function guardar(e)
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -123,13 +124,13 @@ function listar()
         buttons: [
                         
                     ],
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/cargosControl.php?op=listar',//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
+                                    url: '../Control/cargosControl.php?op=listar',//página que realiza la operación
+                                    type : "get",//tipo de envío de datos
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -143,10 +144,10 @@ function init()
 {
     mostrarform(false)
     listar();//lista 
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
+//al oprimir el botón del formulario
+    $("#demo-form2").on("submit",function(evento) //evento: el envío del formulario
     {
-            guardar(e);//guarda o edita el registro
+            guardar(evento);//guarda o edita el registro
     });
 }
 init();

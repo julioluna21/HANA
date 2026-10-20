@@ -79,8 +79,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 
           <h4 class="rd-subtitulo">Proyectos que salen en tu informe</h4>
           <div class="inf-proyectos">
-<?php   foreach ($proyectosInf as $p) { ?>
-            <span class="rd-tag rd-tag-ok"><i class="fa fa-road"></i> <?php echo htmlspecialchars($p['NOM_PROYECTO'], ENT_QUOTES, 'UTF-8'); ?></span>
+<?php   foreach ($proyectosInf as $proyecto) { ?>
+            <span class="rd-tag rd-tag-ok"><i class="fa fa-road"></i> <?php echo htmlspecialchars($proyecto['NOM_PROYECTO'], ENT_QUOTES, 'UTF-8'); ?></span>
 <?php   } ?>
           </div>
           <p class="rd-ayuda"><?php echo $todosInf ? 'Ves todos los proyectos activos.' : 'Ves los proyectos que coordinas. Para ver todos hace falta la casilla «Tablero: ver todos los proyectos» (20M).'; ?></p>

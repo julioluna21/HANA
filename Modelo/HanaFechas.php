@@ -32,9 +32,9 @@ class HanaFechas
     {
         $zona = date_default_timezone_get();
         date_default_timezone_set('America/Bogota');
-        $h = date('Y-m-d');
+        $hoy = date('Y-m-d');
         date_default_timezone_set($zona); //se deja la zona como estaba
-        return $h;
+        return $hoy;
     }
 
     //Días de margen para registrar fuera de fecha: siempre 0 (algunas partes la consultan)
@@ -47,8 +47,8 @@ class HanaFechas
     //Los días habilitados van aparte (ver habilitados y enVentana)
     public static function ventana()
     {
-        $h = self::hoy();
-        return array($h, $h);
+        $hoy = self::hoy();
+        return array($hoy, $hoy);
     }
 
     //Los días que la persona tiene habilitados en este momento, de más viejo a más nuevo.
@@ -60,9 +60,9 @@ class HanaFechas
         if (isset(self::$habilitados[$id])) { return self::$habilitados[$id]; } //ya se consultó en esta petición
         require_once __DIR__ . '/HanaDB.php';
         $dias = array();
-        //Si la tabla todavía no existe (falta correr el script 15), q() devuelve false: no hay días habilitados
-        $f = HanaDB::q("SELECT FECHA FROM dia_habilitado WHERE ID_COLABORADOR = ? AND ESTADO = 1 ORDER BY FECHA", 'i', array($id));
-        if (is_array($f)) { foreach ($f as $x) { $dias[] = $x['FECHA']; } }
+        //Si la tabla dia_habilitado no existe (base sin actualizar), q() devuelve false: no hay días habilitados
+        $filas = HanaDB::q("SELECT FECHA FROM dia_habilitado WHERE ID_COLABORADOR = ? AND ESTADO = 1 ORDER BY FECHA", 'i', array($id));
+        if (is_array($filas)) { foreach ($filas as $fila) { $dias[] = $fila['FECHA']; } }
         self::$habilitados[$id] = $dias;
         return $dias;
     }
@@ -77,8 +77,8 @@ class HanaFechas
     //el administrador se lo habilitó a la persona
     public static function enVentana($fecha, $idColaborador = 0)
     {
-        $f = substr((string)$fecha, 0, 10);
-        return $f === self::hoy() || self::habilitado($f, $idColaborador);
+        $dia = substr((string)$fecha, 0, 10);
+        return $dia === self::hoy() || self::habilitado($dia, $idColaborador);
     }
 
     //Para los mensajes de error: "solo se registran arqueos de hoy (o un día que...)"
@@ -87,7 +87,9 @@ class HanaFechas
         return 'hoy (o un día que el administrador te haya habilitado)';
     }
 
-    //Domingo de Pascua (algoritmo gregoriano anónimo), como 'AAAA-MM-DD'
+    //Domingo de Pascua (algoritmo gregoriano anónimo, de Meeus/Jones/Butcher), como 'AAAA-MM-DD'.
+    //Las letras $a a $m son los pasos intermedios del algoritmo con los mismos nombres con que
+    //se publica, para poder compararlo con la fórmula original
     public static function pascua($anio)
     {
         $a = $anio % 19; $b = intdiv($anio, 100); $c = $anio % 100;
@@ -113,53 +115,53 @@ class HanaFechas
     {
         $anio = (int)$anio;
         if (isset(self::$cache[$anio])) { return self::$cache[$anio]; }
-        $f = array();
-        foreach (array('01-01', '05-01', '07-20', '08-07', '12-08', '12-25') as $md) { $f["$anio-$md"] = true; }
+        $festivos = array();
+        foreach (array('01-01', '05-01', '07-20', '08-07', '12-08', '12-25') as $mesDia) { $festivos["$anio-$mesDia"] = true; }
 
         //Al lunes siguiente, si no cae en lunes
         $emiliani = array('01-06', '03-19', '06-29', '08-15', '10-12', '11-01', '11-11');
         if ($anio >= 2026) { $emiliani[] = '07-09'; } //Nuestra Señora del Rosario de Chiquinquirá (Ley 2578 de 2026)
-        foreach ($emiliani as $md) {
-            $t = strtotime("$anio-$md");
-            $dow = (int)date('N', $t); //1 = lunes
-            if ($dow !== 1) { $t = strtotime('next monday', $t); }
-            $f[date('Y-m-d', $t)] = true;
+        foreach ($emiliani as $mesDia) {
+            $momento = strtotime("$anio-$mesDia");
+            $diaSemana = (int)date('N', $momento); //1 = lunes
+            if ($diaSemana !== 1) { $momento = strtotime('next monday', $momento); }
+            $festivos[date('Y-m-d', $momento)] = true;
         }
 
-        $p = strtotime(self::pascua($anio));
-        foreach (array(-3, -2, 43, 64, 71) as $dias) { $f[date('Y-m-d', strtotime("$dias days", $p))] = true; }
+        $pascua = strtotime(self::pascua($anio));
+        foreach (array(-3, -2, 43, 64, 71) as $dias) { $festivos[date('Y-m-d', strtotime("$dias days", $pascua))] = true; }
 
-        self::$cache[$anio] = $f;
-        return $f;
+        self::$cache[$anio] = $festivos;
+        return $festivos;
     }
 
     //¿Ese día es festivo en Colombia?
     public static function esFestivo($fecha)
     {
-        $t = strtotime($fecha);
-        $f = self::festivos((int)date('Y', $t));
-        return isset($f[date('Y-m-d', $t)]);
+        $momento = strtotime($fecha);
+        $festivos = self::festivos((int)date('Y', $momento));
+        return isset($festivos[date('Y-m-d', $momento)]);
     }
 
     //¿Es día hábil? No lo es si cae sábado, domingo o festivo
     public static function esHabil($fecha)
     {
-        $t = strtotime($fecha);
-        if ((int)date('N', $t) >= 6) { return false; } //sábado o domingo
-        $f = self::festivos((int)date('Y', $t));
-        return !isset($f[date('Y-m-d', $t)]);
+        $momento = strtotime($fecha);
+        if ((int)date('N', $momento) >= 6) { return false; } //sábado o domingo
+        $festivos = self::festivos((int)date('Y', $momento));
+        return !isset($festivos[date('Y-m-d', $momento)]);
     }
 
-    //La fecha que resulta de sumar $n días hábiles (como WORKDAY de Excel,
+    //La fecha que resulta de sumar $cuantos días hábiles (como WORKDAY de Excel,
     //pero sin contar los festivos de Colombia)
-    public static function sumarHabiles($fecha, $n)
+    public static function sumarHabiles($fecha, $cuantos)
     {
-        $t = strtotime($fecha);
+        $momento = strtotime($fecha);
         $sumados = 0;
-        while ($sumados < $n) {
-            $t = strtotime('+1 day', $t);
-            if (self::esHabil(date('Y-m-d', $t))) { $sumados++; }
+        while ($sumados < $cuantos) {
+            $momento = strtotime('+1 day', $momento);
+            if (self::esHabil(date('Y-m-d', $momento))) { $sumados++; }
         }
-        return date('Y-m-d', $t);
+        return date('Y-m-d', $momento);
     }
 }

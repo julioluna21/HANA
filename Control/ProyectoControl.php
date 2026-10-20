@@ -1,153 +1,121 @@
 <?php
-session_start();//inicia la session, permite guardar variables de sesion
-require_once "../Modelo/ProyectoModelo.php";//Utilizará este archivo
-$Proyecto=new Proyecto();//objeto del modelo: con él se hacen las consultas
-//carga las variables con los valores recibidos y limpia los que no se usaran
-$idProyecto=isset($_POST["idProyecto"])? limpiarCadena($_POST["idProyecto"]):"";
-$nombreproyecto=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
-$coordinador=isset($_POST["coordinador"])? intval($_POST["coordinador"]):0;
-
 /*
-  Quién puede usar cada operación:
-    - Sin sesión, nada.
-    - Crear, editar, anular, ver y listar proyectos: permiso 6M.
-      Las listas de colaboradores y la de proyectos (select) las usan otras
-      pantallas: basta con haber iniciado sesión.
+  HANA - Proyectos (controlador)
+  ---------------------------------------------------------------------------
+  Atiende las peticiones de Ajax/ProyectoAjax.js y responde con lo que trae el
+  modelo (Modelo/ProyectoModelo.php). Cada petición llega con ?op=...:
+    guardar, mostrar, anular y listar   la pantalla Proyectos (permiso 6M)
+    colaboradores                       personas activas para elegir coordinador
+                                        (también la usan Centros y Cronograma)
+    select                              el buscador de proyectos (Centros)
+  Las dos últimas solo piden haber iniciado sesión.
+
+  Reglas que revisa el servidor al guardar:
+    - El nombre es obligatorio y no se repite entre los proyectos activos.
+      (un proyecto sin nombre dañaría los Excel del ausentismo y de la promesa de valor).
+    - El coordinador, si se escoge, tiene que existir y estar activo.
+  Si algo no se cumple responde 400 con el motivo, y la pantalla lo muestra.
 */
+session_start();
+require_once "../Modelo/ProyectoModelo.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //cómo se guardan y se muestran los nombres
+$Proyecto = new Proyecto(); //objeto del modelo: con él se hacen las consultas
+
+//Lo que llega del formulario
+$idProyecto  = isset($_POST["idProyecto"]) ? intval($_POST["idProyecto"]) : 0;
+$nombre      = isset($_POST["nombre"]) && is_string($_POST["nombre"]) ? hanaTextoGuardado($_POST["nombre"]) : '';
+$coordinador = isset($_POST["coordinador"]) ? intval($_POST["coordinador"]) : 0;
+
+//Quién puede qué
 $op = isset($_GET["op"]) ? $_GET["op"] : "";
 if (!isset($_SESSION['IdUsuarios'])) { http_response_code(401); echo "Tu sesión terminó. Vuelve a iniciar sesión."; exit(); }
-$modulosProy = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
-if (in_array($op, array('guardar', 'mostrar', 'anular', 'listar'), true) && !in_array('6M', $modulosProy)) {
+$misCasillas = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
+if (in_array($op, array('guardar', 'mostrar', 'anular', 'listar'), true) && !in_array('6M', $misCasillas, true)) {
     http_response_code(403); echo "No permitido: tu rol no administra proyectos."; exit();
 }
-if ($coordinador > 0 && !$Proyecto->colaboradorValido($coordinador)) {
-    http_response_code(400); echo "El coordinador elegido no existe o está inactivo."; exit();
+
+//Corta con un 400 y el motivo (la pantalla lo muestra con hanaErrorAjax)
+function proyError($mensaje)
+{
+    http_response_code(400);
+    echo $mensaje;
+    exit();
 }
 
-//opciones
 switch ($op)
-    {
-            case 'guardar'://primer caso
-                try {
-                        if (empty($idProyecto)) {
-                          
-                            $rspta=$Proyecto->insertar($nombreproyecto, $coordinador);
-                            echo $rspta ? http_response_code(200): http_response_code(400); 
-                            
-                        }else{
-                            
-                            $rspta=$Proyecto->editar($idProyecto, $nombreproyecto, $coordinador);
-                        echo $rspta ? http_response_code(200) : http_response_code(400);
-                        }
-                } catch (\Throwable $th) {
-                        http_response_code(404);
-                        echo json_encode($th);
-                }
-                            
-            break;
-            //Trae un proyecto para cargarlo en el formulario
-            case 'mostrar':
-                try {
-                        $rspta=$Proyecto->mostrar($idProyecto);
-                        $rspta ? http_response_code(200):http_response_code(400);
-                        echo json_encode($rspta);
-                } catch (\Throwable $th) {
-                        http_response_code(404);
-                        echo json_encode($th);
-                }
-            break;
-            //Colaboradores activos para el selector de coordinador (y de jefe de centro)
-            case 'colaboradores':
-                $lista = array();
-                $rspta = $Proyecto->colaboradores();
-                while ($rspta && ($f = $rspta->fetch_assoc())) {
-                        $lista[] = array('id' => (int)$f['id'],
-                                         'nombre' => html_entity_decode($f['nombre'], ENT_QUOTES, 'UTF-8'),
-                                         'cargo' => html_entity_decode((string)$f['cargo'], ENT_QUOTES, 'UTF-8'));
-                }
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode($lista, JSON_UNESCAPED_UNICODE);
-            break;
+{
+    //Crea o edita un proyecto
+    case 'guardar':
+        $problema = hanaProblemaNombre($nombre, 50, 'del proyecto');
+        if ($problema !== '') { proyError($problema); }
+        if ($coordinador > 0 && !$Proyecto->colaboradorValido($coordinador)) { proyError("El coordinador elegido no existe o está inactivo."); }
+        //El nombre no se repite. Si se edita sin cambiarle el nombre no se revisa, por si ya
+        //había dos iguales de antes (así se puede corregir uno de ellos)
+        $actual = $idProyecto ? $Proyecto->mostrar($idProyecto) : null;
+        $cambiaNombre = !$actual || (string)$actual['NOM_PROYECTO'] !== $nombre;
+        if ($cambiaNombre && $Proyecto->nombreExiste($nombre, $idProyecto)) {
+            proyError('Ya hay un proyecto activo llamado «' . hanaTextoVisible($nombre) . '». Usa otro nombre.');
+        }
+        $ok = $idProyecto ? $Proyecto->editar($idProyecto, $nombre, $coordinador) : $Proyecto->insertar($nombre, $coordinador);
+        if (!$ok) { proyError('No se pudo guardar el proyecto.'); }
+        echo 'Registro guardado con éxito';
+    break;
 
-            //Desactiva un proyecto (no se borra)
-            case 'anular':
-                       $rspta=$Proyecto->anular($idProyecto);
-                        echo $rspta ? http_response_code(200):http_response_code(400);        
-                            
-            break;        
-        
-            //Opciones del buscador de proyectos
-            case 'select':
-                $search_term = isset($_GET['search'])? $_GET['search']:0;
-                try {
-                        $rspta=$Proyecto->select($search_term);
-                       $usersData = array();  
-                        if($rspta->num_rows > 0){  
-                            while($row = $rspta->fetch_assoc()){  
-                                $data['id'] = $row['ID_PROYECTO'];  
-                                $data['text'] = $row['NOM_PROYECTO'];  
-                                array_push($usersData, $data);  
-                            }  
-                        } 
-                         
-                        // Return results as json encoded array  
-                        echo json_encode($usersData); 
-                } catch (\Throwable $th) {
-                        http_response_code(404);
-                        echo json_encode($th);
-                }
-            
-            break;         
-        
-            case 'listar'://lo pide la tabla de la pantalla al cargar
-        
-                try {
-                        $rspta=$Proyecto->listar();//trae los registros para la tabla
-                        //Vamos a declarar un array
-                        $data= Array();
-            
-                        while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
-                        {
-                            
-                          $bot='<SPAN title="Editar">
-                          <button class="btn btn-success" onclick="mostrar('.$reg->ID_PROYECTO.')">
-                          <i class="fa fa-eye"></i></button></SPAN>
-             <SPAN title="anular">
- <button type="button" class="btn btn-success" onclick="anular('.$reg->ID_PROYECTO.')">
- <i class="fa fa-trash-o"></i></button></SPAN>';       
-                    
-                            $estado="Activo";
-                            if($reg->Estado==0){
-                            $estado="Inactivo";
-                           /* $bot='<SPAN title="Editar">
-                                                <button class="btn btn-secondary" onclick="mostrar('.$reg->ID_PROYECTO.')">
-                                                        <i class="fas fa-eye" style="color:white;"></i></button></SPAN> <SPAN title="Activar">
-                         <button type="button" class="btn btn-primary" onclick="activar('.$reg->ID_PROYECTO.')">
-                         <i class="fas fa-check" style="color:white;"></i></button></SPAN>';*/
-                                
-                            }
-                                   
-                            
-                                $data[]=array(//arreglo con los datos de las columnas
-                                        "0"=>$reg->ID_PROYECTO,
-                                        "1"=>$reg->NOM_PROYECTO,
-                                        "2"=>$reg->COORDINADOR ? $reg->COORDINADOR : '<span style="color:#8A5B0B;">Sin asignar</span>',
-                                        "3"=>$estado,
-                                        "4"=>$bot,
-                                );
-                        }
-                     
-                        $results = array(//variable con el resultado del arreglo
-                                "sEcho"=>1, //Información para el datatables
-                                "iTotalRecords"=>count($data), //enviamos el total registros al datatable
-                                "iTotalDisplayRecords"=>count($data), //enviamos el total registros a visualizar
-                                "aaData"=>$data);
-                        echo json_encode($results);//muestra el resultado
-                } catch (\Throwable $th) {
-                        http_response_code(404);
-                        echo json_encode($th);
-                }
-        
-            break;
-          
-    }
+    //Trae un proyecto para cargarlo en el formulario. El nombre va como se escribió,
+    //para que al guardar de nuevo no se convierta dos veces
+    case 'mostrar':
+        $fila = $Proyecto->mostrar($idProyecto);
+        if (!$fila) { http_response_code(400); }
+        echo hanaJsonTexto($fila);
+    break;
+
+    //Personas activas con su rol, para el selector de coordinador (y de jefe de centro)
+    case 'colaboradores':
+        $lista = array();
+        $filas = $Proyecto->colaboradores();
+        while ($filas && ($fila = $filas->fetch_assoc())) {
+            $lista[] = array('id' => (int)$fila['id'], 'nombre' => $fila['nombre'], 'rol' => (string)$fila['rol']);
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        echo hanaJsonTexto($lista); //la pantalla los pinta como texto
+    break;
+
+    //Desactiva un proyecto (no se borra)
+    case 'anular':
+        if (!$Proyecto->anular($idProyecto)) { proyError('No se pudo anular el proyecto.'); }
+        echo 'Registro anulado con éxito';
+    break;
+
+    //Opciones del buscador de proyectos (select2 las pinta como texto)
+    case 'select':
+        $loQueSeEscribio = isset($_GET['search']) && is_string($_GET['search']) ? trim($_GET['search']) : '';
+        $opciones = array();
+        foreach ($Proyecto->buscar($loQueSeEscribio) as $proyecto) {
+            $opciones[] = array('id' => $proyecto['ID_PROYECTO'], 'text' => $proyecto['NOM_PROYECTO']);
+        }
+        echo hanaJsonTexto($opciones);
+    break;
+
+    //La tabla de la pantalla
+    case 'listar':
+        $filas = $Proyecto->listar();
+        $filasTabla = array();
+        while ($registro = $filas->fetch_object()) {
+            $id = (int)$registro->ID_PROYECTO;
+            $botones = '<SPAN title="Editar"><button class="btn btn-success" onclick="mostrar(' . $id . ')"><i class="fa fa-eye"></i></button></SPAN> '
+                     . '<SPAN title="anular"><button type="button" class="btn btn-success" onclick="anular(' . $id . ')"><i class="fa fa-trash-o"></i></button></SPAN>';
+            $filasTabla[] = array(
+                "0" => $id,
+                "1" => $registro->NOM_PROYECTO, //ya viene guardado listo para HTML
+                "2" => $registro->COORDINADOR ? htmlspecialchars(hanaTextoVisible($registro->COORDINADOR), ENT_QUOTES, 'UTF-8') : '<span style="color:#8A5B0B;">Sin asignar</span>',
+                "3" => (int)$registro->ESTADO === 0 ? "Inactivo" : "Activo",
+                "4" => $botones,
+            );
+        }
+        echo json_encode(array(
+            "sEcho" => 1,                          //datos para DataTables
+            "iTotalRecords" => count($filasTabla),
+            "iTotalDisplayRecords" => count($filasTabla),
+            "aaData" => $filasTabla));
+    break;
+}

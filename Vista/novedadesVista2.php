@@ -1,4 +1,13 @@
 <?php
+/*
+  Pantalla sin uso: es la versión anterior de Novedades y ninguna parte del
+  sistema la abre. Si alguien entra por la dirección, va a la pantalla vigente,
+  novedadesVista.php. El código de abajo se conserva solo como referencia.
+*/
+header('Location: novedadesVista.php');
+exit;
+?>
+<?php
 session_start();
 if(isset($_SESSION['IdUsuarios'])){
 $modulosAcceso=explode(",",$_SESSION['Modulos']);    
@@ -36,7 +45,7 @@ include('head.php');
 </style>
 
 
-<!-- Contenido aqui va todo el DIV del contenido.. -->
+<!-- Contenido de la pantalla -->
 <div class="right_col" role="main">
   <div class="">
 
@@ -163,7 +172,7 @@ include('head.php');
              </div>
             <!-- Listado Registros-->
 
-            <!-- centro listado de articulos-->
+            <!-- listado de novedades -->
             <div id="listadoregistros">
                 <div class="x_panel">
                   <div class="x_title">
@@ -173,7 +182,7 @@ include('head.php');
               <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
-                  <!--Muestra el texto marcado con un estilo en cursiva o italica.-->
+                  <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
                 </i> Nuevo Registro
               </button>
             </SPAN>
@@ -372,10 +381,10 @@ include('head.php');
                             <div class="dropdown-menu dropdown-menu-right dropdown-menu-sm" aria-labelledby="Button" >
                                 <a class="dropdown-item" onclick="novedades(2)">En proceso</a>
                                 <label class="dropdown-item" for="miarchivo" onclick="novedades(3)" style="cursor: pointer;">Finalizada</label>
-                                <?php if($_SESSION['Audititoria']==1){?>
+                                <?php if($_SESSION['Auditoria']==1){?>
                                 <a class="dropdown-item" onclick="novedades(4)">Cerrada</a> 
                                 <?php } 
-                             echo $_SESSION['Audititoria']==1? '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="1">': '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="0">'; 
+                             echo $_SESSION['Auditoria']==1? '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="1">': '<input type="hidden" id="esdaoauditoria" name="esdaoauditoria" value="0">'; 
                                 ?>
                                 
                             </div>

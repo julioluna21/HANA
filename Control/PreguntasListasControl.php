@@ -13,84 +13,66 @@ session_start();
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('12M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M')); //Cambiar preguntas: 12M; verlas: 11M o 12M
 require_once "../Modelo/PreguntasListasModelo.php";
-$Preguntas = new preguntas();
+$modeloPreguntas = new preguntas();
 
-//Deja un texto comparable: minusculas, sin tildes y sin espacios de sobra.
+//Deja un texto comparable: minúsculas, sin tildes y sin espacios de sobra.
 //Se usa para reconocer el tipo de respuesta y el encabezado del CSV sin que
-//importe si el usuario escribio "Sí/No", "SI/NO" o "si no"
+//importe si el usuario escribió "Sí/No", "SI/NO" o "si no"
 function hanaNormalizaTexto($texto) {
-    $t = trim($texto);
-    $t = function_exists('mb_strtolower') ? mb_strtolower($t, 'UTF-8') : strtolower($t);
-    $t = strtr($t, array('á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','Á'=>'a','É'=>'e','Í'=>'i','Ó'=>'o','Ú'=>'u'));
-    return preg_replace('/\s+/', ' ', $t);
+    $normalizado = trim($texto);
+    $normalizado = function_exists('mb_strtolower') ? mb_strtolower($normalizado, 'UTF-8') : strtolower($normalizado);
+    $normalizado = strtr($normalizado, array('á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','Á'=>'a','É'=>'e','Í'=>'i','Ó'=>'o','Ú'=>'u'));
+    return preg_replace('/\s+/', ' ', $normalizado);
 }
-// Obtiene los datos del formulario de datos.
-$idLista=isset($_POST['idGrupo'])? limpiarCadena($_POST['idGrupo']):'';
+//Datos que llegan de la pantalla (no todas las operaciones los usan).
+//idGrupo es el tipo de lista al que pertenecen las preguntas
+$idGrupo=isset($_POST['idGrupo'])? limpiarCadena($_POST['idGrupo']):'';
 $idPregunta=isset($_POST['idPregunta'])? limpiarCadena($_POST['idPregunta']):'';
 $pregunta = isset($_POST["pregunta"])? limpiarCadena($_POST['pregunta']):'';
 $tiposRespuesta = isset($_POST["tipo-respuesta"])? limpiarCadena($_POST["tipo-respuesta"]):'';
 $idGrupoPreguntas=isset($_POST['idGrupoPreguntas'])? limpiarCadena($_POST['idGrupoPreguntas']):'';
-$generaNovedad=isset($_POST['genera-novedad'])? limpiarCadena($_POST['genera-novedad']):'';
-$titulo=isset($_POST['Titulo-novedad'])? limpiarCadena($_POST['Titulo-novedad']):'';
 $posicion=isset($_POST['posicion'])? limpiarCadena($_POST['posicion']):'final';
 
-//¿La pregunta genera novedad? 1 o 0 (vacío = 0). En la base no hay una columna
-//aparte: genera novedad la pregunta que tiene título de novedad (TITULO_NOVEDAD)
-$generaNovedad = ($generaNovedad === '1' || $generaNovedad === 1) ? 1 : 0;
-
 switch ($_GET["op"]) {
+  //Crea una pregunta (al final o debajo de la que se elija) o edita una que existe
   case 'guardar':
-    //Si genera novedad tiene que decir con qué título (sin título no se podría crear la novedad)
-    if ($generaNovedad === 1 && intval($titulo) <= 0) {
-      http_response_code(400);
-      echo "Si la pregunta genera novedad, elige el título de la novedad.";
-      break;
-    }
-
     if (empty($idPregunta)) {
         if ($posicion === '' || $posicion === 'final') {
-          $filaMax = $Preguntas->ordenMax($idLista);
-          $orden = ($filaMax ? $filaMax['m'] : 0) + 1;
+          $ordenMayor = $modeloPreguntas->ordenMax($idGrupo);
+          $orden = ($ordenMayor ? $ordenMayor['ORDEN_MAYOR'] : 0) + 1;
         } else {
-          $filaRef = $Preguntas->ordenDe($posicion);
+          $filaRef = $modeloPreguntas->ordenDe($posicion);
           $orden = ($filaRef ? $filaRef['ORDEN'] : 0) + 1;
-          $Preguntas->correrOrden($idLista, $orden);
+          $modeloPreguntas->correrOrden($idGrupo, $orden);
         }
-        $rspta1 = $Preguntas->insertar($idLista, $pregunta, $tiposRespuesta,$generaNovedad,$titulo,$orden);
-        if ($rspta1 == '') {
-          //Si el insert falla, se responde con error para que la pantalla no lo tome como éxito
+        $idNueva = $modeloPreguntas->insertar($idGrupo, $pregunta, $tiposRespuesta, $orden);
+        if ($idNueva == '') {
+          //Si no se pudo guardar, se responde con error para que la pantalla no lo tome como éxito
           http_response_code(400);
           echo "No se pudo guardar la pregunta.";
         }
     } else {
-      $rspta = $Preguntas->editar($idPregunta, $pregunta, $tiposRespuesta,$generaNovedad,$titulo);
-      if (!$rspta) { http_response_code(400); echo "No se pudo actualizar la pregunta."; }
-    }
-
-
-    try {
-    } catch (\Throwable $th) {
-      http_response_code(404);
-      echo json_encode($th);
+      $resultado = $modeloPreguntas->editar($idPregunta, $pregunta, $tiposRespuesta);
+      if (!$resultado) { http_response_code(400); echo "No se pudo actualizar la pregunta."; }
     }
     break;
   
   //Trae una pregunta para cargarla en el formulario
   case 'mostrar':
     try {
-      $rspta=$Preguntas->mostrar($idPregunta);
-      $rspta ? http_response_code(200) : http_response_code(400);
-      echo json_encode($rspta);
-    } catch (\Throwable $th) {
+      $resultado=$modeloPreguntas->mostrar($idPregunta);
+      $resultado ? http_response_code(200) : http_response_code(400);
+      echo json_encode($resultado);
+    } catch (\Throwable $error) {
       http_response_code(404);
-      echo json_encode($th);
+      echo json_encode($error);
     }
     break;
     
   case 'importar':
     //Carga masiva de preguntas desde un archivo Excel (.xlsx) o CSV.
     //Regla principal: se revisa TODO el archivo primero y solo se guarda si no
-    //hay ningun error. Asi nunca queda una lista a medio cargar que despues
+    //hay ningún error. Así nunca queda una lista a medio cargar que después
     //haya que limpiar a mano.
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -99,7 +81,7 @@ switch ($_GET["op"]) {
         echo 'No se recibió ningún archivo. Selecciona el archivo e intenta de nuevo.';
         break;
       }
-      if ($idLista == '') {
+      if ($idGrupo == '') {
         http_response_code(400);
         echo 'No se supo a qué lista agregar las preguntas. Cierra la ventana y vuelve a abrirla.';
         break;
@@ -142,7 +124,7 @@ switch ($_GET["op"]) {
         //quita, la primera celda llega con caracteres raros adelante
         $contenido = preg_replace('/^\xEF\xBB\xBF/', '', $contenido);
 
-        //Si el archivo viene en la codificacion de Windows se pasa a UTF-8:
+        //Si el archivo viene en la codificación de Windows se pasa a UTF-8:
         //de lo contrario las tildes y la ñ quedan dañadas en la base
         if (function_exists('mb_check_encoding') && !mb_check_encoding($contenido, 'UTF-8')) {
           $contenido = mb_convert_encoding($contenido, 'UTF-8', 'Windows-1252');
@@ -150,12 +132,12 @@ switch ($_GET["op"]) {
 
         $lineas = preg_split('/\r\n|\r|\n/', $contenido);
 
-        //El separador puede ser punto y coma o coma, segun como guarde cada Excel.
-        //Se elige el que mas aparezca en la primera linea con contenido
+        //El separador puede ser punto y coma o coma, según como guarde cada Excel.
+        //Se elige el que más aparezca en la primera línea con contenido
         $separador = ';';
-        foreach ($lineas as $l) {
-          if (trim($l) !== '') {
-            $separador = substr_count($l, ';') >= substr_count($l, ',') ? ';' : ',';
+        foreach ($lineas as $lineaArchivo) {
+          if (trim($lineaArchivo) !== '') {
+            $separador = substr_count($lineaArchivo, ';') >= substr_count($lineaArchivo, ',') ? ';' : ',';
             break;
           }
         }
@@ -175,9 +157,9 @@ switch ($_GET["op"]) {
         break;
       }
 
-      //--- De aqui en adelante da igual si vino de Excel o de CSV ---
+      //--- De aquí en adelante da igual si vino de Excel o de CSV ---
 
-      //Tipos de respuesta validos. La clave es como se guarda en la base y
+      //Tipos de respuesta válidos. La clave es como se guarda en la base y
       //los valores son las formas en que el usuario puede haberlo escrito
       $tiposValidos = array(
         'texto'    => array('texto', 'text', 'abierta'),
@@ -191,15 +173,15 @@ switch ($_GET["op"]) {
       //Preguntas que la lista YA tiene, para no importar duplicados
       //(subir el mismo archivo dos veces no repite nada)
       $yaExisten = array();
-      $rsptaPrev = $Preguntas->listar($idLista);
-      if ($rsptaPrev) {
-        while ($regPrev = $rsptaPrev->fetch_object()) {
-          $yaExisten[hanaNormalizaTexto($regPrev->PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO)] = true;
+      $preguntasAntes = $modeloPreguntas->listar($idGrupo);
+      if ($preguntasAntes) {
+        while ($preguntaAntes = $preguntasAntes->fetch_object()) {
+          $yaExisten[hanaNormalizaTexto($preguntaAntes->PREGUNTA)] = true;
         }
       }
 
       $preguntasOk = array(); //filas listas para guardar
-      $errores     = array(); //problemas encontrados, con el numero de fila
+      $errores     = array(); //problemas encontrados, con el número de fila
       $numFila     = 0;
       $vistas      = array(); //para detectar preguntas repetidas dentro del archivo
 
@@ -208,7 +190,7 @@ switch ($_GET["op"]) {
         $pregunta  = $fila[0];
         $tipoBruto = $fila[1];
 
-        if ($pregunta === '' && $tipoBruto === '') { continue; } //fila vacia: se ignora
+        if ($pregunta === '' && $tipoBruto === '') { continue; } //fila vacía: se ignora
 
         //La primera fila es el encabezado de la plantilla: se salta
         if ($numFila === 1 && hanaNormalizaTexto($pregunta) === 'pregunta') { continue; }
@@ -217,7 +199,7 @@ switch ($_GET["op"]) {
           $errores[] = "Fila $numFila: falta la pregunta o el tipo de respuesta.";
           continue;
         }
-        //La columna de la base es varchar(200): mas largo no cabe
+        //La columna de la base es varchar(200): más largo no cabe
         if (strlen($pregunta) > 200) {
           $errores[] = "Fila $numFila: la pregunta es muy larga (máximo 200 caracteres).";
           continue;
@@ -267,18 +249,17 @@ switch ($_GET["op"]) {
         break;
       }
 
-      //Ya validado todo, se guarda. El orden continua despues de las preguntas que ya existan
-      $filaMax = $Preguntas->ordenMax($idLista);
-      $orden   = $filaMax ? intval($filaMax['m']) : 0;
+      //Ya validado todo, se guarda. El orden continúa después de las preguntas que ya existan
+      $ordenMayor = $modeloPreguntas->ordenMax($idGrupo);
+      $orden   = $ordenMayor ? intval($ordenMayor['ORDEN_MAYOR']) : 0;
 
       $guardadas = 0;
       $fallaron  = 0;
-      foreach ($preguntasOk as $p) {
+      foreach ($preguntasOk as $preguntaNueva) {
         $orden++;
-        //insertar() espera 6 datos: lista, texto, tipo, si genera novedad, título y orden.
-        //Las preguntas importadas no generan novedad (0, sin título)
-        $rspta1 = $Preguntas->insertar($idLista, limpiarCadena($p['pregunta']), $p['tipo'], 0, '', $orden);
-        if ($rspta1 != '') { $guardadas++; } else { $fallaron++; }
+        //insertar() espera la lista, el texto, el tipo y el orden
+        $idNueva = $modeloPreguntas->insertar($idGrupo, limpiarCadena($preguntaNueva['pregunta']), $preguntaNueva['tipo'], $orden);
+        if ($idNueva != '') { $guardadas++; } else { $fallaron++; }
       }
 
       if ($fallaron > 0) {
@@ -297,22 +278,22 @@ switch ($_GET["op"]) {
     //Trae una pregunta como arreglo, para la pantalla de edición
     case 'mostrarPreguntas':
       try {
-        $rsmostrar = [];
-        $rspta1 = $Preguntas->mostrar($idPregunta);
-        $rspta1 ? http_response_code(200):http_response_code(400);
-        foreach ($rspta1 as $key) {
-            $rsmostrar[]=$key;
+        $filasPregunta = [];
+        $filas = $modeloPreguntas->mostrar($idPregunta);
+        $filas ? http_response_code(200):http_response_code(400);
+        foreach ($filas as $filaPregunta) {
+            $filasPregunta[]=$filaPregunta;
         }
-        echo json_encode($rsmostrar);
-      } catch (\Throwable $th) {
+        echo json_encode($filasPregunta);
+      } catch (\Throwable $error) {
         http_response_code(404);
-        echo json_encode($th);
+        echo json_encode($error);
       }
       break;
-  //Anula una pregunta de la lista
+  //Desactiva una pregunta: deja de salir al llenar la lista (las respuestas viejas se conservan)
   case 'anular':
-    $rspta1=$Preguntas->anular($idPregunta);
-    if ($rspta1 == '') {
+    $anulada=$modeloPreguntas->anular($idPregunta);
+    if ($anulada == '') {
       //Si la anulación falla, se responde con error para que la pantalla no lo tome como éxito
       http_response_code(400);
       echo "No se pudo anular la pregunta.";
@@ -320,21 +301,21 @@ switch ($_GET["op"]) {
     break;
   //Opciones del buscador de preguntas (filtra por lo que se escriba)
   case 'select':
-      $search_term = isset($_GET['search'])?$_GET['search']:'0';
+      $busqueda = isset($_GET['search'])?$_GET['search']:'0';
       try {
-        $rspta=$Preguntas->select($search_term);
-        $userData = array();
-        if ($rspta->num_rows >0) {
-          while ($row = $rspta->fetch_assoc()) {
-            $data['id'] = $row['ID_GRUPO_LISTA_CHEQUEO'];
-            $data['pregunta'] = $row['NOM_GRUPO_LISTA_CHEQUEO'];
-            array_push($userData, $data);
+        $resultado=$modeloPreguntas->select($busqueda);
+        $opciones = array();
+        if ($resultado->num_rows >0) {
+          while ($fila = $resultado->fetch_assoc()) {
+            $opcion['id'] = $fila['ID_GRUPO_LISTA_CHEQUEO'];
+            $opcion['pregunta'] = $fila['NOM_GRUPO_LISTA_CHEQUEO'];
+            array_push($opciones, $opcion);
           }
         }
-        echo json_encode($userData);
-      } catch (\Throwable $th) {
+        echo json_encode($opciones);
+      } catch (\Throwable $error) {
         http_response_code(404);
-        echo json_encode($th);
+        echo json_encode($error);
       }
     break;
 
@@ -342,92 +323,86 @@ switch ($_GET["op"]) {
   case 'reordenar':
     try {
       $ids = (isset($_POST['orden']) && is_array($_POST['orden'])) ? $_POST['orden'] : array();
-      $pos = 1;
-      foreach ($ids as $idp) {
-        $Preguntas->setOrden((int)$idp, $pos);
-        $pos++;
+      $numeroOrden = 1;
+      foreach ($ids as $idPreguntaOrden) {
+        $modeloPreguntas->setOrden((int)$idPreguntaOrden, $numeroOrden);
+        $numeroOrden++;
       }
       echo http_response_code(200);
-    } catch (\Throwable $th) {
-      http_response_code(404); echo json_encode($th);
+    } catch (\Throwable $error) {
+      http_response_code(404); echo json_encode($error);
     }
     break;
   //Preguntas activas de una lista con su orden, para la edición masiva
   case 'posiciones':
     try {
-      $rspta = $Preguntas->listar($idGrupoPreguntas);
-      $arr = array();
-      while ($row = $rspta->fetch_object()) {
-        if ($row->ESTADO == 1) {
-          //Se devuelve tambien tipo/genera/titulo: la pantalla de edicion masiva
-        //los necesita para precargar cada fila
-        $arr[] = array(
-            "id"      => $row->ID_DETALLE_GRUPO_LISTA_CHEQUEO,
-            "pregunta"=> $row->PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO,
-            "tipo"    => $row->TIPO_RESPUESTA,
-            "genera"  => $row->GENERA_NOVEDAD,
-            "titulo"  => $row->TITULO_NOVEDAD,
-            "orden"   => $row->ORDEN
+      $resultado = $modeloPreguntas->listar($idGrupoPreguntas);
+      $preguntasActivas = array();
+      while ($fila = $resultado->fetch_object()) {
+        if ($fila->ESTADO == 1) {
+          //Se devuelve también el tipo: la pantalla de edición masiva
+          //lo necesita para precargar cada fila
+        $preguntasActivas[] = array(
+            "id"      => $fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO,
+            "pregunta"=> $fila->PREGUNTA,
+            "tipo"    => $fila->TIPO_RESPUESTA,
+            "orden"   => $fila->ORDEN
           );
         }
       }
-      echo json_encode($arr);
-    } catch (\Throwable $th) {
-      http_response_code(404); echo json_encode($th);
+      echo json_encode($preguntasActivas);
+    } catch (\Throwable $error) {
+      http_response_code(404); echo json_encode($error);
     }
     break;
   //Usado por la pantalla "Editar todas las preguntas": guarda de un solo golpe
-  //el nuevo orden y la edicion (texto y tipo) de todas las preguntas
+  //el nuevo orden y la edición (texto y tipo) de todas las preguntas
   case 'guardarLote':
     try {
-      //Llega un JSON con las preguntas EN EL ORDEN FINAL que dejo el usuario
+      //Llega un JSON con las preguntas EN EL ORDEN FINAL que dejó el usuario
       $items = isset($_POST['items']) ? json_decode($_POST['items'], true) : array();
       if (!is_array($items)) { $items = array(); } //si el JSON viene mal, no se procesa nada
-      $pos = 1; //contador de posicion: 1,2,3... segun el orden de llegada
-      foreach ($items as $it) {
-        $id = isset($it['id']) ? (int)$it['id'] : 0;
-        if ($id <= 0) { continue; }
-        $preg   = limpiarCadena(isset($it['pregunta']) ? $it['pregunta'] : '');
-        $tipo   = limpiarCadena(isset($it['tipo'])     ? $it['tipo']     : '');
-        $genera = limpiarCadena(isset($it['genera'])   ? $it['genera']   : '');
-        $titulo = limpiarCadena(isset($it['titulo'])   ? $it['titulo']   : '');
-        //editar() sobrescribe tambien los campos de novedad, por eso se reenvian igual
-        $Preguntas->editar($id, $preg, $tipo, $genera, $titulo);
-        $Preguntas->setOrden($id, $pos); //aqui queda fija la posicion en la BD
-        $pos++;
+      $numeroOrden = 1; //posición: 1, 2, 3... según el orden de llegada
+      foreach ($items as $item) {
+        $idEditar = isset($item['id']) ? (int)$item['id'] : 0;
+        if ($idEditar <= 0) { continue; }
+        $textoPregunta   = limpiarCadena(isset($item['pregunta']) ? $item['pregunta'] : '');
+        $tipo   = limpiarCadena(isset($item['tipo'])     ? $item['tipo']     : '');
+        $modeloPreguntas->editar($idEditar, $textoPregunta, $tipo);
+        $modeloPreguntas->setOrden($idEditar, $numeroOrden); //aquí queda fija la posición en la base
+        $numeroOrden++;
       }
       echo http_response_code(200);
-    } catch (\Throwable $th) {
-      http_response_code(404); echo json_encode($th);
+    } catch (\Throwable $error) {
+      http_response_code(404); echo json_encode($error);
     }
     break;
   //Todas las preguntas de una lista para la tabla
   case 'listar':
     try {
-      $rspta= $Preguntas->listar($idGrupoPreguntas);
-      //print_r($rspta);
-      $userData = array();
-        while ($row = $rspta->fetch_object()) {
-          $userData[] = array(
-            "0"=>$row->ID_DETALLE_GRUPO_LISTA_CHEQUEO,
-            "1"=>$row->ORDEN,
-            "2"=>$row->ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO,
-            "3"=>$row->PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO,
-            "4"=>$row->TIPO_RESPUESTA,
-            "5"=>$row->ESTADO == 1 ? "Activo":"Inactivo",
-            "6"=>'<SPAN title="Editar"><button class="btn btn-success" onclick="mostrarPregunta('.$row->ID_DETALLE_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-eye"></i></button></SPAN>
-            <SPAN title="anular"><button type="button" class="btn btn-success" onclick="anularPregunta('.$row->ID_DETALLE_GRUPO_LISTA_CHEQUEO.','.$row->ID_GRUPO_LISTA_CHEQUEO_DETALLE_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-trash-o"></i></button></SPAN>'
+      $resultado= $modeloPreguntas->listar($idGrupoPreguntas);
+      $filasTabla = array();
+        while ($fila = $resultado->fetch_object()) {
+          $filasTabla[] = array(
+            "0"=>$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO,
+            "1"=>$fila->ORDEN,
+            "2"=>$fila->ID_GRUPO_LISTA_CHEQUEO,
+            "3"=>$fila->PREGUNTA,
+            "4"=>$fila->TIPO_RESPUESTA,
+            "5"=>$fila->ESTADO == 1 ? "Activo":"Inactivo",
+            "6"=>'<SPAN title="Editar"><button class="btn btn-success" onclick="mostrarPregunta('.$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-eye"></i></button></SPAN>
+            <SPAN title="anular"><button type="button" class="btn btn-success" onclick="anularPregunta('.$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO.','.$fila->ID_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-trash-o"></i></button></SPAN>'
           );
         }
-        $results = array(
+        $respuestaTabla = array(
           "sEcho"=> 1,
-          "iTotalRecords"=>count($userData),
-          "iTotalDisplayRecords"=>count($userData),
-          "aaData"=>$userData);
-          echo json_encode($results);
-    } catch (\Throwable $th) {
+          "iTotalRecords"=>count($filasTabla),
+          "iTotalDisplayRecords"=>count($filasTabla),
+          "aaData"=>$filasTabla);
+          echo json_encode($respuestaTabla);
+    } catch (\Throwable $error) {
       http_response_code(404);
-      echo json_encode($th);
+      echo json_encode($error);
     }
     break;
 }

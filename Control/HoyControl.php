@@ -6,6 +6,7 @@
 */
 session_start();
 require_once __DIR__ . "/../Modelo/HoyModelo.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //las respuestas JSON llevan los textos como se escribieron (sin &amp;)
 require_once __DIR__ . "/../Modelo/HanaDB.php";
 require_once __DIR__ . "/../Modelo/HanaFechas.php";
 require_once __DIR__ . "/AccesoHelper.php";
@@ -23,7 +24,7 @@ define('HOY_MAX_ACTIVIDAD', 3000); //caracteres del texto "qué hiciste hoy"
 function hoyError($codigo, $mensaje)
 {
     http_response_code($codigo);
-    echo json_encode(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
+    echo hanaJsonTexto(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -42,7 +43,7 @@ if (!hanaEsCoordinador((int)$_SESSION['Idcolaborador'])) {
     hoyError(403, 'Hoy en qué estás lo llena el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.');
 }
 
-$idUsuario     = (int)$_SESSION['IdUsuarios'];
+$idUsuario     = (int)$_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $Hoy           = new Hoy();
 
@@ -53,9 +54,9 @@ list($primerEditable, $ultimoEditable) = HanaFechas::ventana();
 function hoyFecha($valor)
 {
     $valor = trim((string)$valor);
-    $p = explode('-', $valor);
-    if (count($p) !== 3 || !ctype_digit($p[0] . $p[1] . $p[2])) { return ''; }
-    return checkdate((int)$p[1], (int)$p[2], (int)$p[0]) ? sprintf('%04d-%02d-%02d', $p[0], $p[1], $p[2]) : '';
+    $partes = explode('-', $valor);
+    if (count($partes) !== 3 || !ctype_digit($partes[0] . $partes[1] . $partes[2])) { return ''; }
+    return checkdate((int)$partes[1], (int)$partes[2], (int)$partes[0]) ? sprintf('%04d-%02d-%02d', $partes[0], $partes[1], $partes[2]) : '';
 }
 
 //Una hora HH:MM válida, o null
@@ -69,9 +70,9 @@ function hoyHora($valor)
 //Texto limpio: sin espacios sobrantes y con un largo máximo
 function hoyTexto($valor, $max)
 {
-    $t = trim((string)$valor);
-    if (function_exists('mb_substr')) { return mb_substr($t, 0, $max, 'UTF-8'); }
-    return substr($t, 0, $max);
+    $texto = trim((string)$valor);
+    if (function_exists('mb_substr')) { return mb_substr($texto, 0, $max, 'UTF-8'); }
+    return substr($texto, 0, $max);
 }
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
@@ -80,7 +81,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     // Lo que la pantalla necesita al abrir
     //-----------------------------------------------------------------------
     case 'config':
-        echo json_encode(array(
+        echo hanaJsonTexto(array(
             'hoy'           => $hoy,
             'primerEditable'=> $primerEditable,
             'ultimoEditable'=> $ultimoEditable,
@@ -98,7 +99,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($fecha === '') { hoyError(400, 'La fecha no es válida.'); }
         //Un día que no ha llegado solo se abre si el administrador lo habilitó
         if ($fecha > $hoy && !HanaFechas::habilitado($fecha, $idColaborador)) { hoyError(400, 'Ese día todavía no llega: solo se registra hoy.'); }
-        echo json_encode(array(
+        echo hanaJsonTexto(array(
             'fecha'    => $fecha,
             'editable' => HanaFechas::enVentana($fecha, $idColaborador), //hoy, o un día habilitado
             'registro' => $Hoy->obtener($idColaborador, $fecha)
@@ -114,7 +115,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($anio < 2000 || $anio > 2100 || $mes < 1 || $mes > 12) { hoyError(400, 'El mes no es válido.'); }
         $desde = sprintf('%04d-%02d-01', $anio, $mes);
         $hasta = date('Y-m-d', strtotime("$desde +1 month"));
-        echo json_encode(array(
+        echo hanaJsonTexto(array(
             'hoy'   => $hoy,
             'filas' => $Hoy->mes($idColaborador, $desde, $hasta)
         ), JSON_UNESCAPED_UNICODE);
@@ -133,7 +134,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $situacion = isset($_POST['situacion']) ? strtoupper(trim($_POST['situacion'])) : '';
         if (!isset(Hoy::$SITUACIONES[$situacion])) { hoyError(400, 'Elige la situación del día.'); }
 
-        $d = array(
+        $datos = array(
             'situacion'   => $situacion,
             'ingreso'     => null,
             'salida'      => null,
@@ -142,50 +143,50 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'observacion' => hoyTexto(isset($_POST['observacion']) ? $_POST['observacion'] : '', 2000),
             'centros'     => array()
         );
-        if ($d['observacion'] === '') { $d['observacion'] = null; }
+        if ($datos['observacion'] === '') { $datos['observacion'] = null; }
 
         //Solo un día laboral lleva lugares, horario y actividad. En descanso,
         //incapacidad, vacaciones o permiso se guarda solo la situación
         if ($situacion === 'LABORAL') {
-            $d['ingreso'] = hoyHora(isset($_POST['ingreso']) ? $_POST['ingreso'] : '');
-            $d['salida']  = hoyHora(isset($_POST['salida'])  ? $_POST['salida']  : '');
-            if ($d['ingreso'] === null) { hoyError(400, 'Escribe la hora de ingreso.'); }
+            $datos['ingreso'] = hoyHora(isset($_POST['ingreso']) ? $_POST['ingreso'] : '');
+            $datos['salida']  = hoyHora(isset($_POST['salida'])  ? $_POST['salida']  : '');
+            if ($datos['ingreso'] === null) { hoyError(400, 'Escribe la hora de ingreso.'); }
             //La salida es opcional: el día se puede ir llenando mientras transcurre
-            if ($d['salida'] !== null && $d['salida'] <= $d['ingreso']) {
+            if ($datos['salida'] !== null && $datos['salida'] <= $datos['ingreso']) {
                 hoyError(400, 'La hora de salida debe ser después de la hora de ingreso.');
             }
 
             //Centros: solo los asignados al usuario, sin repetir
             $permitidos = array();
-            foreach (hanaCentrosCoordinador($idColaborador) as $c) { $permitidos[(int)$c['ID_CENTRO_OP']] = true; }
-            foreach ((array)(isset($_POST['centros']) ? $_POST['centros'] : array()) as $idC) {
-                $idC = (int)$idC;
-                if (!isset($permitidos[$idC])) { hoyError(400, 'Uno de los peajes elegidos no está asignado a tu usuario.'); }
-                $d['centros'][$idC] = $idC;
+            foreach (hanaCentrosCoordinador($idColaborador) as $centro) { $permitidos[(int)$centro['ID_CENTRO_OP']] = true; }
+            foreach ((array)(isset($_POST['centros']) ? $_POST['centros'] : array()) as $idCentro) {
+                $idCentro = (int)$idCentro;
+                if (!isset($permitidos[$idCentro])) { hoyError(400, 'Uno de los peajes elegidos no está asignado a tu usuario.'); }
+                $datos['centros'][$idCentro] = $idCentro;
             }
-            $d['centros'] = array_values($d['centros']);
+            $datos['centros'] = array_values($datos['centros']);
 
-            $d['lugarOtro'] = hoyTexto(isset($_POST['lugarOtro']) ? $_POST['lugarOtro'] : '', 150);
-            if ($d['lugarOtro'] === '') { $d['lugarOtro'] = null; }
-            if (!count($d['centros']) && $d['lugarOtro'] === null) {
+            $datos['lugarOtro'] = hoyTexto(isset($_POST['lugarOtro']) ? $_POST['lugarOtro'] : '', 150);
+            if ($datos['lugarOtro'] === '') { $datos['lugarOtro'] = null; }
+            if (!count($datos['centros']) && $datos['lugarOtro'] === null) {
                 hoyError(400, 'Marca al menos un peaje o escribe en qué otro lugar estuviste.');
             }
 
             //Qué hizo en el día: un solo texto, obligatorio (es de lo que trata esta pantalla)
-            $d['actividad'] = hoyTexto(isset($_POST['actividad']) ? $_POST['actividad'] : '', HOY_MAX_ACTIVIDAD);
-            if ($d['actividad'] === '') { hoyError(400, 'Escribe qué hiciste hoy.'); }
+            $datos['actividad'] = hoyTexto(isset($_POST['actividad']) ? $_POST['actividad'] : '', HOY_MAX_ACTIVIDAD);
+            if ($datos['actividad'] === '') { hoyError(400, 'Escribe qué hiciste hoy.'); }
         }
 
         //Todo o nada
         $Hoy->iniciar();
-        $id = $Hoy->guardar($idColaborador, $fecha, $d, date('Y-m-d H:i:s'));
+        $id = $Hoy->guardar($idColaborador, $fecha, $datos, date('Y-m-d H:i:s'));
         if (!$id) {
             $Hoy->deshacer();
             hoyError(500, 'No se pudo guardar el día. No cambió nada; intenta de nuevo.');
         }
         $Hoy->confirmar();
 
-        echo json_encode(array('ok' => true, 'id' => $id,
+        echo hanaJsonTexto(array('ok' => true, 'id' => $id,
                                'mensaje' => 'Día guardado con éxito.'), JSON_UNESCAPED_UNICODE);
         break;
 

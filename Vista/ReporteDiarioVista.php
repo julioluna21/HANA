@@ -17,7 +17,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (in_array('11M', $modulosAcceso) || in_array('12M', $modulosAcceso) || in_array('21M', $modulosAcceso)) { $modulosAcceso[] = 'LISTAS'; }
     if (in_array('22M', $modulosAcceso)) { $modulosAcceso[] = 'VER_TODO'; }
     //Cada pantalla del coordinador: coordinador, ADMIN TEC o su casilla en Permisos de usuario
-    foreach (pagModulosCoordinador() as $mm) { if (pagPuedeModulo($mm)) { $modulosAcceso[] = 'P_' . $mm; } }
+    foreach (pagModulosCoordinador() as $moduloCoordinador) { if (pagPuedeModulo($moduloCoordinador)) { $modulosAcceso[] = 'P_' . $moduloCoordinador; } }
     //Oficios: también quien tenga peajes asignados (jefe de peaje o en Usuarios)
     if (pagTienePeajes()) { $modulosAcceso[] = 'P_COMUNICACIONES'; }
     //Módulos que el administrador apagó en Parámetros del sistema: su mosaico no sale
@@ -38,21 +38,21 @@ if (isset($_SESSION['IdUsuarios'])) {
         date_default_timezone_set('America/Bogota');
         $alerta = array('hoy' => '', 'listas' => '', 'arqueos' => '', 'cronograma' => '');
         if (isset($_SESSION['Idcolaborador'])) {
-            $rd = pagResumenDelDia(); //lo calcula el controlador (Control/PaginaControl.php)
-            $e = $rd['estado'];
-            $ok   = function ($t) { return '<span class="rd-tag rd-tag-ok"><i class="fa fa-check"></i> ' . $t . '</span>'; };
-            $falta = function ($t) { return '<span class="rd-tag rd-tag-pend"><i class="fa fa-clock-o"></i> ' . $t . '</span>'; };
-            if ($e) {
-                $alerta['hoy'] = $e['hoy']['ok'] ? $ok('Hoy ya está registrado') : $falta('Falta registrar hoy');
-                $alerta['listas'] = $e['listas']['ok']
-                    ? $ok('Hoy: ' . $e['listas']['n'] . ($e['listas']['n'] === 1 ? ' lista' : ' listas'))
+            $resumenDia = pagResumenDelDia(); //lo calcula el controlador (Control/PaginaControl.php)
+            $estadoDia = $resumenDia['estado'];
+            $ok   = function ($texto) { return '<span class="rd-tag rd-tag-ok"><i class="fa fa-check"></i> ' . $texto . '</span>'; };
+            $falta = function ($texto) { return '<span class="rd-tag rd-tag-pend"><i class="fa fa-clock-o"></i> ' . $texto . '</span>'; };
+            if ($estadoDia) {
+                $alerta['hoy'] = $estadoDia['hoy']['ok'] ? $ok('Hoy ya está registrado') : $falta('Falta registrar hoy');
+                $alerta['listas'] = $estadoDia['listas']['ok']
+                    ? $ok('Hoy: ' . $estadoDia['listas']['n'] . ($estadoDia['listas']['n'] === 1 ? ' lista' : ' listas'))
                     : $falta('Hoy no has registrado listas');
-                $alerta['arqueos'] = $e['arqueos']['ok']
-                    ? $ok('Hoy: ' . $e['arqueos']['n'] . ($e['arqueos']['n'] === 1 ? ' arqueo' : ' arqueos'))
+                $alerta['arqueos'] = $estadoDia['arqueos']['ok']
+                    ? $ok('Hoy: ' . $estadoDia['arqueos']['n'] . ($estadoDia['arqueos']['n'] === 1 ? ' arqueo' : ' arqueos'))
                     : $falta('Hoy no has registrado arqueos');
-                $vhFalta = $e['cronograma']['vehiculos'] > 0 && $e['cronograma']['vehiculosReg'] < $e['cronograma']['vehiculos'];
-                $alerta['cronograma'] = !$e['cronograma']['ok'] ? $falta('Falta revisarlo hoy')
-                    : ($vhFalta ? $falta('Falta el estado del vehículo') : $ok('Revisado hoy a las ' . substr($e['cronograma']['revisado'], 11, 5)));
+                $vhFalta = $estadoDia['cronograma']['vehiculos'] > 0 && $estadoDia['cronograma']['vehiculosReg'] < $estadoDia['cronograma']['vehiculos'];
+                $alerta['cronograma'] = !$estadoDia['cronograma']['ok'] ? $falta('Falta revisarlo hoy')
+                    : ($vhFalta ? $falta('Falta el estado del vehículo') : $ok('Revisado hoy a las ' . substr($estadoDia['cronograma']['revisado'], 11, 5)));
             }
         }
 
@@ -89,14 +89,14 @@ if (isset($_SESSION['IdUsuarios'])) {
 
         include('head.php');
         //Un saludo según la hora, con lo que le falta hoy (si es coordinador)
-        $h = (int)date('G');
-        $saludo = $h < 12 ? 'Buenos días' : ($h < 19 ? 'Buenas tardes' : 'Buenas noches');
+        $horaActual = (int)date('G');
+        $saludo = $horaActual < 12 ? 'Buenos días' : ($horaActual < 19 ? 'Buenas tardes' : 'Buenas noches');
         $nombre = isset($_SESSION['Nombre']) ? trim(explode(' ', html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8'))[0]) : '';
         $faltan = array();
-        if ($esCoordinador && !empty($e)) {
-            if (pagModuloActivo('HOY') && !$e['hoy']['ok']) { $faltan[] = 'contar en qué estás hoy'; }
-            if (pagModuloActivo('LISTAS') && !$e['listas']['ok']) { $faltan[] = 'las listas de chequeo'; }
-            if (pagModuloActivo('CRONOGRAMA') && !$e['cronograma']['ok']) { $faltan[] = 'darle una mirada al cronograma'; }
+        if ($esCoordinador && !empty($estadoDia)) {
+            if (pagModuloActivo('HOY') && !$estadoDia['hoy']['ok']) { $faltan[] = 'contar en qué estás hoy'; }
+            if (pagModuloActivo('LISTAS') && !$estadoDia['listas']['ok']) { $faltan[] = 'las listas de chequeo'; }
+            if (pagModuloActivo('CRONOGRAMA') && !$estadoDia['cronograma']['ok']) { $faltan[] = 'darle una mirada al cronograma'; }
         }
         if (!$esCoordinador) { $resumen = 'Aquí tienes todo lo del reporte diario.'; }
         elseif (!count($faltan)) { $resumen = 'Vas al día con todo lo de hoy. ¡Buen trabajo!'; }
@@ -117,29 +117,29 @@ if (isset($_SESSION['IdUsuarios'])) {
         </div>
         <div class="x_content">
           <div class="hana-saludo">
-            <div class="hana-sol"><i class="fa <?php echo $h < 19 ? 'fa-sun-o' : 'fa-moon-o'; ?>"></i></div>
-            <div><h3><?php echo htmlspecialchars($saludo . ($nombre !== '' ? ', ' . ucfirst(strtolower($nombre)) : ''), ENT_QUOTES, 'UTF-8'); ?></h3>
+            <div class="hana-sol"><i class="fa <?php echo $horaActual < 19 ? 'fa-sun-o' : 'fa-moon-o'; ?>"></i></div>
+            <div><h3><?php echo htmlspecialchars($saludo . ($nombre !== '' ? ', ' . mb_convert_case(mb_strtolower($nombre, 'UTF-8'), MB_CASE_TITLE, 'UTF-8') : ''), ENT_QUOTES, 'UTF-8'); ?></h3>
               <p><?php echo htmlspecialchars($resumen, ENT_QUOTES, 'UTF-8'); ?></p></div>
           </div>
           <div class="rd-mosaicos">
 <?php
-        foreach ($mosaicos as $m) {
+        foreach ($mosaicos as $mosaico) {
             //Se muestra si tiene al menos uno de los permisos del mosaico
-            if (!count(array_intersect($m[0], $accesoMosaicos))) { continue; }
-            if (isset($apagados[$m[1]]) && !pagModuloActivo($apagados[$m[1]])) { continue; } //apagado por el administrador
-            if ($m[5]) {
+            if (!count(array_intersect($mosaico[0], $accesoMosaicos))) { continue; }
+            if (isset($apagados[$mosaico[1]]) && !pagModuloActivo($apagados[$mosaico[1]])) { continue; } //apagado por el administrador
+            if ($mosaico[5]) {
 ?>
-            <a href="<?php echo $m[1]; ?>" class="rd-mosaico">
-              <div class="rd-mosaico-icono"><i class="fa <?php echo $m[2]; ?>"></i></div>
-              <div class="rd-mosaico-titulo"><?php echo $m[3]; ?></div>
-              <div class="rd-mosaico-texto"><?php echo $m[4]; ?></div>
-              <?php if ($m[6] !== '') { echo '<div class="rd-mosaico-estado">' . $m[6] . '</div>'; } ?>
+            <a href="<?php echo $mosaico[1]; ?>" class="rd-mosaico">
+              <div class="rd-mosaico-icono"><i class="fa <?php echo $mosaico[2]; ?>"></i></div>
+              <div class="rd-mosaico-titulo"><?php echo $mosaico[3]; ?></div>
+              <div class="rd-mosaico-texto"><?php echo $mosaico[4]; ?></div>
+              <?php if ($mosaico[6] !== '') { echo '<div class="rd-mosaico-estado">' . $mosaico[6] . '</div>'; } ?>
             </a>
 <?php       } else { ?>
             <div class="rd-mosaico rd-mosaico-pronto" aria-disabled="true">
-              <div class="rd-mosaico-icono"><i class="fa <?php echo $m[2]; ?>"></i></div>
-              <div class="rd-mosaico-titulo"><?php echo $m[3]; ?></div>
-              <div class="rd-mosaico-texto"><?php echo $m[4]; ?></div>
+              <div class="rd-mosaico-icono"><i class="fa <?php echo $mosaico[2]; ?>"></i></div>
+              <div class="rd-mosaico-titulo"><?php echo $mosaico[3]; ?></div>
+              <div class="rd-mosaico-texto"><?php echo $mosaico[4]; ?></div>
               <div class="rd-mosaico-estado"><span class="rd-tag">Próximamente</span></div>
             </div>
 <?php       }

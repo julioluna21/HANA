@@ -1,5 +1,10 @@
 <?php
-//Controlador de la campana de notificaciones
+/*
+  HANA - Campana de notificaciones (controlador)
+  ---------------------------------------------------------------------------
+  Atiende a Ajax/CampanaAjax.js: cuántos avisos hay sin abrir, la lista de
+  avisos y marcarlos como leídos. Los avisos los arma Modelo/CampanaModelo.php.
+*/
 session_start();
 require_once __DIR__ . "/../Modelo/CampanaModelo.php";
 require_once __DIR__ . "/AccesoHelper.php"; //para saber el rol de la persona
@@ -15,18 +20,18 @@ if (!isset($_SESSION['IdUsuarios']) || !isset($_SESSION['Idcolaborador'])) {
     exit;
 }
 
-$idUsuario     = $_SESSION['IdUsuarios'];
+$idUsuario     = $_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
 $idColaborador = $_SESSION['Idcolaborador'];
 $idRol         = hanaIdRol();
 $aprueba       = hanaTienePermiso(PERMISO_APROBAR_RQ); //le llegan las RQ pendientes de aprobación
 $campana       = new Campana();
 
 //Convierte un resultado de MySQL en un arreglo de filas
-function hanaFilas($rspta)
+function hanaFilas($resultado)
 {
     $filas = array();
-    if ($rspta) {
-        while ($f = $rspta->fetch_assoc()) { $filas[] = $f; }
+    if ($resultado) {
+        while ($fila = $resultado->fetch_assoc()) { $filas[] = $fila; }
     }
     return $filas;
 }
@@ -38,9 +43,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //-----------------------------------------------------------------------
     case 'resumen':
         $conteo = array('alta' => 0, 'media' => 0, 'baja' => 0);
-        foreach (hanaFilas($campana->conteo($idUsuario, $idColaborador, $idRol, $aprueba)) as $f) {
-            if (isset($conteo[$f['prioridad']])) {
-                $conteo[$f['prioridad']] = intval($f['cantidad']);
+        foreach (hanaFilas($campana->conteo($idUsuario, $idColaborador, $idRol, $aprueba)) as $fila) {
+            if (isset($conteo[$fila['prioridad']])) {
+                $conteo[$fila['prioridad']] = intval($fila['cantidad']);
             }
         }
         echo json_encode(array(
@@ -83,5 +88,5 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     default:
         http_response_code(400);
-        echo json_encode(array('error' => 'Operacion no reconocida'));
+        echo json_encode(array('error' => 'Operación no reconocida'), JSON_UNESCAPED_UNICODE);
 }

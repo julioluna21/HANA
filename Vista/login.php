@@ -3,9 +3,10 @@
   HANA - Inicio de sesión
   ---------------------------------------------------------------------------
   Muestra el formulario de usuario y clave. Si ya hay una sesión abierta,
-  devuelve a la página anterior. Lo que pasa al dar "Entrar" está en
+  lleva al inicio. Lo que pasa al dar "Entrar" está en
   Ajax/LoginAjax.js, que le pregunta a Control/UsuariosControl.php?op=verificar.
-  Desde aquí también se pide una clave nueva cuando se olvidó.
+  Desde aquí también se pide, cuando se olvidó la clave, el enlace para crear
+  una nueva (llega al correo y abre Vista/RestablecerVista.php).
 */
 session_start();
 if (!isset($_SESSION["IdUsuarios"])){
@@ -110,12 +111,14 @@ if (!isset($_SESSION["IdUsuarios"])){
             <form id="frmrecuperar">
                
               <h1 style="color:black;">Recuperar contraseña</h1>
+              <!-- Qué va a pasar: llega un enlace al correo; la clave actual no cambia todavía -->
+              <p style="text-align:left;">Escribe tu usuario. Te enviaremos al correo un enlace para crear una contraseña nueva. Tu contraseña actual sigue sirviendo hasta que uses el enlace.</p>
               <div>
                 <input type="text" id="LoginUsuariosr" name="LoginUsuarios"  class="form-control" placeholder="Usuario" required="" />
               </div>
               <div>
-                <button class="btn btn-dark submit" type="submit" id="btrecuperar" >Recuperar</button>
-                <!-- type="button": sin esto, Volver enviaba el formulario y restablecia la clave -->
+                <button class="btn btn-dark submit" type="submit" id="btrecuperar" >Enviarme el enlace</button>
+                <!-- type="button": sin esto, Volver enviaba el formulario y mandaba el enlace -->
                 <button class="btn btn-dark submit" type="button" onclick="recuperar(false);" >Volver</button>  
                 <a ></a>
               </div>
@@ -141,17 +144,17 @@ if (!isset($_SESSION["IdUsuarios"])){
   <script src="../vendors/jquery/dist/jquery.min.js"></script>
   <!-- Alertas personalizadas: debe cargar antes de LoginAjax.js -->
   <script src="../Ajax/AlertasAjax.js?v=5"></script>
-  <script type="text/javascript" src="../Ajax/LoginAjax.js?v=3"></script>
+  <script type="text/javascript" src="../Ajax/LoginAjax.js?v=4"></script>
   <!-- Bootstrap -->
     
     
   <script src="../vendors/bootstrap/dist/js/bootstrap.min.js"></script>
-    <!-- libreria alertas con estilo-->
+    <!-- librería alertas con estilo-->
      <!-- Bootbox -->
     <script src="../public/js/bootbox.min.js"></script>
 </html>
 <?php }else{
     echo "<script> 
-  window.history.go(-1)
+  window.location.replace('InicioVista.php');
   </script>";
 }?>

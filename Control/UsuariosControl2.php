@@ -10,7 +10,7 @@ echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAP
 exit;
 ?>
 <?php
-session_start();//inicia la session, permite guardar variables de sesion
+session_start();//inicia la session, permite guardar variables de sesión
 require_once "../Modelo/UsuarioModelo.php";//Utilizará este archivo
 require '../public/PHPMailer-master/src/Exception.php';
                 require '../public/PHPMailer-master/src/PHPMailer.php';
@@ -279,7 +279,7 @@ switch ($_GET["op"])
                          //Declaramos las variables de sesión
                                 $_SESSION['IdUsuarios']=$fetch->ID_USUARIO_SISTEMA;
                                 $_SESSION['Idcolaborador']=$fetch->ID_COLABORADOR;
-                                $_SESSION['Audititoria']=$fetch->PERMISOS_CERRAR_NOVEDADES;
+                                $_SESSION['Auditoria']=$fetch->PERMISOS_CERRAR_NOVEDADES;
                                 $_SESSION['NovedadesAS']=$fetch->PERMISO_ASIGNAR_NOVEDAD;
                                 $_SESSION['Modulos']=$fetch->MODULOS_ROL_USUARIOS_SISTEMAS;
                                 $_SESSION['Nombre']=$fetch->NOM_COLABORADOR;
@@ -338,10 +338,10 @@ switch ($_GET["op"])
             break;
         
         
-            case 'listar'://activado por el ajax en el scrip articulos
+            case 'listar'://activado por el ajax en el scrip artículos
         
         
-                    $rspta=$Usuarios->listar();//Carga la rspta con lista de articulos
+                    $rspta=$Usuarios->listar();//Carga la rspta con lista de artículos
                     //Vamos a declarar un array
                     $data= Array();
         

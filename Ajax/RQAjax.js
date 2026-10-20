@@ -18,24 +18,24 @@ var filasRQ = [];        //el listado del periodo, sin el filtro de estado
 //---------------------------------------------------------------------------
 // Utilidades
 //---------------------------------------------------------------------------
-function esc(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
+function esc(texto) { return $('<div>').text(texto == null ? '' : String(texto)).html(); }
 
 //"2026-09-18" -> "18/09/2026"
-function fechaCorta(f) {
-    if (!f) { return ''; }
-    var p = String(f).substring(0, 10).split('-');
-    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : esc(f);
+function fechaCorta(fecha) {
+    if (!fecha) { return ''; }
+    var partes = String(fecha).substring(0, 10).split('-');
+    return partes.length === 3 ? partes[2] + '/' + partes[1] + '/' + partes[0] : esc(fecha);
 }
 //Fecha corta con la hora, por ejemplo "07/10/2026 14:30"
-function fechaHora(f) {
-    if (!f) { return ''; }
-    return fechaCorta(f) + ' ' + String(f).substring(11, 16);
+function fechaHora(fecha) {
+    if (!fecha) { return ''; }
+    return fechaCorta(fecha) + ' ' + String(fecha).substring(11, 16);
 }
 
 //Fecha de hoy en la zona del equipo (no en UTC, que adelanta el día de noche)
 function hoyLocal() {
-    var d = new Date();
-    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    var hoy = new Date();
+    return hoy.getFullYear() + '-' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '-' + ('0' + hoy.getDate()).slice(-2);
 }
 
 //Etiqueta de color con el nombre del estado
@@ -50,18 +50,18 @@ function textoRQ(tipo, numero) {
 
 //La etiqueta de color: amarilla la normal, roja la urgente
 function etiquetaRQ(tipo, numero) {
-    var u = tipo === 'U';
-    return '<span class="rq-etq ' + (u ? 'rq-etq-u' : 'rq-etq-n') + '"' +
-           (u ? ' title="Urgente"' : '') + '>' + esc(textoRQ(tipo, numero)) + '</span>';
+    var esUrgente = tipo === 'U';
+    return '<span class="rq-etq ' + (esUrgente ? 'rq-etq-u' : 'rq-etq-n') + '"' +
+           (esUrgente ? ' title="Urgente"' : '') + '>' + esc(textoRQ(tipo, numero)) + '</span>';
 }
 
 //Los dos botones de tipo, para el formulario de edición
 function htmlTipoRQ(tipo) {
-    var u = tipo === 'U';
+    var esUrgente = tipo === 'U';
     return '<div class="rq-tipos" role="radiogroup" aria-label="Tipo de RQ">' +
-           '<label class="rq-tipo-op rq-tipo-op-n"><input type="radio" name="tipo" value="N"' + (u ? '' : ' checked') + '>' +
+           '<label class="rq-tipo-op rq-tipo-op-n"><input type="radio" name="tipo" value="N"' + (esUrgente ? '' : ' checked') + '>' +
            '<span><strong>RQ normal</strong><small>Llega en amarillo.</small></span></label>' +
-           '<label class="rq-tipo-op rq-tipo-op-u"><input type="radio" name="tipo" value="U"' + (u ? ' checked' : '') + '>' +
+           '<label class="rq-tipo-op rq-tipo-op-u"><input type="radio" name="tipo" value="U"' + (esUrgente ? ' checked' : '') + '>' +
            '<span><strong>RQ U · Urgente</strong><small>Llega en rojo.</small></span></label></div>';
 }
 
@@ -99,11 +99,11 @@ $(function () {
 
     //Al elegir el peaje se muestra qué número le tocaría
     $('#rqCentro').on('change', function () {
-        var c = $(this).val();
+        var idCentro = $(this).val();
         $('#rqNumero').attr('placeholder', 'Automático');
-        if (!c || $('#btnNuevaRQ').attr('data-puede') === '0') { return; } //quien no puede pedir RQ no necesita el siguiente número
-        $.getJSON(URL_RQ + '?op=siguienteNumero&centro=' + encodeURIComponent(c))
-            .done(function (d) { $('#rqNumero').attr('placeholder', 'Automático: ' + d.numero); });
+        if (!idCentro || $('#btnNuevaRQ').attr('data-puede') === '0') { return; } //quien no puede pedir RQ no necesita el siguiente número
+        $.getJSON(URL_RQ + '?op=siguienteNumero&centro=' + encodeURIComponent(idCentro))
+            .done(function (respuesta) { $('#rqNumero').attr('placeholder', 'Automático: ' + respuesta.numero); });
     });
 
     //Archivos: dos caminos, cámara o explorador
@@ -112,8 +112,8 @@ $(function () {
     $('#rqArchivosCamara, #rqArchivos').on('change', function () { agregarArchivos(this.files); });
     //Ver el PDF elegido antes de enviarlo (las fotos ya se abren en grande al tocarlas, con VisorAjax.js)
     $(document).on('click', '.rq-previa-pdf', function () {
-        var a = archivosRQ[parseInt($(this).data('i'), 10)];
-        if (a && window.hanaVerArchivoLocal) { window.hanaVerArchivoLocal(a); }
+        var archivo = archivosRQ[parseInt($(this).data('i'), 10)];
+        if (archivo && window.hanaVerArchivoLocal) { window.hanaVerArchivoLocal(archivo); }
     });
     $(document).on('click', '.rq-previa-quitar', function () {
         archivosRQ.splice(parseInt($(this).data('i'), 10), 1);
@@ -166,21 +166,21 @@ function cargarCatalogos() {
 
     //Qué ve este usuario, si aprueba, y los años que tienen RQ
     var pideConfig = $.getJSON(URL_RQ + '?op=config')
-        .done(function (d) {
-            configRQ = d;
-            $('#vistaRQ .hana-vista-todas').text(d.verTodas ? 'Todas las RQ' : 'Las de mi rol');
+        .done(function (respuesta) {
+            configRQ = respuesta;
+            $('#vistaRQ .hana-vista-todas').text(respuesta.verTodas ? 'Todas las RQ' : 'Las de mi rol');
             //Quien no pide RQ y solo las revisa (el gerente de operaciones) abre directo en "Todas las RQ"
-            if (!d.puedePedir && d.verTodas) {
+            if (!respuesta.puedePedir && respuesta.verTodas) {
                 vistaRQ = 'todas';
                 $('#vistaRQ .hana-vista-btn').removeClass('activo');
                 $('#vistaRQ .hana-vista-btn[data-vista="todas"]').addClass('activo');
             }
-            var h = '', anios = d.anios || [];
+            var html = '', anios = respuesta.anios || [];
             for (var i = 0; i < anios.length; i++) {
-                h += '<option value="' + parseInt(anios[i], 10) + '">' + parseInt(anios[i], 10) + '</option>';
+                html += '<option value="' + parseInt(anios[i], 10) + '">' + parseInt(anios[i], 10) + '</option>';
             }
-            h += '<option value="0">Todos</option>';
-            $('#fAnio').html(h).val(String(hoy.getFullYear()));
+            html += '<option value="0">Todos</option>';
+            $('#fAnio').html(html).val(String(hoy.getFullYear()));
         });
 
     $.getJSON(URL_RQ + '?op=centros')
@@ -208,14 +208,14 @@ function cargarCatalogos() {
             if (filas.length === 1) { $('#rqCentro').val(filas[0].ID_CENTRO_OP).trigger('change'); }
 
             //Filtro de proyectos, sin repetir
-            var vistos = {}, hp = '<option value="0">Todos</option>';
+            var vistos = {}, htmlProyectos = '<option value="0">Todos</option>';
             for (var j = 0; j < filas.length; j++) {
                 if (!vistos[filas[j].ID_PROYECTO]) {
                     vistos[filas[j].ID_PROYECTO] = true;
-                    hp += '<option value="' + parseInt(filas[j].ID_PROYECTO, 10) + '">' + esc(filas[j].NOM_PROYECTO) + '</option>';
+                    htmlProyectos += '<option value="' + parseInt(filas[j].ID_PROYECTO, 10) + '">' + esc(filas[j].NOM_PROYECTO) + '</option>';
                 }
             }
-            $('#fProyecto').html(hp);
+            $('#fProyecto').html(htmlProyectos);
             llenarFiltroCentros();
             //El listado espera a saber los años, para no pedirlo dos veces
             pideConfig.always(listarRQ);
@@ -232,36 +232,36 @@ function cargarCatalogos() {
 
 //El filtro de peajes muestra solo los del proyecto elegido
 function llenarFiltroCentros() {
-    var p = $('#fProyecto').val(), h = '<option value="0">Todos</option>';
+    var idProyecto = $('#fProyecto').val(), html = '<option value="0">Todos</option>';
     for (var i = 0; i < centrosRQ.length; i++) {
-        if (p === '0' || String(centrosRQ[i].ID_PROYECTO) === p) {
-            h += '<option value="' + parseInt(centrosRQ[i].ID_CENTRO_OP, 10) + '">' + esc(centrosRQ[i].NOM_CENTRO_OP) + '</option>';
+        if (idProyecto === '0' || String(centrosRQ[i].ID_PROYECTO) === idProyecto) {
+            html += '<option value="' + parseInt(centrosRQ[i].ID_CENTRO_OP, 10) + '">' + esc(centrosRQ[i].NOM_CENTRO_OP) + '</option>';
         }
     }
-    $('#fCentro').html(h);
+    $('#fCentro').html(html);
 }
 
 //---------------------------------------------------------------------------
 // Listado
 //---------------------------------------------------------------------------
 function listarRQ() {
-    var q = '&proyecto=' + encodeURIComponent($('#fProyecto').val() || 0) +
+    var filtros = '&proyecto=' + encodeURIComponent($('#fProyecto').val() || 0) +
             '&centro='   + encodeURIComponent($('#fCentro').val()   || 0) +
             '&anio='     + encodeURIComponent($('#fAnio').val()     || 0) +
             '&mes='      + encodeURIComponent($('#fMes').val()      || 0);
 
-    $.getJSON(URL_RQ + '?op=listar&vista=' + encodeURIComponent(vistaRQ) + q)
-        .done(function (d) {
-            var filas = d.filas || [];
+    $.getJSON(URL_RQ + '?op=listar&vista=' + encodeURIComponent(vistaRQ) + filtros)
+        .done(function (respuesta) {
+            var filas = respuesta.filas || [];
 
             //Contadores del periodo
             var pendientes = 0, urgentes = 0, aprobadas = 0, rechazadas = 0;
             for (var i = 0; i < filas.length; i++) {
-                var f = filas[i], est = parseInt(f.ID_RQ_ESTADO, 10);
-                if (parseInt(f.ESTADO, 10) !== 1) { continue; } //las anuladas no cuentan
-                if (est === 1) { pendientes++; if (f.TIPO_RQ === 'U') { urgentes++; } }
-                if (est === 3) { aprobadas++; }
-                if (est === 7) { rechazadas++; }
+                var rq = filas[i], estado = parseInt(rq.ID_RQ_ESTADO, 10);
+                if (parseInt(rq.ESTADO, 10) !== 1) { continue; } //las anuladas no cuentan
+                if (estado === 1) { pendientes++; if (rq.TIPO_RQ === 'U') { urgentes++; } }
+                if (estado === 3) { aprobadas++; }
+                if (estado === 7) { rechazadas++; }
             }
             $('#cntPendientes').text(pendientes);
             $('#cntUrgentes').text(urgentes);
@@ -276,15 +276,15 @@ function listarRQ() {
 
 //Filtro de estado: sin aprobar (pendientes), aprobadas, rechazadas o anuladas
 function filtrarEstadoRQ(filas) {
-    var f = $('#fEstado').val() || '';
-    if (!f) { return filas; }
-    return $.grep(filas, function (x) {
-        var anulada = parseInt(x.ESTADO, 10) !== 1, est = parseInt(x.ID_RQ_ESTADO, 10);
-        if (f === 'anuladas') { return anulada; }
+    var estadoElegido = $('#fEstado').val() || '';
+    if (!estadoElegido) { return filas; }
+    return $.grep(filas, function (rq) {
+        var anulada = parseInt(rq.ESTADO, 10) !== 1, estado = parseInt(rq.ID_RQ_ESTADO, 10);
+        if (estadoElegido === 'anuladas') { return anulada; }
         if (anulada) { return false; }
-        if (f === 'pendientes') { return est === 1; }
-        if (f === 'aprobadas') { return est === 3; }
-        if (f === 'rechazadas') { return est === 7; }
+        if (estadoElegido === 'pendientes') { return estado === 1; }
+        if (estadoElegido === 'aprobadas') { return estado === 3; }
+        if (estadoElegido === 'rechazadas') { return estado === 7; }
         return true;
     });
 }
@@ -299,47 +299,47 @@ function pintarTabla(filas) {
         order: [],        //el servidor ya las manda de la más nueva a la más vieja
         pageLength: 10,   //uno de los valores del selector "Mostrar registros"
         //Las urgentes pendientes se marcan en la fila, para que se vean de lejos
-        createdRow: function (tr, f) {
-            if (f.TIPO_RQ === 'U' && parseInt(f.ID_RQ_ESTADO, 10) === 1 && parseInt(f.ESTADO, 10) === 1) {
-                $(tr).addClass('rq-fila-urgente');
+        createdRow: function (filaTabla, rq) {
+            if (rq.TIPO_RQ === 'U' && parseInt(rq.ID_RQ_ESTADO, 10) === 1 && parseInt(rq.ESTADO, 10) === 1) {
+                $(filaTabla).addClass('rq-fila-urgente');
             }
         },
         columns: [
-            { data: null, render: function (f, tipo) {
+            { data: null, render: function (rq, tipo) {
                 //Al buscar o exportar se usa el texto; en pantalla, la etiqueta de color
-                if (tipo !== 'display') { return textoRQ(f.TIPO_RQ, f.NUMERO_RQ) + (f.TIPO_RQ === 'U' ? ' urgente' : ''); }
-                return etiquetaRQ(f.TIPO_RQ, f.NUMERO_RQ);
+                if (tipo !== 'display') { return textoRQ(rq.TIPO_RQ, rq.NUMERO_RQ) + (rq.TIPO_RQ === 'U' ? ' urgente' : ''); }
+                return etiquetaRQ(rq.TIPO_RQ, rq.NUMERO_RQ);
             } },
-            { data: 'NOM_PROYECTO', render: function (v) { return esc(v); } },
-            { data: 'NOM_CENTRO_OP', render: function (v) { return esc(v); } },
-            { data: 'FECHA_RQ', render: function (v, tipo) {
-                return tipo === 'sort' ? v : fechaCorta(v);   //ordena bien aunque se vea dd/mm
+            { data: 'NOM_PROYECTO', render: function (valor) { return esc(valor); } },
+            { data: 'NOM_CENTRO_OP', render: function (valor) { return esc(valor); } },
+            { data: 'FECHA_RQ', render: function (valor, tipo) {
+                return tipo === 'sort' ? valor : fechaCorta(valor);   //ordena bien aunque se vea dd/mm
             } },
-            { data: null, render: function (f) {
-                var n = parseInt(f.ITEMS, 10);
-                return '<span class="rq-resumen">' + esc(f.RESUMEN) + '</span>' +
-                       (n > 1 ? ' <span class="rq-cant-items">' + n + ' ítems</span>' : '');
+            { data: null, render: function (rq) {
+                var items = parseInt(rq.ITEMS, 10);
+                return '<span class="rq-resumen">' + esc(rq.RESUMEN) + '</span>' +
+                       (items > 1 ? ' <span class="rq-cant-items">' + items + ' ítems</span>' : '');
             } },
-            { data: null, render: function (f) {
-                var h = badgeEstado(f.NOM_RQ_ESTADO, f.COLOR);
-                if (parseInt(f.ESTADO, 10) === 0) { h = badgeEstado('Anulada', 'gris'); }
-                return h;
+            { data: null, render: function (rq) {
+                var html = badgeEstado(rq.NOM_RQ_ESTADO, rq.COLOR);
+                if (parseInt(rq.ESTADO, 10) === 0) { html = badgeEstado('Anulada', 'gris'); }
+                return html;
             } },
-            { data: null, render: function (f, tipo) {
-                if (tipo === 'sort') { return parseInt(f.DIAS_EN_ESTADO, 10); }
-                if (parseInt(f.ES_FINAL, 10) === 1 || parseInt(f.ESTADO, 10) === 0) {
-                    return '<span class="rq-dias-fin">' + esc(f.DIAS_TOTALES) + ' d total</span>';
+            { data: null, render: function (rq, tipo) {
+                if (tipo === 'sort') { return parseInt(rq.DIAS_EN_ESTADO, 10); }
+                if (parseInt(rq.ES_FINAL, 10) === 1 || parseInt(rq.ESTADO, 10) === 0) {
+                    return '<span class="rq-dias-fin">' + esc(rq.DIAS_TOTALES) + ' d total</span>';
                 }
                 //Pendiente: cuántos días lleva esperando aprobación
-                var h = esc(f.DIAS_EN_ESTADO) + ' de ' + esc(f.DIAS_ESPERADOS) + ' d';
-                if (parseInt(f.VENCIDA, 10) === 1) { h = '<span class="rq-vencida">' + h + ' · Sin aprobar</span>'; }
-                return h;
+                var html = esc(rq.DIAS_EN_ESTADO) + ' de ' + esc(rq.DIAS_ESPERADOS) + ' d';
+                if (parseInt(rq.VENCIDA, 10) === 1) { html = '<span class="rq-vencida">' + html + ' · Sin aprobar</span>'; }
+                return html;
             } },
-            { data: null, orderable: false, render: function (f) {
+            { data: null, orderable: false, render: function (rq) {
                 //Quien aprueba ve "Revisar" en las pendientes; los demás, "Ver"
-                var revisar = configRQ.puedeAprobar && parseInt(f.ID_RQ_ESTADO, 10) === 1 && parseInt(f.ESTADO, 10) === 1;
+                var revisar = configRQ.puedeAprobar && parseInt(rq.ID_RQ_ESTADO, 10) === 1 && parseInt(rq.ESTADO, 10) === 1;
                 return '<button type="button" class="btn btn-success btn-xs btn-ver-rq" data-id="' +
-                       parseInt(f.ID_RQ, 10) + '" title="' + (revisar ? 'Aprobar o rechazar' : 'Ver la RQ') + '">' +
+                       parseInt(rq.ID_RQ, 10) + '" title="' + (revisar ? 'Aprobar o rechazar' : 'Ver la RQ') + '">' +
                        '<i class="fa ' + (revisar ? 'fa-check-square-o' : 'fa-eye') + '"></i> ' + (revisar ? 'Revisar' : 'Ver') + '</button>';
             } }
         ]
@@ -462,26 +462,26 @@ function comprimirFoto(archivo, listo) {
     var lector = new FileReader();
     //Si el archivo no se puede leer como imagen, se sube tal como viene
     lector.onerror = function () { listo(archivo); };
-    lector.onload = function (e) {
+    lector.onload = function (evento) {
         var img = new Image();
         img.onerror = function () { listo(archivo); };
         //La foto se achica a máximo 1600 px antes de subirla, para que no pese tanto
         img.onload = function () {
             try {
-                var w = img.width, h = img.height, mayor = Math.max(w, h);
-                if (mayor > 1600) { w = Math.round(w * 1600 / mayor); h = Math.round(h * 1600 / mayor); }
-                var c = document.createElement('canvas');
-                c.width = w; c.height = h;
-                c.getContext('2d').drawImage(img, 0, 0, w, h);
-                c.toBlob(function (blob) {
+                var ancho = img.width, alto = img.height, mayor = Math.max(ancho, alto);
+                if (mayor > 1600) { ancho = Math.round(ancho * 1600 / mayor); alto = Math.round(alto * 1600 / mayor); }
+                var lienzo = document.createElement('canvas');
+                lienzo.width = ancho; lienzo.height = alto;
+                lienzo.getContext('2d').drawImage(img, 0, 0, ancho, alto);
+                lienzo.toBlob(function (blob) {
                     if (!blob || blob.size >= archivo.size) { listo(archivo); return; }
                     try {
                         listo(new File([blob], archivo.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
-                    } catch (err) { listo(archivo); }
+                    } catch (error) { listo(archivo); }
                 }, 'image/jpeg', 0.72);
-            } catch (err) { listo(archivo); }
+            } catch (error) { listo(archivo); }
         };
-        img.src = e.target.result;
+        img.src = evento.target.result;
     };
     lector.readAsDataURL(archivo);
 }
@@ -490,15 +490,15 @@ function comprimirFoto(archivo, listo) {
 function pintarPrevias() {
     var cont = $('#rqPrevias').empty();
     for (var i = 0; i < archivosRQ.length; i++) {
-        var a = archivosRQ[i];
-        var kb = Math.max(1, Math.round(a.size / 1024));
+        var archivo = archivosRQ[i];
+        var kilobytes = Math.max(1, Math.round(archivo.size / 1024));
         var caja = $('<div class="rq-previa"></div>');
-        if (a.type.indexOf('image/') === 0) {
-            $('<img alt="">').attr('src', URL.createObjectURL(a)).appendTo(caja);
+        if (archivo.type.indexOf('image/') === 0) {
+            $('<img alt="">').attr('src', URL.createObjectURL(archivo)).appendTo(caja);
         } else {
             caja.append('<div class="rq-previa-pdf" data-i="' + i + '" title="Ver el PDF antes de enviarlo"><i class="fa fa-file-pdf-o"></i></div>');
         }
-        caja.append('<div class="rq-previa-nombre">' + esc(a.name) + '<br><small>' + kb + ' KB</small></div>');
+        caja.append('<div class="rq-previa-nombre">' + esc(archivo.name) + '<br><small>' + kilobytes + ' KB</small></div>');
         caja.append('<button type="button" class="rq-previa-quitar" data-i="' + i + '" title="Quitar">&times;</button>');
         cont.append(caja);
     }
@@ -507,33 +507,33 @@ function pintarPrevias() {
 //---------------------------------------------------------------------------
 // Guardar
 //---------------------------------------------------------------------------
-function guardarRQ(e) {
-    e.preventDefault();
+function guardarRQ(evento) {
+    evento.preventDefault();
 
     if (!$('#rqCentro').val()) { alert('Elige el peaje.'); $('#rqCentro').focus(); return; }
     var conDescripcion = $('#rqItems .rq-desc').filter(function () { return $.trim(this.value) !== ''; }).length;
     if (!conDescripcion) { alert('Escribe qué se solicita en al menos un ítem.'); return; }
 
     //El formulario ya incluye el tipo (N o U)
-    var fd = new FormData($('#formRQ')[0]);
+    var formulario = new FormData($('#formRQ')[0]);
     for (var i = 0; i < archivosRQ.length; i++) {
-        fd.append('archivos[]', archivosRQ[i], archivosRQ[i].name);
+        formulario.append('archivos[]', archivosRQ[i], archivosRQ[i].name);
     }
 
     hanaBoton('#btnGuardarRQ', true);
-    $.ajax({ url: URL_RQ + '?op=guardar', type: 'POST', data: fd,
+    $.ajax({ url: URL_RQ + '?op=guardar', type: 'POST', data: formulario,
              contentType: false, processData: false, dataType: 'json' })
-        .done(function (r) {
-            alert(r.mensaje, function () {
+        .done(function (respuesta) {
+            alert(respuesta.mensaje, function () {
                 mostrarFormulario(false);
                 listarRQ();
                 if (window.hanaCampanaActualizar) { window.hanaCampanaActualizar(); }
             });
         })
         .fail(function (xhr) {
-            var msg = 'No se pudo registrar la RQ.';
-            try { msg = JSON.parse(xhr.responseText).error || msg; } catch (err) {}
-            alert(msg); //el formulario se conserva para corregir
+            var mensaje = 'No se pudo registrar la RQ.';
+            try { mensaje = JSON.parse(xhr.responseText).error || mensaje; } catch (error) {}
+            alert(mensaje); //el formulario se conserva para corregir
         })
         .always(function () { hanaBoton('#btnGuardarRQ', false); });
 }
@@ -551,129 +551,131 @@ function verRQ(id) {
         .done(pintarDetalle)
         .fail(function (xhr) {
             $('#modalRQ').modal('hide');
-            var msg = 'No se pudo cargar la RQ.';
-            try { msg = JSON.parse(xhr.responseText).error || msg; } catch (err) {}
-            alert(msg);
+            var mensaje = 'No se pudo cargar la RQ.';
+            try { mensaje = JSON.parse(xhr.responseText).error || mensaje; } catch (error) {}
+            alert(mensaje);
         });
 }
 
 //Pinta la ventana de detalle de una RQ: datos, ítems, archivos e historial
-function pintarDetalle(d) {
-    detalleRQ = d;
-    var r = d.rq, anulada = parseInt(r.ESTADO, 10) === 0;
-    $('#modalRQTitulo').html(esc(textoRQ(r.TIPO_RQ, r.NUMERO_RQ)) + ' · ' + esc(r.NOM_PROYECTO));
+function pintarDetalle(detalle) {
+    detalleRQ = detalle;
+    var rq = detalle.rq, anulada = parseInt(rq.ESTADO, 10) === 0;
+    $('#modalRQTitulo').html(esc(textoRQ(rq.TIPO_RQ, rq.NUMERO_RQ)) + ' · ' + esc(rq.NOM_PROYECTO));
 
-    var vencida = !anulada && parseInt(r.ES_FINAL, 10) === 0 && parseInt(r.DIAS_ESPERADOS, 10) > 0 &&
-                  parseInt(r.DIAS_EN_ESTADO, 10) > parseInt(r.DIAS_ESPERADOS, 10);
+    var vencida = !anulada && parseInt(rq.ES_FINAL, 10) === 0 && parseInt(rq.DIAS_ESPERADOS, 10) > 0 &&
+                  parseInt(rq.DIAS_EN_ESTADO, 10) > parseInt(rq.DIAS_ESPERADOS, 10);
 
-    var h = '<div class="rq-det-cab">' +
-            '<div><span class="rq-det-lbl">Tipo</span><span class="rq-etq ' + (r.TIPO_RQ === 'U' ? 'rq-etq-u">Urgente' : 'rq-etq-n">Normal') +
+    var html = '<div class="rq-det-cab">' +
+            '<div><span class="rq-det-lbl">Tipo</span><span class="rq-etq ' + (rq.TIPO_RQ === 'U' ? 'rq-etq-u">Urgente' : 'rq-etq-n">Normal') +
                 '</span></div>' +
-            '<div><span class="rq-det-lbl">Peaje</span>' + esc(r.NOM_CENTRO_OP) + '</div>' +
-            '<div><span class="rq-det-lbl">Fecha</span>' + fechaCorta(r.FECHA_RQ) + '</div>' +
-            '<div><span class="rq-det-lbl">Solicitó</span>' + esc(r.SOLICITA) + '</div>' +
+            '<div><span class="rq-det-lbl">Peaje</span>' + esc(rq.NOM_CENTRO_OP) + '</div>' +
+            '<div><span class="rq-det-lbl">Fecha</span>' + fechaCorta(rq.FECHA_RQ) + '</div>' +
+            '<div><span class="rq-det-lbl">Solicitó</span>' + esc(rq.SOLICITA) + '</div>' +
             '<div><span class="rq-det-lbl">Estado</span>' +
-                (anulada ? badgeEstado('Anulada', 'gris') : badgeEstado(r.NOM_RQ_ESTADO, r.COLOR)) +
+                (anulada ? badgeEstado('Anulada', 'gris') : badgeEstado(rq.NOM_RQ_ESTADO, rq.COLOR)) +
                 (vencida ? ' <span class="rq-vencida">Sin aprobar</span>' : '') + '</div>' +
             '</div>';
 
 
     //Ítems
-    h += '<h5 class="rq-det-sub">Qué se solicita</h5><div class="rq-det-items">';
-    for (var i = 0; i < d.items.length; i++) {
-        var it = d.items[i];
-        h += '<div class="rq-det-item"><div class="rq-det-item-cab"><strong>' + esc(it.DESCRIPCION) + '</strong>' +
-             '<span>' + esc(parseFloat(it.CANTIDAD)) + ' ' + esc(it.UNIDAD) + '</span></div>' +
-             (it.JUSTIFICACION ? '<div class="rq-det-item-just">' + esc(it.JUSTIFICACION) + '</div>' : '') +
-             (it.SOPORTE_ULTIMA_ADQUISICION ? '<div class="rq-det-item-sop"><i class="fa fa-paperclip"></i> Última adquisición: ' +
-               esc(it.SOPORTE_ULTIMA_ADQUISICION) + '</div>' : '') +
+    html += '<h5 class="rq-det-sub">Qué se solicita</h5><div class="rq-det-items">';
+    for (var i = 0; i < detalle.items.length; i++) {
+        var item = detalle.items[i];
+        html += '<div class="rq-det-item"><div class="rq-det-item-cab"><strong>' + esc(item.DESCRIPCION) + '</strong>' +
+             '<span>' + esc(parseFloat(item.CANTIDAD)) + ' ' + esc(item.UNIDAD) + '</span></div>' +
+             (item.JUSTIFICACION ? '<div class="rq-det-item-just">' + esc(item.JUSTIFICACION) + '</div>' : '') +
+             (item.SOPORTE_ULTIMA_ADQUISICION ? '<div class="rq-det-item-sop"><i class="fa fa-paperclip"></i> Última adquisición: ' +
+               esc(item.SOPORTE_ULTIMA_ADQUISICION) + '</div>' : '') +
              '</div>';
     }
-    h += '</div>';
+    html += '</div>';
 
-    if (r.OBSERVACION_SST) {
-        h += '<h5 class="rq-det-sub">Observación</h5><p>' + esc(r.OBSERVACION_SST) + '</p>';
+    if (rq.OBSERVACION_SST) {
+        html += '<h5 class="rq-det-sub">Observación</h5><p>' + esc(rq.OBSERVACION_SST) + '</p>';
     }
 
     //Archivos
-    if (d.archivos.length) {
-        h += '<h5 class="rq-det-sub">Evidencias y soportes</h5><div class="rq-det-archivos">';
-        for (var j = 0; j < d.archivos.length; j++) {
-            var a = d.archivos[j], url = esc(a.URL);
-            if (/\.pdf$/i.test(a.RUTA)) {
-                h += '<a class="rq-det-archivo rq-det-pdf" href="' + url + '" data-visor-pdf data-nombre="' + esc(a.NOMBRE_ORIGINAL) + '">' + //se ve en el visor de la misma página
-                     '<i class="fa fa-file-pdf-o"></i><span>' + esc(a.NOMBRE_ORIGINAL) + '</span></a>';
+    if (detalle.archivos.length) {
+        html += '<h5 class="rq-det-sub">Evidencias y soportes</h5><div class="rq-det-archivos">';
+        for (var j = 0; j < detalle.archivos.length; j++) {
+            var archivo = detalle.archivos[j], url = esc(archivo.URL);
+            if (/\.pdf$/i.test(archivo.RUTA)) {
+                html += '<a class="rq-det-archivo rq-det-pdf" href="' + url + '" data-visor-pdf data-nombre="' + esc(archivo.NOMBRE_ORIGINAL) + '">' + //se ve en el visor de la misma página
+                     '<i class="fa fa-file-pdf-o"></i><span>' + esc(archivo.NOMBRE_ORIGINAL) + '</span></a>';
             } else {
-                h += '<a class="rq-det-archivo" href="' + url + '" data-visor="rq-' + parseInt(r.ID_RQ, 10) + '" title="' + //se abre en el visor de la misma página
-                     esc(a.NOMBRE_ORIGINAL) + '"><img src="' + url + '" alt="' + esc(a.NOMBRE_ORIGINAL) + '"></a>';
+                html += '<a class="rq-det-archivo" href="' + url + '" data-visor="rq-' + parseInt(rq.ID_RQ, 10) + '" title="' + //se abre en el visor de la misma página
+                     esc(archivo.NOMBRE_ORIGINAL) + '"><img src="' + url + '" alt="' + esc(archivo.NOMBRE_ORIGINAL) + '"></a>';
             }
         }
-        h += '</div>';
+        html += '</div>';
     }
 
     //Aprobar o rechazar (permiso 18M), y anular (quien la pidió o quien aprueba).
     //El servidor manda qué se puede hacer; aquí solo se pintan esos botones
-    var aprobar = !anulada && d.siguientes.length > 0;
-    if (aprobar || d.puedeAnular) {
-        h += '<div class="rq-det-accion"><h5 class="rq-det-sub" style="margin-top:0">' +
+    var aprobar = !anulada && detalle.siguientes.length > 0;
+    if (aprobar || detalle.puedeAnular) {
+        html += '<div class="rq-det-accion"><h5 class="rq-det-sub" style="margin-top:0">' +
              (aprobar ? 'Aprobación' : 'Anular la solicitud') + '</h5>' +
              '<div class="form-group"><label for="rqObsEstado">Observación:</label>' +
              '<input type="text" id="rqObsEstado" class="form-control" maxlength="500" ' +
              'placeholder="' + (aprobar ? 'Opcional al aprobar; obligatoria al rechazar o anular' : 'Obligatoria: por qué se anula') + '"></div>' +
              '<div class="rq-acciones">';
-        if (d.puedeAnular) {
-            h += '<button type="button" class="btn btn-default" id="btnAnularRQ"><i class="fa fa-ban"></i> Anular</button>';
+        if (detalle.puedeAnular) {
+            html += '<button type="button" class="btn btn-default" id="btnAnularRQ"><i class="fa fa-ban"></i> Anular</button>';
         }
-        for (var k = 0; k < d.siguientes.length; k++) {
-            var sig = d.siguientes[k], idSig = parseInt(sig.ID_RQ_ESTADO, 10);
-            h += '<button type="button" class="btn ' + (idSig === 7 ? 'btn-danger' : 'btn-success') + ' btn-estado-rq" ' +
+        for (var numSiguiente = 0; numSiguiente < detalle.siguientes.length; numSiguiente++) {
+            var siguiente = detalle.siguientes[numSiguiente], idSig = parseInt(siguiente.ID_RQ_ESTADO, 10);
+            html += '<button type="button" class="btn ' + (idSig === 7 ? 'btn-danger' : 'btn-success') + ' btn-estado-rq" ' +
                  'data-estado="' + idSig + '"><i class="fa ' + (idSig === 7 ? 'fa-times' : 'fa-check') + '"></i> ' +
                  (idSig === 7 ? 'Rechazar' : 'Aprobar') + '</button>';
         }
-        h += '</div></div>';
+        html += '</div></div>';
     }
 
     //Editar: en "Solicitada", quien la pidió o quien aprueba. Si fue rechazada,
     //quien la pidió la corrige y la envía de nuevo (máximo d.maxReintentos veces)
-    var reint = parseInt(d.reintentos, 10) || 0, maxR = parseInt(d.maxReintentos, 10) || 0;
-    var rechazada = !anulada && parseInt(r.ID_RQ_ESTADO, 10) === 7;
-    if (rechazada && !d.retrocede) {
-        h += '<div class="rq-det-editar"><p><i class="fa fa-ban"></i> <strong>Ya no se puede enviar de nuevo:</strong> ' +
+    var reint = parseInt(detalle.reintentos, 10) || 0, maxR = parseInt(detalle.maxReintentos, 10) || 0;
+    var rechazada = !anulada && parseInt(rq.ID_RQ_ESTADO, 10) === 7;
+    if (rechazada && !detalle.retrocede) {
+        html += '<div class="rq-det-editar"><p><i class="fa fa-ban"></i> <strong>Ya no se puede enviar de nuevo:</strong> ' +
              (maxR > 0 ? 'se corrigió y se reenvió ' + reint + ' de ' + maxR + ' veces permitidas. '
                        : 'las RQ rechazadas no se reenvían. ') +
              'Queda rechazada; si todavía hace falta, hay que pedir una RQ nueva.</p></div>';
     }
-    if (d.puedeEditar) {
-        h += '<div class="rq-det-editar">' +
-             (d.retrocede
+    if (detalle.puedeEditar) {
+        html += '<div class="rq-det-editar">' +
+             (detalle.retrocede
                 ? '<p><i class="fa fa-undo"></i> Fue rechazada. Si la corriges, <strong>vuelve a "Solicitada"</strong> ' +
                   'y queda pendiente de aprobación otra vez. Reintento <strong>' + (reint + 1) + ' de ' + maxR + '</strong>.</p>'
                 : '') +
-             '<button type="button" class="btn btn-default" id="btnEditarRQ"><i class="fa ' + (d.retrocede ? 'fa-undo' : 'fa-pencil') + '"></i> ' +
-             (d.retrocede ? 'Corregir y enviar de nuevo' : 'Editar RQ') + '</button></div>';
+             '<button type="button" class="btn btn-default" id="btnEditarRQ"><i class="fa ' + (detalle.retrocede ? 'fa-undo' : 'fa-pencil') + '"></i> ' +
+             (detalle.retrocede ? 'Corregir y enviar de nuevo' : 'Editar RQ') + '</button></div>';
     }
 
     //Historial
-    h += '<h5 class="rq-det-sub">Historial</h5><ul class="rq-historial">';
-    for (var m = 0; m < d.historial.length; m++) {
-        var s = d.historial[m];
-        h += '<li><div class="rq-hist-fecha">' + fechaHora(s.FECHA) + '</div>' +
-             '<div class="rq-hist-texto"><strong>' + (s.ANTERIOR ? esc(s.ANTERIOR) + ' → ' : '') + esc(s.NUEVO) + '</strong>' +
-             ' · ' + esc(s.QUIEN) +
-             (s.OBSERVACION ? '<div class="rq-hist-obs">' + esc(s.OBSERVACION) + '</div>' : '') +
+    html += '<h5 class="rq-det-sub">Historial</h5><ul class="rq-historial">';
+    for (var numPaso = 0; numPaso < detalle.historial.length; numPaso++) {
+        var paso = detalle.historial[numPaso];
+        html += '<li><div class="rq-hist-fecha">' + fechaHora(paso.FECHA) + '</div>' +
+             '<div class="rq-hist-texto"><strong>' + (paso.ANTERIOR ? esc(paso.ANTERIOR) + ' → ' : '') + esc(paso.NUEVO) + '</strong>' +
+             //Quién lo hizo: el nombre completo del colaborador y el rol de su usuario en HANA
+             '<div class="rq-hist-quien"><i class="fa fa-user"></i> ' + (paso.QUIEN ? esc(paso.QUIEN) : 'Sin colaborador') +
+             (paso.ROL ? ' <span>· ' + esc(paso.ROL) + '</span>' : '') + '</div>' +
+             (paso.OBSERVACION ? '<div class="rq-hist-obs">' + esc(paso.OBSERVACION) + '</div>' : '') +
              '</div></li>';
     }
-    h += '</ul>';
+    html += '</ul>';
 
-    $('#modalRQCuerpo').html(h);
+    $('#modalRQCuerpo').html(html);
 }
 
 //Cambia el estado de la RQ (rechazar exige la observación)
 function cambiarEstadoRQ(nuevo) {
     nuevo = parseInt(nuevo, 10);
     var rechaza = nuevo === 7;
-    var obs = $.trim($('#rqObsEstado').val());
-    if (rechaza && !obs) { alert('Para rechazar una RQ hay que explicar el motivo en la observación.'); $('#rqObsEstado').focus(); return; }
+    var observacion = $.trim($('#rqObsEstado').val());
+    if (rechaza && !observacion) { alert('Para rechazar una RQ hay que explicar el motivo en la observación.'); $('#rqObsEstado').focus(); return; }
 
     var boton = '.btn-estado-rq[data-estado="' + nuevo + '"]';
     var sinReintentos = detalleRQ && (parseInt(detalleRQ.reintentos, 10) || 0) >= (parseInt(detalleRQ.maxReintentos, 10) || 0);
@@ -683,16 +685,16 @@ function cambiarEstadoRQ(nuevo) {
     hanaConfirmar(rechaza ? textoRechazo : '¿Aprobar esta RQ?', function () {
         hanaBoton(boton, true);
         $.ajax({ url: URL_RQ + '?op=cambiarEstado', type: 'POST', dataType: 'json',
-                 data: { id: rqAbierta, estado: nuevo, observacion: obs } })
+                 data: { id: rqAbierta, estado: nuevo, observacion: observacion } })
             .done(function () {
                 verRQ(rqAbierta);
                 listarRQ();
                 if (window.hanaCampanaActualizar) { window.hanaCampanaActualizar(); }
             })
             .fail(function (xhr) {
-                var msg = 'No se pudo guardar la decisión.';
-                try { msg = JSON.parse(xhr.responseText).error || msg; } catch (err) {}
-                alert(msg);
+                var mensaje = 'No se pudo guardar la decisión.';
+                try { mensaje = JSON.parse(xhr.responseText).error || mensaje; } catch (error) {}
+                alert(mensaje);
                 hanaBoton(boton, false);
             });
     }, { aceptar: rechaza ? 'Sí, rechazar' : 'Sí, aprobar', cancelar: 'No' });
@@ -700,17 +702,17 @@ function cambiarEstadoRQ(nuevo) {
 
 //Anula la RQ (exige la observación y pregunta antes)
 function anularRQ() {
-    var obs = $.trim($('#rqObsEstado').val());
-    if (!obs) { alert('Para anular una RQ hay que explicar el motivo en la observación.'); $('#rqObsEstado').focus(); return; }
+    var observacion = $.trim($('#rqObsEstado').val());
+    if (!observacion) { alert('Para anular una RQ hay que explicar el motivo en la observación.'); $('#rqObsEstado').focus(); return; }
 
     hanaConfirmar('¿Anular esta RQ? No se borra: queda en el historial como anulada.', function () {
         $.ajax({ url: URL_RQ + '?op=anular', type: 'POST', dataType: 'json',
-                 data: { id: rqAbierta, observacion: obs } })
-            .done(function (r) { verRQ(rqAbierta); listarRQ(); })
+                 data: { id: rqAbierta, observacion: observacion } })
+            .done(function (respuesta) { verRQ(rqAbierta); listarRQ(); })
             .fail(function (xhr) {
-                var msg = 'No se pudo anular la RQ.';
-                try { msg = JSON.parse(xhr.responseText).error || msg; } catch (err) {}
-                alert(msg);
+                var mensaje = 'No se pudo anular la RQ.';
+                try { mensaje = JSON.parse(xhr.responseText).error || mensaje; } catch (error) {}
+                alert(mensaje);
             });
     }, { aceptar: 'Sí, anular', cancelar: 'No' });
 }
@@ -720,46 +722,46 @@ function anularRQ() {
 //---------------------------------------------------------------------------
 
 //Una fila de ítem para el editor, con valores o vacía
-function htmlItemRQ(v) {
+function htmlItemRQ(item) {
     return '<div class="rq-item">' +
         '<div class="rq-item-cab"><span class="rq-item-num">Ítem</span>' +
         '<button type="button" class="rq-item-quitar rq-ed-quitar"><i class="fa fa-times"></i> Quitar</button></div>' +
         '<div class="row"><div class="form-group col-sm-6 col-xs-12"><label>Qué se solicita: <span class="rq-req">*</span></label>' +
-        '<input type="text" name="descripcion[]" class="form-control" maxlength="255" value="' + esc(v.DESCRIPCION || '') + '"></div>' +
+        '<input type="text" name="descripcion[]" class="form-control" maxlength="255" value="' + esc(item.DESCRIPCION || '') + '"></div>' +
         '<div class="form-group col-sm-3 col-xs-6"><label>Cantidad:</label>' +
-        '<input type="number" name="cantidad[]" class="form-control" min="0.01" step="any" value="' + esc(v.CANTIDAD ? parseFloat(v.CANTIDAD) : 1) + '"></div>' +
+        '<input type="number" name="cantidad[]" class="form-control" min="0.01" step="any" value="' + esc(item.CANTIDAD ? parseFloat(item.CANTIDAD) : 1) + '"></div>' +
         '<div class="form-group col-sm-3 col-xs-6"><label>Unidad:</label>' +
-        '<input type="text" name="unidad[]" class="form-control" maxlength="30" value="' + esc(v.UNIDAD || 'Unidad') + '"></div></div>' +
+        '<input type="text" name="unidad[]" class="form-control" maxlength="30" value="' + esc(item.UNIDAD || 'Unidad') + '"></div></div>' +
         '<div class="row"><div class="form-group col-sm-6 col-xs-12"><label>Por qué se necesita:</label>' +
-        '<textarea name="justificacion[]" class="form-control" rows="2">' + esc(v.JUSTIFICACION || '') + '</textarea></div>' +
+        '<textarea name="justificacion[]" class="form-control" rows="2">' + esc(item.JUSTIFICACION || '') + '</textarea></div>' +
         '<div class="form-group col-sm-6 col-xs-12"><label>Soporte de la última adquisición:</label>' +
-        '<input type="text" name="soporte[]" class="form-control" maxlength="255" value="' + esc(v.SOPORTE_ULTIMA_ADQUISICION || '') + '"></div></div>' +
+        '<input type="text" name="soporte[]" class="form-control" maxlength="255" value="' + esc(item.SOPORTE_ULTIMA_ADQUISICION || '') + '"></div></div>' +
         '</div>';
 }
 
 //Cambia el detalle por un formulario con los datos actuales
 function abrirEdicionRQ() {
-    var d = detalleRQ, r = d.rq;
-    var h = '<form id="formEditarRQ" autocomplete="off">' +
-        (d.retrocede
+    var detalle = detalleRQ, rq = detalle.rq;
+    var html = '<form id="formEditarRQ" autocomplete="off">' +
+        (detalle.retrocede
             ? '<div class="rq-det-riesgo"><i class="fa fa-undo"></i> Al guardar, la RQ vuelve a <strong>"Solicitada"</strong> ' +
               'y queda pendiente de aprobación otra vez.</div>'
             : '') +
         '<div class="row"><div class="form-group col-sm-4 col-xs-12"><label>Fecha de la RQ:</label>' +
-        '<input type="date" name="fecha" class="form-control" max="' + hoyLocal() + '" value="' + esc(String(r.FECHA_RQ).substring(0, 10)) + '"></div></div>' +
-        '<h5 class="rq-det-sub">Tipo de RQ</h5>' + htmlTipoRQ(r.TIPO_RQ) +
+        '<input type="date" name="fecha" class="form-control" max="' + hoyLocal() + '" value="' + esc(String(rq.FECHA_RQ).substring(0, 10)) + '"></div></div>' +
+        '<h5 class="rq-det-sub">Tipo de RQ</h5>' + htmlTipoRQ(rq.TIPO_RQ) +
         '<h5 class="rq-det-sub">Qué se solicita</h5><div id="rqEdItems">';
-    for (var i = 0; i < d.items.length; i++) { h += htmlItemRQ(d.items[i]); }
-    if (!d.items.length) { h += htmlItemRQ({}); }
-    h += '</div><button type="button" class="btn btn-default btn-sm" id="btnAgregarItemEd"><i class="fa fa-plus"></i> Agregar ítem</button>' +
+    for (var i = 0; i < detalle.items.length; i++) { html += htmlItemRQ(detalle.items[i]); }
+    if (!detalle.items.length) { html += htmlItemRQ({}); }
+    html += '</div><button type="button" class="btn btn-default btn-sm" id="btnAgregarItemEd"><i class="fa fa-plus"></i> Agregar ítem</button>' +
         '<div class="form-group" style="margin-top:14px;"><label>Observación:</label>' +
-        '<textarea name="sst" class="form-control" rows="2">' + esc(r.OBSERVACION_SST || '') + '</textarea></div>' +
-        '<div class="form-group" style="margin-top:14px;"><label>' + (d.retrocede ? 'Qué se corrigió: <span class="rq-req">*</span>' : 'Qué se corrigió (opcional):') + '</label>' +
+        '<textarea name="sst" class="form-control" rows="2">' + esc(rq.OBSERVACION_SST || '') + '</textarea></div>' +
+        '<div class="form-group" style="margin-top:14px;"><label>' + (detalle.retrocede ? 'Qué se corrigió: <span class="rq-req">*</span>' : 'Qué se corrigió (opcional):') + '</label>' +
         '<input type="text" name="motivo" class="form-control" maxlength="500" placeholder="Ej: la cantidad estaba mal, eran 3 y no 1"></div>' +
         '<div class="rq-acciones"><button type="button" class="btn btn-default" id="btnCancelarEdicion">Cancelar</button>' +
         '<button type="button" class="btn btn-success" id="btnGuardarEdicion"><i class="fa fa-save"></i> ' +
-        (d.retrocede ? 'Guardar y enviar de nuevo' : 'Guardar cambios') + '</button></div></form>';
-    $('#modalRQCuerpo').html(h);
+        (detalle.retrocede ? 'Guardar y enviar de nuevo' : 'Guardar cambios') + '</button></div></form>';
+    $('#modalRQCuerpo').html(html);
 }
 
 //Revisa y guarda los cambios de una RQ
@@ -774,21 +776,21 @@ function guardarEdicionRQ() {
 
     //Envía el formulario de edición con sus archivos
     var enviar = function () {
-        var fd = new FormData(form[0]);
-        fd.append('id', rqAbierta);
+        var formulario = new FormData(form[0]);
+        formulario.append('id', rqAbierta);
         hanaBoton('#btnGuardarEdicion', true);
-        $.ajax({ url: URL_RQ + '?op=editar', type: 'POST', data: fd, contentType: false, processData: false, dataType: 'json' })
-            .done(function (r) {
-                alert(r.mensaje, function () {
+        $.ajax({ url: URL_RQ + '?op=editar', type: 'POST', data: formulario, contentType: false, processData: false, dataType: 'json' })
+            .done(function (respuesta) {
+                alert(respuesta.mensaje, function () {
                     verRQ(rqAbierta);
                     listarRQ();
                     if (window.hanaCampanaActualizar) { window.hanaCampanaActualizar(); }
                 });
             })
             .fail(function (xhr) {
-                var msg = 'No se pudo guardar la corrección.';
-                try { msg = JSON.parse(xhr.responseText).error || msg; } catch (err) {}
-                alert(msg);
+                var mensaje = 'No se pudo guardar la corrección.';
+                try { mensaje = JSON.parse(xhr.responseText).error || mensaje; } catch (error) {}
+                alert(mensaje);
                 hanaBoton('#btnGuardarEdicion', false);
             });
     };

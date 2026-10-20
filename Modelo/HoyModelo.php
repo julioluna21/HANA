@@ -3,8 +3,7 @@
   HANA - Modelo de "Hoy en qué estás" (Reporte diario)
   ---------------------------------------------------------------------------
   El día de cada persona: dónde estuvo, a qué hora entró y salió, y qué hizo,
-  en un solo texto. Reemplaza la hoja
-  "Hoy en qué estás" del Excel del reporte diario.
+  en un solo texto. Es la hoja "Hoy en qué estás" del reporte diario.
 
   Todas las consultas son preparadas (los datos viajan aparte del SQL): no se
   usa limpiarCadena(), así que el texto se guarda tal cual lo escribió la
@@ -33,17 +32,17 @@ class Hoy
     {
         global $conexion;
         try {
-            $st = $conexion->prepare($sql);
-            if (!$st) { error_log('HANA Hoy - no se pudo preparar: ' . $conexion->error); return false; }
-            if ($tipos !== '') { $st->bind_param($tipos, ...$params); }
-            if (!$st->execute()) { error_log('HANA Hoy - error SQL: ' . $st->error); $st->close(); return false; }
-            $r = $st->get_result();
-            if ($r === false) { $st->close(); return true; } //no era un SELECT
-            $filas = $r->fetch_all(MYSQLI_ASSOC);
-            $st->close();
+            $sentencia = $conexion->prepare($sql);
+            if (!$sentencia) { error_log('HANA Hoy - no se pudo preparar: ' . $conexion->error); return false; }
+            if ($tipos !== '') { $sentencia->bind_param($tipos, ...$params); }
+            if (!$sentencia->execute()) { error_log('HANA Hoy - error SQL: ' . $sentencia->error); $sentencia->close(); return false; }
+            $resultado = $sentencia->get_result();
+            if ($resultado === false) { $sentencia->close(); return true; } //no era un SELECT
+            $filas = $resultado->fetch_all(MYSQLI_ASSOC);
+            $sentencia->close();
             return $filas;
-        } catch (Throwable $e) {
-            error_log('HANA Hoy - ' . $e->getMessage());
+        } catch (Throwable $error) {
+            error_log('HANA Hoy - ' . $error->getMessage());
             return false;
         }
     }
@@ -61,11 +60,11 @@ class Hoy
     {
         $filas = $this->q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
                              FROM centros_operacion c
-                             INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO_CENTRO_OP
+                             INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
                              INNER JOIN asoc_usuarios_sistemas_x_cop a
-                                     ON a.ID_CENTRO_OP_ASOC_USUARIOS_SISTEMAS_X_COP = c.ID_CENTRO_OP
-                            WHERE a.ID_USUARIO_SISTEMA_ASOC_USUARIOS_SISTEMAS_X_COP = ?
-                              AND c.Estado = '1'
+                                     ON a.ID_CENTRO_OP = c.ID_CENTRO_OP
+                            WHERE a.ID_COLABORADOR = ?
+                              AND c.ESTADO = '1'
                             ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP", 'i', array((int)$idUsuario));
         return $filas ? $filas : array();
     }
@@ -75,17 +74,17 @@ class Hoy
     //-----------------------------------------------------------------------
     public function obtener($idColaborador, $fecha)
     {
-        $f = $this->q("SELECT * FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA = ? LIMIT 1",
+        $filas = $this->q("SELECT * FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA = ? LIMIT 1",
                       'is', array((int)$idColaborador, $fecha));
-        if (!$f) { return null; }
-        $reg = $f[0];
-        $id = (int)$reg['ID_REPORTE_HOY'];
+        if (!$filas) { return null; }
+        $registro = $filas[0];
+        $id = (int)$registro['ID_REPORTE_HOY'];
 
-        $reg['CENTROS'] = array();
-        foreach ((array)$this->q("SELECT ID_CENTRO_OP FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id)) as $c) {
-            $reg['CENTROS'][] = (int)$c['ID_CENTRO_OP'];
+        $registro['CENTROS'] = array();
+        foreach ((array)$this->q("SELECT ID_CENTRO_OP FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id)) as $centro) {
+            $registro['CENTROS'][] = (int)$centro['ID_CENTRO_OP'];
         }
-        return $reg; //ACTIVIDAD (qué hizo en el día) ya viene en la fila
+        return $registro; //ACTIVIDAD (qué hizo en el día) ya viene en la fila
     }
 
     //-----------------------------------------------------------------------
@@ -117,16 +116,16 @@ class Hoy
                   FROM reporte_hoy h INNER JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
                  WHERE h.FECHA >= ? AND h.FECHA < ? AND (? = 0 OR h.ID_COLABORADOR = ?)
                  ORDER BY h.FECHA DESC, col.NOM_COLABORADOR";
-        $f = $this->q($sql, 'ssii', array($desde, $hasta, (int)$idColaborador, (int)$idColaborador));
-        return $f ? $f : array();
+        $filas = $this->q($sql, 'ssii', array($desde, $hasta, (int)$idColaborador, (int)$idColaborador));
+        return $filas ? $filas : array();
     }
 
     //-----------------------------------------------------------------------
     // Guarda el día completo. Si ya existía, lo reemplaza.
     // Se llama dentro de una transacción (ver HoyControl): todo o nada
-    //   $d: situacion, ingreso, salida, lugarOtro, actividad, observacion, centros[]
+    //   $datos: situación, ingreso, salida, lugarOtro, actividad, observación, centros[]
     //-----------------------------------------------------------------------
-    public function guardar($idColaborador, $fecha, $d, $ahora)
+    public function guardar($idColaborador, $fecha, $datos, $ahora)
     {
         $idColaborador = (int)$idColaborador;
 
@@ -140,19 +139,19 @@ class Hoy
                             HORA_SALIDA = VALUES(HORA_SALIDA), LUGAR_OTRO = VALUES(LUGAR_OTRO),
                             ACTIVIDAD = VALUES(ACTIVIDAD), OBSERVACION = VALUES(OBSERVACION), FEC_MODIFICACION = ?",
                        'isssssssss',
-                       array($idColaborador, $fecha, $d['situacion'], $d['ingreso'], $d['salida'],
-                             $d['lugarOtro'], $d['actividad'], $d['observacion'], $ahora, $ahora));
+                       array($idColaborador, $fecha, $datos['situacion'], $datos['ingreso'], $datos['salida'],
+                             $datos['lugarOtro'], $datos['actividad'], $datos['observacion'], $ahora, $ahora));
         if (!$ok) { return 0; }
 
-        $f = $this->q("SELECT ID_REPORTE_HOY FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA = ?",
+        $filas = $this->q("SELECT ID_REPORTE_HOY FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA = ?",
                       'is', array($idColaborador, $fecha));
-        if (!$f) { return 0; }
-        $id = (int)$f[0]['ID_REPORTE_HOY'];
+        if (!$filas) { return 0; }
+        $id = (int)$filas[0]['ID_REPORTE_HOY'];
 
         //Los centros visitados se reemplazan completos
         if (!$this->q("DELETE FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id))) { return 0; }
 
-        foreach ($d['centros'] as $idCentro) {
+        foreach ($datos['centros'] as $idCentro) {
             if (!$this->q("INSERT INTO reporte_hoy_centro (ID_REPORTE_HOY, ID_CENTRO_OP) VALUES (?, ?)",
                           'ii', array($id, (int)$idCentro))) { return 0; }
         }

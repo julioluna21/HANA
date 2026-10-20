@@ -4,9 +4,9 @@
    Este archivo define TODOS los colores del sistema en un solo lugar y
    reemplaza los de la plantilla Gentelella.
 
-   Va cargado de ULTIMO en head.php, despues de custom.min.css: por eso
+   Va cargado de ULTIMO en head.php, después de custom.min.css: por eso
    sus reglas mandan sobre las de la plantilla sin tener que editarla.
-   Si algun dia se recompila la plantilla, este archivo sigue funcionando.
+   Si algún dia se recompila la plantilla, este archivo sigue funcionando.
 
    Son cinco colores, contando blanco y negro. Los grises son el negro
    rebajado, no cuentan como color aparte.
@@ -14,28 +14,28 @@
 
 :root{
     /* --- Los tres colores del sistema --- */
-    --hana-vino:        #6E1A1E;  /* marca, sidebar, encabezados. Tambien "No", anular, vencido */
+    --hana-vino:        #6E1A1E;  /* marca, sidebar, encabezados. También "No", anular, vencido */
     --hana-vino-claro:  #8C2126;  /* solo para el hover del vino */
     --hana-vino-suave:  #F5E4E5;  /* fondo muy claro para avisos de error */
 
-    --hana-verde:       #1ABB9C;  /* exito, item activo del menu, "Si", guardado */
+    --hana-verde:       #1ABB9C;  /* éxito, item activo del menú, "Si", guardado */
     --hana-verde-osc:   #158F77;  /* el mismo verde, mas oscuro: se usa cuando lleva texto blanco */
-    --hana-verde-suave: #E4F6F2;  /* fondo muy claro para avisos de exito */
+    --hana-verde-suave: #E4F6F2;  /* fondo muy claro para avisos de éxito */
 
     --hana-ambar:       #D99C2B;  /* pendiente, por vencer, campos que faltan */
-    --hana-ambar-osc:   #B07A15;  /* el mismo ambar, mas oscuro */
-    --hana-ambar-suave: #FDF3E0;  /* fondo muy claro para avisos de atencion */
+    --hana-ambar-osc:   #B07A15;  /* el mismo ámbar, mas oscuro */
+    --hana-ambar-suave: #FDF3E0;  /* fondo muy claro para avisos de atención */
 
     /* --- Blanco, negro y sus grises --- */
     --hana-blanco:      #FFFFFF;
     --hana-negro:       #1A1A1A;  /* texto principal */
     --hana-gris-texto:  #6B7076;  /* texto secundario */
     --hana-gris-borde:  #E3E6EA;  /* bordes y separadores */
-    --hana-gris-fondo:  #F7F8F9;  /* fondo de la pagina */
+    --hana-gris-fondo:  #F7F8F9;  /* fondo de la página */
 }
 
 /* ==========================================================================
-   1. Menu lateral y encabezado
+   1. Menú lateral y encabezado
    El gris azulado #2A3F54 de la plantilla pasa a ser el vino
    ========================================================================== */
 
@@ -77,7 +77,7 @@ body{
 }
 .profile_info h2,
 .nav.side-menu > li > a{
-    color: #E8C9CA;                      /* el vino aclarado, para el texto del menu */
+    color: #E8C9CA;                      /* el vino aclarado, para el texto del menú */
 }
 .site_title,
 .site_title:hover,
@@ -96,7 +96,7 @@ body{
    El azul #3498DB de la plantilla pasa a ser verde
    ========================================================================== */
 
-/* Accion principal: verde oscuro, porque lleva texto blanco encima */
+/* Acción principal: verde oscuro, porque lleva texto blanco encima */
 .btn-primary,
 .btn-success{
     background: var(--hana-verde-osc);
@@ -110,7 +110,7 @@ body{
     color: var(--hana-blanco);
 }
 
-/* Accion destructiva (anular): vino */
+/* Acción destructiva (anular): vino */
 .btn-danger{
     background: var(--hana-vino);
     border: 1px solid var(--hana-vino);
@@ -121,7 +121,7 @@ body{
     border-color: var(--hana-vino-claro);
 }
 
-/* Aviso: ambar con texto NEGRO. Con texto blanco no se lee */
+/* Aviso: ámbar con texto NEGRO. Con texto blanco no se lee */
 .btn-warning{
     background: var(--hana-ambar);
     border: 1px solid var(--hana-ambar);
@@ -149,7 +149,7 @@ body{
 
 /* ==========================================================================
    3. Clases de color sueltas de la plantilla
-   Se reapuntan para que no quede ningun azul ni gris perdido
+   Se reapuntan para que no quede ningún azul ni gris perdido
    ========================================================================== */
 
 .blue, .text-info{ color: var(--hana-verde-osc); }
@@ -251,7 +251,7 @@ a:hover, a:focus{ color: #0F7A64; }
 #nprogress .peg{ box-shadow: 0 0 10px var(--hana-verde), 0 0 5px var(--hana-verde) !important; }
 
 /* ==========================================================================
-   5. Pantalla de inicio de sesion
+   5. Pantalla de inicio de sesión
    ========================================================================== */
 
 body.login{ background: var(--hana-vino); }
@@ -270,7 +270,7 @@ body.login{ background: var(--hana-vino); }
 /* ==========================================================================
    6. Restos de public/css/chat.css
    Ese archivo viene de la plantilla de chat y trae su propio azul (#4582EC)
-   para enlaces, paginacion y botones. Aqui se reapunta a la paleta, sin
+   para enlaces, paginacion y botones. Aquí se reapunta a la paleta, sin
    modificar chat.css
    ========================================================================== */
 
@@ -311,7 +311,7 @@ a:hover, a:focus,
     color: var(--hana-blanco);
 }
 
-/* El boton de abrir y cerrar el menu lateral */
+/* El botón de abrir y cerrar el menú lateral */
 .toggle a,
 .toggle a i,
 .nav.top_menu > li > a{

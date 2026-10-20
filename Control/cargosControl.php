@@ -1,5 +1,16 @@
 <?php
 /*
+  Archivo sin uso: la pantalla de Cargos se quitó (script 35; cada colaborador tiene
+  su rol). Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el
+  código de abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Cargos (controlador)
   ---------------------------------------------------------------------------
   Atiende las peticiones de Ajax/cargosAjax.js y responde con lo que

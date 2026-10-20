@@ -1,6 +1,7 @@
 <?php
 /*
   HANA - Cronograma de visitas y vehículo (Reporte diario)
+  ---------------------------------------------------------------------------
   Es la hoja "Cronograma visitas y vehículo" del Excel: a la izquierda lo que
   la persona planea cada día, a la derecha el estado del vehículo.
 */
@@ -8,10 +9,11 @@ require_once __DIR__ . "/HanaDB.php";
 
 class Cronograma
 {
+    //Tipos de actividad (lo que se guarda => cómo se muestra)
     public static $TIPOS = array('VISITA' => 'Visita', 'REUNION' => 'Reunión', 'DESCANSO' => 'Descanso',
                                  'VACACIONES' => 'Vacaciones', 'OTRO' => 'Otro');
-    public static $ESTADOS_VH = array('OPERATIVO' => 'Operativo', 'INOPERATIVO' => 'Inoperativo',
-                                      'FALLA_FLOTA' => 'Falla reportada a flota');
+    //Estado del vehículo cada día. Inoperativo incluye la falla reportada a flota
+    public static $ESTADOS_VH = array('OPERATIVO' => 'Operativo', 'INOPERATIVO' => 'Inoperativo');
     //Cómo se transportó el coordinador cuando el vehículo no estaba operativo
     public static $TRANSPORTES = array('BUS' => 'Bus', 'TAXI' => 'Taxi', 'APP' => 'Aplicación (Didi, Uber…)',
                                        'PARTICULAR' => 'Vehículo particular', 'OTRO' => 'Otro', 'NO_VIAJO' => 'No se desplazó');
@@ -27,7 +29,7 @@ class Cronograma
     //-----------------------------------------------------------------------
     public function items($idColaborador, $desde, $hasta, $hoy)
     {
-        $f = HanaDB::q("SELECT cr.ID_CRONOGRAMA, cr.FECHA, cr.TIPO, cr.ID_CENTRO_OP, cr.DESCRIPCION, cr.ESTADO,
+        $filas = HanaDB::q("SELECT cr.ID_CRONOGRAMA, cr.FECHA, cr.TIPO, cr.ID_CENTRO_OP, cr.DESCRIPCION, cr.ESTADO,
                                cr.OBSERVACION, c.NOM_CENTRO_OP, c.TIPO_CENTRO,
                                (cr.TIPO = 'VISITA' AND EXISTS (
                                     SELECT 1 FROM reporte_hoy h
@@ -39,45 +41,45 @@ class Cronograma
                          WHERE cr.ID_COLABORADOR = ? AND cr.FECHA >= ? AND cr.FECHA < ?
                          ORDER BY cr.FECHA, cr.ID_CRONOGRAMA",
                        'iss', array((int)$idColaborador, $desde, $hasta));
-        $f = $f ? $f : array();
-        foreach ($f as $i => $x) {
-            if ($x['ESTADO'] === 'CANCELADA')                                   { $real = 'CANCELADA'; }
-            elseif (in_array($x['TIPO'], array('DESCANSO', 'VACACIONES')))      { $real = 'AUSENCIA'; }
-            elseif ($x['ESTADO'] === 'REALIZADA' || (int)$x['CONFIRMADA_HOY'])  { $real = 'REALIZADA'; }
-            elseif ($x['FECHA'] < $hoy)                                        { $real = 'NO_REALIZADA'; }
+        $filas = $filas ? $filas : array();
+        foreach ($filas as $i => $fila) {
+            if ($fila['ESTADO'] === 'CANCELADA')                                   { $real = 'CANCELADA'; }
+            elseif (in_array($fila['TIPO'], array('DESCANSO', 'VACACIONES')))      { $real = 'AUSENCIA'; }
+            elseif ($fila['ESTADO'] === 'REALIZADA' || (int)$fila['CONFIRMADA_HOY'])  { $real = 'REALIZADA'; }
+            elseif ($fila['FECHA'] < $hoy)                                        { $real = 'NO_REALIZADA'; }
             else                                                               { $real = 'PROGRAMADA'; }
-            $f[$i]['ESTADO_REAL'] = $real;
+            $filas[$i]['ESTADO_REAL'] = $real;
         }
-        return $f;
+        return $filas;
     }
 
     //La situación registrada en "Hoy en qué estás" cada día (laboral, descanso...)
     public function situaciones($idColaborador, $desde, $hasta)
     {
-        $f = HanaDB::q("SELECT FECHA, SITUACION FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA >= ? AND FECHA < ?",
+        $filas = HanaDB::q("SELECT FECHA, SITUACION FROM reporte_hoy WHERE ID_COLABORADOR = ? AND FECHA >= ? AND FECHA < ?",
                        'iss', array((int)$idColaborador, $desde, $hasta));
-        $res = array();
-        foreach ((array)$f as $x) { $res[$x['FECHA']] = $x['SITUACION']; }
-        return $res;
+        $situaciones = array();
+        foreach ((array)$filas as $fila) { $situaciones[$fila['FECHA']] = $fila['SITUACION']; }
+        return $situaciones;
     }
 
     //Dónde estuvo cada día, según Hoy en qué estás: [fecha] = "TRAPICHE - CISNEROS"
     //(más el "otro lugar", si escribió uno)
     public function lugares($idColaborador, $desde, $hasta)
     {
-        $f = HanaDB::q("SELECT h.FECHA, h.LUGAR_OTRO,
+        $filas = HanaDB::q("SELECT h.FECHA, h.LUGAR_OTRO,
                                (SELECT GROUP_CONCAT(c.NOM_CENTRO_OP ORDER BY c.NOM_CENTRO_OP SEPARATOR ' - ')
                                   FROM reporte_hoy_centro hc INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = hc.ID_CENTRO_OP
                                  WHERE hc.ID_REPORTE_HOY = h.ID_REPORTE_HOY) AS LUGARES
                           FROM reporte_hoy h
                          WHERE h.ID_COLABORADOR = ? AND h.FECHA >= ? AND h.FECHA < ? AND h.SITUACION = 'LABORAL'",
                        'iss', array((int)$idColaborador, $desde, $hasta));
-        $res = array();
-        foreach ((array)$f as $x) {
-            $t = implode(' · ', array_filter(array($x['LUGARES'], $x['LUGAR_OTRO'])));
-            if ($t !== '') { $res[$x['FECHA']] = $t; }
+        $lugares = array();
+        foreach ((array)$filas as $fila) {
+            $texto = implode(' · ', array_filter(array($fila['LUGARES'], $fila['LUGAR_OTRO'])));
+            if ($texto !== '') { $lugares[$fila['FECHA']] = $texto; }
         }
-        return $res;
+        return $lugares;
     }
 
     //Una actividad del cronograma por su id
@@ -119,9 +121,9 @@ class Cronograma
                   FROM vehiculo v
                   LEFT JOIN colaboradores col ON col.ID_COLABORADOR = v.ID_COLABORADOR_RESPONSABLE
                  WHERE v.ESTADO = 1";
-        $f = $todos ? HanaDB::q($sql . " ORDER BY v.PLACA")
+        $filas = $todos ? HanaDB::q($sql . " ORDER BY v.PLACA")
                     : HanaDB::q($sql . " AND v.ID_COLABORADOR_RESPONSABLE = ? ORDER BY v.PLACA", 'i', array((int)$idColaborador));
-        return $f ? $f : array();
+        return $filas ? $filas : array();
     }
 
     //Un vehículo por su id
@@ -133,14 +135,14 @@ class Cronograma
     //El estado de un vehículo cada día del rango: [fecha] = {ESTADO_VH, TRANSPORTE, OBSERVACION}
     public function vehiculoDias($idVehiculo, $desde, $hasta)
     {
-        $f = HanaDB::q("SELECT FECHA, ESTADO_VH, TRANSPORTE, OBSERVACION FROM vehiculo_dia
+        $filas = HanaDB::q("SELECT FECHA, ESTADO_VH, TRANSPORTE, OBSERVACION FROM vehiculo_dia
                          WHERE ID_VEHICULO = ? AND FECHA >= ? AND FECHA < ?",
                        'iss', array((int)$idVehiculo, $desde, $hasta));
-        $res = array();
-        foreach ((array)$f as $x) {
-            $res[$x['FECHA']] = array('ESTADO_VH' => $x['ESTADO_VH'], 'TRANSPORTE' => $x['TRANSPORTE'], 'OBSERVACION' => $x['OBSERVACION']);
+        $dias = array();
+        foreach ((array)$filas as $fila) {
+            $dias[$fila['FECHA']] = array('ESTADO_VH' => $fila['ESTADO_VH'], 'TRANSPORTE' => $fila['TRANSPORTE'], 'OBSERVACION' => $fila['OBSERVACION']);
         }
-        return $res;
+        return $dias;
     }
 
     //Guarda cómo estuvo un vehículo un día (si ya había registro de ese día, lo reemplaza)
@@ -156,35 +158,35 @@ class Cronograma
     //Los peajes o básculas que visitó cada día (de Hoy en qué estás): [fecha] = [idCentro, ...]
     public function centrosVisitados($idColaborador, $desde, $hasta)
     {
-        $f = HanaDB::q("SELECT h.FECHA, hc.ID_CENTRO_OP FROM reporte_hoy h
+        $filas = HanaDB::q("SELECT h.FECHA, hc.ID_CENTRO_OP FROM reporte_hoy h
                          INNER JOIN reporte_hoy_centro hc ON hc.ID_REPORTE_HOY = h.ID_REPORTE_HOY
                          WHERE h.ID_COLABORADOR = ? AND h.FECHA >= ? AND h.FECHA < ?",
                        'iss', array((int)$idColaborador, $desde, $hasta));
-        $res = array();
-        foreach ((array)$f as $x) { $res[$x['FECHA']][] = (int)$x['ID_CENTRO_OP']; }
-        return $res;
+        $visitados = array();
+        foreach ((array)$filas as $fila) { $visitados[$fila['FECHA']][] = (int)$fila['ID_CENTRO_OP']; }
+        return $visitados;
     }
 
     //Los vehículos de un proyecto: los del proyecto y los que tiene a cargo su coordinador
     public function vehiculosProyecto($idProyecto, $idCoordinador)
     {
-        $f = HanaDB::q("SELECT v.ID_VEHICULO, v.PLACA, v.DESCRIPCION, v.ID_COLABORADOR_RESPONSABLE, col.NOM_COLABORADOR AS RESPONSABLE
+        $filas = HanaDB::q("SELECT v.ID_VEHICULO, v.PLACA, v.DESCRIPCION, v.ID_COLABORADOR_RESPONSABLE, col.NOM_COLABORADOR AS RESPONSABLE
                           FROM vehiculo v
                           LEFT JOIN colaboradores col ON col.ID_COLABORADOR = v.ID_COLABORADOR_RESPONSABLE
                          WHERE v.ESTADO = 1 AND (v.ID_PROYECTO = ? OR (v.ID_COLABORADOR_RESPONSABLE = ? AND ? > 0))
                          ORDER BY v.PLACA", 'iii', array((int)$idProyecto, (int)$idCoordinador, (int)$idCoordinador));
-        return $f ? $f : array();
+        return $filas ? $filas : array();
     }
 
     //Catálogo completo, para quien administra (5M)
     public function catalogo()
     {
-        $f = HanaDB::q("SELECT v.*, p.NOM_PROYECTO, col.NOM_COLABORADOR AS RESPONSABLE
+        $filas = HanaDB::q("SELECT v.*, p.NOM_PROYECTO, col.NOM_COLABORADOR AS RESPONSABLE
                           FROM vehiculo v
                           LEFT JOIN proyectos p ON p.ID_PROYECTO = v.ID_PROYECTO
                           LEFT JOIN colaboradores col ON col.ID_COLABORADOR = v.ID_COLABORADOR_RESPONSABLE
                          ORDER BY v.ESTADO DESC, v.PLACA");
-        return $f ? $f : array();
+        return $filas ? $filas : array();
     }
 
     //Crea o edita un vehículo

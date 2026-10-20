@@ -1,13 +1,22 @@
 <?php
+/*
+  Pantalla sin uso: es la versión anterior de Listas de chequeo y ninguna parte del
+  sistema la abre. Si alguien entra por la dirección, va a la pantalla vigente,
+  ListasVista.php. El código de abajo se conserva solo como referencia.
+*/
+header('Location: ListasVista.php');
+exit;
+?>
+<?php
 session_start();
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
-    if (in_array("11M", $modulosAcceso) or isset($_GET["op"])) {
+    if (in_array("11M", $modulosAcceso)) {
         include('head.php');
 ?>
         <!-- Estilos de la lista de chequeo: botones grandes, barra de avance y firma en pantalla -->
         <link href="../public/css/listas.css?v=1" rel="stylesheet">
-        <!-- Contenido aqui va todo el DIV del contenido.. -->
+        <!-- Contenido de la pantalla -->
 
         <!--script type="text/javascript">
             function startTime() {
@@ -201,9 +210,9 @@ if (isset($_SESSION['IdUsuarios'])) {
                 border: 2px solid #6E1A1E !important;
                 border-radius: 10px;
                 background-color: #fff5f5 !important;
-                animation: parpadeoFaltante .6s ease-in-out 2; /* llama la atencion */
+                animation: parpadeoFaltante .6s ease-in-out 2; /* llama la atención */
             }
-            /* Etiqueta de la pregunta faltante, tambien en rojo */
+            /* Etiqueta de la pregunta faltante, también en rojo */
             .campo-faltante > div:first-child{ background-color: #6E1A1E !important; }
 
             @keyframes parpadeoFaltante{

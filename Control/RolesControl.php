@@ -8,141 +8,114 @@
     guardar, mostrar, anular, activar, select y listar.
   Un rol es la lista de permisos (1M, 2M, ...) que se guarda separada por comas.
   Permiso: 2M. El desplegable (select) también lo usa Usuarios.
+
+  Reglas que revisa el servidor:
+    - El nombre es obligatorio, no se repite y se guarda en mayúsculas (con tildes).
+    - Quien edita SU PROPIO rol no puede quitarse la casilla 2M.
+    - Un rol que tienen personas activas no se puede desactivar: primero hay que
+      cambiarles el rol en Usuarios. (Además, al entrar se pide un rol activo.)
 */
-session_start();//inicia la session, permite guardar variables de sesion
+session_start();
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('2M'), array('select')); //Roles: 2M. El selector lo usa Usuarios
-require_once "../Modelo/RolesModelo.php";//Utilizará este archivo
-$Roles=new Roles();//objeto del modelo: con él se hacen las consultas
-//carga las variables con los valores recibidos y limpia los que no se usaran
-$idroles=isset($_POST["idrol"])? limpiarCadena($_POST["idrol"]):"";
-$nombrerol=isset($_POST["nombre"])? limpiarCadena($_POST["nombre"]):"";
-$modulos=isset($_POST["permiso"])? $_POST["permiso"]:"";
-//"Permiso de cerrar novedades": 1 si viene marcado, 0 si no
-$auditoria = (isset($_POST["auditoria"]) && $_POST["auditoria"] !== '' && $_POST["auditoria"] !== '0') ? 1 : 0;
+require_once "../Modelo/RolesModelo.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //cómo se guardan los nombres
+$modeloRoles = new Roles(); //objeto del modelo: con él se hacen las consultas
 
-//Solo códigos de permiso válidos (número + M)
-$modulos = is_array($modulos) ? array_values(array_filter($modulos, function ($m) { return preg_match('/^\d{1,3}M$/', $m); })) : array();
-//Protección: quien edita SU PROPIO rol no puede quitarse "Permisos de usuario" (2M),
-//porque se quedaría sin poder volver a entrar a esta pantalla para arreglarlo
+//-----------------------------------------------------------------------------
+// Lo que llega del formulario
+//-----------------------------------------------------------------------------
+$idRol = isset($_POST["idrol"]) ? intval($_POST["idrol"]) : 0;
+//El nombre, en mayúsculas y en la forma en que se guardan los nombres de catálogo
+$nombreRol = isset($_POST["nombre"]) && is_string($_POST["nombre"]) ? hanaTextoGuardado(hanaMayusculas($_POST["nombre"])) : '';
+//"Puede cerrar novedades": 1 si viene marcado, 0 si no
+$puedeCerrarNovedades = (isset($_POST["auditoria"]) && $_POST["auditoria"] !== '' && $_POST["auditoria"] !== '0') ? 1 : 0;
+//Las casillas marcadas: solo códigos válidos (número + M)
+$casillas = (isset($_POST["permiso"]) && is_array($_POST["permiso"])) ? $_POST["permiso"] : array();
+$casillas = array_values(array_filter($casillas, function ($codigo) { return is_string($codigo) && preg_match('/^\d{1,3}M$/', $codigo); }));
+
+//Quien edita SU PROPIO rol no puede quitarse "Permisos de usuario" (2M): se quedaría
+//sin poder volver a esta pantalla para arreglarlo. Se le deja puesta y se le avisa
 $avisoPropio = '';
-if (!empty($idroles) && isset($_SESSION['IdUsuarios'])) {
+if ($idRol && isset($_SESSION['IdUsuarios'])) {
     require_once __DIR__ . '/../Modelo/AccesoModelo.php';
-    $mio = Acceso::rolDeUsuario((int)$_SESSION['IdUsuarios']);
-    if ($mio && $mio === (int)$idroles && !in_array('2M', $modulos, true)) {
-        $modulos[] = '2M';
+    $miRol = Acceso::rolDeUsuario((int)$_SESSION['Idcolaborador']);
+    if ($miRol && $miRol === $idRol && !in_array('2M', $casillas, true)) {
+        $casillas[] = '2M';
         $avisoPropio = "\n\nSe conservó la casilla «Permisos de usuario» (2M): es tu propio rol y sin ella no podrías volver a esta pantalla.";
     }
 }
+$permisos = implode(',', $casillas); //como se guarda: "1M,2M,15M"
 
-$mod="";
- if($modulos){
-        foreach($modulos as $selected){
-            if($mod==""){
-             $mod=$selected;
-            }else{
-              $mod=$mod.",".$selected;  
-            }
-              
-         } 
+//-----------------------------------------------------------------------------
+// Las opciones
+//-----------------------------------------------------------------------------
+switch (isset($_GET["op"]) ? $_GET["op"] : '')
+{
+    //Crea o edita un rol
+    case 'guardar':
+        $problema = hanaProblemaNombre($nombreRol, 50, 'del rol');
+        if ($problema !== '') { echo 'Error: ' . $problema; break; }
+        if ($modeloRoles->nombreExiste($nombreRol, $idRol)) { echo 'Error: ya hay un rol llamado «' . hanaTextoVisible($nombreRol) . '». Usa otro nombre o edita ese rol.'; break; }
+        if (!$idRol) {
+            echo $modeloRoles->insertar($nombreRol, $permisos, $puedeCerrarNovedades) ? "Registro guardado con éxito" : "Error no se pudo realizar el registro";
+        } else {
+            echo $modeloRoles->editar($idRol, $nombreRol, $permisos, $puedeCerrarNovedades) ? "Registro actualizado con éxito" . $avisoPropio : "No se pudo actualizar";
         }
+    break;
 
+    //Trae un rol para cargarlo en el formulario. El nombre va como se escribió, para
+    //que al guardar de nuevo no se convierta dos veces
+    case 'mostrar':
+        echo hanaJsonTexto($modeloRoles->mostrar($idRol));
+    break;
 
-//opciones
-switch ($_GET["op"])
-    {
-            case 'guardar'://primer caso
-                if (empty($idroles)) {
-                  
-                    $rspta=$Roles->insertar(strtoupper($nombrerol),$mod,$auditoria);
-                    echo $rspta? "Registro guardado con éxito": "Error no se pudo realizar el registro"; 
-                    
-                }else{
-                    
-                    $rspta=$Roles->editar($idroles,strtoupper($nombrerol),$mod,$auditoria);
-                            echo $rspta ? "Registro actualizado con éxito" . $avisoPropio : "No se pudo actualizar";
-                }
-                            
+    //Desactiva un rol, si nadie activo lo tiene
+    case 'anular':
+        $conElRol = $modeloRoles->personasActivas($idRol);
+        if ($conElRol > 0) {
+            echo 'Error: no se puede desactivar este rol porque lo ' . ($conElRol === 1 ? 'tiene 1 persona activa' : 'tienen ' . $conElRol . ' personas activas')
+               . '. Primero cámbiales el rol en Configuración → Usuarios.';
             break;
-            //Trae un rol para cargarlo en el formulario
-            case 'mostrar':
-       
-                    $rspta=$Roles->mostrar($idroles);
-                    //Codificar el resultado utilizando json
-                    echo json_encode($rspta);
-            break;
-            //Desactiva un rol
-            case 'anular':
-                       $rspta=$Roles->desactivar($idroles);
-                        echo $rspta ? "Registro anulado con éxito" : "No se pudo anular el registro";         
-                            
-            break;
-        
-             //Vuelve a activar un rol
-             case 'activar':
-                   
-                        $rspta=$Roles->activar($idroles);
-                        echo $rspta ? "Registro activado con éxito" : "No se pudo activar el registro";        
-                            
-            break;
-        
-        
-            //Arma las opciones del desplegable de roles
-            case 'select':
-            $rspta=$Roles->select();
-            echo "<option value=''>Seleccione Rol...</option>";
-           while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
-           {
-                  echo "<option value='$reg->ID_ROL_USUARIO_SISTEMA'>$reg->NOM_ROL_USUARIO_SISTEMA</option>";
-            
-           }
-            break;
-        
-        
-   
-        
-        
-            case 'listar'://lo pide la tabla de la pantalla al cargar
-        
-        
-                    $rspta=$Roles->listar();//trae los registros para la tabla
-                    //Vamos a declarar un array
-                    $data= Array();
-        
-                    while ($reg=$rspta->fetch_object())//mientras exista objeto en la respuesta
-                    {
-                        
-                      $bot='<SPAN title="Editar">
-                                            <button class="btn btn-success" onclick="mostrar('.$reg->ID_ROL_USUARIO_SISTEMA.')">
-                                                    <i class="fa fa-eye" style="color:white;"></i></button></SPAN> <SPAN title="anular">
-                    <button type="button" class="btn btn-success" onclick="anular('.$reg->ID_ROL_USUARIO_SISTEMA.')">
-                    <i class="fa fa-trash" style="color:white;"></i></button></SPAN>';       
-                
-                        $estado="Activo";
-                        if($reg->ESTADO==0){
-                        $estado="Inactivo";
-                        $bot='<SPAN title="Editar">
-                                            <button class="btn btn-success" onclick="mostrar('.$reg->ID_ROL_USUARIO_SISTEMA.')">
-                                                    <i class="fa fa-eye" style="color:white;"></i></button></SPAN> <SPAN title="Activar">
-                     <button type="button" class="btn btn-success" onclick="activar('.$reg->ID_ROL_USUARIO_SISTEMA.')">
-                     <i class="fa fa-check" style="color:white;"></i></button></SPAN>';
-                            
-                        }
-                               
-                        
-                            $data[]=array(//arreglo con los datos de las columnas
-                                    "0"=>$reg->NOM_ROL_USUARIO_SISTEMA,
-                                    "1"=>$estado,
-                                    "2"=>$bot,
-                            );
-                    }
-                 
-                    $results = array(//variable con el resultado del arreglo
-                            "sEcho"=>1, //Información para el datatables
-                            "iTotalRecords"=>count($data), //enviamos el total registros al datatable
-                            "iTotalDisplayRecords"=>count($data), //enviamos el total registros a visualizar
-                            "aaData"=>$data);
-                    echo json_encode($results);//muestra el resultado
-            break;
-          
-    }
+        }
+        echo $modeloRoles->desactivar($idRol) ? "Registro anulado con éxito" : "No se pudo anular el registro";
+    break;
+
+    //Vuelve a activar un rol
+    case 'activar':
+        echo $modeloRoles->activar($idRol) ? "Registro activado con éxito" : "No se pudo activar el registro";
+    break;
+
+    //Las opciones del desplegable de roles (pantalla Usuarios)
+    case 'select':
+        $filas = $modeloRoles->select();
+        echo "<option value=''>Seleccione Rol...</option>";
+        while ($rol = $filas->fetch_object()) {
+            echo "<option value='$rol->ID_ROL_USUARIO_SISTEMA'>$rol->NOM_ROL_USUARIO_SISTEMA</option>";
+        }
+    break;
+
+    //La tabla de la pantalla
+    case 'listar':
+        $filas = $modeloRoles->listar();
+        $filasTabla = array();
+        while ($rol = $filas->fetch_object()) {
+            $idFila = (int)$rol->ID_ROL_USUARIO_SISTEMA;
+            $activo = (int)$rol->ESTADO !== 0;
+            $botonEditar = '<SPAN title="Editar"><button class="btn btn-success" onclick="mostrar(' . $idFila . ')"><i class="fa fa-eye" style="color:white;"></i></button></SPAN> ';
+            $botonEstado = $activo
+                ? '<SPAN title="anular"><button type="button" class="btn btn-success" onclick="anular(' . $idFila . ')"><i class="fa fa-trash" style="color:white;"></i></button></SPAN>'
+                : '<SPAN title="Activar"><button type="button" class="btn btn-success" onclick="activar(' . $idFila . ')"><i class="fa fa-check" style="color:white;"></i></button></SPAN>';
+            $filasTabla[] = array(
+                "0" => $rol->NOM_ROL_USUARIO_SISTEMA, //ya viene guardado listo para HTML
+                "1" => $activo ? "Activo" : "Inactivo",
+                "2" => $botonEditar . $botonEstado,
+            );
+        }
+        echo json_encode(array(
+            "sEcho" => 1,                          //datos para DataTables
+            "iTotalRecords" => count($filasTabla),
+            "iTotalDisplayRecords" => count($filasTabla),
+            "aaData" => $filasTabla));
+    break;
+}

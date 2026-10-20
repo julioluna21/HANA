@@ -1,10 +1,14 @@
 <?php
-//Modelo de la campana de notificaciones
-//Avisa de:
-//  - Novedades asignadas a la persona o dirigidas a su ROL
-//  - RQ pendientes de aprobación, a quien tiene el permiso de aprobar (18M):
-//    amarillo la normal, rojo la urgente (RQ U)
-//  - El resultado de sus propias RQ (aprobada o rechazada), a quien la pidió
+/*
+  HANA - Campana de notificaciones (modelo)
+  ---------------------------------------------------------------------------
+  Avisa de:
+    - novedades asignadas a la persona o dirigidas a su rol;
+    - RQ pendientes de aprobación, a quien tiene el permiso de aprobar (18M):
+      amarillo la normal, rojo la urgente (RQ U);
+    - el resultado de sus propias RQ (aprobada o rechazada), a quien la pidió.
+  Lo usa Control/CampanaControl.php.
+*/
 require_once __DIR__ . "/../Conexion/ConexionDB.php";
 require_once __DIR__ . "/RQEstados.php";
 
@@ -17,20 +21,10 @@ class Campana
     //No necesita preparar nada al crearse
     public function __construct() {}
 
-    //Prioridad de una novedad según su relevancia: por nombre (ALTA, MEDIA,
-    //BAJA) y, si el nombre no es claro, por los días permitidos
+    //Color del aviso según la prioridad de la novedad (ALTO, MEDIO o BAJO)
     private function sqlPrioridad()
     {
-        return "CASE
-                  WHEN UPPER(r.NOMBRE_ESTADOS_RELEVANCIA) LIKE '%ALT%'
-                    OR UPPER(r.NOMBRE_ESTADOS_RELEVANCIA) LIKE '%CRIT%'
-                    OR UPPER(r.NOMBRE_ESTADOS_RELEVANCIA) LIKE '%URG%'   THEN 'alta'
-                  WHEN UPPER(r.NOMBRE_ESTADOS_RELEVANCIA) LIKE '%MEDI%'  THEN 'media'
-                  WHEN UPPER(r.NOMBRE_ESTADOS_RELEVANCIA) LIKE '%BAJ%'   THEN 'baja'
-                  WHEN CAST(r.DIAS_ESTADOS_RELEVANCIAS AS UNSIGNED) <= 3  THEN 'alta'
-                  WHEN CAST(r.DIAS_ESTADOS_RELEVANCIAS AS UNSIGNED) <= 10 THEN 'media'
-                  ELSE 'baja'
-                END";
+        return "CASE n.PRIORIDAD WHEN 'ALTO' THEN 'alta' WHEN 'MEDIO' THEN 'media' ELSE 'baja' END";
     }
 
     //-----------------------------------------------------------------------
@@ -41,25 +35,24 @@ class Campana
     //que no haya creado ella, recientes y sin cerrar
     private function sqlNovedades($idUsuario, $idColaborador, $idRol)
     {
-        $u = intval($idUsuario); $c = intval($idColaborador); $rol = intval($idRol);
+        $numUsuario = intval($idUsuario); $numPersona = intval($idColaborador); $rol = intval($idRol);
         $dias = intval(self::DIAS_VENTANA);
         return "SELECT 'novedad' AS tipo,
                        n.ID_NOVEDADES_HALLAZGOS AS id,
                        t.NOM_TITULO_NOVEDADES_HALLAZGOS AS titulo,
                        c.NOM_CENTRO_OP AS estacion,
-                       n.FEC_CREACION_NOVEDADES_HALLAZGOS AS fecha,
+                       n.FEC_CREACION AS fecha,
                        CASE WHEN n.ESTADO_NOVEDAD IN (3, 4) THEN 'baja' ELSE " . $this->sqlPrioridad() . " END AS prioridad,
-                       CASE WHEN n.ESTADO_NOVEDAD IN (3, 4) THEN 'Resuelta' ELSE r.NOMBRE_ESTADOS_RELEVANCIA END AS relevancia,
+                       CASE WHEN n.ESTADO_NOVEDAD IN (3, 4) THEN 'Resuelta' ELSE n.PRIORIDAD END AS relevancia,
                        -- Ya resuelta (finalizada o cerrada): deja de estar pendiente para todos, aunque no la hayan abierto
                        CASE WHEN l.ID_REGISTRO IS NOT NULL OR n.ESTADO_NOVEDAD IN (3, 4) THEN 1 ELSE 0 END AS leida
                   FROM novedades_hallazgos n
-                  INNER JOIN estados_relevancia r ON r.ID_ESTADOS_RELEVANCIA = n.ID_ESTADO_RELEVANCIA_NOVEDADES_HALLAZGOS
-                  INNER JOIN titulo_novedades_hallazgos t ON t.ID_TITULO_NOVEDADES_HALLAZGOS = n.ID_TITULO_NOVEDADES_HALLAZGOS_NOVEDADES_HALLAZGOS
-                  INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = n.ID_CENTRO_OP_NOVEDADES_HALLAZGOS
-                  LEFT  JOIN notificacion_leida l ON l.TIPO = 'NOVEDAD' AND l.ID_REGISTRO = n.ID_NOVEDADES_HALLAZGOS AND l.ID_USUARIO = $u
-                 WHERE (n.ID_COLABORADOR_ASIGNACION_NOVEDADES_HALLAZGOS = $c OR n.ID_ROL_DESTINO = $rol)
-                   AND n.ID_COLABORADOR_NOVEDADES_HALLAZGOS <> $c
-                   AND n.FEC_CREACION_NOVEDADES_HALLAZGOS >= DATE_SUB(NOW(), INTERVAL $dias DAY)";
+                  INNER JOIN titulo_novedades_hallazgos t ON t.ID_TITULO_NOVEDADES_HALLAZGOS = n.ID_TITULO
+                  INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = n.ID_CENTRO_OP
+                  LEFT  JOIN notificacion_leida l ON l.TIPO = 'NOVEDAD' AND l.ID_REGISTRO = n.ID_NOVEDADES_HALLAZGOS AND l.ID_COLABORADOR = $numUsuario
+                 WHERE (n.ID_COLABORADOR_ASIGNADO = $numPersona OR n.ID_ROL_DESTINO = $rol)
+                   AND n.ID_COLABORADOR_REPORTA <> $numPersona
+                   AND n.FEC_CREACION >= DATE_SUB(NOW(), INTERVAL $dias DAY)";
     }
 
     //RQ. Dos casos:
@@ -70,11 +63,11 @@ class Campana
     //y vuelve a "Solicitada", vuelve a avisar
     private function sqlRQ($idUsuario, $idColaborador, $idRol, $aprueba = false)
     {
-        $u = intval($idUsuario); $c = intval($idColaborador);
+        $numUsuario = intval($idUsuario); $numPersona = intval($idColaborador);
         $dias = intval(self::DIAS_VENTANA);
         //Quien aprueba ve las RQ de los demás: pendientes (sin leer) y, si ya se
         //decidieron, como leídas y marcadas "Resuelta", aunque no las haya abierto
-        $pendientes = $aprueba ? "(q.ID_COLABORADOR_SOLICITA <> $c)" : "0 = 1";
+        $pendientes = $aprueba ? "(q.ID_COLABORADOR_SOLICITA <> $numPersona)" : "0 = 1";
         $solicitada = RqEstado::SOLICITADA;
         $decididas  = RqEstado::APROBADA . ", " . RqEstado::RECHAZADA;
         return "SELECT 'rq' AS tipo,
@@ -85,19 +78,19 @@ class Campana
                        CASE WHEN q.ID_RQ_ESTADO <> $solicitada THEN 'baja'
                             WHEN q.TIPO_RQ = 'U'     THEN 'alta'
                             ELSE 'media' END AS prioridad,
-                       CASE WHEN q.ID_RQ_ESTADO <> $solicitada AND q.ID_COLABORADOR_SOLICITA = $c THEN 'Tu RQ'
+                       CASE WHEN q.ID_RQ_ESTADO <> $solicitada AND q.ID_COLABORADOR_SOLICITA = $numPersona THEN 'Tu RQ'
                             WHEN q.ID_RQ_ESTADO <> $solicitada THEN 'Resuelta'
                             WHEN q.TIPO_RQ = 'U'     THEN 'RQ urgente'
                             ELSE 'RQ normal' END AS relevancia,
                        -- Leída si la abrió, o si ya se decidió y no es suya (a quien la pidió sí le llega la respuesta)
-                       CASE WHEN l.ID_REGISTRO IS NOT NULL OR (q.ID_RQ_ESTADO <> $solicitada AND q.ID_COLABORADOR_SOLICITA <> $c) THEN 1 ELSE 0 END AS leida
+                       CASE WHEN l.ID_REGISTRO IS NOT NULL OR (q.ID_RQ_ESTADO <> $solicitada AND q.ID_COLABORADOR_SOLICITA <> $numPersona) THEN 1 ELSE 0 END AS leida
                   FROM rq q
                   INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = q.ID_CENTRO_OP
-                  LEFT  JOIN notificacion_leida l ON l.TIPO = 'RQ' AND l.ID_REGISTRO = q.ID_RQ AND l.ID_USUARIO = $u
+                  LEFT  JOIN notificacion_leida l ON l.TIPO = 'RQ' AND l.ID_REGISTRO = q.ID_RQ AND l.ID_COLABORADOR = $numUsuario
                  WHERE q.ID_RQ_ESTADO <> " . RqEstado::ANULADA . "
                    AND " . RqEstado::sqlDesde('q.ID_RQ') . " >= DATE_SUB(NOW(), INTERVAL $dias DAY)
                    AND ($pendientes
-                        OR (q.ID_COLABORADOR_SOLICITA = $c AND q.ID_RQ_ESTADO IN ($decididas)))";
+                        OR (q.ID_COLABORADOR_SOLICITA = $numPersona AND q.ID_RQ_ESTADO IN ($decididas)))";
     }
 
     //Las dos juntas
@@ -138,19 +131,19 @@ class Campana
     //Las leídas de novedades y de RQ van en la misma tabla; TIPO dice de cuál es
     public function leer($idUsuario, $tipo, $id)
     {
-        $u = intval($idUsuario); $id = intval($id);
-        $t = ($tipo === 'rq') ? 'RQ' : 'NOVEDAD';
-        return ejecutarConsulta("INSERT IGNORE INTO notificacion_leida (ID_USUARIO, TIPO, ID_REGISTRO, FEC_LEIDA) VALUES ($u, '$t', $id, NOW())");
+        $numUsuario = intval($idUsuario); $id = intval($id);
+        $tipoAviso = ($tipo === 'rq') ? 'RQ' : 'NOVEDAD';
+        return ejecutarConsulta("INSERT IGNORE INTO notificacion_leida (ID_COLABORADOR, TIPO, ID_REGISTRO, FEC_LEIDA) VALUES ($numUsuario, '$tipoAviso', $id, NOW())");
     }
 
     //Marca como leídos todos los avisos que hoy aparecen en la campana
     public function leerTodas($idUsuario, $idColaborador, $idRol, $aprueba = false)
     {
-        $u = intval($idUsuario);
-        $a = ejecutarConsulta("INSERT IGNORE INTO notificacion_leida (ID_USUARIO, TIPO, ID_REGISTRO, FEC_LEIDA)
-                               SELECT $u, 'NOVEDAD', x.id, NOW() FROM (" . $this->sqlNovedades($idUsuario, $idColaborador, $idRol) . ") x");
-        $b = ejecutarConsulta("INSERT IGNORE INTO notificacion_leida (ID_USUARIO, TIPO, ID_REGISTRO, FEC_LEIDA)
-                               SELECT $u, 'RQ', x.id, NOW() FROM (" . $this->sqlRQ($idUsuario, $idColaborador, $idRol, $aprueba) . ") x");
-        return $a && $b;
+        $numUsuario = intval($idUsuario);
+        $novedadesOk = ejecutarConsulta("INSERT IGNORE INTO notificacion_leida (ID_COLABORADOR, TIPO, ID_REGISTRO, FEC_LEIDA)
+                               SELECT $numUsuario, 'NOVEDAD', x.id, NOW() FROM (" . $this->sqlNovedades($idUsuario, $idColaborador, $idRol) . ") x");
+        $rqOk = ejecutarConsulta("INSERT IGNORE INTO notificacion_leida (ID_COLABORADOR, TIPO, ID_REGISTRO, FEC_LEIDA)
+                               SELECT $numUsuario, 'RQ', x.id, NOW() FROM (" . $this->sqlRQ($idUsuario, $idColaborador, $idRol, $aprueba) . ") x");
+        return $novedadesOk && $rqOk;
     }
 }

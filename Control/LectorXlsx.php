@@ -2,12 +2,12 @@
 /*
   HANA - Lector de archivos Excel (.xlsx)
 
-  Un .xlsx es en realidad un ZIP con archivos XML adentro. Aqui se abre ese ZIP y
+  Un .xlsx es en realidad un ZIP con archivos XML adentro. Aquí se abre ese ZIP y
   se leen las celdas directamente, sin instalar ninguna libreria: PHP ya trae todo
   lo necesario (ZipArchive y SimpleXML).
 
   Se usa en la carga masiva de preguntas. Si el servidor no tiene ZipArchive, la
-  funcion avisa y el usuario puede subir el mismo contenido como CSV.
+  función avisa y el usuario puede subir el mismo contenido como CSV.
 
   hanaLeerXlsx($ruta, $nombreHoja)
      Devuelve un arreglo de filas, y cada fila es un arreglo de celdas en texto.
@@ -20,15 +20,15 @@ function hanaPuedeLeerXlsx()
     return class_exists('ZipArchive') && function_exists('simplexml_load_string');
 }
 
-//Pasa la referencia de una celda ("B7") al numero de columna (2)
+//Pasa la referencia de una celda ("B7") al número de columna (2)
 function hanaColumnaDeCelda($ref)
 {
     $letras = preg_replace('/[^A-Z]/', '', strtoupper($ref));
-    $num = 0;
+    $numeroColumna = 0;
     for ($i = 0; $i < strlen($letras); $i++) {
-        $num = $num * 26 + (ord($letras[$i]) - 64);
+        $numeroColumna = $numeroColumna * 26 + (ord($letras[$i]) - 64);
     }
-    return $num > 0 ? $num : 1;
+    return $numeroColumna > 0 ? $numeroColumna : 1;
 }
 
 //Lee una hoja de un archivo de Excel (.xlsx) y la devuelve como filas, sin librerías externas
@@ -47,15 +47,15 @@ function hanaLeerXlsx($ruta, $nombreHoja = '')
     $textos = array();
     $xmlTextos = $zip->getFromName('xl/sharedStrings.xml');
     if ($xmlTextos !== false) {
-        $sx = @simplexml_load_string($xmlTextos);
-        if ($sx !== false) {
-            foreach ($sx->si as $si) {
+        $xml = @simplexml_load_string($xmlTextos);
+        if ($xml !== false) {
+            foreach ($xml->si as $cadena) {
                 //Una celda puede venir partida en varios trozos con distinto formato
                 $texto = '';
-                if (isset($si->t)) {
-                    $texto = (string)$si->t;
+                if (isset($cadena->t)) {
+                    $texto = (string)$cadena->t;
                 } else {
-                    foreach ($si->r as $r) { $texto .= (string)$r->t; }
+                    foreach ($cadena->r as $tramo) { $texto .= (string)$tramo->t; }
                 }
                 $textos[] = $texto;
             }
@@ -66,10 +66,10 @@ function hanaLeerXlsx($ruta, $nombreHoja = '')
     $relaciones = array();
     $xmlRels = $zip->getFromName('xl/_rels/workbook.xml.rels');
     if ($xmlRels !== false) {
-        $sx = @simplexml_load_string($xmlRels);
-        if ($sx !== false) {
-            foreach ($sx->Relationship as $rel) {
-                $relaciones[(string)$rel['Id']] = (string)$rel['Target'];
+        $xml = @simplexml_load_string($xmlRels);
+        if ($xml !== false) {
+            foreach ($xml->Relationship as $relacion) {
+                $relaciones[(string)$relacion['Id']] = (string)$relacion['Target'];
             }
         }
     }
@@ -77,9 +77,9 @@ function hanaLeerXlsx($ruta, $nombreHoja = '')
     $hojas = array(); //nombre => archivo interno
     $xmlLibro = $zip->getFromName('xl/workbook.xml');
     if ($xmlLibro !== false) {
-        $sx = @simplexml_load_string($xmlLibro);
-        if ($sx !== false) {
-            foreach ($sx->sheets->sheet as $hoja) {
+        $xml = @simplexml_load_string($xmlLibro);
+        if ($xml !== false) {
+            foreach ($xml->sheets->sheet as $hoja) {
                 $id = '';
                 foreach ($hoja->attributes('r', true) as $clave => $valor) {
                     if ($clave === 'id') { $id = (string)$valor; }
@@ -118,20 +118,20 @@ function hanaLeerXlsx($ruta, $nombreHoja = '')
         return array('error' => 'No se pudo leer la hoja del archivo de Excel.');
     }
 
-    $sx = @simplexml_load_string($xmlHoja);
-    if ($sx === false) {
+    $xml = @simplexml_load_string($xmlHoja);
+    if ($xml === false) {
         return array('error' => 'La hoja del archivo de Excel no se pudo interpretar.');
     }
 
     $filas = array();
-    foreach ($sx->sheetData->row as $fila) {
+    foreach ($xml->sheetData->row as $fila) {
         $celdas = array();
         foreach ($fila->c as $celda) {
             $tipo = isset($celda['t']) ? (string)$celda['t'] : '';
             $valor = '';
 
             if ($tipo === 's') {
-                //Texto compartido: el valor es la posicion dentro de la lista
+                //Texto compartido: el valor es la posición dentro de la lista
                 $pos = (int)$celda->v;
                 $valor = isset($textos[$pos]) ? $textos[$pos] : '';
             } elseif ($tipo === 'inlineStr') {
@@ -140,7 +140,7 @@ function hanaLeerXlsx($ruta, $nombreHoja = '')
                 $valor = (string)$celda->v;
             }
 
-            //Se respeta la columna real: si la celda A esta vacia, Excel no la escribe
+            //Se respeta la columna real: si la celda A esta vacía, Excel no la escribe
             $col = hanaColumnaDeCelda(isset($celda['r']) ? (string)$celda['r'] : '');
             $celdas[$col - 1] = trim($valor);
         }

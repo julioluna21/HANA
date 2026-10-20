@@ -41,7 +41,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
   <link href="../public/css/alertas.css?v=5" rel="stylesheet">
   <!-- Estilos comunes: tablas en celular, indicador de carga y barra de progreso -->
   <link href="../public/css/comun.css?v=3" rel="stylesheet">
-  <!-- Tablas adaptables al celular (la libreria ya venia en vendors) -->
+  <!-- Tablas adaptables al celular (la librería ya venia en vendors) -->
   <link href="../vendors/datatables.net-responsive-bs/css/responsive.bootstrap.min.css" rel="stylesheet">
 
   <!--Alertify Style -->
@@ -53,12 +53,8 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
        Va de último para quedar encima de la plantilla. Quitar estas dos líneas deja el aspecto anterior -->
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link href="../public/css/humano.css?v=16" rel="stylesheet">
-  <!-- DATATABLES >
-  <link rel="stylesheet" type="text/css" href="../js/datatables/jquery.dataTables.min.css">
-    <link href="../js/datatables/buttons.dataTables.min.css" rel="stylesheet"/>
-    <link href="../js/datatables/responsive.dataTables.min.css" rel="stylesheet"/-->
 
-  <!-- Paleta de colores de HANA. Va de ULTIMO a proposito: asi sus colores
+  <!-- Paleta de colores de HANA. Va de ULTIMO a proposito: así sus colores
        mandan sobre los de la plantilla sin tener que editar custom.min.css -->
   <link href="../public/css/paleta.css?v=1" rel="stylesheet">
   <!-- Campana de notificaciones -->
@@ -94,30 +90,22 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
 
     <!-- Inicio: siempre visible, no depende de permisos de modulo -->
     <li><a href="InicioVista.php"><i class="fa fa-home"></i>Inicio</a></li>
-    <!-- Mis notificaciones: los circulos de colores los llena CampanaAjax.js -->
+    <!-- Mis notificaciones: los círculos de colores los llena CampanaAjax.js -->
     <li class="hana-menu-notif"><a href="MisNotificacionesVista.php"><i class="fa fa-bell"></i>Mis notificaciones
         <span class="hana-puntos" id="puntosMenu"></span></a></li>
 
-  <?php if(in_array("1M",$modulosAcceso) or in_array("2M",$modulosAcceso) or in_array("3M",$modulosAcceso) or in_array("4M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("6M",$modulosAcceso) or in_array("24M",$modulosAcceso)){ ?>
+  <?php if(in_array("1M",$modulosAcceso) or in_array("2M",$modulosAcceso) or in_array("3M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("6M",$modulosAcceso) or in_array("7M",$modulosAcceso) or in_array("24M",$modulosAcceso)){ ?>
     <li><a><i class="fa fa-cog "></i>Configuración<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
           
-        <?php if(in_array("3M",$modulosAcceso)){ ?><li><a href="ColaboradoresVista.php">Colaboradores</a></li> <?php } ?>
-        <?php if(in_array("4M",$modulosAcceso)){ ?><li><a href="cargosVista.php">Cargos</a></li> <?php } ?>
         <?php if(in_array("6M",$modulosAcceso)){ ?><li><a href="proyectosVista.php">Proyectos</a></li> <?php } ?> 
         <?php if(in_array("5M",$modulosAcceso)){ ?><li><a href="centroOperativoVista.php">Centros de operación</a></li> <?php } ?>
         <?php if(in_array("2M",$modulosAcceso)){ ?><li><a href="RolesVista.php">Permisos de usuario</a></li> <?php } ?> 
         <?php if(in_array("24M",$modulosAcceso)){ ?><li><a href="ParametrosVista.php">Parámetros del sistema</a></li> <?php } ?>
-        <?php if(in_array("1M",$modulosAcceso)){ ?><li><a href="UsuariosVista.php">Usuarios</a></li> <?php } ?>  
-      </ul>
-    </li><?php } ?>
-      
-    <?php if(in_array("7M",$modulosAcceso) or in_array("8M",$modulosAcceso) or in_array("9M",$modulosAcceso)){ ?>  
-    <li><a><i class="fa fa-cog"></i>Parámetros de novedades<span class="fa fa-chevron-down"></span></a>
-      <ul class="nav child_menu">
-        <?php if(in_array("7M",$modulosAcceso)){ ?><li><a href="TitulosNovedadesVista.php">Títulos de novedades</a></li><?php } ?> 
-        <?php if(in_array("8M",$modulosAcceso)){ ?><li><a href="EstadosVista.php">Estados de relevancia</a></li><?php } ?>   
-        <?php if(in_array("9M",$modulosAcceso)){ ?><li><a href="ObservadorVista.php">Observadores</a></li><?php } ?>  
+        <?php //Colaboradores: registrar a las personas (3M). Usuarios: su acceso (1M). 24M ve las dos ?>
+        <?php if(in_array("3M",$modulosAcceso) or in_array("24M",$modulosAcceso)){ ?><li><a href="ColaboradoresVista.php">Colaboradores</a></li> <?php } ?>
+        <?php if(in_array("1M",$modulosAcceso) or in_array("24M",$modulosAcceso)){ ?><li><a href="UsuariosVista.php">Usuarios</a></li> <?php } ?>
+        <?php if(in_array("7M",$modulosAcceso)){ ?><li><a href="TitulosNovedadesVista.php">Títulos de novedades</a></li><?php } ?>
       </ul>
     </li><?php } ?>
       
@@ -129,21 +117,21 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
       
     <?php
       //El reporte del coordinador (Hoy en qué estás, arqueos, cronograma, vacantes,
-      //comunicaciones) solo aparece para quien coordina un proyecto. Los jefes de
-      //peaje hacen RQ y listas de chequeo
+      //comunicaciones) solo aparece para quien coordina un proyecto. Lo demás (RQ,
+      //listas, ausentismo, oficios) sale según las casillas del rol de cada persona
       require_once __DIR__ . '/../Control/PaginaControl.php';
       $menuCoord = pagEsCoordinador();
       //Cada pantalla del coordinador sale si es coordinador, ADMIN TEC o tiene su casilla en Permisos de usuario
-      $mPuede = function ($m) { return pagPuedeModulo($m); };
+      $menuPuedeModulo = function ($modulo) { return pagPuedeModulo($modulo); };
       $menuAlgunModulo = false;
-      foreach (pagModulosCoordinador() as $mm) { if ($mPuede($mm)) { $menuAlgunModulo = true; break; } }
+      foreach (pagModulosCoordinador() as $moduloCoordinador) { if ($menuPuedeModulo($moduloCoordinador)) { $menuAlgunModulo = true; break; } }
       //Oficios: también quien tenga peajes asignados (jefe de peaje o en Usuarios)
-      $menuOficios = $mPuede('COMUNICACIONES') || pagTienePeajes();
+      $menuOficios = $menuPuedeModulo('COMUNICACIONES') || pagTienePeajes();
       if ($menuOficios && pagModuloActivo('COMUNICACIONES')) { $menuAlgunModulo = true; }
       //Los módulos que el administrador apagó en Parámetros del sistema no salen
-      $mOn = function ($m) { return pagModuloActivo($m); };
+      $menuModuloActivo = function ($modulo) { return pagModuloActivo($modulo); };
       //Listas de chequeo: las llena quien tenga 11M; las ven también 12M (las edita) y 21M (administración)
-      $menuListas = in_array("11M",$modulosAcceso) or in_array("12M",$modulosAcceso) or in_array("21M",$modulosAcceso);
+      $menuListas = in_array("11M",$modulosAcceso) || in_array("12M",$modulosAcceso) || in_array("21M",$modulosAcceso);
       //Promesa de valor: la regla de quién entra está en el controlador, para no repetirla aquí
       $menuPromesa = pagPromesaEntrar();
       $menuPromesaCons = pagPromesaConsolidado();
@@ -154,17 +142,24 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
       <ul class="nav child_menu">
         <li><a href="ReporteDiarioVista.php">Todo el reporte</a></li>
         <?php if(in_array("21M",$modulosAcceso)){ ?><li><a href="AdminReporteVista.php">Administración</a></li><?php } ?>
-        <?php if($mPuede('HOY') and $mOn('HOY')){ ?><li><a href="HoyVista.php">Hoy en qué estás</a></li><?php } ?>
-        <?php if(($mPuede('ARQUEOS') or in_array("5M",$modulosAcceso) or in_array("36M",$modulosAcceso)) and $mOn('ARQUEOS')){ ?><li><a href="ArqueosVista.php">Arqueos</a></li><?php } ?>
-        <?php if(($mPuede('CRONOGRAMA') or in_array("5M",$modulosAcceso) or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso)) and $mOn('CRONOGRAMA')){ ?><li><a href="CronogramaVista.php">Cronograma y vehículo</a></li><?php } ?>
-        <?php if($mPuede('VACANTES') and $mOn('VACANTES')){ ?><li><a href="VacantesVista.php">Vacantes</a></li><?php } ?>
-        <?php if($menuOficios and $mOn('COMUNICACIONES')){ ?><li><a href="ComunicacionesVista.php">Comunicaciones y oficios</a></li><?php } ?>
+        <?php if($menuPuedeModulo('HOY') and $menuModuloActivo('HOY')){ ?><li><a href="HoyVista.php">Hoy en qué estás</a></li><?php } ?>
+        <?php if(($menuPuedeModulo('ARQUEOS') or in_array("5M",$modulosAcceso) or in_array("36M",$modulosAcceso)) and $menuModuloActivo('ARQUEOS')){ ?><li><a href="ArqueosVista.php">Arqueos</a></li><?php } ?>
+        <?php if(($menuPuedeModulo('CRONOGRAMA') or in_array("5M",$modulosAcceso) or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso)) and $menuModuloActivo('CRONOGRAMA')){ ?><li><a href="CronogramaVista.php">Cronograma y vehículo</a></li><?php } ?>
+        <?php if($menuPuedeModulo('VACANTES') and $menuModuloActivo('VACANTES')){ ?><li><a href="VacantesVista.php">Vacantes</a></li><?php } ?>
+        <?php if($menuOficios and $menuModuloActivo('COMUNICACIONES')){ ?><li><a href="ComunicacionesVista.php">Comunicaciones y oficios</a></li><?php } ?>
         <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="ControlDiarioVista.php">Reporte general</a></li><?php } ?>
-        <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="TableroVista.php">Tablero por proyectos</a></li><?php } ?>
-        <?php if(in_array("37M",$modulosAcceso)){ ?><li><a href="InformeMensualVista.php">Informe mensual</a></li><?php } ?>
-        <?php if($menuListas and $mOn('LISTAS')){ ?><li><a href="ListasVista.php">Listas de chequeo</a></li><?php } ?>    
+        <?php if($menuListas and $menuModuloActivo('LISTAS')){ ?><li><a href="ListasVista.php">Listas de chequeo</a></li><?php } ?>    
         <?php if(in_array("12M",$modulosAcceso)){ ?><li><a href="GruposListasVista.php">Editar listas</a></li><?php } ?> 
         <?php if(in_array("12M",$modulosAcceso)){ ?><li><a href="NotificacionesVista.php">Correos de listas</a></li><?php } ?>
+      </ul>
+    </li><?php } ?>
+
+    <?php if(in_array("19M",$modulosAcceso) or in_array("37M",$modulosAcceso)){ ?>
+    <!-- Consultas: el seguimiento de todos los proyectos, aparte de lo que se llena cada día -->
+    <li><a><i class="fa fa-line-chart"></i>Consultas<span class="fa fa-chevron-down"></span></a>
+      <ul class="nav child_menu">
+        <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="TableroVista.php">Tablero por proyectos</a></li><?php } ?>
+        <?php if(in_array("37M",$modulosAcceso)){ ?><li><a href="InformeMensualVista.php">Informe mensual</a></li><?php } ?>
       </ul>
     </li><?php } ?> 
       
@@ -172,7 +167,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
       //lo consultan 20M, 21M y 22M
       $menuJefe = pagParametroSi('AUS_JEFES_EDITAN') && pagEsJefePeaje();
       //Ausentismo y Dashboard van juntos: en uno se llena la data y el otro la muestra
-      $menuAusReg = $mOn('AUSENTISMO') && ($menuCoord or $menuJefe or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso) or in_array("25M",$modulosAcceso));
+      $menuAusReg = $menuModuloActivo('AUSENTISMO') && ($menuCoord or $menuJefe or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso) or in_array("25M",$modulosAcceso));
       $menuDash = in_array("13M",$modulosAcceso);
       //La promesa de valor (personal prometido y ejecutado) vive con el ausentismo, no en el reporte diario
       if($menuAusReg or $menuDash or $menuPromesa or $menuPromesaCons){ ?>
@@ -187,31 +182,9 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
     <?php } ?>
 
 
-    <!--<li><a href="javascript:void(0)"><i class="fa fa-laptop"></i> Graficas <span
-          class="label label-success pull-right">Muy pronto...</span></a>
-    </li>-->
-
   </ul>
 
 </div>
-
-<!--<div class="menu_section">
-
-  <h3>Configuración</h3>
-
-  <ul class="nav side-menu">
-
-
-    <li><a><i class="fa fa-windows"></i> Menú 1 <span class="fa fa-chevron-down"></span></a>
-      <ul class="nav child_menu">
-        <li><a href="#">Item 1</a></li>
-        <li><a href="#">Item 2</a></li>
-      </ul>
-    </li>
-
-  </ul>
-
-</div>-->
 
 </div>
 </div>

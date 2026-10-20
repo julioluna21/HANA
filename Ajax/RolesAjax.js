@@ -7,10 +7,10 @@ function init()
 {
     mostrarform(false)
     listar();//lista 
-//al oprimir el boton del formulario
-    $("#demo-form2").on("submit",function(e)//e = variable que contiene el objeto
+//al oprimir el botón del formulario
+    $("#demo-form2").on("submit",function(evento) //evento: el envío del formulario
     {
-            guardar(e);//guarda o edita el registro
+            guardar(evento);//guarda o edita el registro
     });
 
 }
@@ -19,7 +19,7 @@ function mostrarform(flag)
 {
     limpiar()
     if (flag)
-    {//partes de la pagina que se muestran o se ocultan
+    {//partes de la página que se muestran o se ocultan
             $('#formularioregistros').show();
             $('#listadoregistros').hide();
             $("#btnGuardar").prop("disabled",false);
@@ -58,13 +58,13 @@ function listar()
         buttons: [
                         
                     ],
-        "ajax"://metodo ajax
+        "ajax"://método ajax
                             {
-                                    url: '../Control/RolesControl.php?op=listar',//pagina que realiza la operación
-                                    type : "get",//tipo de envio de datos
+                                    url: '../Control/RolesControl.php?op=listar',//página que realiza la operación
+                                    type : "get",//tipo de envío de datos
                                     dataType : "json",//tipo de datos
-                                    error: function(e){//si error muestra mensaje
-                                            console.log(e.responseText);
+                                    error: function (xhr) { //si falla, se muestra el motivo
+                                            console.log(xhr.responseText);
                                     }
                             },
             "bDestroy": true,
@@ -74,9 +74,9 @@ function listar()
     
 }
 //Función para guardar o editar
-function guardar(e)
+function guardar(evento)
 {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     hanaBoton("#btnGuardar", true); //bloquea el botón y muestra "Guardando..." mientras responde el servidor
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -117,10 +117,10 @@ function mostrar(idrol)
         mostrarform(true);
         $("#idrol").val(data.ID_ROL_USUARIO_SISTEMA );
         $("#nombre").val(data.NOM_ROL_USUARIO_SISTEMA);
-        $("#auditoria").val(data.PERMISOS_CERRAR_NOVEDADES);
-        var arr = data.MODULOS_ROL_USUARIOS_SISTEMAS.split(',');
-        for(var i=0;i<arr.length;i++){
-            var numero=arr[i].match("[0-9]+");
+        $("#auditoria").val(data.PUEDE_CERRAR_NOVEDADES);
+        var lista = data.PERMISOS.split(',');
+        for(var i=0;i<lista.length;i++){
+            var numero=lista[i].match("[0-9]+");
             $("#r"+numero).prop("checked", true);
         }
     })

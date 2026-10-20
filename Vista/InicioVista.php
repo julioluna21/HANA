@@ -1,19 +1,19 @@
 <?php
 //Pantalla de inicio (bienvenida) del sistema HANA
-//Muestra accesos directos a los modulos, ademas del menu lateral que siempre sigue disponible
+//Muestra accesos directos a los módulos, ademas del menú lateral que siempre sigue disponible
 
-session_start(); //se necesita la sesion para saber quien entro y que permisos tiene
+session_start(); //se necesita la sesión para saber quien entro y que permisos tiene
 
-//Sin sesion activa se manda al login (al final del archivo)
+//Sin sesión activa se manda al login (al final del archivo)
 if (isset($_SESSION['IdUsuarios'])) {
 
-    include('head.php'); //cabecera comun: menu lateral, CSS, topbar
+    include('head.php'); //cabecera comun: menú lateral, CSS, topbar
 
-    //Nombre del usuario para el saludo. Si no viene, se saluda de forma generica
+    //Nombre del usuario para el saludo. Si no viene, se saluda de forma genérica
     $nombreUsuario = isset($_SESSION['Nombre']) ? $_SESSION['Nombre'] : "Usuario";
 
     //Saludo al azar. Se usa switch y no match() porque match() solo existe desde
-    //PHP 8 y el servidor corre PHP 7: alli match() deja la pantalla en blanco
+    //PHP 8 y el servidor corre PHP 7: allí match() deja la pantalla en blanco
     $azar = rand(1, 10); //son 10 saludos; si el número no tuviera saludo, queda "Buenas"
 
     switch ($azar) {
@@ -24,32 +24,29 @@ if (isset($_SESSION['IdUsuarios'])) {
         case 5:  $saludo = "¡Hola! Bienvenido de vuelta"; break;
         case 6:  $saludo = "¡Hola! Comencemos con la revisión de hoy"; break;
         case 7:  $saludo = "¡Buenas! Empecemos la revisión de hoy"; break;
-        case 8:  $saludo = "¡Buenas! Por donde empezaremos?"; break;
-        case 9:  $saludo = "¡Hola, que tal!"; break;
-        case 10:  $saludo = "¡Hola, Empecemos!"; break;
+        case 8:  $saludo = "¡Buenas! ¿Por dónde empezamos?"; break;
+        case 9:  $saludo = "¡Hola, qué tal!"; break;
+        case 10: $saludo = "¡Hola, empecemos!"; break;
 
 
         default: $saludo = "Buenas"; break;
     }
     /* Catalogo de accesos directos.
        Cada elemento es: [modulo, archivo, icono, titulo, descripcion]
-       El "modulo" es el mismo codigo de permisos que usa el menu lateral,
-       asi la tarjeta solo se muestra si el usuario tiene acceso a ese modulo. */
+       El "modulo" es el mismo código de permisos que usa el menú lateral,
+       así la tarjeta solo se muestra si el usuario tiene acceso a ese modulo. */
     //Las mismas etiquetas del menú lateral, en el mismo orden y con el mismo nombre.
     //El primer dato es el permiso; TODOS, REPORTE y AUSENTISMO usan las mismas reglas
     //del menú (se calculan abajo, antes de pintar las tarjetas)
     $accesos = array(
         array("TODOS", "MisNotificacionesVista.php", "fa-bell", "Mis notificaciones", "Las novedades y RQ que te llegaron"),
-        array("3M", "ColaboradoresVista.php", "fa-users", "Colaboradores", "Administra el personal registrado"),
-        array("4M", "cargosVista.php", "fa-briefcase", "Cargos", "Administra los cargos de los colaboradores"),
         array("6M", "proyectosVista.php", "fa-folder-open", "Proyectos", "Administra los proyectos y concesiones"),
         array("5M", "centroOperativoVista.php", "fa-building", "Centros de operación", "Administra los centros operativos"),
         array("2M", "RolesVista.php", "fa-key", "Permisos de usuario", "Define qué puede hacer cada rol"),
         array("24M", "ParametrosVista.php", "fa-sliders", "Parámetros del sistema", "Módulos activos, plazos, correo y catálogos"),
-        array("1M", "UsuariosVista.php", "fa-user", "Usuarios", "Administra los usuarios del sistema"),
+        array("COLABORADORES", "ColaboradoresVista.php", "fa-user-plus", "Colaboradores", "Las personas que trabajan en los proyectos"),
+        array("USUARIOS", "UsuariosVista.php", "fa-users", "Usuarios", "El acceso de cada persona a HANA"),
         array("7M", "TitulosNovedadesVista.php", "fa-tags", "Títulos de novedades", "Parametriza los títulos de novedades"),
-        array("8M", "EstadosVista.php", "fa-flag", "Estados de relevancia", "Parametriza los niveles de relevancia"),
-        array("9M", "ObservadorVista.php", "fa-eye", "Observadores", "Administra los observadores de novedades"),
         array("10M", "novedadesVista.php", "fa-comment", "Novedades", "Registra y consulta novedades y hallazgos"),
         array("RQ", "RQVista.php", "fa-wrench", "Requisiciones (RQ)", "REQUISICIONES"),
         array("REPORTE", "ReporteDiarioVista.php", "fa-calendar-check-o", "Reporte diario", "Hoy en qué estás, listas de chequeo y más"),
@@ -60,7 +57,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         array("13M", "reporteVista.php", "fa-bar-chart", "Dashboard", "Indicadores y gráficas del sistema")
     );
 ?>
-        <!-- Contenido de la pagina -->
+        <!-- Contenido de la página -->
         <div class="right_col" role="main">
             <div class="">
 
@@ -80,7 +77,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
                 <div class="clearfix"></div>
 
-                <!-- Tarjetas de acceso rapido -->
+                <!-- Tarjetas de acceso rápido -->
                 <div class="row">
                     <div class="col-md-12">
                         <div class="x_panel">
@@ -89,7 +86,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                 <div class="clearfix"></div>
                             </div>
                             <div class="x_content">
-                                <!-- Grilla automatica: acomoda las tarjetas segun el ancho
+                                <!-- Grilla automatica: acomoda las tarjetas según el ancho
                                      disponible y todas quedan del mismo alto, sin huecos -->
                                 <div class="grilla-modulos">
 <?php
@@ -101,27 +98,29 @@ if (isset($_SESSION['IdUsuarios'])) {
     $permitidos[] = 'TODOS';
     $esCoordMenu = !empty($menuCoord); //head.php ya calculó si coordina un proyecto
     if (array_intersect(array('15M', '17M', '18M', '41M'), $modulosAcceso)) { $permitidos[] = 'RQ'; } //ver, ver todas, aprobar o pedir
+    if (array_intersect(array('3M', '24M'), $modulosAcceso)) { $permitidos[] = 'COLABORADORES'; } //registrar a las personas (3M)
+    if (array_intersect(array('1M', '24M'), $modulosAcceso)) { $permitidos[] = 'USUARIOS'; }      //su acceso (1M)
     if (in_array('11M', $modulosAcceso) || in_array('12M', $modulosAcceso) || in_array('5M', $modulosAcceso)
         || in_array('19M', $modulosAcceso) || in_array('21M', $modulosAcceso) || in_array('37M', $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'REPORTE'; }
-    if ((!isset($mOn) || $mOn('AUSENTISMO')) && ($esCoordMenu || !empty($menuJefe) || in_array('20M', $modulosAcceso)
+    if ((!isset($menuModuloActivo) || $menuModuloActivo('AUSENTISMO')) && ($esCoordMenu || !empty($menuJefe) || in_array('20M', $modulosAcceso)
         || in_array('21M', $modulosAcceso) || in_array('22M', $modulosAcceso) || in_array('25M', $modulosAcceso))) { $permitidos[] = 'AUSENTISMO'; }
     //La promesa de valor está en el menú de Ausentismo (head.php calcula quién entra)
     if (!empty($menuPromesa) || !empty($menuPromesaCons)) { $permitidos[] = 'PROMESA'; }
 
-    foreach ($accesos as $a) {
-        if (!in_array($a[0], $permitidos)) { continue; } //sin permiso: se salta
+    foreach ($accesos as $acceso) {
+        if (!in_array($acceso[0], $permitidos)) { continue; } //sin permiso: se salta
         $mostradas++;
 ?>
-                                    <!-- Toda la tarjeta es un enlace, para que sea facil de pulsar -->
-                                    <a href="<?php echo $a[1]; ?>" class="tarjeta-modulo">
-                                        <div class="tarjeta-icono"><i class="fa <?php echo $a[2]; ?>"></i></div>
-                                        <div class="tarjeta-titulo"><?php echo $a[3]; ?></div>
-                                        <div class="tarjeta-texto"><?php echo $a[4]; ?></div>
+                                    <!-- Toda la tarjeta es un enlace, para que sea fácil de pulsar -->
+                                    <a href="<?php echo $acceso[1]; ?>" class="tarjeta-modulo">
+                                        <div class="tarjeta-icono"><i class="fa <?php echo $acceso[2]; ?>"></i></div>
+                                        <div class="tarjeta-titulo"><?php echo $acceso[3]; ?></div>
+                                        <div class="tarjeta-texto"><?php echo $acceso[4]; ?></div>
                                     </a>
 <?php
     }
 
-    //Caso extremo: usuario sin ningun modulo asignado
+    //Caso extremo: usuario sin ningún modulo asignado
     if ($mostradas == 0) {
 ?>
                                     <div class="aviso-sin-modulos">
@@ -143,7 +142,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         </div>
 
         <style>
-            /* Banner superior de bienvenida. Color solido, el mismo del menu lateral */
+            /* Banner superior de bienvenida. Color solido, el mismo del menú lateral */
             .panel-bienvenida{
                 background:#6E1A1E;
                 color:#fff; border-radius:8px; padding:25px 30px; margin:15px 0 20px 0; margin-top: 50px;
@@ -152,7 +151,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             .panel-bienvenida p{ margin:0; opacity:.9; font-size:14px; }
 
             /* Grilla de tarjetas. Se reparten solas en columnas de minimo 200px:
-               si caben 5 pone 5, si caben 3 pone 3, sin dejar huecos ni columnas vacias */
+               si caben 5 pone 5, si caben 3 pone 3, sin dejar huecos ni columnas vacías */
             .grilla-modulos{
                 display:grid;
                 grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

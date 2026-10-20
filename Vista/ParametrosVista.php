@@ -72,7 +72,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <button type="button" class="btn btn-success btn-sm" data-nuevo="cargo"><i class="fa fa-plus"></i> Nuevo cargo</button>
             </div>
             <div class="tab-pane" id="tabNovedades">
-              <p class="rd-ayuda" style="margin-top:0;">Las filas de cada bloque. Los motivos CUBRIENDO A… cuentan como ausencia del cargo de quien cubre. Si un motivo se marca como "no es ausencia", se ve en su fila pero no suma en las ausencias diarias.
+              <p class="rd-ayuda" style="margin-top:0;">Cómo se cubrió cada falta: son las filas de cada bloque. NO SE CUBRIÓ es para todos los cargos; los motivos CUBRIENDO A… cuentan como ausencia del cargo de quien cubre. Los motivos de ausencia (incapacidad, licencias…) están apagados porque se registran en la marcación de turnos. Si un motivo se marca como "no es ausencia", se ve en su fila pero no suma en las ausencias diarias.
                 Si una novedad es solo de un cargo, sale únicamente en ese bloque.</p>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>Orden</th><th>Novedad</th><th>¿Es ausencia?</th><th>Solo en el cargo</th><th>Activa</th><th></th></tr></thead>

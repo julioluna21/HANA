@@ -1,5 +1,26 @@
 <?php
 /*
+  HANA - Prioridades de las novedades (controlador)
+  ---------------------------------------------------------------------------
+  Las prioridades ya no tienen tabla ni pantalla (script 35): son ALTO, MEDIO y
+  BAJO (Modelo/NovedadPrioridad.php) y sus días se cambian en Parámetros del sistema.
+  Solo queda "select", que arma el desplegable del formulario de Novedades; pide
+  haber iniciado sesión. Cualquier otra operación responde 410 ("Este archivo ya
+  no se usa"). El código de abajo se conserva solo como referencia.
+*/
+session_start();
+require_once __DIR__ . '/Guardia.php'; //revisa la sesión
+if ((isset($_GET['op']) ? $_GET['op'] : '') !== 'select') { hanaArchivoRetirado(); }
+hanaGuardia(array(), array('select'));
+require_once __DIR__ . '/../Modelo/NovedadPrioridad.php';
+echo "<option value=''>Seleccione la prioridad...</option>";
+foreach (NovedadPrioridad::LISTA as $prioridad) {
+    echo "<option value='" . $prioridad . "'>" . $prioridad . " (" . NovedadPrioridad::dias($prioridad) . " días)</option>";
+}
+exit;
+?>
+<?php
+/*
   HANA - Estados de prioridad de las novedades (controlador)
   ---------------------------------------------------------------------------
   Atiende las peticiones de Ajax/EstadoAjax.js y responde con lo que
@@ -8,7 +29,7 @@
     guardar, mostrar, anular, activar, select y listar.
   Permiso: 8M. El desplegable (select) también lo usa Novedades.
 */
-session_start();//inicia la session, permite guardar variables de sesion
+session_start();//inicia la session, permite guardar variables de sesión
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 hanaGuardia(array('8M'), array('select')); //Estados: 8M. El selector lo usan novedades
 require_once "../Modelo/EstadosModelo.php";//Utilizará este archivo
@@ -109,7 +130,7 @@ switch ($_GET["op"])
                         
                             $data[]=array(//arreglo con los datos de las columnas
                                     "0"=>$reg->NOMBRE_ESTADOS_RELEVANCIA,
-                                    "1"=>$reg->DIAS_ESTADOS_RELEVANCIAS." días",
+                                    "1"=>$reg->DIAS_PARA_ATENDER." días",
                                     "2"=>$estado,
                                     "3"=>$bot,
                             );

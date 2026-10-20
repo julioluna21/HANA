@@ -1,5 +1,12 @@
 <?php
-//Modelo de notificaciones automaticas por correo de listas de chequeo
+/*
+  HANA - Correos de las listas de chequeo (modelo)
+  ---------------------------------------------------------------------------
+  Consultas de la tabla notificaciones_listas: a qué correos se avisa cuando
+  alguien llena una lista y cada cuánto (inmediato, diario o semanal), y los
+  datos que llevan esos correos. Lo usan Control/NotificacionesControl.php y
+  Control/EnvioNotificacionesControl.php.
+*/
 require "../Conexion/ConexionDB.php";
 
 Class Notificaciones
@@ -9,7 +16,7 @@ Class Notificaciones
      {
      }
 
-     //Crea una configuracion de notificacion para una lista de chequeo
+     //Crea una configuración de notificación para una lista de chequeo
      public function insertar($idGrupo, $destinatarios, $frecuencia, $asunto)
      {
              $sql = "INSERT INTO notificaciones_listas
@@ -18,7 +25,7 @@ Class Notificaciones
              return ejecutarConsulta($sql);
      }
 
-     //Modifica una configuracion existente
+     //Modifica una configuración existente
      public function editar($id, $idGrupo, $destinatarios, $frecuencia, $asunto)
      {
              $sql = "UPDATE notificaciones_listas SET
@@ -30,28 +37,28 @@ Class Notificaciones
              return ejecutarConsulta($sql);
      }
 
-     //Desactiva una notificacion (no se borra, queda en estado 0)
+     //Desactiva una notificación (no se borra, queda en estado 0)
      public function anular($id)
      {
              $sql = "UPDATE notificaciones_listas SET ESTADO='0' WHERE ID_NOTIFICACION='$id'";
              return ejecutarConsulta($sql);
      }
 
-     //Vuelve a activar una notificacion anulada
+     //Vuelve a activar una notificación anulada
      public function activar($id)
      {
              $sql = "UPDATE notificaciones_listas SET ESTADO='1' WHERE ID_NOTIFICACION='$id'";
              return ejecutarConsulta($sql);
      }
 
-     //Trae una notificacion puntual, para cargarla en el formulario
+     //Trae una notificación puntual, para cargarla en el formulario
      public function mostrar($id)
      {
              $sql = "SELECT * FROM notificaciones_listas WHERE ID_NOTIFICACION='$id'";
              return ejecutarConsultaSimpleFila($sql);
      }
 
-     //Listado para la tabla de la pantalla de administracion
+     //Listado para la tabla de la pantalla de administración
      public function listar()
      {
              //El último envío sale de la bitácora: cada correo de un aviso queda ahí con su ID_NOTIFICACION
@@ -65,7 +72,7 @@ Class Notificaciones
      }
 
      //Notificaciones activas de una lista y frecuencia dadas.
-     //La usa el envio inmediato (al guardar) y tambien los resumenes
+     //La usa el envío inmediato (al guardar) y también los resúmenes
      public function activasPorGrupo($idGrupo, $frecuencia)
      {
              $sql = "SELECT * FROM notificaciones_listas
@@ -75,7 +82,7 @@ Class Notificaciones
              return ejecutarConsulta($sql);
      }
 
-     //Todas las notificaciones activas de una frecuencia (para los resumenes programados)
+     //Todas las notificaciones activas de una frecuencia (para los resúmenes programados)
      public function activasPorFrecuencia($frecuencia)
      {
              $sql = "SELECT n.*, g.NOM_GRUPO_LISTA_CHEQUEO
@@ -92,15 +99,15 @@ Class Notificaciones
              return true;
      }
 
-     //Datos de cabecera de UNA lista diligenciada: quien, donde y cuando
+     //Datos de cabecera de UNA lista diligenciada: quién, dónde y cuándo
      public function cabeceraLista($idLista)
      {
-             $sql = "SELECT lc.ID_LISTA_CHEQUEO, lc.FEC_REGISTRO_LISTA_CHEQUEO,
+             $sql = "SELECT lc.ID_LISTA_CHEQUEO, lc.FEC_REGISTRO,
                             co.NOM_CENTRO_OP, c.NOM_COLABORADOR, c.MAIL_COLABORADOR,
                             g.NOM_GRUPO_LISTA_CHEQUEO, g.ID_GRUPO_LISTA_CHEQUEO
                      FROM lista_chequeo lc
-                     JOIN centros_operacion co ON co.ID_CENTRO_OP = lc.ID_CENTRO_OP_LISTA_CHEQUEO
-                     JOIN colaboradores c      ON c.ID_COLABORADOR = lc.ID_COLABORADOR_LISTA_CHEQUEO
+                     JOIN centros_operacion co ON co.ID_CENTRO_OP = lc.ID_CENTRO_OP
+                     JOIN colaboradores c      ON c.ID_COLABORADOR = lc.ID_COLABORADOR
                      JOIN grupo_lista_chequeo g ON g.ID_GRUPO_LISTA_CHEQUEO = lc.ID_GRUPO_LISTA_CHEQUEO
                      WHERE lc.ID_LISTA_CHEQUEO='$idLista'";
              return ejecutarConsultaSimpleFila($sql);
@@ -109,29 +116,29 @@ Class Notificaciones
      //Preguntas y respuestas de UNA lista diligenciada, en el orden configurado
      public function respuestasDeLista($idLista)
      {
-             $sql = "SELECT dgl.PREGUNTA_DETALLE_GRUPO_LISTA_CHEQUEO AS PREGUNTA,
+             $sql = "SELECT dgl.PREGUNTA,
                             dgl.TIPO_RESPUESTA,
-                            dl.RESPUESTA_DETALLE_LISTA_CHEQUEO AS RESPUESTA
+                            dl.RESPUESTA
                      FROM detalle_lista_chequeo dl
                      JOIN detalle_grupo_lista_chequeo dgl
-                       ON dgl.ID_DETALLE_GRUPO_LISTA_CHEQUEO = dl.ID_DETALLE_GRUPO_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO
-                     WHERE dl.ID_LISTA_CHEQUEO_DETALLE_LISTA_CHEQUEO='$idLista'
+                       ON dgl.ID_DETALLE_GRUPO_LISTA_CHEQUEO = dl.ID_PREGUNTA
+                     WHERE dl.ID_LISTA_CHEQUEO='$idLista'
                      ORDER BY dgl.ORDEN ASC, dgl.ID_DETALLE_GRUPO_LISTA_CHEQUEO ASC";
              return ejecutarConsulta($sql);
      }
 
      //Listas diligenciadas de un grupo dentro de un rango de fechas.
-     //Es la base de los resumenes diario y semanal
+     //Es la base de los resúmenes diario y semanal
      public function listasEnRango($idGrupo, $desde, $hasta)
      {
-             $sql = "SELECT lc.ID_LISTA_CHEQUEO, lc.FEC_REGISTRO_LISTA_CHEQUEO,
+             $sql = "SELECT lc.ID_LISTA_CHEQUEO, lc.FEC_REGISTRO,
                             co.NOM_CENTRO_OP, c.NOM_COLABORADOR
                      FROM lista_chequeo lc
-                     JOIN centros_operacion co ON co.ID_CENTRO_OP = lc.ID_CENTRO_OP_LISTA_CHEQUEO
-                     JOIN colaboradores c      ON c.ID_COLABORADOR = lc.ID_COLABORADOR_LISTA_CHEQUEO
+                     JOIN centros_operacion co ON co.ID_CENTRO_OP = lc.ID_CENTRO_OP
+                     JOIN colaboradores c      ON c.ID_COLABORADOR = lc.ID_COLABORADOR
                      WHERE lc.ID_GRUPO_LISTA_CHEQUEO='$idGrupo'
-                       AND lc.FEC_REGISTRO_LISTA_CHEQUEO BETWEEN '$desde' AND '$hasta'
-                     ORDER BY c.NOM_COLABORADOR ASC, lc.FEC_REGISTRO_LISTA_CHEQUEO ASC";
+                       AND lc.FEC_REGISTRO BETWEEN '$desde' AND '$hasta'
+                     ORDER BY c.NOM_COLABORADOR ASC, lc.FEC_REGISTRO ASC";
              return ejecutarConsulta($sql);
      }
 

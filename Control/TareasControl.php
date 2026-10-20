@@ -53,26 +53,26 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             break;
         }
         $hoy = date('Y-m-d');
-        $E = new EstadoDia();
+        $estadoDia = new EstadoDia();
         //La dirección para entrar al sistema (la misma de esta página, dos carpetas arriba)
         $base = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost')
               . rtrim(dirname(dirname(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/Control/x.php')), '/\\') . '/Vista/ReporteDiarioVista.php';
 
-        $coords = Organizacion::coordinadoresConCorreo();
+        $coordinadores = Organizacion::coordinadoresConCorreo();
         $salida = array(); $enviados = 0;
-        foreach ((array)$coords as $c) {
-            $e = $E->resumen((int)$c['ID_COLABORADOR'], $hoy);
-            if (!$e) { continue; }
+        foreach ((array)$coordinadores as $coordinador) {
+            $estado = $estadoDia->resumen((int)$coordinador['ID_COLABORADOR'], $hoy);
+            if (!$estado) { continue; }
             $falta = array();
-            if (HanaConfig::modulo('HOY') && !$e['hoy']['ok']) { $falta[] = 'Contar en <strong>Hoy en qué estás</strong> dónde vas a estar y qué vas a hacer.'; }
-            if (HanaConfig::modulo('LISTAS') && !$e['listas']['ok']) { $falta[] = 'Diligenciar las <strong>listas de chequeo</strong> de los peajes que visites.'; }
-            if (HanaConfig::modulo('CRONOGRAMA') && !$e['cronograma']['ok']) { $falta[] = 'Darle una mirada a tu <strong>cronograma</strong>.'; }
-            if (HanaConfig::modulo('CRONOGRAMA') && $e['cronograma']['vehiculos'] > 0 && $e['cronograma']['vehiculosReg'] < $e['cronograma']['vehiculos']) {
+            if (HanaConfig::modulo('HOY') && !$estado['hoy']['ok']) { $falta[] = 'Contar en <strong>Hoy en qué estás</strong> dónde vas a estar y qué vas a hacer.'; }
+            if (HanaConfig::modulo('LISTAS') && !$estado['listas']['ok']) { $falta[] = 'Diligenciar las <strong>listas de chequeo</strong> de los peajes que visites.'; }
+            if (HanaConfig::modulo('CRONOGRAMA') && !$estado['cronograma']['ok']) { $falta[] = 'Darle una mirada a tu <strong>cronograma</strong>.'; }
+            if (HanaConfig::modulo('CRONOGRAMA') && $estado['cronograma']['vehiculos'] > 0 && $estado['cronograma']['vehiculosReg'] < $estado['cronograma']['vehiculos']) {
                 $falta[] = 'Registrar el <strong>estado del vehículo</strong> de hoy.';
             }
-            $nombre = trim(explode(' ', html_entity_decode($c['NOM_COLABORADOR'], ENT_QUOTES, 'UTF-8'))[0]);
-            $correo = trim((string)$c['MAIL_COLABORADOR']);
-            $fila = array('coordinador' => $c['NOM_COLABORADOR'], 'correo' => $correo, 'falta' => array_map('strip_tags', $falta), 'resultado' => '');
+            $nombre = trim(explode(' ', html_entity_decode($coordinador['NOM_COLABORADOR'], ENT_QUOTES, 'UTF-8'))[0]);
+            $correo = trim((string)$coordinador['MAIL_COLABORADOR']);
+            $fila = array('coordinador' => $coordinador['NOM_COLABORADOR'], 'correo' => $correo, 'falta' => array_map('strip_tags', $falta), 'resultado' => '');
             if (!count($falta)) { $fila['resultado'] = 'Al día: no se le escribe'; $salida[] = $fila; continue; }
             if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) { $fila['resultado'] = 'Sin correo válido en Colaboradores'; $salida[] = $fila; continue; }
             if ($simular) { $fila['resultado'] = 'Se le enviaría'; $salida[] = $fila; continue; }
@@ -82,10 +82,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $mail->CharSet = 'UTF-8';
             hanaConfigurarSmtp($mail);
             $mail->FromName = 'HANA - Reporte diario';
-            $mail->addAddress($correo, hanaNombreBonito($c['NOM_COLABORADOR']));
+            $mail->addAddress($correo, hanaNombreBonito($coordinador['NOM_COLABORADOR']));
             $mail->Subject = 'Lo que te falta hoy en HANA';
             //La misma plantilla de todos los correos, saludando a la persona por su nombre
-            $mail->Body = hanaCorreoHtml($c['NOM_COLABORADOR'], 'Lo que te falta hoy en HANA',
+            $mail->Body = hanaCorreoHtml($coordinador['NOM_COLABORADOR'], 'Lo que te falta hoy en HANA',
                 '<p style="margin:0 0 8px;">Un recordatorio rápido. Para hoy te falta:</p><ul style="margin:0 0 10px;padding-left:20px;"><li style="margin-bottom:4px;">'
                 . implode('</li><li style="margin-bottom:4px;">', $falta) . '</li></ul><p style="margin:0;color:#7A716E;font-size:13px;">Si ya lo hiciste, ignora este mensaje.</p>',
                 array('texto' => 'Entrar a HANA', 'url' => $base));

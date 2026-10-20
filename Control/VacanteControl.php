@@ -5,6 +5,7 @@
 */
 session_start();
 require_once __DIR__ . "/../Modelo/VacanteModelo.php";
+require_once __DIR__ . '/../Modelo/HanaTexto.php'; //las respuestas JSON llevan los textos como se escribieron (sin &amp;)
 require_once __DIR__ . "/../Modelo/HanaFechas.php";
 require_once __DIR__ . "/AccesoHelper.php";
 
@@ -15,7 +16,7 @@ date_default_timezone_set('America/Bogota');
 function vacError($codigo, $mensaje)
 {
     http_response_code($codigo);
-    echo json_encode(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
+    echo hanaJsonTexto(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -27,19 +28,19 @@ if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { vacError(401,
 if (!hanaEsCoordinador((int)$_SESSION['Idcolaborador'])) { vacError(403, 'Las vacantes las llena el coordinador del proyecto. Si eres coordinador, pide que te asignen en Configuración → Proyectos.'); }
 
 $idColaborador = (int)$_SESSION['Idcolaborador'];
-$V   = new Vacante();
+$modeloVacante   = new Vacante();
 $hoy = date('Y-m-d');
 $ultimoEditable = HanaFechas::ventana()[1]; //las fechas no pueden pasar de hoy
 $centros = array();
-foreach (hanaCentrosCoordinador($idColaborador) as $c) { $centros[(int)$c['ID_CENTRO_OP']] = $c; } //los de sus proyectos
+foreach (hanaCentrosCoordinador($idColaborador) as $centro) { $centros[(int)$centro['ID_CENTRO_OP']] = $centro; } //los de sus proyectos
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     //Lo que necesita la pantalla al abrir: peajes, estados, días de ANS y motivos
     case 'config':
-        echo json_encode(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'centros' => array_values($centros), 'estados' => Vacante::$ESTADOS,
+        echo hanaJsonTexto(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'centros' => array_values($centros), 'estados' => Vacante::$ESTADOS,
                                'estadosGh' => Vacante::$ESTADOS_GH, 'diasAns' => Vacante::diasAns(),
-                               'motivos' => $V->motivos(array_keys($centros))), JSON_UNESCAPED_UNICODE);
+                               'motivos' => $modeloVacante->motivos(array_keys($centros))), JSON_UNESCAPED_UNICODE);
         break;
 
     //Sin mes: todas las abiertas. Con mes: las que se abrieron ese mes
@@ -57,60 +58,60 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (isset($_GET['centro']) && (int)$_GET['centro'] > 0) {
             $ids = isset($centros[(int)$_GET['centro']]) ? array((int)$_GET['centro']) : array();
         }
-        echo json_encode($V->listar($ids, $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto($modeloVacante->listar($ids, $desde, $hasta, $abiertas, $hoy), JSON_UNESCAPED_UNICODE);
         break;
 
     //Crea una vacante nueva o guarda los cambios de una existente
     case 'guardar':
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         if ($id > 0) {
-            $antes = $V->mostrar($id);
+            $antes = $modeloVacante->mostrar($id);
             if (!$antes || !isset($centros[(int)$antes['ID_CENTRO_OP']])) { vacError(404, 'No se encontró la vacante, o no es de tus centros.'); }
         }
-        $d = array();
-        $d['centro'] = isset($_POST['centro']) ? (int)$_POST['centro'] : 0;
-        if (!isset($centros[$d['centro']])) { vacError(400, 'Elige uno de los centros de los proyectos que coordinas.'); }
-        $d['cargo'] = HanaVal::texto(isset($_POST['cargo']) ? $_POST['cargo'] : '', 120);
-        if ($d['cargo'] === null) { vacError(400, 'Escribe el cargo de la vacante.'); }
-        $d['motivo'] = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 150);
-        if ($d['motivo'] === null) { vacError(400, 'Escribe el motivo de la vacante.'); }
-        $d['fecha'] = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
-        if ($d['fecha'] === '' || $d['fecha'] > $ultimoEditable) { vacError(400, 'La fecha de la vacante no es válida o es posterior a hoy.'); }
+        $datos = array();
+        $datos['centro'] = isset($_POST['centro']) ? (int)$_POST['centro'] : 0;
+        if (!isset($centros[$datos['centro']])) { vacError(400, 'Elige uno de los centros de los proyectos que coordinas.'); }
+        $datos['cargo'] = HanaVal::texto(isset($_POST['cargo']) ? $_POST['cargo'] : '', 120);
+        if ($datos['cargo'] === null) { vacError(400, 'Escribe el cargo de la vacante.'); }
+        $datos['motivo'] = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 150);
+        if ($datos['motivo'] === null) { vacError(400, 'Escribe el motivo de la vacante.'); }
+        $datos['fecha'] = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
+        if ($datos['fecha'] === '' || $datos['fecha'] > $ultimoEditable) { vacError(400, 'La fecha de la vacante no es válida o es posterior a hoy.'); }
 
         //El acuerdo de servicio: 5 días hábiles desde la vacante, sin festivos.
         //Al editar se conserva el que tenía, salvo que cambie la fecha de la vacante
-        $d['ans'] = ($id > 0 && $antes['FECHA_VACANTE'] === $d['fecha']) ? $antes['FECHA_ANS']
-                                                                         : HanaFechas::sumarHabiles($d['fecha'], Vacante::diasAns());
+        $datos['ans'] = ($id > 0 && $antes['FECHA_VACANTE'] === $datos['fecha']) ? $antes['FECHA_ANS']
+                                                                         : HanaFechas::sumarHabiles($datos['fecha'], Vacante::diasAns());
 
-        $d['estado'] = isset($_POST['estado']) ? $_POST['estado'] : 'ABIERTA';
-        if (!isset(Vacante::$ESTADOS[$d['estado']])) { vacError(400, 'Estado no válido.'); }
-        $d['cierre'] = null;
+        $datos['estado'] = isset($_POST['estado']) ? $_POST['estado'] : 'ABIERTA';
+        if (!isset(Vacante::$ESTADOS[$datos['estado']])) { vacError(400, 'Estado no válido.'); }
+        $datos['cierre'] = null;
         if (isset($_POST['cierre']) && trim($_POST['cierre']) !== '') {
-            $d['cierre'] = HanaVal::fecha($_POST['cierre']);
-            if ($d['cierre'] === '' || $d['cierre'] < $d['fecha'] || $d['cierre'] > $ultimoEditable) {
+            $datos['cierre'] = HanaVal::fecha($_POST['cierre']);
+            if ($datos['cierre'] === '' || $datos['cierre'] < $datos['fecha'] || $datos['cierre'] > $ultimoEditable) {
                 vacError(400, 'La fecha de cierre debe estar entre la fecha de la vacante y hoy.');
             }
         }
         //Coherencia: cubierta o cancelada lleva fecha de cierre; abierta no
-        if ($d['estado'] === 'ABIERTA') { $d['cierre'] = null; }
-        elseif ($d['cierre'] === null) { vacError(400, 'Una vacante ' . strtolower(Vacante::$ESTADOS[$d['estado']]) . ' necesita la fecha de cierre.'); }
+        if ($datos['estado'] === 'ABIERTA') { $datos['cierre'] = null; }
+        elseif ($datos['cierre'] === null) { vacError(400, 'Una vacante ' . strtolower(Vacante::$ESTADOS[$datos['estado']]) . ' necesita la fecha de cierre.'); }
 
-        $d['rq']     = HanaVal::texto(isset($_POST['rq']) ? $_POST['rq'] : '', 20);
-        $d['nombre'] = HanaVal::texto(isset($_POST['nombre']) ? $_POST['nombre'] : '', 120);
-        if ($d['estado'] === 'CUBIERTA' && $d['nombre'] === null) { vacError(400, 'Escribe el nombre de la persona que cubrió la vacante.'); }
-        $d['gh'] = isset($_POST['gh']) && $_POST['gh'] !== '' ? $_POST['gh'] : null;
-        if ($d['gh'] !== null && !isset(Vacante::$ESTADOS_GH[$d['gh']])) { vacError(400, 'Estado de Gestión Humana no válido.'); }
-        $d['compromiso'] = null;
+        $datos['rq']     = HanaVal::texto(isset($_POST['rq']) ? $_POST['rq'] : '', 20);
+        $datos['nombre'] = HanaVal::texto(isset($_POST['nombre']) ? $_POST['nombre'] : '', 120);
+        if ($datos['estado'] === 'CUBIERTA' && $datos['nombre'] === null) { vacError(400, 'Escribe el nombre de la persona que cubrió la vacante.'); }
+        $datos['gh'] = isset($_POST['gh']) && $_POST['gh'] !== '' ? $_POST['gh'] : null;
+        if ($datos['gh'] !== null && !isset(Vacante::$ESTADOS_GH[$datos['gh']])) { vacError(400, 'Estado de Gestión Humana no válido.'); }
+        $datos['compromiso'] = null;
         if (isset($_POST['compromiso']) && trim($_POST['compromiso']) !== '') {
-            $d['compromiso'] = HanaVal::fecha($_POST['compromiso']);
-            if ($d['compromiso'] === '') { vacError(400, 'La fecha del compromiso de Gestión Humana no es válida.'); }
+            $datos['compromiso'] = HanaVal::fecha($_POST['compromiso']);
+            if ($datos['compromiso'] === '') { vacError(400, 'La fecha del compromiso de Gestión Humana no es válida.'); }
         }
-        $d['obs'] = HanaVal::texto(isset($_POST['obs']) ? $_POST['obs'] : '', 300);
+        $datos['obs'] = HanaVal::texto(isset($_POST['obs']) ? $_POST['obs'] : '', 300);
 
-        $nuevo = $V->guardar($id, $d, $idColaborador, date('Y-m-d H:i:s'));
+        $nuevo = $modeloVacante->guardar($id, $datos, $idColaborador, date('Y-m-d H:i:s'));
         if (!$nuevo) { vacError(500, 'No se pudo guardar la vacante. Intenta de nuevo.'); }
-        echo json_encode(array('ok' => true, 'id' => $nuevo, 'mensaje' => $id ? 'Vacante actualizada.'
-                         : 'Vacante registrada. Fecha límite del acuerdo de servicio: ' . date('d/m/Y', strtotime($d['ans'])) . '.'),
+        echo hanaJsonTexto(array('ok' => true, 'id' => $nuevo, 'mensaje' => $id ? 'Vacante actualizada.'
+                         : 'Vacante registrada. Fecha límite del acuerdo de servicio: ' . date('d/m/Y', strtotime($datos['ans'])) . '.'),
                          JSON_UNESCAPED_UNICODE);
         break;
 

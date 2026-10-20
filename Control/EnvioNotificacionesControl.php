@@ -1,6 +1,6 @@
 <?php
-//Motor de envio de notificaciones por correo de las listas de chequeo
-//Lo usan: ListasControl.php (envio inmediato) y las tareas programadas (resumenes)
+//Motor de envío de notificaciones por correo de las listas de chequeo
+//Lo usan: ListasControl.php (envío inmediato) y las tareas programadas (resúmenes)
 
 //__DIR__ ancla las rutas a este archivo, sin importar desde donde se incluya
 require_once __DIR__ . "/../Modelo/NotificacionesModelo.php";
@@ -14,25 +14,25 @@ require_once __DIR__ . '/../Modelo/BitacoraModelo.php'; //cada correo queda enla
 
 use PHPMailer\PHPMailer\PHPMailer;
 
-//Paleta del sistema, para que el correo se vea igual que la aplicacion
-define('HANA_AZUL',  '#2A3F54'); //el mismo color del menu lateral
+//Paleta del sistema, para que el correo se vea igual que la aplicación
+define('HANA_AZUL',  '#2A3F54'); //el mismo color del menú lateral
 define('HANA_CELESTE','#5395a8');
 
-//Guarda el motivo del ultimo fallo de envio, para poder mostrarlo al diagnosticar
+//Guarda el motivo del último fallo de envío, para poder mostrarlo al diagnosticar
 $GLOBALS['hanaUltimoError'] = '';
 
-//Envia un correo HTML. Reusa la misma cuenta SMTP que ya usa el sistema
+//Envía un correo HTML. Reusa la misma cuenta SMTP que ya usa el sistema
 function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
 {
     $mail = new PHPMailer();
     $mail->CharSet  = "UTF-8"; //para que las tildes y la ñ no se dañen
 
-    //Modo diagnostico: guarda toda la conversacion con el servidor de correo
-    //para poder ver en que paso exacto falla el envio
+    //Modo diagnostico: guarda toda la conversación con el servidor de correo
+    //para poder ver en que paso exacto falla el envío
     if (!empty($GLOBALS['hanaDebug'])) {
         $mail->SMTPDebug   = 2;
-        $mail->Debugoutput = function ($str, $nivel) {
-            $GLOBALS['hanaDebugTexto'] .= $str . "\n";
+        $mail->Debugoutput = function ($mensajeSmtp, $nivel) {
+            $GLOBALS['hanaDebugTexto'] .= $mensajeSmtp . "\n";
         };
     }
     $mail->Mailer   = "smtp";
@@ -46,7 +46,7 @@ function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
     $mail->FromName = 'HANA - Listas de Chequeo';
 
     //Los destinatarios llegan separados por coma. Cada uno recibe su propio correo,
-    //dirigido a él y saludándolo por su nombre (si está en Colaboradores)
+    //dirigido a él y saludándolo por su nombre (si está registrado en Colaboradores)
     $validos = array();
     foreach (explode(",", $destinatarios) as $correo) {
         $correo = trim($correo);
@@ -55,7 +55,7 @@ function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
     }
     if (!count($validos)) {
         $GLOBALS['hanaUltimoError'] = "Ningun destinatario valido en: ".$destinatarios;
-        return false; //sin destinatarios validos no se envia
+        return false; //sin destinatarios válidos no se envía
     }
 
     $mail->IsHTML(true);
@@ -70,7 +70,7 @@ function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
         $saludo = '<p style="margin:0 0 14px;font-size:16px;font-weight:bold;">' . ($nombre !== '' ? 'Hola, ' . htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8') . ':' : 'Hola:') . '</p>';
         $marca = '<tr><td style="padding:24px 28px; color:#333333; font-size:14px;">';
         $mail->Body = strpos($cuerpoHtml, $marca) !== false ? preg_replace('/' . preg_quote($marca, '/') . '/', $marca . $saludo, $cuerpoHtml, 1) : $saludo . $cuerpoHtml;
-        //Si el envio falla, se guarda el motivo que reporta PHPMailer
+        //Si el envío falla, se guarda el motivo que reporta PHPMailer
         if (!hanaEnviar($mail, 'LISTAS')) { //con plan B y registro (ver CorreoConfig.php)
             $GLOBALS['hanaUltimoError'] = $mail->ErrorInfo;
             $bien = false;
@@ -124,27 +124,27 @@ function hanaFormatoRespuesta($respuesta, $tipo)
     if (trim($respuesta) === '') { return '<span style="color:#bbb;">(sin respuesta)</span>'; }
 
     //Se resaltan las respuestas Si/No para que salten a la vista
-    $r = strtolower(trim($respuesta));
-    if ($r === 'si' || $r === 'sí') { return '<span style="color:#3c8f3c; font-weight:bold;">'.htmlspecialchars($respuesta).'</span>'; }
-    if ($r === 'no')                { return '<span style="color:#d9534f; font-weight:bold;">'.htmlspecialchars($respuesta).'</span>'; }
+    $respuestaMinuscula = strtolower(trim($respuesta));
+    if ($respuestaMinuscula === 'si' || $respuestaMinuscula === 'sí') { return '<span style="color:#3c8f3c; font-weight:bold;">'.htmlspecialchars($respuesta).'</span>'; }
+    if ($respuestaMinuscula === 'no')                { return '<span style="color:#d9534f; font-weight:bold;">'.htmlspecialchars($respuesta).'</span>'; }
 
     return nl2br(htmlspecialchars($respuesta));
 }
 
 //Arma la tabla de preguntas y respuestas de UNA lista diligenciada
-function hanaBloqueRespuestas($idLista, $Notif)
+function hanaBloqueRespuestas($idLista, $modeloNotificaciones)
 {
     $filas = '';
-    $rs = $Notif->respuestasDeLista($idLista);
+    $respuestas = $modeloNotificaciones->respuestasDeLista($idLista);
     $i = 1;
-    while ($row = $rs->fetch_object()) {
-        //Se alternan los fondos de fila para que sea mas facil de leer
+    while ($fila = $respuestas->fetch_object()) {
+        //Se alternan los fondos de fila para que sea mas fácil de leer
         $fondo = ($i % 2 == 0) ? '#fafafa' : '#ffffff';
         $filas .= '
         <tr style="background:'.$fondo.';">
           <td style="padding:8px 10px; border-bottom:1px solid #eee; color:#999; width:34px;">'.$i.'</td>
-          <td style="padding:8px 10px; border-bottom:1px solid #eee;">'.htmlspecialchars($row->PREGUNTA).'</td>
-          <td style="padding:8px 10px; border-bottom:1px solid #eee;">'.hanaFormatoRespuesta($row->RESPUESTA, $row->TIPO_RESPUESTA).'</td>
+          <td style="padding:8px 10px; border-bottom:1px solid #eee;">'.htmlspecialchars($fila->PREGUNTA).'</td>
+          <td style="padding:8px 10px; border-bottom:1px solid #eee;">'.hanaFormatoRespuesta($fila->RESPUESTA, $fila->TIPO_RESPUESTA).'</td>
         </tr>';
         $i++;
     }
@@ -160,7 +160,7 @@ function hanaBloqueRespuestas($idLista, $Notif)
     </table>';
 }
 
-//Recuadro con los datos de quien diligencio la lista
+//Recuadro con los datos de quien diligenció la lista
 function hanaFichaCabecera($nombre, $centro, $fecha)
 {
     return '
@@ -182,40 +182,40 @@ function hanaNotificarInmediato($idLista)
 {
     //Se envuelve todo en try/catch: si el correo falla, el guardado NO debe romperse
     try {
-        $Notif = new Notificaciones();
+        $modeloNotificaciones = new Notificaciones();
 
-        $cab = $Notif->cabeceraLista($idLista);
-        if (!$cab) { return false; } //la lista no existe
-        //La consulta devuelve un arreglo; se pasa a objeto para leer $cab->CAMPO.
-        $cab = (object)$cab;
+        $cabecera = $modeloNotificaciones->cabeceraLista($idLista);
+        if (!$cabecera) { return false; } //la lista no existe
+        //La consulta devuelve un arreglo; se pasa a objeto para leer $cabecera->CAMPO.
+        $cabecera = (object)$cabecera;
 
         //Se buscan las configuraciones inmediatas de esa lista de chequeo
-        $configs = $Notif->activasPorGrupo($cab->ID_GRUPO_LISTA_CHEQUEO, 'inmediato');
-        if (!$configs || $configs->num_rows == 0) { return false; } //nadie quiere ser notificado
+        $avisos = $modeloNotificaciones->activasPorGrupo($cabecera->ID_GRUPO_LISTA_CHEQUEO, 'inmediato');
+        if (!$avisos || $avisos->num_rows == 0) { return false; } //nadie quiere ser notificado
 
         //El cuerpo se arma una sola vez y se reusa para cada destinatario
         $contenido = '<p>Se registró un nuevo diligenciamiento de la lista
-                      <strong>'.htmlspecialchars($cab->NOM_GRUPO_LISTA_CHEQUEO).'</strong>.</p>'
-                   . hanaFichaCabecera($cab->NOM_COLABORADOR, $cab->NOM_CENTRO_OP, $cab->FEC_REGISTRO_LISTA_CHEQUEO)
-                   . hanaBloqueRespuestas($idLista, $Notif);
+                      <strong>'.htmlspecialchars($cabecera->NOM_GRUPO_LISTA_CHEQUEO).'</strong>.</p>'
+                   . hanaFichaCabecera($cabecera->NOM_COLABORADOR, $cabecera->NOM_CENTRO_OP, $cabecera->FEC_REGISTRO)
+                   . hanaBloqueRespuestas($idLista, $modeloNotificaciones);
 
         $html = hanaPlantillaCorreo(
             'Lista de chequeo diligenciada',
-            $cab->NOM_GRUPO_LISTA_CHEQUEO,
+            $cabecera->NOM_GRUPO_LISTA_CHEQUEO,
             $contenido
         );
 
-        while ($cfg = $configs->fetch_object()) {
-            $asunto = ($cfg->ASUNTO != '')
-                    ? $cfg->ASUNTO
-                    : 'HANA - '.$cab->NOM_GRUPO_LISTA_CHEQUEO.' diligenciada por '.$cab->NOM_COLABORADOR;
-            Bitacora::contexto($cfg->ID_NOTIFICACION, $idLista); //en la bitácora: qué aviso y qué lista
-            hanaEnviarCorreo($cfg->DESTINATARIOS, $asunto, $html);
+        while ($aviso = $avisos->fetch_object()) {
+            $asunto = ($aviso->ASUNTO != '')
+                    ? $aviso->ASUNTO
+                    : 'HANA - '.$cabecera->NOM_GRUPO_LISTA_CHEQUEO.' diligenciada por '.$cabecera->NOM_COLABORADOR;
+            Bitacora::contexto($aviso->ID_NOTIFICACION, $idLista); //en la bitácora: qué aviso y qué lista
+            hanaEnviarCorreo($aviso->DESTINATARIOS, $asunto, $html);
             Bitacora::contexto();
         }
         return true;
 
-    } catch (\Throwable $th) {
+    } catch (\Throwable $error) {
         Bitacora::contexto();
         return false; //nunca se propaga el error hacia el guardado de la lista
     }
@@ -226,9 +226,9 @@ function hanaNotificarInmediato($idLista)
 // ---------------------------------------------------------------------------
 function hanaEnviarResumen($frecuencia)
 {
-    $Notif = new Notificaciones();
+    $modeloNotificaciones = new Notificaciones();
 
-    //Rango de fechas segun la frecuencia pedida
+    //Rango de fechas según la frecuencia pedida
     if ($frecuencia === 'diario') {
         $desde = date('Y-m-d 00:00:00', strtotime('-1 day'));
         $hasta = date('Y-m-d 23:59:59', strtotime('-1 day'));
@@ -239,29 +239,29 @@ function hanaEnviarResumen($frecuencia)
         $etiqueta = 'Resumen semanal - '.date('d/m/Y', strtotime('-7 day')).' al '.date('d/m/Y');
     }
 
-    $configs = $Notif->activasPorFrecuencia($frecuencia);
-    if (!$configs) { return 0; }
+    $avisos = $modeloNotificaciones->activasPorFrecuencia($frecuencia);
+    if (!$avisos) { return 0; }
 
     $enviados = 0;
-    while ($cfg = $configs->fetch_object()) {
+    while ($aviso = $avisos->fetch_object()) {
 
-        $listas = $Notif->listasEnRango($cfg->ID_GRUPO_LISTA_CHEQUEO, $desde, $hasta);
+        $listas = $modeloNotificaciones->listasEnRango($aviso->ID_GRUPO_LISTA_CHEQUEO, $desde, $hasta);
 
-        //Si en el periodo nadie diligencio nada, no se manda correo vacio
+        //Si en el periodo nadie diligenció nada, no se manda correo vacío
         if (!$listas || $listas->num_rows == 0) { continue; }
 
         $total = $listas->num_rows;
         $personas = array(); //para contar cuantas personas distintas participaron
         $bloques = '';
 
-        while ($l = $listas->fetch_object()) {
-            $personas[$l->NOM_COLABORADOR] = true;
+        while ($lista = $listas->fetch_object()) {
+            $personas[$lista->NOM_COLABORADOR] = true;
 
             //Un bloque por cada diligenciamiento: quien lo hizo y sus respuestas
             $bloques .= '
             <div style="margin-bottom:26px; padding-bottom:6px; border-bottom:2px solid #eef1f3;">'
-                . hanaFichaCabecera($l->NOM_COLABORADOR, $l->NOM_CENTRO_OP, $l->FEC_REGISTRO_LISTA_CHEQUEO)
-                . hanaBloqueRespuestas($l->ID_LISTA_CHEQUEO, $Notif)
+                . hanaFichaCabecera($lista->NOM_COLABORADOR, $lista->NOM_CENTRO_OP, $lista->FEC_REGISTRO)
+                . hanaBloqueRespuestas($lista->ID_LISTA_CHEQUEO, $modeloNotificaciones)
                 . '</div>';
         }
 
@@ -280,20 +280,20 @@ function hanaEnviarResumen($frecuencia)
         </table>';
 
         $html = hanaPlantillaCorreo(
-            $cfg->NOM_GRUPO_LISTA_CHEQUEO,
+            $aviso->NOM_GRUPO_LISTA_CHEQUEO,
             $etiqueta,
             $resumen.$bloques
         );
 
-        $asunto = ($cfg->ASUNTO != '')
-                ? $cfg->ASUNTO
-                : 'HANA - '.$etiqueta.' - '.$cfg->NOM_GRUPO_LISTA_CHEQUEO;
+        $asunto = ($aviso->ASUNTO != '')
+                ? $aviso->ASUNTO
+                : 'HANA - '.$etiqueta.' - '.$aviso->NOM_GRUPO_LISTA_CHEQUEO;
 
-        Bitacora::contexto($cfg->ID_NOTIFICACION); //en la bitácora: qué aviso mandó el resumen
-        $salio = hanaEnviarCorreo($cfg->DESTINATARIOS, $asunto, $html);
+        Bitacora::contexto($aviso->ID_NOTIFICACION); //en la bitácora: qué aviso mandó el resumen
+        $salio = hanaEnviarCorreo($aviso->DESTINATARIOS, $asunto, $html);
         Bitacora::contexto();
         if ($salio) {
-            $Notif->marcarEnvio($cfg->ID_NOTIFICACION); //queda la constancia
+            $modeloNotificaciones->marcarEnvio($aviso->ID_NOTIFICACION); //queda la constancia
             $enviados++;
         }
     }

@@ -1,9 +1,11 @@
+//Archivo sin uso: lo cargaba la pantalla anterior de listas (Vista/ListasVista2.php).
+//La pantalla vigente usa Ajax/ListasAjax.js. Se conserva solo como referencia.
 var tabla;//variable global
 var scriptActivo = true; //script para fecha y hora
 
 //Función para guardar o editar la lista de respuestas
-function guardar(e) {
-    e.preventDefault(); //No se activará la acción predeterminada del evento
+function guardar(evento) {
+    evento.preventDefault(); //No se activará la acción predeterminada del evento
     $("#btnGuardar").prop("disabled", true);
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -26,7 +28,7 @@ function guardar(e) {
     limpiar();
 }
 //Función para editar respuestas
-function guardarEditarRespuesta(e) {
+function guardarEditarRespuesta(evento) {
     idLista = $("#idLista").val();
     var formData = new FormData($("#modal-form2")[0]);
     $.ajax({
@@ -126,7 +128,7 @@ questionHtml += '</script>';
 
     });
 }
-function selectCentroId(sel) {
+function selectCentroId(seleccion) {
     //console.log("sel: ",sel)
     /**
     permite preseleccionar un select2
@@ -141,7 +143,7 @@ function selectCentroId(sel) {
     var studentSelect = $('#selectCentro');
     $.ajax({
         type: 'GET',
-        url: '../Control/ListasControl.php?op=selectCentro&search=' + sel
+        url: '../Control/ListasControl.php?op=selectCentro&search=' + seleccion
     }).then(function (data) {
         data = JSON.parse(data);
         //console.log(data[0].id)
@@ -357,7 +359,7 @@ function limpiar() {
     $("#nombre").val("");    
     $('#selectCentro').val('').trigger('change');
 }
-//funcion ok
+//función ok
 function selectColaborador() {
     $("#nombreColaborador").select2({
         ajax: {
@@ -372,10 +374,10 @@ function selectColaborador() {
             },
             processResults: function (data) {
                 return {
-                    results: $.map(data, function (obj) {
+                    results: $.map(data, function (opcion) {
                         return {
-                            id: obj.id,
-                            text: obj.text
+                            id: opcion.id,
+                            text: opcion.text
                         };
                     })
                 };
@@ -387,7 +389,7 @@ function selectColaborador() {
         allowClear: true
     });
 }
-//funcion ok
+//función ok
 function selectCentro() {
     $("#selectCentro").select2({
         ajax: {
@@ -402,10 +404,10 @@ function selectCentro() {
             },
             processResults: function (data) {
                 return {
-                    results: $.map(data, function (obj) {
+                    results: $.map(data, function (opcion) {
                         return {
-                            id: obj.id,
-                            text: obj.text
+                            id: opcion.id,
+                            text: opcion.text
                         };
                     })
                 };
@@ -417,7 +419,7 @@ function selectCentro() {
         allowClear: true
     });
 }
-//funcion ok
+//función ok
 function mostrarform(flag) {
     //limpia el formulario
     if (flag) {
@@ -451,13 +453,13 @@ function listar() {
             buttons: [
 
             ],
-            "ajax"://metodo ajax
+            "ajax"://método ajax
             {
-                url: '../Control/ListasControl.php?op=listar',//pagina que realiza la operación
-                type: "get",//tipo de envio de datos
+                url: '../Control/ListasControl.php?op=listar',//página que realiza la operación
+                type: "get",//tipo de envío de datos
                 dataType: "json",//tipo de datos
-                error: function (e) {//si error muestra mensaje
-                    console.log(e.responseText);
+                error: function (xhr) { //si falla, se muestra el motivo
+                    console.log(xhr.responseText);
                 }/*,
                 complete: function(data){
                   console.log(data)
@@ -481,14 +483,14 @@ function listarPreguntas(idGrupoPreguntas) {
             buttons: [
 
             ],
-            "ajax"://metodo ajax
+            "ajax"://método ajax
             {
-                url: '../Control/PreguntasListasControl.php?op=listar',//pagina que realiza la operación
-                type: "post",//tipo de envio de datos
+                url: '../Control/PreguntasListasControl.php?op=listar',//página que realiza la operación
+                type: "post",//tipo de envío de datos
                 data: idGrupoPreguntas,
                 dataType: "json",//tipo de datos
-                error: function (e) {//si error muestra mensaje
-                    console.log(e.responseText);
+                error: function (xhr) { //si falla, se muestra el motivo
+                    console.log(xhr.responseText);
                 }
             },
             "bDestroy": true,
@@ -509,14 +511,14 @@ function listarRespuestas(idGrupo) {
             "aServerSide": true,//Paginación y filtrado realizados por el servidor
             dom: 'Bfrtip',//Definimos los elementos del control de tabla Bfrtip
             buttons: [],
-            "ajax"://metodo ajax
+            "ajax"://método ajax
             {
-                url: '../Control/ListasControl.php?op=listarPorCentro',//listarRespuestas',//pagina que realiza la operación
-                type: "post",//tipo de envio de datos
+                url: '../Control/ListasControl.php?op=listarPorCentro',//listarRespuestas',//página que realiza la operación
+                type: "post",//tipo de envío de datos
                 data: idGrupo,
                 dataType: "json",//tipo de datos
-                error: function (e) {//si error muestra mensaje
-                    console.log(e.responseText);
+                error: function (xhr) { //si falla, se muestra el motivo
+                    console.log(xhr.responseText);
                 }
             },
             "bDestroy": true,
@@ -525,8 +527,8 @@ function listarRespuestas(idGrupo) {
         }).DataTable();
 
 }
-function agregarPregunta(e) {
-    e.preventDefault();
+function agregarPregunta(evento) {
+    evento.preventDefault();
     var formData1 = new FormData();
     formData1.append('idGrupo', $("#idGrupo").val());
     formData1.append('idPregunta', $("#idPregunta").val());
@@ -573,22 +575,22 @@ function agregarPregunta(e) {
 function init() {
     mostrarform(false)
     listar();//lista OK
-    //al oprimir el boton del formulario
-    $("#demo-form2").on("submit", function (e)//e = variable que contiene el objeto
+    //al oprimir el botón del formulario
+    $("#demo-form2").on("submit", function (evento) //evento: el envío del formulario
     {
-        guardar(e);//guarda o edita el articulo
+        guardar(evento); //guarda (nuevo o editado)
     });
-    //al oprimir el boton del formulario
-    $("#btnModalGuardar").on("click", function (e)//e = variable que contiene el objeto
+    //al oprimir el botón del formulario
+    $("#btnModalGuardar").on("click", function (evento) //evento: el clic en el botón
     {
-        guardarEditarRespuesta(e);//guarda o edita el articulo
+        guardarEditarRespuesta(evento); //guarda la respuesta corregida
     });
     // Agrega un evento al botón "Agregar pregunta".
-    $("#btn-agregar-pregunta").on("click", function (e) {
-        agregarPregunta(e);
+    $("#btn-agregar-pregunta").on("click", function (evento) {
+        agregarPregunta(evento);
     });
     // Agrega un evento al botón "Agregar pregunta".
-    $("#btnAtras").on("click", function (e) {
+    $("#btnAtras").on("click", function (evento) {
         $(location).attr('href', '../Vista/ListasVista.php');
     });
     // Agrega un evento al botón "Agregar pregunta" NO SE USA.
