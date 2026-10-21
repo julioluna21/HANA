@@ -175,7 +175,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
         <!-- Lógica de esta pantalla. El ?v= obliga al navegador a bajar la versión
              nueva y no una vieja guardada en cache -->
-        <script type="text/javascript" src="../Ajax/Editarpreguntasajax.js?v=8"></script>
+        <script type="text/javascript" src="../Ajax/Editarpreguntasajax.js?v=9"></script>
 <?php
     } else {
         //Hay sesión pero el usuario no tiene el modulo: va al inicio (volver atrás dejaba la página en blanco si se abrió desde un enlace)

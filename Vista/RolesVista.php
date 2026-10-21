@@ -104,16 +104,9 @@ include('head.php');
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r22" value="22M"> <span>Consultar todos los proyectos (cronograma, ausentismo, seguimientos)</span> <small>22M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r37" value="37M"> <span>Informe mensual de gestión (PDF; con 20M, de todos los proyectos)</span> <small>37M</small></label>
                                </fieldset>
-                               <fieldset class="roles-grupo"><legend>Ausentismo y promesa de valor</legend>
+                               <fieldset class="roles-grupo"><legend>Ausentismo</legend>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r25" value="25M"> <span>Registrar y corregir el ausentismo de todos los proyectos (aunque el mes esté cerrado)</span> <small>25M</small></label>
                                  <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r23" value="23M"> <span>Reabrir meses cerrados</span> <small>23M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r38" value="38M"> <span>Promesa de valor: registrar el ejecutado en todos los proyectos (el coordinador ya lo hace en el suyo)</span> <small>38M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r39" value="39M"> <span>Promesa de valor: definir la promesa en todos los proyectos</span> <small>39M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r40" value="40M"> <span>Consolidado de promesa de valor y ausentismo (con 20M, de todos los proyectos)</span> <small>40M</small></label>
-                               </fieldset>
-                               <fieldset class="roles-grupo"><legend>Dashboard y Power BI</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r13" value="13M"> <span>Dashboard (Power BI dentro de HANA)</span> <small>13M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r27" value="27M"> <span>Leer datos desde Power BI (usuario de conexión)</span> <small>27M</small></label>
                                </fieldset>
                              </div>
                            </div>

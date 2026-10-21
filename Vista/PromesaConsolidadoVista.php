@@ -1,4 +1,12 @@
 <?php
+/*
+  Pantalla sin uso: el consolidado de promesa de valor se quitó del sistema. Si alguien entra por la
+  dirección, va al inicio. El código de abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
 //Ausentismo - Consolidado de promesa de valor, ejecutado y ausentismo
 //Lo que ve el gerente de operaciones: el mes de todos los proyectos (como la hoja MAIN del
 //Excel consolidado), un proyecto con sus peajes y cargos, o un solo peaje con sus cargos.

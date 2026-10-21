@@ -132,9 +132,6 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
       $menuModuloActivo = function ($modulo) { return pagModuloActivo($modulo); };
       //Listas de chequeo: las llena quien tenga 11M; las ven también 12M (las edita) y 21M (administración)
       $menuListas = in_array("11M",$modulosAcceso) || in_array("12M",$modulosAcceso) || in_array("21M",$modulosAcceso);
-      //Promesa de valor: la regla de quién entra está en el controlador, para no repetirla aquí
-      $menuPromesa = pagPromesaEntrar();
-      $menuPromesaCons = pagPromesaConsolidado();
     ?>
     <?php if(in_array("11M",$modulosAcceso) or in_array("12M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("19M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("37M",$modulosAcceso) or $menuCoord or $menuAlgunModulo){ ?>  
     <!-- Reporte diario: las listas de chequeo y las demás secciones del día -->
@@ -166,17 +163,11 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
     <?php //Ausentismo. Lo registran el coordinador, el jefe de su peaje y quien tenga 25M;
       //lo consultan 20M, 21M y 22M
       $menuJefe = pagParametroSi('AUS_JEFES_EDITAN') && pagEsJefePeaje();
-      //Ausentismo y Dashboard van juntos: en uno se llena la data y el otro la muestra
       $menuAusReg = $menuModuloActivo('AUSENTISMO') && ($menuCoord or $menuJefe or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso) or in_array("25M",$modulosAcceso));
-      $menuDash = in_array("13M",$modulosAcceso);
-      //La promesa de valor (personal prometido y ejecutado) vive con el ausentismo, no en el reporte diario
-      if($menuAusReg or $menuDash or $menuPromesa or $menuPromesaCons){ ?>
+      if($menuAusReg){ ?>
     <li><a><i class="fa fa-user-times"></i> Ausentismo <span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
         <?php if($menuAusReg){ ?><li><a href="AusentismoVista.php">Registrar ausentismo</a></li><?php } ?>
-        <?php if($menuPromesa){ ?><li><a href="PromesaValorVista.php">Promesa de valor</a></li><?php } ?>
-        <?php if($menuPromesaCons){ ?><li><a href="PromesaConsolidadoVista.php">Consolidado promesa de valor</a></li><?php } ?>
-        <?php if($menuDash){ ?><li><a href="reporteVista.php">Dashboard</a></li><?php } ?>
       </ul>
     </li>
     <?php } ?>

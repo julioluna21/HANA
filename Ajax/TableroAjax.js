@@ -77,29 +77,8 @@ function chip(icono, cantidad, texto, clase, href) {
 //así no hay que repetir aquí las reglas de permisos
 var MODULOS_IR = [['RQVista.php', 'fa-wrench', 'Requisiciones'], ['VacantesVista.php', 'fa-user-plus', 'Vacantes'], ['ComunicacionesVista.php', 'fa-inbox', 'Comunicaciones'],
                   ['ArqueosVista.php', 'fa-money', 'Arqueos'], ['ListasVista.php', 'fa-check-square-o', 'Listas de chequeo'], ['CronogramaVista.php', 'fa-calendar', 'Cronograma y vehículo'],
-                  ['AusentismoVista.php', 'fa-user-times', 'Ausentismo'], ['novedadesVista.php', 'fa-comment', 'Novedades'], ['InformeMensualVista.php', 'fa-file-pdf-o', 'Informe de gestión'],
-                  ['PromesaValorVista.php', 'fa-users', 'Promesa de valor'], ['PromesaConsolidadoVista.php', 'fa-bar-chart', 'Consolidado promesa de valor']];
+                  ['AusentismoVista.php', 'fa-user-times', 'Ausentismo'], ['novedadesVista.php', 'fa-comment', 'Novedades'], ['InformeMensualVista.php', 'fa-file-pdf-o', 'Informe de gestión']];
 
-//La promesa de valor del día, como una cifra más del tablero. Lleva a "Promesa de valor" si la persona la tiene en el menú.
-//  de un proyecto: "Promesa de valor: 3 de 5 peajes" (y cuánto faltó o sobró entre los ya registrados)
-function chipPromesaProyecto(resumen, idProyecto) {
-    if (!resumen.pvCon) { return ''; }                                              //el proyecto no tiene promesa definida
-    var completo = resumen.pvListos === resumen.pvCon;
-    var texto = '<i class="fa fa-users"></i> Promesa de valor: ' + resumen.pvListos + ' de ' + resumen.pvCon + ' peajes' + (resumen.pvListos && resumen.pvDif ? ' (' + (resumen.pvDif > 0 ? '+' : '−') + Math.abs(resumen.pvDif) + ')' : '');
-    return enlacePromesa(texto, completo ? (resumen.pvDif < 0 ? 'tb-chip-mal' : 'tb-chip-ok') : 'tb-chip-pend', 'proyecto=' + idProyecto);
-}
-//  de un peaje: "Promesa 14 de 15" o "Promesa sin registrar"
-function chipPromesaCentro(centro) {
-    if (centro.PV_PROMESA === null || centro.PV_PROMESA === undefined) { return ''; }   //ese peaje no tiene promesa definida
-    if (centro.PV_EJECUTADO === null) { return enlacePromesa('<i class="fa fa-users"></i> Promesa sin registrar', 'tb-chip-pend', 'centro=' + parseInt(centro.ID_CENTRO_OP, 10)); }
-    return enlacePromesa('<i class="fa fa-users"></i> Ejecutado ' + (+centro.PV_EJECUTADO) + ' de ' + (+centro.PV_PROMESA), +centro.PV_EJECUTADO < +centro.PV_PROMESA ? 'tb-chip-mal' : 'tb-chip-ok', 'centro=' + parseInt(centro.ID_CENTRO_OP, 10));
-}
-//Etiqueta que lleva a Promesa de valor (solo si la persona tiene esa pantalla en el menú)
-function enlacePromesa(dentro, clase, donde) {
-    if (!$('.side-menu a[href="PromesaValorVista.php"]').length) { return '<span class="tb-chip ' + clase + '">' + dentro + '</span>'; }
-    return '<a class="tb-chip ' + clase + ' tb-enlace" href="PromesaValorVista.php?' + donde + '&fecha=' + encodeURIComponent(datosTab.fecha) + '" title="Ver la promesa de valor de ese día">' +
-           dentro + ' <i class="fa fa-angle-right"></i></a>';
-}
 //Botones para ir a los reportes y módulos de un proyecto
 function franjaIrA(idProyecto) {
     var html = '<a class="btn btn-default btn-sm" href="' + irReporte('hoy', idProyecto) + '"><i class="fa fa-list-alt"></i> Reporte general de este proyecto</a>';
@@ -137,8 +116,7 @@ function pintarProyectos() {
              '<div class="tb-chips">' + chip('fa-user-plus', resumen.vacantes, 'vacante abierta|vacantes abiertas', 'tb-chip-pend', irReporte('vacantes', idProyecto)) +
              chip('fa-inbox', +proyecto.COMUNICACIONES, 'comunicación abierta|comunicaciones abiertas', 'tb-chip-pend', irReporte('comunicaciones', idProyecto)) +
              chip('fa-wrench', resumen.rq, 'RQ por aprobar', 'tb-chip-pend', irReporte('rq', idProyecto)) +
-             chip('fa-money', resumen.arqueos, 'arqueo|arqueos', resumen.arqueosDif ? 'tb-chip-mal' : 'tb-chip-ok', irReporte('arqueos', idProyecto)) +
-             chipPromesaProyecto(resumen, idProyecto) + '</div></div>';
+             chip('fa-money', resumen.arqueos, 'arqueo|arqueos', resumen.arqueosDif ? 'tb-chip-mal' : 'tb-chip-ok', irReporte('arqueos', idProyecto)) + '</div></div>';
     }
     $('#nivelProyectos').html(html || '<p class="rd-vacio">No tienes proyectos a tu cargo. En Proyectos y en Centros de operación se asigna quién coordina y quién es jefe.</p>').show();
 }
@@ -177,7 +155,7 @@ function pintarProyecto(proyecto) {
              '<div class="tb-chips">' + chip('fa-check-square-o', +centro.LISTAS, 'lista|listas', 'tb-chip-ok', irReporte('listas', idProyecto)) +
              chip('fa-money', +centro.ARQUEOS, 'arqueo|arqueos', +centro.ARQUEOS_DIF ? 'tb-chip-mal' : 'tb-chip-ok', irReporte('arqueos', idProyecto)) +
              chip('fa-user-plus', +centro.VACANTES, 'vacante|vacantes', 'tb-chip-pend', irReporte('vacantes', idProyecto)) +
-             chip('fa-wrench', +centro.RQ_PENDIENTES, 'RQ por aprobar', 'tb-chip-pend', irReporte('rq', idProyecto)) + chipPromesaCentro(centro) + '</div></div>';
+             chip('fa-wrench', +centro.RQ_PENDIENTES, 'RQ por aprobar', 'tb-chip-pend', irReporte('rq', idProyecto)) + '</div></div>';
     }
     $('#tbCentros').html(html || '<p class="rd-vacio">Este proyecto no tiene centros activos que puedas ver.</p>');
     $('#nivelCentros').show();

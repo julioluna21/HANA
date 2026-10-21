@@ -28,7 +28,6 @@ class HanaConfig
         'MODULO_VACANTES'       => array('Módulos del reporte diario', 'Vacantes', null, 'SI_NO', null, null, '1'),
         'MODULO_COMUNICACIONES' => array('Módulos del reporte diario', 'Comunicaciones y oficios', null, 'SI_NO', null, null, '1'),
         'MODULO_AUSENTISMO'     => array('Módulos del reporte diario', 'Ausentismo', null, 'SI_NO', null, null, '1'),
-        'MODULO_PROMESA'        => array('Módulos del reporte diario', 'Promesa de valor', null, 'SI_NO', null, null, '1'),
 
         'RQ_MAX_REINTENTOS'     => array('Reglas del reporte diario', 'Veces que una RQ rechazada se puede corregir y enviar de nuevo',
                                      'Cuando se llega a ese número, si la vuelven a rechazar queda rechazada para siempre y hay que pedir una RQ nueva. Con 0 no se reenvía nunca.', 'NUMERO', 0, 20, '3'),
@@ -54,32 +53,10 @@ class HanaConfig
         'AUS_JEFES_EDITAN'      => array('Ausentismo', 'Los jefes de peaje registran el ausentismo de su peaje',
                                      'Cada jefe edita solo el peaje que tiene asignado en Centros de operación. El coordinador y quien tenga 25M editan todo el proyecto.', 'SI_NO', null, null, '1'),
 
-        'PV_DIAS_ATRAS'         => array('Promesa de valor', 'Días anteriores en que todavía se registra el ejecutado',
-                                     'Con 0 solo se registra hoy. Con 1 también se puede llenar el de ayer (sirve si el turno de la noche cierra al otro día).', 'NUMERO', 0, 7, '0'),
-        'PV_JEFES_REGISTRAN'    => array('Promesa de valor', 'Los jefes de peaje registran el ejecutado de su peaje',
-                                     'Apagado, lo registra solo el coordinador del proyecto.', 'SI_NO', null, null, '0'),
-        'PV_COORDINADOR_DEFINE' => array('Promesa de valor', 'El coordinador define la promesa de valor de sus peajes',
-                                     'Si se apaga, la define solo quien tenga la casilla 39M en su rol.', 'SI_NO', null, null, '1'),
-
-        'CORREO_PLAN_B'         => array('Correo', 'Si el envío falla, probar otras formas automáticamente',
-                                     'Prueba el otro puerto (465 con SSL o 587 con TLS) antes de rendirse.', 'SI_NO', null, null, '1'),
-        'CORREO_SIN_CERTIFICADO' => array('Correo', 'Aceptar el servidor de correo aunque su certificado no coincida',
-                                     'Actívalo solo si la prueba de correo dice que falla el certificado (pasa cuando el certificado es de mail.dominio y no de dominio).', 'SI_NO', null, null, '0'),
-        'CORREO_SERVIDOR_LOCAL' => array('Correo', 'Como último recurso, enviar con el correo del propio servidor',
-                                     'Si la cuenta SMTP no responde, se envía con el correo del hosting (mail de PHP). Puede caer en spam si el dominio no lo autoriza (SPF).', 'SI_NO', null, null, '1'),
-        'RECORDATORIOS_CORREO'  => array('Correo', 'Recordar por correo a cada coordinador lo que le falta del día',
-                                     'Lo envía la tarea programada de cPanel (ver la pestaña Correo). Si se apaga, la tarea no envía nada.', 'SI_NO', null, null, '0'),
-
         'ADJUNTOS_COMUNICACIONES' => array('Archivos adjuntos', 'Permitir archivos en comunicaciones y oficios', null, 'SI_NO', null, null, '1'),
         'ADJUNTOS_LISTAS'       => array('Archivos adjuntos', 'Permitir archivos en listas de chequeo', 'Por ejemplo, fotos de evidencia de una falla.', 'SI_NO', null, null, '1'),
         'ADJUNTOS_MAX_MB'       => array('Archivos adjuntos', 'Tamaño máximo de cada archivo (MB)',
-                                     'Ojo: el servidor también tiene su propio límite (upload_max_filesize en PHP).', 'NUMERO', 1, 50, '10'),
-
-        'POWERBI_ACTIVO'        => array('Power BI', 'Power BI puede leer los datos del ausentismo',
-                                     'Con un usuario de HANA que tenga el permiso 27M (por ejemplo, uno con el rol LECTOR POWER BI). Si se apaga, Power BI no recibe datos.', 'SI_NO', null, null, '1'),
-
-        'USUARIO_AUTOMATICO'    => array('Usuarios', 'Poner el usuario automáticamente al registrar a una persona',
-                                     'Al registrarla en Colaboradores queda con su número de documento como usuario y una contraseña temporal al azar, que le llega por correo (si el correo no sale, se muestra en pantalla). Apagado, queda sin usuario y se le pone en Usuarios.', 'SI_NO', null, null, '1'),
+                                     null, 'NUMERO', 1, 50, '10'),
     );
 
     private static $valores = null;

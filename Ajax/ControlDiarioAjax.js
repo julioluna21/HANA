@@ -69,7 +69,7 @@ function vacio(columnas, texto) { return '<tr><td colspan="' + columnas + '" cla
 
 //Qué pestaña abre cada valor de ?ver=
 var VER_TAB = { hoy: 'tabHoy', listas: 'tabListas', arqueos: 'tabArqueos', cronograma: 'tabCrono', vehiculos: 'tabVh', vacantes: 'tabVac', comunicaciones: 'tabCom', rq: 'tabRq',
-                ausentismo: 'tabAus', promesa: 'tabAus' };
+                ausentismo: 'tabAus' };
 
 $(function () {
     //Se puede llegar con ?fecha=AAAA-MM-DD&proyecto=ID&ver=rq (desde el tablero): abre ese día, ese proyecto y esa pestaña
@@ -161,12 +161,10 @@ function pintarResumen() {
         ['tabCom', 'fa-inbox', 'Comunicaciones', datos.comunicaciones.length, 'abiertas', comFuera ? 'mal' : (datos.comunicaciones.length ? 'pend' : 'ok'), comFuera ? cantidadTexto(comFuera, 'fuera de tiempo', 'fuera de tiempo') : ''],
         ['tabRq', 'fa-wrench', 'RQ por aprobar', datos.rq.length, 'esperando', rqUrgentes ? 'mal' : (datos.rq.length ? 'pend' : 'ok'), rqUrgentes ? cantidadTexto(rqUrgentes, 'urgente', 'urgentes') : '']
     ];
-    //Ausentismo (con la promesa de valor adentro), si el módulo está encendido
-    if (datos.modAusentismo || datos.modPromesa) {
+    //Ausentismo, si el módulo está encendido
+    if (datos.modAusentismo) {
         var resumenAusencias = resumenAus();
-        tarjetas.push(['tabAus', 'fa-user-times', 'Ausentismo', resumenAusencias.aus, resumenAusencias.aus === 1 ? 'ausencia en el día' : 'ausencias en el día',
-                resumenAusencias.prom ? (resumenAusencias.sinExplicar > 0 ? 'mal' : (resumenAusencias.faltan ? 'pend' : 'ok')) : '',
-                resumenAusencias.prom ? (resumenAusencias.faltan ? cantidadTexto(resumenAusencias.faltan, 'peaje sin ejecutado', 'peajes sin ejecutado') : 'Promesa ' + resumenAusencias.prom + ' · ejecutado ' + resumenAusencias.eje) : '']);
+        tarjetas.push(['tabAus', 'fa-user-times', 'Ausentismo', resumenAusencias.aus, resumenAusencias.aus === 1 ? 'ausencia en el día' : 'ausencias en el día', '', '']);
     }
     var html = '';
     for (var i = 0; i < tarjetas.length; i++) {
@@ -322,39 +320,24 @@ function pintarCom() {
 }
 
 //---------------------------------------------------------------------------
-// Ausentismo del día, con la promesa de valor adentro
+// Ausentismo del día
 //---------------------------------------------------------------------------
-//Las cuentas por peaje: ausencias (las que cuentan), promesa y ejecutado.
-//Devuelve los totales y [idCentro] = {aus, prom, eje, conEje}
+//Las cuentas por peaje: las ausencias que cuentan.
+//Devuelve el total y [idCentro] = cuántas ausencias tiene
 function resumenAus() {
-    var datos = datosCD, porCentro = {}, total = { aus: 0, prom: 0, eje: 0, faltan: 0, sinExplicar: 0, centros: porCentro };
-    (datos.ausentismo || []).forEach(function (ausencia) {
-        var idCentro = +ausencia.ID_CENTRO_OP; porCentro[idCentro] = porCentro[idCentro] || { aus: 0, prom: 0, eje: 0, conEje: false, porCargo: {} };
-        if (+ausencia.CUENTA) { porCentro[idCentro].aus += +ausencia.CANTIDAD; total.aus += +ausencia.CANTIDAD; porCentro[idCentro].porCargo[+ausencia.ID_CARGO_AUS] = (porCentro[idCentro].porCargo[+ausencia.ID_CARGO_AUS] || 0) + +ausencia.CANTIDAD; }
-    });
-    $.each(datos.promesa || {}, function (idCentroTexto, cargos) {
-        var idCentro = +idCentroTexto; porCentro[idCentro] = porCentro[idCentro] || { aus: 0, prom: 0, eje: 0, conEje: false, porCargo: {} };
-        $.each(cargos, function (idCa, cifras) {
-            porCentro[idCentro].prom += +cifras.promesa;
-            if (cifras.ejecutado !== null) { porCentro[idCentro].eje += +cifras.ejecutado; porCentro[idCentro].conEje = true; }
-        });
-    });
-    $.each(porCentro, function (idCentro, centro) {
-        if (!centro.prom) { return; }
-        total.prom += centro.prom;
-        if (!centro.conEje) { total.faltan++; return; }
-        total.eje += centro.eje;
-        if (centro.prom - centro.eje > centro.aus) { total.sinExplicar++; }                    //faltó gente que no está en el ausentismo
+    var total = { aus: 0, centros: {} };
+    (datosCD.ausentismo || []).forEach(function (ausencia) {
+        if (!+ausencia.CUENTA) { return; } //los motivos que "no son ausencia" se ven, pero no suman
+        var idCentro = +ausencia.ID_CENTRO_OP;
+        total.centros[idCentro] = (total.centros[idCentro] || 0) + +ausencia.CANTIDAD;
+        total.aus += +ausencia.CANTIDAD;
     });
     return total;
 }
 
-//Muestra una diferencia con su signo (+ o −) y en rojo si es negativa
-function difCD(diferencia) { return '<span class="' + (diferencia < 0 ? 'cd-mal' : '') + '">' + (diferencia > 0 ? '+' : (diferencia < 0 ? '−' : '')) + Math.abs(diferencia) + '</span>'; }
-
-//Pestaña de ausentismo: el resumen del día por peaje (solo si el módulo está activo)
+//Pestaña de ausentismo: el resumen del día por proyecto y cada ausencia (solo si el módulo está activo)
 function pintarAus() {
-    var datos = datosCD, conAus = !!(datos.modAusentismo || datos.modPromesa);
+    var datos = datosCD, conAus = !!datos.modAusentismo;
     //Se muestra u oculta solo la pestaña: el contenido lo muestra Bootstrap cuando la pestaña está elegida
     $('#cdPestanaAus').toggle(conAus);
     if (!conAus) {
@@ -364,65 +347,29 @@ function pintarAus() {
     var resumen = resumenAus(), centros = {}, html = '';
     (datos.centros || []).forEach(function (centro) { centros[centro.ID_CENTRO_OP] = centro; });
 
-    //Una tarjeta por proyecto: ausencias y cómo va la promesa
+    //Una tarjeta por proyecto: cuántas ausencias y en cuántos peajes
     var totalesProyecto = {};
-    $.each(resumen.centros, function (idCentro, totalesCentro) {
+    $.each(resumen.centros, function (idCentro, ausencias) {
         var centro = centros[idCentro]; if (!centro) { return; }
-        var idProyecto = +centro.ID_PROYECTO; totalesProyecto[idProyecto] = totalesProyecto[idProyecto] || { aus: 0, prom: 0, eje: 0, faltan: 0 };
-        totalesProyecto[idProyecto].aus += totalesCentro.aus; totalesProyecto[idProyecto].prom += totalesCentro.prom; if (totalesCentro.conEje) { totalesProyecto[idProyecto].eje += totalesCentro.eje; } else if (totalesCentro.prom) { totalesProyecto[idProyecto].faltan++; }
+        var idProyecto = +centro.ID_PROYECTO; totalesProyecto[idProyecto] = totalesProyecto[idProyecto] || { aus: 0, peajes: 0 };
+        totalesProyecto[idProyecto].aus += ausencias; totalesProyecto[idProyecto].peajes++;
     });
     var datosProyecto = {};
     datos.proyectos.forEach(function (proyecto) {
-        var totales = totalesProyecto[proyecto.id] || { aus: 0, prom: 0, eje: 0, faltan: 0 };
-        datosProyecto[proyecto.id] = { n: totales.aus, lineas: datos.modPromesa && totales.prom ? ['Promesa ' + totales.prom + ' · ejecutado ' + totales.eje, totales.faltan ? '<b class="cd-mal">' + cantidadTexto(totales.faltan, 'peaje sin ejecutado', 'peajes sin ejecutado') + '</b>' : 'todos con ejecutado'] : ['sin promesa de valor'] };
+        var totales = totalesProyecto[proyecto.id] || { aus: 0, peajes: 0 };
+        datosProyecto[proyecto.id] = { n: totales.aus, lineas: [totales.peajes ? cantidadTexto(totales.peajes, 'peaje con ausencias', 'peajes con ausencias') : 'sin ausencias'] };
     });
     porProyecto('#cdAusProy', '#tbAus', 'ausencias', datosProyecto);
 
-    //Las ausencias del día
+    //Las ausencias del día, con el motivo (quién cubrió a quién)
     (datos.ausentismo || []).forEach(function (ausencia) {
         html += '<tr data-proy="' + parseInt(ausencia.ID_PROYECTO, 10) + '"' + (+ausencia.CUENTA ? '' : ' class="aus-no-cuenta"') + '><td>' + (ausencia.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(ausencia.NOM_CENTRO_OP) + '</td>' +
              '<td>' + rdEsc(ausencia.NOM_PROYECTO) + '</td><td>' + rdEsc(ausencia.CARGO) + '</td><td>' + rdEsc(ausencia.MOTIVO) + (+ausencia.CUENTA ? '' : ' <small>(no cuenta como ausencia)</small>') + '</td>' +
              '<td class="rd-num-col"><strong>' + parseInt(ausencia.CANTIDAD, 10) + '</strong></td><td>' + rdEsc(ausencia.QUIEN || '') + '</td></tr>';
     });
-    $('#tbAus').html(datos.modAusentismo ? (html || vacio(6, 'No hay ausencias registradas ese día.')) : vacio(6, 'El módulo de ausentismo está apagado.'));
+    $('#tbAus').html(html || vacio(6, 'No hay ausencias registradas ese día.'));
     aplicarFiltroProy('#tbAus');
-
-    //La promesa de valor: por peaje y por cargo
-    $('#cdPromesaAus').toggle(!!datos.modPromesa);
-    if (!datos.modPromesa) { return; }
-    var htmlProyectos = '', porCargo = {}, nombres = {};
-    (datos.cargosAus || []).forEach(function (cargo) { nombres[cargo.id] = cargo.nombre; });
-    (datos.centros || []).forEach(function (centro) {
-        var totalesCentro = resumen.centros[centro.ID_CENTRO_OP];
-        if (!totalesCentro || !totalesCentro.prom) { return; }
-        var estado = !totalesCentro.conEje ? tag('Falta el ejecutado', 'rd-tag-pend') : (totalesCentro.prom - totalesCentro.eje > totalesCentro.aus ? tag('Faltan ' + (totalesCentro.prom - totalesCentro.eje - totalesCentro.aus) + ' por explicar', 'rd-tag-mal') : tag('Registrado', 'rd-tag-ok'));
-        htmlProyectos += '<tr data-proy="' + parseInt(centro.ID_PROYECTO, 10) + '"><td>' + (centro.TIPO_CENTRO === 'BASCULA' ? 'Báscula ' : '') + rdEsc(centro.NOM_CENTRO_OP) + '</td><td>' + rdEsc(centro.NOM_PROYECTO) + '</td>' +
-              '<td class="rd-num-col">' + totalesCentro.prom + '</td><td class="rd-num-col">' + (totalesCentro.conEje ? totalesCentro.eje : '—') + '</td>' +
-              '<td class="rd-num-col">' + (totalesCentro.conEje ? difCD(totalesCentro.eje - totalesCentro.prom) : '—') + '</td><td class="rd-num-col">' + totalesCentro.aus + '</td><td>' + estado + '</td></tr>';
-        $.each(datos.promesa[centro.ID_CENTRO_OP] || {}, function (idCa, cifras) {
-            var idCargo = +idCa; porCargo[idCargo] = porCargo[idCargo] || { prom: 0, eje: 0, aus: 0, conEje: false };
-            porCargo[idCargo].prom += +cifras.promesa;
-            if (cifras.ejecutado !== null) { porCargo[idCargo].eje += +cifras.ejecutado; porCargo[idCargo].conEje = true; }
-        });
-        $.each(totalesCentro.porCargo, function (idCa, ausencias) { var idCargo = +idCa; porCargo[idCargo] = porCargo[idCargo] || { prom: 0, eje: 0, aus: 0, conEje: false }; porCargo[idCargo].aus += ausencias; });
-    });
-    $('#tbPvPeaje').html(htmlProyectos || vacio(7, 'Ese día no hay promesa de valor definida en los peajes que ves.'));
-    aplicarFiltroProyPv();
-    var htmlCargos = '';
-    (datos.cargosAus || []).forEach(function (cargo) {
-        var totalesCargo = porCargo[cargo.id]; if (!totalesCargo || !totalesCargo.prom) { return; }
-        htmlCargos += '<tr><td>' + rdEsc(cargo.nombre) + '</td><td class="rd-num-col">' + totalesCargo.prom + '</td><td class="rd-num-col">' + (totalesCargo.conEje ? totalesCargo.eje : '—') + '</td>' +
-              '<td class="rd-num-col">' + (totalesCargo.conEje ? difCD(totalesCargo.eje - totalesCargo.prom) : '—') + '</td><td class="rd-num-col">' + totalesCargo.aus + '</td></tr>';
-    });
-    $('#tbPvCargo').html(htmlCargos || vacio(5, 'Sin promesa de valor ese día.'));
 }
-
-//La tabla de la promesa por peaje sigue la misma tarjeta de proyecto elegida arriba
-function aplicarFiltroProyPv() {
-    var idProyectoFiltro = filtroProyTab['#tbAus'];
-    $('#tbPvPeaje tr[data-proy]').each(function () { $(this).toggle(!idProyectoFiltro || +$(this).data('proy') === idProyectoFiltro); });
-}
-$(document).on('click', '.cd-proy[data-tb="#tbAus"]', aplicarFiltroProyPv);
 
 //Pestaña de requisiciones: las pendientes por proyecto y cuántas son urgentes
 function pintarRq() {

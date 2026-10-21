@@ -255,7 +255,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         <?php
         include('footer.php');
         ?>
-        <script type="text/javascript" src="../Ajax/GruposListasnAjax.js?v=7"></script>
+        <script type="text/javascript" src="../Ajax/GruposListasnAjax.js?v=8"></script>
         <script type="text/javascript">
         //Esta función se define aquí a proposito: si el navegador tiene cacheado
         //GruposListasnAjax.js, el botón igual sigue funcionando

@@ -95,12 +95,13 @@ function hanaArchivoCabe($texto)
     return $max <= 0 || strlen($texto) + 4096 <= $max;
 }
 
-//Mensaje para un archivo que no cabe: dice hasta cuánto acepta hoy la base
+//Mensaje para un archivo que no cabe: dice hasta cuántos MB se aceptan
 function hanaArchivoMuyGrande($nombre)
 {
     $megas = max(0.1, round(Archivo::maxPaquete() / 1.37 / 1048576, 1));
-    return '«' . $nombre . '» es muy pesado para guardarlo en la base de datos (hoy acepta hasta ' . $megas . ' MB por archivo). '
-         . 'Súbelo más liviano o pide al administrador que suba max_allowed_packet en MariaDB.';
+    //El límite real (max_allowed_packet de la base) queda en el error_log; a la persona solo se le dice el tamaño
+    error_log('HANA - archivo «' . $nombre . '» no cabe: max_allowed_packet permite ~' . $megas . ' MB por archivo');
+    return '«' . $nombre . '» es muy pesado (se aceptan hasta ' . $megas . ' MB por archivo). Súbelo más liviano.';
 }
 
 //Separa el texto guardado en tipo y contenido. null si no es un texto "data:...;base64,..."

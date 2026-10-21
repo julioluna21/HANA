@@ -99,11 +99,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'puedeAprobar' => hanaTienePermiso('18M'),
             //Ausencias del día por proyecto (para la pestaña de vacantes)
             'ausentismoDia' => (object)$controlDiario->ausentismoDia($idsCentros, $fecha),
-            //Pestaña Ausentismo: cada ausencia del día y, dentro, la promesa de valor contra lo ejecutado
+            //Pestaña Ausentismo: cada ausencia del día con su motivo (quién cubrió a quién)
             'ausentismo' => HanaConfig::modulo('AUSENTISMO') ? $controlDiario->ausenciasDetalle($idsCentros, $fecha) : array(),
-            'promesa' => HanaConfig::modulo('PROMESA') ? (object)$controlDiario->promesaDetalle($idsCentros, $fecha) : new stdClass(),
-            'modAusentismo' => HanaConfig::modulo('AUSENTISMO'), 'modPromesa' => HanaConfig::modulo('PROMESA'),
-            'cargosAus' => HanaConfig::modulo('AUSENTISMO') || HanaConfig::modulo('PROMESA') ? $controlDiario->cargos() : array(),
+            'modAusentismo' => HanaConfig::modulo('AUSENTISMO'),
             //Cada centro con su jefe y si hizo la lista de chequeo ese día
             'centros'    => array_map(function ($centro) {
                 return array('ID_CENTRO_OP' => (int)$centro['ID_CENTRO_OP'], 'ID_PROYECTO' => (int)$centro['ID_PROYECTO'],

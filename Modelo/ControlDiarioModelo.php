@@ -212,37 +212,6 @@ class ControlDiario
         return $filas ? $filas : array();
     }
 
-    //La promesa de valor del día en cada centro, por cargo, con lo ejecutado:
-    //[idCentro => [idCargo => [promesa, ejecutado (null si no se ha registrado)]]].
-    //Solo salen los cargos con promesa ese día o con algo registrado
-    public function promesaDetalle($idsCentros, $fecha)
-    {
-        if (!count($idsCentros)) { return array(); }
-        require_once __DIR__ . '/PromesaValorModelo.php';
-        $promesaValor = new PromesaValor();
-        $reglas = $promesaValor->reglas($idsCentros);
-        $ejecutado = HanaDB::q("SELECT ID_CENTRO_OP, ID_CARGO_AUS, CANTIDAD FROM pv_ejecutado WHERE FECHA = ? AND ID_CENTRO_OP IN (" . $this->marcas($idsCentros) . ")",
-                         's' . str_repeat('i', count($idsCentros)), array_merge(array($fecha), $idsCentros));
-        $detalle = array();
-        foreach ((array)$ejecutado as $fila) { $detalle[(int)$fila['ID_CENTRO_OP']][(int)$fila['ID_CARGO_AUS']] = array('promesa' => 0, 'ejecutado' => (int)$fila['CANTIDAD']); }
-        foreach ($reglas as $idCentro => $porCargo) {
-            foreach ($porCargo as $idCargo => $lista) {
-                $promesa = (int)PromesaValor::resolver($lista, $fecha);
-                if ($promesa <= 0 && !isset($detalle[$idCentro][$idCargo])) { continue; }
-                if (!isset($detalle[$idCentro][$idCargo])) { $detalle[$idCentro][$idCargo] = array('promesa' => 0, 'ejecutado' => null); }
-                $detalle[$idCentro][$idCargo]['promesa'] = $promesa;
-            }
-        }
-        return $detalle;
-    }
-
-    //Los cargos del ausentismo (los mismos de la promesa de valor), en su orden
-    public function cargos()
-    {
-        require_once __DIR__ . '/AusentismoModelo.php';
-        return array_map(function ($cargo) { return array('id' => (int)$cargo['ID_CARGO_AUS'], 'nombre' => $cargo['NOMBRE']); }, (new Ausentismo())->cargos());
-    }
-
     //Requisiciones de estos centros que siguen esperando aprobación, con cuántos días llevan
     public function rqPendientes($idsCentros)
     {

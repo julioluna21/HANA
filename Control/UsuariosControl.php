@@ -5,18 +5,19 @@
   Atiende las peticiones de Ajax/UsuariosAjax.js, Ajax/LoginAjax.js y
   Ajax/RestablecerAjax.js, y responde con lo que trae el modelo
   (Modelo/UsuarioModelo.php).
-  La persona y su acceso viven en la misma fila (colaboradores), pero se manejan en
-  dos pantallas:
-    - Colaboradores (Control/ColaboradoresControl.php): registrar a la persona y sus
-      datos (documento, nombre, correo). Al registrarla se le crea el usuario. Permiso 3M.
-    - Usuarios (este): su acceso: rol, nombre de usuario, peajes y contraseña. Permiso 1M.
+  La persona y su usuario van en tablas distintas (script 40) y se manejan en dos pantallas:
+    - Colaboradores (Control/ColaboradoresControl.php): la persona (documento, nombre,
+      correo) y sus peajes asignados. Al registrarla se pregunta si se le crea el usuario.
+      Permiso 3M.
+    - Usuarios (este): el usuario de cada persona (tabla usuarios_sistema): nombre de
+      usuario, rol, contraseña y si puede entrar. Aquí también se le crea el usuario a
+      quien no tiene. Permiso 1M.
   Aquí no se registra a nadie ni se cambian sus datos: eso es de Colaboradores.
-  El número de usuario que llega de la pantalla y el de la sesión es el ID_COLABORADOR.
+  El número que llega de la pantalla y el de la sesión es el de la persona (ID_COLABORADOR).
 
   Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
-    Pantalla Usuarios   guardar, mostrar, anular, activar, listar, claveTemporal,
-                        selectSinUsuario y los de centros (centros, MostrarCentros,
-                        centroslista, centroslistatodos)
+    Pantalla Usuarios   guardar, mostrar, anular y activar (bloquear o devolver el acceso),
+                        listar, claveTemporal y selectSinUsuario
     Otras pantallas     select, select2 y selectc (desplegables de colaboradores y centros)
     Mi contraseña       cambiarclave
     Sin sesión          verificar (iniciar sesión), recuperar (pedir el enlace de
@@ -24,8 +25,9 @@
                         del enlace) y salir
 
   Permisos:
-    - 1M: el acceso de cada persona: rol (cualquiera, también los que administran),
-      nombre de usuario, peajes y contraseña temporal. 24M (ADMIN TEC) también entra.
+    - 1M: el usuario de cada persona: crearlo, el rol (cualquiera, también los que
+      administran), el nombre de usuario, la contraseña temporal y bloquear el acceso.
+      24M (ADMIN TEC) también entra.
     - Cambiar la clave propia solo pide sesión.
   La contraseña temporal le llega a la persona por correo; si el correo no sale, se
   muestra en pantalla una sola vez (Control/UsuarioHelper.php).
@@ -40,7 +42,7 @@ require_once "../Modelo/UsuarioModelo.php";
 require '../public/PHPMailer-master/src/Exception.php';
 require '../public/PHPMailer-master/src/PHPMailer.php';
 require '../public/PHPMailer-master/src/SMTP.php';
-require_once __DIR__ . '/CorreoConfig.php';                //cuenta de correo y plantilla de los correos
+require_once __DIR__ . '/CorreoHelper.php';                //envío de los correos (la cuenta está en Global.php)
 require_once __DIR__ . '/../Modelo/HanaDB.php';
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 require_once __DIR__ . '/../Modelo/AccesoModelo.php';      //para revisar que el rol exista
@@ -65,7 +67,6 @@ $texto = function ($campo) use ($valorPost) { return trim(strip_tags($valorPost(
 $idPersona     = isset($_POST["idusuario"]) ? intval($_POST["idusuario"]) : 0; //la persona del formulario
 $usuarioNuevo  = $texto('usuario');
 $idRol         = isset($_POST["rol"]) ? intval($_POST["rol"]) : 0;
-$centros       = (isset($_POST["permiso"]) && is_array($_POST["permiso"])) ? $_POST["permiso"] : array(); //peajes marcados
 $ip            = isset($_SERVER['REMOTE_ADDR']) ? (string)$_SERVER['REMOTE_ADDR'] : '';
 
 //-----------------------------------------------------------------------------
@@ -73,12 +74,11 @@ $ip            = isset($_SERVER['REMOTE_ADDR']) ? (string)$_SERVER['REMOTE_ADDR'
 //-----------------------------------------------------------------------------
 $op          = isset($_GET["op"]) ? (string)$_GET["op"] : "";
 $opsLibres   = array('verificar', 'recuperar', 'revisarEnlace', 'restablecer', 'salir'); //sin sesión
-$opsPantalla = array('guardar', 'mostrar', 'anular', 'activar', 'listar', 'claveTemporal', 'selectSinUsuario',
-                     'centros', 'MostrarCentros', 'centroslista', 'centroslistatodos'); //pantalla Usuarios
+$opsPantalla = array('guardar', 'mostrar', 'anular', 'activar', 'listar', 'claveTemporal', 'selectSinUsuario'); //pantalla Usuarios
 $haySesion   = isset($_SESSION['IdUsuarios']);
 $misCasillas = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
 $esTodo      = in_array('24M', $misCasillas, true);
-$puedeAcceso = $haySesion && (in_array('1M', $misCasillas, true) || $esTodo); //rol, usuario, peajes y clave
+$puedeAcceso = $haySesion && (in_array('1M', $misCasillas, true) || $esTodo); //usuario, rol y clave
 
 if (!in_array($op, $opsLibres, true)) {
     if (!$haySesion) {
@@ -108,7 +108,7 @@ function usuJson($datos)
 }
 
 //Envía un correo a una persona, en HTML y saludándola por su nombre
-//(la plantilla y la cuenta están en CorreoConfig.php)
+//(la plantilla está en CorreoHelper.php y la cuenta en Global.php)
 function correoenvio($correo, $mensaje, $asunto, $nombre = '', $boton = null)
 {
     $mail = new PHPMailer();
@@ -118,7 +118,7 @@ function correoenvio($correo, $mensaje, $asunto, $nombre = '', $boton = null)
     $mail->Subject  = $asunto;
     $mail->Body     = hanaCorreoHtml($nombre, $asunto, $mensaje, $boton);
     $mail->AltBody  = trim(strip_tags(str_replace(array('<br>', '</p>'), "\n", $mensaje))); //para lectores que no muestran HTML
-    return hanaEnviar($mail, 'USUARIOS'); //con plan B y registro (ver CorreoConfig.php)
+    return hanaEnviar($mail, 'USUARIOS'); //queda en la bitácora (ver CorreoHelper.php)
 }
 
 //La persona del enlace de "Olvidé mi contraseña", si el enlace es auténtico y no ha
@@ -139,50 +139,39 @@ const USU_ENLACE_VENCIDO = 'Este enlace ya no sirve: venció (dura 60 minutos), 
 //-----------------------------------------------------------------------------
 switch ($op)
 {
-    //Cambia el acceso de una persona que ya está registrada: rol, usuario y peajes.
-    //A las personas se las registra en Colaboradores (allí también se les crea el usuario)
+    //El usuario de una persona que ya está registrada: si no tiene, se le crea (con una
+    //contraseña temporal que le llega por correo); si tiene, se le cambian el nombre de
+    //usuario y el rol. A las personas se las registra en Colaboradores
     case 'guardar':
         $actual = $idPersona ? $modeloUsuarios->mostrar($idPersona) : null;
         if (!$actual) { echo 'Error: elige a la persona en la tabla. A las personas nuevas se las registra en Colaboradores.'; break; }
 
         //El rol: cualquiera que esté activo, también los que administran
         if (!Acceso::rolValido($idRol)) { echo 'Error: elige un rol activo.'; break; }
+        if ($usuarioNuevo === '') { echo 'Error: escribe el nombre de usuario.'; break; }
 
-        //El nombre de usuario. Si no tenía y queda vacío, sigue sin usuario
-        $usuarioQueTenia = (string)$actual['USUARIO'];
-        $usuarioFinal = null; //null = no se toca
-        if ($usuarioNuevo === '' && $usuarioQueTenia !== '') { echo 'Error: escribe el nombre de usuario. Para quitarle el acceso, desactiva a la persona.'; break; }
-        if ($usuarioNuevo !== '' && $usuarioNuevo !== $usuarioQueTenia) {
-            if (!preg_match('/^[A-Za-z0-9._-]{3,50}$/', $usuarioNuevo)) { echo 'Error: el nombre de usuario lleva solo letras sin tilde, números, punto, guion o guion bajo (de 3 a 50).'; break; }
-            if ($modeloUsuarios->usuarioExiste($usuarioNuevo, $idPersona)) { echo 'Error: ese nombre de usuario ya lo tiene otra persona.'; break; }
-            $usuarioFinal = $usuarioNuevo;
+        //No tiene usuario: se le crea
+        if ((string)$actual['USUARIO'] === '') {
+            if ((int)$actual['ESTADO'] !== 1) { echo 'Error: la persona está inactiva. Actívala en Colaboradores antes de crearle el usuario.'; break; }
+            echo usuCrearUsuario($modeloUsuarios, $actual, $usuarioNuevo, $idRol);
+            break;
         }
 
-        //Guardar
+        //Ya tiene: el nombre de usuario (si cambió) y el rol
+        if ($usuarioNuevo !== (string)$actual['USUARIO']) {
+            $problema = usuProblemaNombre($modeloUsuarios, $usuarioNuevo, $idPersona);
+            if ($problema !== '') { echo 'Error: ' . $problema; break; }
+            $modeloUsuarios->ponerUsuario($idPersona, $usuarioNuevo);
+        }
         $modeloUsuarios->ponerRol($idPersona, $idRol);
-        $mensaje = 'Acceso actualizado con éxito.';
-        if ($usuarioFinal !== null) {
-            if ($usuarioQueTenia === '') {
-                //Primera vez que tiene usuario: nace con una contraseña temporal, que le llega por correo
-                $temporal = usuClaveTemporal();
-                $modeloUsuarios->ponerUsuario($idPersona, $usuarioFinal, HanaClave::cifrar($temporal));
-                $enviado = usuEnviarDatosEntrada($actual['MAIL_COLABORADOR'], $actual['NOM_COLABORADOR'], $usuarioFinal, $temporal);
-                $mensaje .= usuAvisoDatosEntrada($enviado, $actual['MAIL_COLABORADOR'], $usuarioFinal, $temporal);
-            } else {
-                $modeloUsuarios->ponerUsuario($idPersona, $usuarioFinal);
-            }
-        }
-        //Los peajes
-        $modeloUsuarios->quitarCentros($idPersona);
-        foreach ($centros as $idCentro) { if (intval($idCentro) > 0) { $modeloUsuarios->asignarCentro($idPersona, $idCentro); } }
-        echo $mensaje;
+        echo 'Usuario actualizado con éxito.';
     break;
 
     //Una contraseña temporal nueva para la persona. Le llega por correo
     //(si el correo no sale, se muestra en pantalla una sola vez)
     case 'claveTemporal':
         $persona = $modeloUsuarios->mostrar($idPersona);
-        if (!$persona || (string)$persona['USUARIO'] === '') { echo 'Error: esa persona no tiene usuario. Escríbele uno y guarda.'; break; }
+        if (!$persona || (string)$persona['USUARIO'] === '') { echo 'Error: esa persona no tiene usuario. Créaselo primero.'; break; }
         $temporal = usuClaveTemporal();
         if (!$modeloUsuarios->guardarClave($idPersona, HanaClave::cifrar($temporal))) { echo 'Error: no se pudo cambiar la contraseña.'; break; }
         //Si estaba esperando por claves malas, con la clave nueva ya puede entrar
@@ -211,15 +200,18 @@ switch ($op)
         echo json_encode($modeloUsuarios->mostrar($idPersona));
     break;
 
-    //Desactiva a la persona: no entra y deja de salir en las listas
+    //Bloquea el acceso: el usuario no puede entrar, pero la persona sigue activa en las listas.
+    //A la persona se la desactiva en Colaboradores
     case 'anular':
-        if ($idPersona === (int)$_SESSION['Idcolaborador']) { echo 'Error: no puedes desactivarte a ti mismo.'; break; }
-        echo $modeloUsuarios->desactivar($idPersona) ? "Registro anulado con éxito" : "No se pudo anular el registro";
+        if ($idPersona === (int)$_SESSION['Idcolaborador']) { echo 'Error: no puedes bloquear tu propio usuario.'; break; }
+        if (!$modeloUsuarios->tieneUsuario($idPersona)) { echo 'Error: esa persona no tiene usuario.'; break; }
+        echo $modeloUsuarios->ponerAcceso($idPersona, false) ? 'Acceso bloqueado con éxito: ya no puede entrar a HANA.' : 'Error: no se pudo bloquear el acceso.';
     break;
 
-    //Vuelve a activar a la persona
+    //Le devuelve el acceso al usuario
     case 'activar':
-        echo $modeloUsuarios->activar($idPersona) ? "Registro activado con éxito" : "No se pudo activar el registro";
+        if (!$modeloUsuarios->tieneUsuario($idPersona)) { echo 'Error: esa persona no tiene usuario.'; break; }
+        echo $modeloUsuarios->ponerAcceso($idPersona, true) ? 'Acceso devuelto con éxito: ya puede entrar a HANA.' : 'Error: no se pudo devolver el acceso.';
     break;
 
     //Colaboradores activos que todavía no tienen usuario (formulario de Usuarios)
@@ -258,57 +250,6 @@ switch ($op)
         }
     break;
 
-    //Números de los centros asignados a la persona, separados por coma (para marcar sus casillas)
-    case 'centroslista':
-        $filas = $modeloUsuarios->centrosAsignados($idPersona);
-        $ids = array();
-        while ($centro = $filas->fetch_object()) { $ids[] = $centro->ID_CENTRO_OP; }
-        echo implode(',', $ids);
-    break;
-
-    //Números de todos los centros activos, separados por coma ("Seleccionar todos")
-    case 'centroslistatodos':
-        $filas = $modeloUsuarios->centrosActivos();
-        $ids = array();
-        while ($centro = $filas->fetch_object()) { $ids[] = $centro->ID_CENTRO_OP; }
-        echo implode(',', $ids);
-    break;
-
-    //Nombres de los centros de la persona, uno por renglón (ventana "Peajes asignados")
-    case 'MostrarCentros':
-        $filas = $modeloUsuarios->nombresCentros($idPersona);
-        $nombres = '';
-        while ($centro = $filas->fetch_object()) { $nombres .= $centro->NOM_CENTRO_OP . "<br>"; }
-        echo $nombres;
-    break;
-
-    //Las casillas de los centros para el formulario de Usuarios, agrupadas por proyecto.
-    //Los proyectos se reparten en dos columnas, uno en cada una por turnos, para que
-    //la lista no quede tan larga
-    case 'centros':
-        $filas = $modeloUsuarios->centrosActivos();
-        $columnas = array(
-            '<div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" >
-                <label>Centros de operación:</label><br>
-                <SPAN title="Seleccionar todos" >
-               <input type="checkbox" class="" name="todosc" id="todosc" onclick="seleccionarTodos()"  /></SPAN> <label >Seleccionar Todos</label><br>',
-            '<div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" >
-                <br><br>',
-        );
-        $proyectoAnterior = null;
-        $columna = 1; //en qué columna va el proyecto actual (0 o 1); el primero cae en la 0
-        while ($centro = $filas->fetch_object()) {
-            if ($centro->NOM_PROYECTO !== $proyectoAnterior) {
-                $columna = 1 - $columna;
-                $columnas[$columna] .= '<div   style="background-color: #bcd4db; text-align: center"><label>' . $centro->NOM_PROYECTO . '</label></div>';
-                $proyectoAnterior = $centro->NOM_PROYECTO;
-            }
-            $columnas[$columna] .= '<SPAN title="' . $centro->NOM_CENTRO_OP . '" >
-               <input type="checkbox" class="" name="permiso[]" id="r' . $centro->ID_CENTRO_OP . '" value="' . $centro->ID_CENTRO_OP . '"  /></SPAN> <label >' . $centro->NOM_CENTRO_OP . '</label><br>';
-        }
-        echo $columnas[0] . "</div>" . $columnas[1] . "</div>";
-    break;
-
     //-------------------------------------------------------------------------
     // Iniciar sesión
     //-------------------------------------------------------------------------
@@ -342,8 +283,8 @@ switch ($op)
             break;
         }
 
-        //3. La clave está bien: ¿la persona y su rol siguen activos?
-        if ((int)$persona['PERSONA_ACTIVA'] !== 1) {
+        //3. La clave está bien: ¿la persona, su usuario y su rol siguen activos?
+        if ((int)$persona['PERSONA_ACTIVA'] !== 1 || (int)$persona['USUARIO_ACTIVO'] !== 1) {
             Bitacora::ingreso($usuario, $ip, false, $persona['ID_COLABORADOR']);
             usuJson(array('error' => true, 'mensaje' => 'Tu usuario está desactivado. Si crees que es un error, habla con el administrador de HANA.'));
             break;
@@ -357,7 +298,7 @@ switch ($op)
         //4. Entra. La sesión cambia de número al entrar, para que nadie pueda usar
         //   un número de sesión que conoció antes del ingreso
         session_regenerate_id(true);
-        //El usuario y la persona son la misma fila: los dos números son el ID_COLABORADOR
+        //Las pantallas trabajan con el número de la persona (ID_COLABORADOR); el usuario se busca por ella
         $_SESSION['IdUsuarios']    = $persona['ID_COLABORADOR'];
         $_SESSION['Idcolaborador'] = $persona['ID_COLABORADOR'];
         $_SESSION['Auditoria']     = $persona['PUEDE_CERRAR_NOVEDADES']; //puede cerrar novedades
@@ -431,7 +372,7 @@ switch ($op)
         header("Location: ../Vista/login.php");
     break;
 
-    //La tabla de la pantalla Usuarios
+    //La tabla de la pantalla Usuarios: todas las personas, con su usuario si lo tienen
     case 'listar':
         //Los nombres pueden venir guardados con códigos (&amp;) por los módulos viejos:
         //se convierten de vuelta y se escapan una sola vez
@@ -440,22 +381,29 @@ switch ($op)
         $filasTabla = array();
         while ($fila = $filas->fetch_object()) {
             $id = (int)$fila->ID_COLABORADOR;
-            $activo = (int)$fila->ESTADO === 1;
-            $botones = '<SPAN title="Editar"><button class="btn btn-success" onclick="mostrar(' . $id . ')"><i class="fa fa-eye" style="color:white;"></i></button></SPAN> '
-                     . ($activo
-                        ? '<SPAN title="Desactivar"><button type="button" class="btn btn-success" onclick="anular(' . $id . ')"><i class="fa fa-trash" style="color:white;"></i></button></SPAN>'
-                        : '<SPAN title="Activar"><button type="button" class="btn btn-success" onclick="activar(' . $id . ')"><i class="fa fa-check" style="color:white;"></i></button></SPAN>');
+            $tiene = $fila->USUARIO !== null && $fila->USUARIO !== '';
+            $personaActiva = (int)$fila->ESTADO === 1;
+            $puedeEntrar = $tiene && (int)$fila->ACCESO === 1;
+            if (!$tiene) {
+                $acceso = $personaActiva ? '<span class="rd-ayuda">Sin usuario</span>' : '<span class="rd-ayuda">Persona inactiva</span>';
+                $botones = $personaActiva
+                    ? '<SPAN title="Crear usuario"><button class="btn btn-success" onclick="crearUsuario(' . $id . ')"><i class="fa fa-user-plus" style="color:white;"></i></button></SPAN>'
+                    : '';
+            } else {
+                $acceso = !$personaActiva ? 'Persona inactiva' : ($puedeEntrar ? 'Puede entrar' : 'Bloqueado');
+                $botones = '<SPAN title="Editar"><button class="btn btn-success" onclick="mostrar(' . $id . ')"><i class="fa fa-pencil" style="color:white;"></i></button></SPAN> '
+                         . ((int)$fila->ACCESO === 1
+                            ? '<SPAN title="Bloquear el acceso"><button type="button" class="btn btn-success" onclick="anular(' . $id . ')"><i class="fa fa-lock" style="color:white;"></i></button></SPAN>'
+                            : '<SPAN title="Devolver el acceso"><button type="button" class="btn btn-success" onclick="activar(' . $id . ')"><i class="fa fa-unlock" style="color:white;"></i></button></SPAN>');
+            }
             $filasTabla[] = array(
                 "0" => $escapar($fila->DOC_COLABORADOR),
                 "1" => $escapar($fila->NOM_COLABORADOR),
                 "2" => $escapar($fila->MAIL_COLABORADOR),
-                "3" => $escapar($fila->NOM_ROL_USUARIO_SISTEMA),
-                "4" => $fila->USUARIO !== null && $fila->USUARIO !== '' ? $escapar($fila->USUARIO) : '<span class="rd-ayuda">Sin usuario</span>',
-                "5" => (int)$fila->PEAJES > 0
-                       ? '<SPAN title="Peajes asignados"><button class="btn btn-success" onclick="centros(' . $id . ')"><i class="fa fa-industry" style="color:white;"></i> ' . (int)$fila->PEAJES . '</button></SPAN>'
-                       : '<span class="rd-ayuda">Ninguno</span>',
-                "6" => $activo ? 'Activo' : 'Inactivo',
-                "7" => $botones,
+                "3" => $tiene ? $escapar($fila->NOM_ROL_USUARIO_SISTEMA) : '<span class="rd-ayuda">—</span>',
+                "4" => $tiene ? $escapar($fila->USUARIO) : '<span class="rd-ayuda">Sin usuario</span>',
+                "5" => $acceso,
+                "6" => $botones,
             );
         }
         echo json_encode(array(

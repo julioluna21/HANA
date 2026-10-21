@@ -1,5 +1,18 @@
 <?php
 /*
+  Archivo sin uso: los recordatorios por correo a los coordinadores se quitaron. Las
+  tareas que siguen (los resúmenes de las listas) las corre el servidor con cron, en la
+  carpeta tareas/.
+  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
+  abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Tareas programadas: recordatorios del día a los coordinadores
   ---------------------------------------------------------------------------
   Se llama desde cPanel (Tareas Cron), por ejemplo todos los días a las 10 a. m.:

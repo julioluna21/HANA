@@ -8,7 +8,7 @@ require_once __DIR__ . "/../Modelo/NotificacionesModelo.php";
 require_once __DIR__ . '/../public/PHPMailer-master/src/Exception.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/PHPMailer.php';
 require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
-require_once __DIR__ . '/CorreoConfig.php'; //cuenta de correo y plantilla
+require_once __DIR__ . '/CorreoHelper.php'; //envío y plantilla (la cuenta está en Conexion/Global.php)
 require_once __DIR__ . '/../Modelo/OrganizacionModelo.php'; //para buscar el nombre de cada destinatario
 require_once __DIR__ . '/../Modelo/BitacoraModelo.php'; //cada correo queda enlazado a su aviso y a su lista
 
@@ -38,7 +38,7 @@ function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
     $mail->Mailer   = "smtp";
     $mail->IsSMTP();
     $mail->SMTPAuth = true;
-    //Servidor, cuenta y remitente: salen de Conexion/Global.php (ver CorreoConfig.php)
+    //Servidor, cuenta y remitente: salen de Conexion/Global.php (ver CorreoHelper.php)
     if (!hanaConfigurarSmtp($mail)) {
         $GLOBALS['hanaUltimoError'] = "Faltan los datos del correo en Conexion/Global.php";
         return false;
@@ -71,7 +71,7 @@ function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
         $marca = '<tr><td style="padding:24px 28px; color:#333333; font-size:14px;">';
         $mail->Body = strpos($cuerpoHtml, $marca) !== false ? preg_replace('/' . preg_quote($marca, '/') . '/', $marca . $saludo, $cuerpoHtml, 1) : $saludo . $cuerpoHtml;
         //Si el envío falla, se guarda el motivo que reporta PHPMailer
-        if (!hanaEnviar($mail, 'LISTAS')) { //con plan B y registro (ver CorreoConfig.php)
+        if (!hanaEnviar($mail, 'LISTAS')) { //queda anotado en la bitácora (ver CorreoHelper.php)
             $GLOBALS['hanaUltimoError'] = $mail->ErrorInfo;
             $bien = false;
         }
@@ -295,6 +295,9 @@ function hanaEnviarResumen($frecuencia)
         if ($salio) {
             $modeloNotificaciones->marcarEnvio($aviso->ID_NOTIFICACION); //queda la constancia
             $enviados++;
+        } else {
+            //Para que la tarea de cron diga cuál no salió y por qué
+            $GLOBALS['hanaResumenFallidos'][] = $aviso->DESTINATARIOS . ': ' . trim(preg_replace('/\s+/', ' ', $GLOBALS['hanaUltimoError']));
         }
     }
     return $enviados;

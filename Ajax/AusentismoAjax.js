@@ -439,7 +439,7 @@ function cargarConsolidado() {
 // Registro rápido: una ausencia a la vez
 //   Se elige el día, el cargo, el motivo y cuántas personas. El servidor lo
 //   anota en la misma celda de la matriz (y en el historial), así que el
-//   consolidado, el Excel y Power BI no cambian.
+//   consolidado y el Excel no cambian.
 //===========================================================================
 function nombreCargoAus(id) {
     var cargo = cfgAus.cargos.filter(function (item) { return +item.ID_CARGO_AUS === +id; })[0];

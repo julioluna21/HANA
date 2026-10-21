@@ -126,9 +126,12 @@
                     if (respuesta.ok && (tipo.indexOf('pdf') !== -1 || /^blob:/.test(url))) { return respuesta.arrayBuffer(); }
                     return respuesta.text().then(function (texto) {
                         var sesion = /LoginUsuarios|frmAcceso/.test(texto) || /login\.php/.test(respuesta.url || '');
-                        var limpio = String(texto).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
+                        //Solo se muestra el mensaje si el sistema respondió uno ({"error": "..."}); nunca el texto de un error técnico
+                        var mensaje = '';
+                        try { var datos = JSON.parse(texto); mensaje = datos && datos.error ? String(datos.error) : ''; } catch (error) { mensaje = ''; }
+                        if (texto) { console.error('Respuesta al pedir el PDF (' + respuesta.status + '):', String(texto).substring(0, 500)); }
                         throw new Error(sesion ? 'Tu sesión terminó. Vuelve a iniciar sesión para ver el PDF.'
-                                               : (limpio || 'El servidor no entregó el PDF (código ' + respuesta.status + ').'));
+                                               : (mensaje || 'No se pudo abrir el PDF. Intenta de nuevo.'));
                     });
                 })
                 .then(function (datos) { return pdfjs.getDocument({ data: datos }).promise; })

@@ -182,8 +182,9 @@ class Novedades
                 $excluir = intval($excluirColaborador);
                 $sql = "SELECT DISTINCT c.MAIL_COLABORADOR, c.NOM_COLABORADOR
                           FROM colaboradores c
-                         WHERE c.ID_ROL_USUARIO_SISTEMA = $idRol
-                           AND c.ESTADO = 1 AND c.USUARIO IS NOT NULL
+                          INNER JOIN usuarios_sistema u ON u.ID_COLABORADOR = c.ID_COLABORADOR
+                         WHERE u.ID_ROL_USUARIO_SISTEMA = $idRol
+                           AND c.ESTADO = 1 AND u.ESTADO = 1
                            AND c.ID_COLABORADOR <> $excluir
                            AND c.MAIL_COLABORADOR IS NOT NULL AND c.MAIL_COLABORADOR <> ''";
                 return ejecutarConsulta($sql);

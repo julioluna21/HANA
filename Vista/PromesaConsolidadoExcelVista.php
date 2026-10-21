@@ -1,5 +1,13 @@
 <?php
 /*
+  Pantalla sin uso: el consolidado de promesa de valor se quitó del sistema. Si alguien entra por la
+  dirección, va al inicio. El código de abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
+/*
   HANA - Consolidado de promesa de valor, ejecutado y ausentismo, en Excel
   Con la misma forma del archivo "CONSOLIDADO" que se armaba a mano: una hoja
   RESUMEN con todos los proyectos (por proyecto, por semana, por cargo y por

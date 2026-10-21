@@ -1,5 +1,16 @@
 <?php
 /*
+  Archivo sin uso: la promesa de valor se quitó del sistema (sus tablas pv_promesa y pv_ejecutado se borran con el script 40).
+  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
+  abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Controlador de promesa de valor y ejecutado (Reporte diario)
     - El ejecutado lo registra el coordinador del proyecto, en los peajes de su
       proyecto. El jefe de peaje, el de su peaje, solo si PV_JEFES_REGISTRAN

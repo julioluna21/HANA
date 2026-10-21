@@ -525,7 +525,6 @@ function descargarPlantilla() {
             document.body.removeChild(enlace);
         })
         .fail(function () {
-            alert('No se encontró la plantilla en el servidor.\n\n' +
-                  'Falta copiar el archivo preguntasExcel.xlsx en la carpeta public.');
+            alert('No se encontró la plantilla de Excel. Avísale al administrador del sistema.');
         });
 }

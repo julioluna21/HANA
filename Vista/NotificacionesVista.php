@@ -137,7 +137,7 @@ include('head.php');
 <?php
 include('footer.php');
 ?>
-<script type="text/javascript" src="../Ajax/NotificacionesAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/NotificacionesAjax.js?v=4"></script>
 <?php
 } else {
   //Con sesión pero sin permiso: va al inicio (volver atrás dejaba la página en blanco si se abrió desde un enlace)

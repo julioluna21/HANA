@@ -9,10 +9,10 @@ require_once __DIR__ . '/HanaDB.php';
 
 class Acceso
 {
-    //El rol de una persona (0 si no existe). El usuario y el rol viven en colaboradores
+    //El rol del usuario de una persona (0 si no tiene usuario). El rol está en usuarios_sistema
     public static function rolDeUsuario($idUsuario)
     {
-        $fila = HanaDB::fila("SELECT ID_ROL_USUARIO_SISTEMA AS rol FROM colaboradores WHERE ID_COLABORADOR = ? LIMIT 1",
+        $fila = HanaDB::fila("SELECT ID_ROL_USUARIO_SISTEMA AS rol FROM usuarios_sistema WHERE ID_COLABORADOR = ? LIMIT 1",
                           'i', array((int)$idUsuario));
         return $fila ? (int)$fila['rol'] : 0;
     }
@@ -71,12 +71,12 @@ class Acceso
         return $fila && (int)$fila['n'] > 0;
     }
 
-    //El rol de una persona con sus permisos: array('rol' => nombre, 'modulos' => '1M,2M,...') o null
+    //El rol del usuario de una persona con sus permisos: array('rol' => nombre, 'modulos' => '1M,2M,...') o null
     public static function rolYPermisos($idUsuario)
     {
         return HanaDB::fila("SELECT ro.NOM_ROL_USUARIO_SISTEMA AS rol, ro.PERMISOS AS modulos
-                               FROM colaboradores c
-                               INNER JOIN rol_usuarios_sistemas ro ON ro.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
-                              WHERE c.ID_COLABORADOR = ? LIMIT 1", 'i', array((int)$idUsuario));
+                               FROM usuarios_sistema u
+                               INNER JOIN rol_usuarios_sistemas ro ON ro.ID_ROL_USUARIO_SISTEMA = u.ID_ROL_USUARIO_SISTEMA
+                              WHERE u.ID_COLABORADOR = ? LIMIT 1", 'i', array((int)$idUsuario));
     }
 }

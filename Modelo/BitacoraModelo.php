@@ -2,14 +2,15 @@
 /*
   HANA - Bitácora del sistema (tabla bitacora_sistema)
   ---------------------------------------------------------------------------
-  Lo que queda anotado: cada correo enviado (TIPO 'CORREO'), cada lectura de
-  Power BI (TIPO 'POWERBI') y cada intento de iniciar sesión (TIPO 'INGRESO');
+  Lo que queda anotado: cada correo enviado (TIPO 'CORREO') y cada intento de
+  iniciar sesión (TIPO 'INGRESO'). Las filas TIPO 'POWERBI' son de antes: Power BI
+  se quitó del sistema y ya no se anotan nuevas;
   las revisiones de pantallas las anota EstadoDiaModelo (TIPO 'REVISION').
   Si anotar falla, lo demás sigue igual.
 
   Con qué queda enlazado cada registro:
     ID_COLABORADOR    quién: la persona con sesión que disparó el correo (vacío si
-                      lo mandó una tarea programada) o la dueña del usuario de Power BI
+                      lo mandó una tarea programada)
     ID_NOTIFICACION   en los correos de listas: el aviso configurado que lo mandó
     ID_LISTA_CHEQUEO  en el aviso inmediato: la lista diligenciada que lo disparó
   Los dos últimos los pone quien manda el correo con Bitacora::contexto() antes de

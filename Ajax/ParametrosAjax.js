@@ -41,7 +41,7 @@ function cargarPar() {
                 });
                 html += '</div>';
             });
-            $('#parGrupos').html(html || '<p class="rd-vacio">No hay parámetros. Corre el script 03_AUSENTISMO_Y_PARAMETROS.sql.</p>');
+            $('#parGrupos').html(html || '<p class="rd-vacio">No hay parámetros para mostrar.</p>');
             rdCambiosGuardados();
 
             //Catálogos
@@ -116,69 +116,6 @@ function guardarCatalogo(evento) {
         .done(function (respuesta) { $('#modalCat').modal('hide'); rdAviso(respuesta.mensaje); cargarPar(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar.')); });
 }
-
-//---------------------------------------------------------------------------
-// Pestaña Correo: la prueba y los últimos envíos
-//---------------------------------------------------------------------------
-$(function () {
-    $('#tabCorreoLink').on('shown.bs.tab', cargarCorreoLog);
-    $('#btnProbarCorreo').on('click', probarCorreo);
-});
-
-//Trae los últimos correos enviados (o que fallaron) para revisarlos
-function cargarCorreoLog() {
-    $.getJSON(URL_PAR + '?op=correoLog').done(function (envios) {
-        var html = '';
-        envios.forEach(function (envio) {
-            html += '<tr><td class="rd-nowrap">' + rdFecha(envio.FECHA) + ' ' + rdHora(String(envio.FECHA).substring(11)) + '</td><td>' + rdEsc(envio.MODULO) + '</td>' +
-                 '<td>' + rdEsc(envio.PARA) + '</td><td>' + rdEsc(envio.ASUNTO) + '</td><td>' + rdEsc(envio.METODO) + '</td>' +
-                 '<td>' + (+envio.OK ? '<span class="rd-tag rd-tag-ok">Enviado</span>' : '<span class="rd-tag rd-tag-mal">Falló</span><br><small>' + rdEsc(envio.ERROR || '') + '</small>') + '</td></tr>';
-        });
-        $('#tbCorreoLog').html(html || '<tr><td colspan="6" class="rd-vacio">Todavía no hay envíos registrados.</td></tr>');
-    });
-}
-
-//Envía un correo de prueba y muestra cómo le fue a cada intento
-function probarCorreo() {
-    var para = $.trim($('#correoPrueba').val());
-    if (!para) { $('#correoPrueba').focus(); return; }
-    hanaBoton('#btnProbarCorreo', true);
-    $('#correoResultado').html('<p class="rd-vacio">Probando... puede tardar unos segundos por cada intento.</p>');
-    $.post(URL_PAR + '?op=probarCorreo', { para: para }, null, 'json')
-        .done(function (respuesta) {
-            var html = '<div class="rd-alerta-dia ' + (respuesta.ok ? 'rd-alerta-ok' : 'rd-alerta-pend') + '"><i class="fa ' + (respuesta.ok ? 'fa-check-circle' : 'fa-exclamation-circle') + '"></i> ' +
-                    (respuesta.ok ? 'El correo salió. Revisa la bandeja de ' + rdEsc(para) + ' (y la carpeta de spam).' : 'No se pudo enviar por ninguna vía. Abajo está el motivo de cada intento.') + '</div>';
-            html += '<h4 class="rd-subtitulo">Revisión del servidor</h4><ul class="par-revision">';
-            respuesta.revision.forEach(function (revision) {
-                html += '<li class="' + (revision[1] ? 'bien' : 'mal') + '"><i class="fa ' + (revision[1] ? 'fa-check' : 'fa-times') + '"></i> <strong>' + rdEsc(revision[0]) + ':</strong> ' + rdEsc(revision[2]) + '</li>';
-            });
-            html += '</ul><h4 class="rd-subtitulo">Intentos de envío</h4>';
-            respuesta.intentos.forEach(function (intento, i) {
-                html += '<div class="par-intento ' + (intento.ok ? 'bien' : 'mal') + '"><strong>' + (i + 1) + '. ' + rdEsc(intento.metodo) + '</strong> — ' + (intento.ok ? 'funcionó' : rdEsc(intento.error || 'falló')) +
-                     (intento.conversacion ? '<details><summary>Ver la conversación con el servidor</summary><pre>' + rdEsc(intento.conversacion) + '</pre></details>' : '') + '</div>';
-            });
-            $('#correoResultado').html(html);
-            cargarCorreoLog();
-        })
-        .fail(function (xhr) { $('#correoResultado').empty(); alert(rdError(xhr, 'No se pudo hacer la prueba.')); })
-        .always(function () { hanaBoton('#btnProbarCorreo', false); });
-}
-
-//Vista previa de los recordatorios: a quién le llegaría hoy y qué, sin enviar nada
-$(function () {
-    $('#btnVistaRecordatorios').on('click', function () {
-        $.getJSON('../Control/TareasControl.php?op=recordatorios&simular=1')
-            .done(function (respuesta) {
-                var html = '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr><th>Coordinador</th><th>Correo</th><th>Le falta</th><th>Resultado</th></tr></thead><tbody>';
-                respuesta.detalle.forEach(function (detalle) {
-                    html += '<tr><td>' + rdEsc(detalle.coordinador) + '</td><td>' + rdEsc(detalle.correo || '') + '</td><td>' + (detalle.falta.length ? rdEsc(detalle.falta.join(' · ')) : '—') + '</td>' +
-                         '<td>' + rdEsc(detalle.resultado) + '</td></tr>';
-                });
-                $('#recordatoriosResultado').html(html + '</tbody></table></div>' + (respuesta.detalle.length ? '' : '<p class="rd-vacio">No hay coordinadores asignados.</p>'));
-            })
-            .fail(function (xhr) { alert(rdError(xhr, 'No se pudo armar la vista previa.')); });
-    });
-});
 
 //---------------------------------------------------------------------------
 // Pestaña Días habilitados: abrirle a una persona un día distinto de hoy

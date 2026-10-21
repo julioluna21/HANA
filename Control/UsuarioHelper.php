@@ -1,19 +1,21 @@
 <?php
 /*
-  HANA - Datos para entrar: la clave temporal y el correo que se los lleva a la persona
+  HANA - Crear el usuario de una persona: la clave temporal y el correo que se la lleva
   ---------------------------------------------------------------------------
-  Lo usan las dos pantallas de personas:
-    - Colaboradores (Control/ColaboradoresControl.php): al registrar a alguien se le crea
-      el usuario y le llega este correo;
-    - Usuarios (Control/UsuariosControl.php): al ponerle usuario a quien no tenía, o al
-      darle una contraseña temporal nueva.
-  Quien necesita los PHPMailer y CorreoConfig.php los carga antes de usar estas funciones.
+  El usuario (tabla usuarios_sistema) va aparte de la persona (colaboradores). Lo usan
+  las dos pantallas de personas:
+    - Colaboradores (Control/ColaboradoresControl.php): al registrar a alguien se pregunta
+      si se le crea el usuario, y allí mismo se le crea con un rol que no administre;
+    - Usuarios (Control/UsuariosControl.php): crearle el usuario a quien no tiene, con
+      cualquier rol, o darle una contraseña temporal nueva.
+  Quien necesita los PHPMailer y CorreoHelper.php los carga antes de usar estas funciones.
 
   También dice qué roles «administran» (las casillas 1M, 2M, 3M y 24M): esos roles no se
   pueden dar desde Colaboradores, y a las personas que los tienen solo las edita o
   desactiva desde allí quien tiene 24M.
 */
 require_once __DIR__ . '/../Modelo/HanaDB.php';
+require_once __DIR__ . '/../Modelo/HanaClave.php';
 use PHPMailer\PHPMailer\PHPMailer;
 
 //Las casillas que dejan administrar a otras personas o a los roles
@@ -48,12 +50,40 @@ function usuRolSePuedeRegistrar($idRol)
     return false;
 }
 
-//¿El rol que tiene esa persona administra?
+//¿El rol del usuario de esa persona administra? (sin usuario, no administra)
 function usuPersonaAdministra($idPersona)
 {
-    $fila = HanaDB::fila("SELECT r.PERMISOS FROM colaboradores c JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
-                           WHERE c.ID_COLABORADOR = ?", 'i', array((int)$idPersona));
+    $fila = HanaDB::fila("SELECT r.PERMISOS FROM usuarios_sistema u JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = u.ID_ROL_USUARIO_SISTEMA
+                           WHERE u.ID_COLABORADOR = ?", 'i', array((int)$idPersona));
     return $fila ? usuRolAdministra($fila['PERMISOS']) : false;
+}
+
+//¿El nombre de usuario sirve? Devuelve el problema, o '' si sirve
+function usuProblemaNombre($modeloUsuarios, $usuario, $idPersona)
+{
+    if (!preg_match('/^[A-Za-z0-9._-]{3,50}$/', (string)$usuario)) {
+        return 'el nombre de usuario lleva solo letras sin tilde, números, punto, guion o guion bajo (de 3 a 50).';
+    }
+    if ($modeloUsuarios->usuarioExiste($usuario, $idPersona)) { return 'ese nombre de usuario ya lo tiene otra persona.'; }
+    return '';
+}
+
+//Le crea el usuario a una persona que no tiene: el nombre de usuario, el rol y una contraseña
+//temporal al azar, que le llega por correo (si el correo no sale, se muestra una sola vez).
+//Quien llama ya revisó que el rol se pueda dar. Devuelve el mensaje para la pantalla
+//(empieza con «Error:» si no se pudo)
+function usuCrearUsuario($modeloUsuarios, $persona, $usuario, $idRol)
+{
+    $idPersona = (int)$persona['ID_COLABORADOR'];
+    if ($modeloUsuarios->tieneUsuario($idPersona)) { return 'Error: esta persona ya tiene usuario.'; }
+    $problema = usuProblemaNombre($modeloUsuarios, $usuario, $idPersona);
+    if ($problema !== '') { return 'Error: ' . $problema; }
+    $temporal = usuClaveTemporal();
+    if (!$modeloUsuarios->crearUsuario($idPersona, $usuario, HanaClave::cifrar($temporal), $idRol)) {
+        return 'Error: no se pudo crear el usuario.';
+    }
+    $enviado = usuEnviarDatosEntrada($persona['MAIL_COLABORADOR'], $persona['NOM_COLABORADOR'], $usuario, $temporal);
+    return 'Usuario creado con éxito.' . usuAvisoDatosEntrada($enviado, $persona['MAIL_COLABORADOR'], $usuario, $temporal);
 }
 
 //Le manda a la persona su usuario y su contraseña temporal. Devuelve true si el correo salió
@@ -74,7 +104,7 @@ function usuEnviarDatosEntrada($correo, $nombre, $usuario, $clave)
     $mail->Body    = hanaCorreoHtml($nombre, $asunto, $mensaje, array('texto' => 'Entrar a HANA', 'url' => hanaUrlSistema('login.php')));
     $mail->AltBody = "Ya tienes usuario en HANA.\nUsuario: " . $usuario . "\nContraseña temporal: " . $clave
                    . "\nAl entrar, cámbiala en el menú de tu nombre → Cambiar clave.";
-    return hanaEnviar($mail, 'USUARIOS'); //con plan B y registro (ver CorreoConfig.php)
+    return hanaEnviar($mail, 'USUARIOS'); //con la cuenta de Global.php; queda en la bitácora (ver CorreoHelper.php)
 }
 
 //El aviso para quien registró o dio la clave: si el correo salió, solo se dice a dónde

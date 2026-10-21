@@ -27,7 +27,6 @@ if (isset($_SESSION['IdUsuarios'])) {
             <li><a href="#tabDias" data-toggle="tab" id="tabDiasLink">Días habilitados</a></li>
             <li><a href="#tabCargos" data-toggle="tab">Ausentismo: cargos</a></li>
             <li><a href="#tabNovedades" data-toggle="tab">Ausentismo: novedades</a></li>
-            <li><a href="#tabCorreo" data-toggle="tab" id="tabCorreoLink">Correo</a></li>
           </ul>
           <div class="tab-content cd-contenido">
             <div class="tab-pane active" id="tabPar">
@@ -79,26 +78,6 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <tbody id="tbNovedades"></tbody></table></div>
               <button type="button" class="btn btn-success btn-sm" data-nuevo="novedad"><i class="fa fa-plus"></i> Nueva novedad</button>
             </div>
-            <div class="tab-pane" id="tabCorreo">
-              <p style="margin-top:0;">Si los correos no están llegando, envía una prueba a tu propio correo. Aquí verás paso a paso qué respondió el servidor,
-                y con eso sabemos si es la contraseña, el puerto, el certificado o un bloqueo del hosting.</p>
-              <div class="par-prueba">
-                <input type="email" id="correoPrueba" class="form-control" placeholder="tu.correo@regency.com.co" aria-label="Correo para la prueba">
-                <button type="button" class="btn btn-success" id="btnProbarCorreo"><i class="fa fa-paper-plane"></i> Enviar prueba</button>
-              </div>
-              <div id="correoResultado"></div>
-              <h4 class="rd-subtitulo">Recordatorios automáticos</h4>
-              <p>Si enciendes <em>"Recordar por correo a cada coordinador lo que le falta del día"</em> (arriba, en Parámetros), crea en cPanel una
-                tarea programada (Tareas Cron) a la hora que quieran, por ejemplo todos los días a las 10:00, con esta línea
-                (cambia LA_CLAVE por el valor de HANA_TOKEN_TAREAS de Global.php):</p>
-              <pre class="par-cron">curl -s "https://<?php echo htmlspecialchars($_SERVER['HTTP_HOST'], ENT_QUOTES, 'UTF-8'); ?><?php echo htmlspecialchars(rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\'), ENT_QUOTES, 'UTF-8'); ?>/Control/TareasControl.php?op=recordatorios&amp;token=LA_CLAVE" &gt; /dev/null</pre>
-              <button type="button" class="btn btn-default" id="btnVistaRecordatorios"><i class="fa fa-eye"></i> Ver a quién le llegaría hoy</button>
-              <div id="recordatoriosResultado" style="margin-top:10px;"></div>
-              <h4 class="rd-subtitulo">Últimos envíos</h4>
-              <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>Cuándo</th><th>Módulo</th><th>Para</th><th>Asunto</th><th>Método</th><th>Resultado</th></tr></thead>
-                <tbody id="tbCorreoLog"><tr><td colspan="6" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
-            </div>
           </div>
         </div>
       </div>
@@ -108,7 +87,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=4"></script>
+<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=5"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

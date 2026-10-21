@@ -18,7 +18,7 @@ require_once __DIR__ . '/ArchivoHelper.php'; //las fotos se guardan en la base c
 require '../public/PHPMailer-master/src/Exception.php';
                 require '../public/PHPMailer-master/src/PHPMailer.php';
                 require '../public/PHPMailer-master/src/SMTP.php';
-require_once __DIR__ . '/CorreoConfig.php'; //cuenta de correo y plantilla de los correos
+require_once __DIR__ . '/CorreoHelper.php'; //envío y plantilla de los correos (la cuenta está en Conexion/Global.php)
                 use PHPMailer\PHPMailer\PHPMailer;
                 use PHPMailer\PHPMailer\Exception;
 
@@ -107,7 +107,7 @@ function novFotoSrc($valor, $idNovedad, $cual)
 }
 
 //Envía un correo a una persona, en HTML y saludándola por su nombre
-//(la plantilla y la cuenta están en CorreoConfig.php)
+//(la plantilla está en CorreoHelper.php; la cuenta, en Conexion/Global.php)
 function correoenvio($correo,$mensaje,$asunto,$nombre='',$boton=null){
                          $mail = new PHPMailer();
                          hanaConfigurarSmtp($mail); //cuenta, servidor, UTF-8 y HTML
@@ -116,7 +116,7 @@ function correoenvio($correo,$mensaje,$asunto,$nombre='',$boton=null){
                          $mail->Subject  = $asunto;
                          $mail->Body     = hanaCorreoHtml($nombre, $asunto, $mensaje, $boton);
                          $mail->AltBody  = trim(strip_tags(str_replace(array('<br>', '</p>', '</tr>'), "\n", $mensaje)));
-                         return hanaEnviar($mail, 'NOVEDADES'); //con plan B y registro (ver CorreoConfig.php)
+                         return hanaEnviar($mail, 'NOVEDADES'); //queda anotado en la bitácora (ver CorreoHelper.php)
 }
 
 //Avisa a todas las personas de un rol: cada una recibe su propio correo, dirigido
@@ -671,7 +671,7 @@ switch ($_GET["op"])
                     $valor = $fotos ? (string)$fotos[$cual] : '';
                     $partes = hanaArchivoPartes($valor);
                     if (!$partes || strpos($partes[0], 'image/') !== 0) {
-                        http_response_code(404); echo 'La foto ya no está en el servidor.'; break;
+                        http_response_code(404); echo 'La foto ya no está disponible.'; break;
                     }
                     list($tipo, $bytes) = $partes;
                     hanaArchivoEntregar($bytes, $tipo, 'novedad-' . $idFoto . ($cual === 'FIN' ? '-cierre' : '') . '.' . (explode('/', $tipo)[1] === 'jpeg' ? 'jpg' : explode('/', $tipo)[1]), true);

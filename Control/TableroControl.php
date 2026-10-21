@@ -9,7 +9,6 @@
 session_start();
 require_once __DIR__ . "/../Modelo/TableroModelo.php";
 require_once __DIR__ . '/../Modelo/HanaTexto.php'; //las respuestas JSON llevan los textos como se escribieron (sin &amp;)
-require_once __DIR__ . "/../Modelo/PromesaValorModelo.php"; //la promesa de valor y el ejecutado del día de cada peaje
 require_once __DIR__ . "/AccesoHelper.php";
 
 header('Content-Type: application/json; charset=utf-8');
@@ -55,19 +54,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'resumen':
         $proyectos = $tablero->proyectos(array_keys($alcance['proyectos']), $fecha);
         $centros = $tablero->centros(array_keys($alcance['centros']), $fecha);
-        //Promesa de valor: [idCentro] = [promesa, ejecutado]. Vacío si el administrador apagó el módulo
-        $promesaPorCentro = HanaConfig::modulo('PROMESA') ? (new PromesaValor())->resumenDia(array_keys($alcance['centros']), $fecha) : array();
         $porProyecto = array();
         foreach ($centros as $centro) { $porProyecto[(int)$centro['ID_PROYECTO']][] = $centro; }
         foreach ($proyectos as $i => $proyecto) {
             $lista = isset($porProyecto[(int)$proyecto['ID_PROYECTO']]) ? $porProyecto[(int)$proyecto['ID_PROYECTO']] : array();
             $conJefe = 0; $reportaron = 0; $conLista = 0; $vacantes = 0; $rqPendientes = 0; $arqueos = 0; $arqueosDif = 0;
-            $pvConPromesa = 0; $pvListos = 0; $pvDif = 0; //peajes con promesa, los que ya tienen ejecutado y lo que les faltó o sobró
             foreach ($lista as $indice => $centro) {
-                $promesaCentro = isset($promesaPorCentro[(int)$centro['ID_CENTRO_OP']]) ? $promesaPorCentro[(int)$centro['ID_CENTRO_OP']] : null;
-                $lista[$indice]['PV_PROMESA'] = $promesaCentro ? $promesaCentro['promesa'] : null;       //null: ese peaje no tiene promesa definida
-                $lista[$indice]['PV_EJECUTADO'] = $promesaCentro ? $promesaCentro['ejecutado'] : null;   //null: falta registrar el ejecutado
-                if ($promesaCentro && $promesaCentro['promesa'] > 0) { $pvConPromesa++; if ($promesaCentro['ejecutado'] !== null) { $pvListos++; $pvDif += $promesaCentro['ejecutado'] - $promesaCentro['promesa']; } }
                 //Los jefes de peaje hacen la lista de chequeo; Hoy en qué estás es del coordinador
                 if ($centro['ID_COLABORADOR_JEFE']) { $conJefe++; if ($centro['SITUACION']) { $reportaron++; } }
                 if ((int)$centro['LISTAS'] > 0) { $conLista++; }
@@ -80,8 +72,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $proyectos[$i]['COORD_PUEDE_VER'] = tabPuedeVer((int)$proyecto['ID_COLABORADOR_COORDINADOR'], $proyecto['ID_PROYECTO'], $idColaborador, $verTodos, $coordino);
             $proyectos[$i]['CENTROS'] = $lista;
             $proyectos[$i]['RESUMEN'] = array('centros' => count($lista), 'conJefe' => $conJefe, 'reportaron' => $reportaron, 'conLista' => $conLista,
-                                         'vacantes' => $vacantes, 'rq' => $rqPendientes, 'arqueos' => $arqueos, 'arqueosDif' => $arqueosDif,
-                                         'pvCon' => $pvConPromesa, 'pvListos' => $pvListos, 'pvDif' => $pvDif);
+                                         'vacantes' => $vacantes, 'rq' => $rqPendientes, 'arqueos' => $arqueos, 'arqueosDif' => $arqueosDif);
         }
         echo hanaJsonTexto(array('fecha' => $fecha, 'hoy' => $hoy, 'verTodos' => $verTodos, 'proyectos' => $proyectos), JSON_UNESCAPED_UNICODE);
         break;

@@ -150,14 +150,14 @@ switch ($op) {
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         adjCargar($modulo, $id, $idUsuario, $idColaborador, true);
         if (empty($_FILES['archivos']) || !is_array($_FILES['archivos']['name'])) {
-            adjError(400, 'No llegó ningún archivo. Si es muy grande, puede que el servidor lo haya rechazado antes (upload_max_filesize).');
+            adjError(400, 'No llegó ningún archivo. Si es muy grande, prueba con uno más liviano.');
         }
         $maxBytes = max(1, HanaConfig::num('ADJUNTOS_MAX_MB', 10)) * 1024 * 1024;
         $guardados = 0; $avisos = array();
         foreach ($_FILES['archivos']['name'] as $i => $nombre) {
             $err = $_FILES['archivos']['error'][$i];
             $nombre = basename((string)$nombre);
-            if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) { $avisos[] = $nombre . ': es más grande de lo que permite el servidor.'; continue; }
+            if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) { $avisos[] = $nombre . ': es demasiado grande. Prueba con uno más liviano.'; continue; }
             if ($err !== UPLOAD_ERR_OK) { $avisos[] = $nombre . ': no se pudo subir (error ' . $err . ').'; continue; }
             $ext = strtolower(pathinfo($nombre, PATHINFO_EXTENSION));
             if (!isset($ADJ_TIPOS[$ext])) { $avisos[] = $nombre . ': ese tipo de archivo no se permite.'; continue; }
@@ -175,7 +175,7 @@ switch ($op) {
             if ($archivo['achicada']) { $nombre = hanaArchivoNombreJpg($nombre); }
             $nombre = function_exists('mb_substr') ? mb_substr($nombre, 0, 200) : substr($nombre, 0, 200);
             if (!(new Adjunto())->guardar($modulo, $id, $nombre, $archivo['texto'], $archivo['tipo'], $archivo['tamano'], $idColaborador)) {
-                $avisos[] = $nombre . ': no se pudo guardar en la base de datos.'; continue;
+                $avisos[] = $nombre . ': no se pudo guardar. Intenta de nuevo.'; continue;
             }
             $guardados++;
         }
@@ -203,7 +203,7 @@ switch ($op) {
     case 'ver':
         $adjunto = adjPorId(isset($_GET['id']) ? (int)$_GET['id'] : 0, $idUsuario, $idColaborador, false, true);
         $partes = hanaArchivoPartes((new Adjunto())->contenido((int)$adjunto['ID_ADJUNTO']));
-        if (!$partes) { adjError(404, 'El archivo ya no está en el servidor.'); }
+        if (!$partes) { adjError(404, 'El archivo ya no está disponible.'); }
         list($tipo, $bytes) = $partes;
         $enLinea = !isset($_GET['descargar']) && (strpos($tipo, 'image/') === 0 || $tipo === 'application/pdf');
         hanaArchivoEntregar($bytes, $tipo, $adjunto['NOMBRE'], $enLinea);

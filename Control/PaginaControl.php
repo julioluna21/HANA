@@ -14,8 +14,6 @@
     pagPuedeModulo('HOY')         ¿puede usar la pantalla de ese módulo?
     pagTienePeajes()              ¿es jefe de un peaje o tiene peajes asignados?
     pagEsJefePeaje()              ¿es jefe de algún peaje?
-    pagPromesaEntrar()            ¿entra a Promesa de valor?
-    pagPromesaConsolidado()       ¿entra al consolidado de promesa de valor?
     pagHoy()                      el día de hoy en Colombia (AAAA-MM-DD)
 */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
@@ -32,8 +30,6 @@ function pagPuedeModulo($modulo)                  { return hanaPuedeModulo($modu
 function pagModulosCoordinador()                  { return array_keys(hanaPermisosModulo()); }
 function pagTienePeajes()                         { return hanaIdColaborador() > 0 && hanaIdUsuario() > 0 && Organizacion::tienePeajes(hanaIdColaborador(), hanaIdUsuario()); }
 function pagEsJefePeaje()                         { return hanaIdColaborador() > 0 && Organizacion::esJefeDePeaje(hanaIdColaborador()); }
-function pagPromesaEntrar()                       { return hanaPromesaEntrar(); }
-function pagPromesaConsolidado()                  { return hanaPromesaConsolidado(); }
 function pagHoy()                                 { return HanaFechas::hoy(); }
 
 //Para RQVista: por qué alguien con sesión no ve el módulo de requisiciones
@@ -48,13 +44,12 @@ function pagDiagnosticoRQ()
     );
 }
 
-//Para Reporte diario (inicio): cómo va el día del coordinador y su promesa de valor
+//Para Reporte diario (inicio): cómo va el día del coordinador
 function pagResumenDelDia()
 {
     require_once __DIR__ . '/../Modelo/EstadoDiaModelo.php';
     $id = hanaIdColaborador();
     $hoy = date('Y-m-d');
-    //La promesa de valor está en el menú de Ausentismo: aquí solo va el estado del día
     return array('estado' => (new EstadoDia())->resumen($id, $hoy));
 }
 

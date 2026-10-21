@@ -6,12 +6,19 @@
   a quién se avisa cuando se llena un tipo de lista, y con qué frecuencia
   (al enviar, resumen diario o resumen semanal).
   Operaciones: guardar, mostrar, anular, activar, listar, selectColaborador y probar.
-  resumenDiario y resumenSemanal las llama una tarea programada, con su token.
+  Los resúmenes diario y semanal los envía el servidor con cron
+  (tareas/resumen_diario.php y tareas/resumen_semanal.php), no esta dirección.
   Permiso: 12M.
 */
 session_start();
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
-hanaGuardia(array('12M'), array(), array('resumenDiario', 'resumenSemanal')); //Correos de listas: 12M. Los resúmenes programados usan su token
+//Los resúmenes ya no se piden por aquí: son tareas del servidor (carpeta tareas/)
+if (isset($_GET['op']) && in_array($_GET['op'], array('resumenDiario', 'resumenSemanal'), true)) {
+    http_response_code(410);
+    echo "Esta dirección ya no se usa.";
+    exit();
+}
+hanaGuardia(array('12M')); //Correos de listas: 12M
 require_once "../Modelo/NotificacionesModelo.php";
 $modeloNotificaciones = new Notificaciones();
 
@@ -127,10 +134,6 @@ switch ($_GET["op"]) {
 
   //Envía una prueba a los destinatarios, para revisar antes de dejarla automática
   case 'probar':
-    //Se enciende el diagnóstico para devolver el detalle si algo falla
-    $GLOBALS['hanaDebug'] = true;
-    $GLOBALS['hanaDebugTexto'] = '';
-
     require_once __DIR__ . "/EnvioNotificacionesControl.php";
     $html = hanaPlantillaCorreo(
         'Correo de prueba',
@@ -146,34 +149,14 @@ switch ($_GET["op"]) {
         http_response_code(200);
         echo "Enviado";
     } else {
-        //Se devuelve el motivo exacto para poder diagnosticar desde la pantalla
+        //A la persona solo se le dice qué puede revisar ella (los correos); lo técnico del envío
+        //queda en bitacora_sistema y en el error_log para el administrador
         http_response_code(400);
-        echo "No se pudo enviar.\n\nMotivo: ".$GLOBALS['hanaUltimoError']
-             ."\n\n--- Detalle de la conexión ---\n".$GLOBALS['hanaDebugTexto'];
+        echo strpos($GLOBALS['hanaUltimoError'], 'Ningun destinatario') === 0
+            ? "Revisa los destinatarios: ninguno es un correo válido."
+            : "El correo no salió. Revisa que los destinatarios estén bien escritos; si lo están, avísale al administrador del sistema.";
     }
     break;
 
-  /* Disparadores de los resúmenes. Se llaman desde una tarea programada:
-     .../Control/NotificacionesControl.php?op=resumenDiario&token=EL_TOKEN
-     .../Control/NotificacionesControl.php?op=resumenSemanal&token=EL_TOKEN
-     El token evita que cualquiera dispare envíos masivos entrando por el navegador.
-     El token se define en Conexion/Global.php (HANA_TOKEN_TAREAS).
-     Si no está definido, los resúmenes no se envían. */
-  case 'resumenDiario':
-  case 'resumenSemanal':
-    require_once __DIR__ . '/../Conexion/Global.php';
-    $token = isset($_GET['token']) ? (string)$_GET['token'] : '';
-    if (!defined('HANA_TOKEN_TAREAS') || strlen(HANA_TOKEN_TAREAS) < 16) {
-        error_log('HANA: falta HANA_TOKEN_TAREAS (mínimo 16 caracteres) en Conexion/Global.php');
-        http_response_code(403); echo "Las tareas programadas no están configuradas"; exit();
-    }
-    //hash_equals compara sin revelar por el tiempo de respuesta cuántos caracteres acertó
-    if (!hash_equals(HANA_TOKEN_TAREAS, $token)) { http_response_code(403); echo "Token inválido"; exit(); }
-
-    require_once __DIR__ . "/EnvioNotificacionesControl.php";
-    $frecuenciaResumen = ($_GET["op"] == 'resumenDiario') ? 'diario' : 'semanal';
-    $enviados = hanaEnviarResumen($frecuenciaResumen);
-    echo "Resumen $frecuenciaResumen: $enviados correo(s) enviado(s).";
-    break;
 }
 ?>

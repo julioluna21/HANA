@@ -230,7 +230,7 @@ function mostrar(IDnovedad)
     {
         
     bootbox.dialog({
-        message: '<div class="text-center"><i class="fa fa-spin fa-spinner"></i> Consultando la base de datos...</div>',
+        message: '<div class="text-center"><i class="fa fa-spin fa-spinner"></i> Cargando...</div>',
         closeButton: false
         });
     setTimeout(() => {
@@ -255,7 +255,7 @@ function solover(IDnovedad)
     {
         
     bootbox.dialog({
-        message: '<div class="text-center"><i class="fa fa-spin fa-spinner"></i> Consultando la base de datos...</div>',
+        message: '<div class="text-center"><i class="fa fa-spin fa-spinner"></i> Cargando...</div>',
         closeButton: false
         });
     setTimeout(() => {

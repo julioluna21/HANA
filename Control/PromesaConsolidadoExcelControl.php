@@ -1,5 +1,16 @@
 <?php
 /*
+  Archivo sin uso: el consolidado de promesa de valor se quitó del sistema junto con la promesa de valor.
+  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
+  abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Consolidado de promesa de valor en Excel: acceso y datos
   ---------------------------------------------------------------------------
   Lo usa Vista/PromesaConsolidadoExcelVista.php. Revisa la casilla 40M, valida

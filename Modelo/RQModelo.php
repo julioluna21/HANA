@@ -301,7 +301,8 @@ class Rq
                        col.NOM_COLABORADOR AS QUIEN, ro.NOM_ROL_USUARIO_SISTEMA AS ROL
                   FROM historial h
                   LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
-                  LEFT JOIN rol_usuarios_sistemas ro ON ro.ID_ROL_USUARIO_SISTEMA = col.ID_ROL_USUARIO_SISTEMA
+                  LEFT JOIN usuarios_sistema us ON us.ID_COLABORADOR = col.ID_COLABORADOR
+                  LEFT JOIN rol_usuarios_sistemas ro ON ro.ID_ROL_USUARIO_SISTEMA = us.ID_ROL_USUARIO_SISTEMA
                  WHERE h.MODULO = 'RQ' AND h.ID_REGISTRO = " . intval($idRq) . "
                  ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC";
         return $this->ejecutar($sql);

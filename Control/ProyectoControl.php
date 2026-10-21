@@ -12,7 +12,7 @@
 
   Reglas que revisa el servidor al guardar:
     - El nombre es obligatorio y no se repite entre los proyectos activos.
-      (un proyecto sin nombre dañaría los Excel del ausentismo y de la promesa de valor).
+      (un proyecto sin nombre dañaría los Excel del ausentismo).
     - El coordinador, si se escoge, tiene que existir y estar activo.
   Si algo no se cumple responde 400 con el motivo, y la pantalla lo muestra.
 */

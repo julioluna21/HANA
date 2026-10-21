@@ -3,8 +3,8 @@
   HANA - Contraseñas
   ---------------------------------------------------------------------------
   Todo lo de las claves en un solo sitio, para que el inicio de sesión, el
-  cambio de clave, la clave temporal, "Olvidé mi contraseña" y Power BI
-  sigan las mismas reglas.
+  cambio de clave, la clave temporal y "Olvidé mi contraseña" sigan las
+  mismas reglas.
 
     cifrar($clave)        La clave nueva se guarda con password_hash (bcrypt):
                           cada clave lleva su propia "sal" y adivinarla es lento.
@@ -26,7 +26,7 @@
 
   También están aquí los números del freno al iniciar sesión (INTENTOS_MAXIMOS,
   MINUTOS_ESPERA, INTENTOS_POR_IP) y del límite de correos de recuperación.
-  Lo usan Control/UsuariosControl.php y Control/PowerBiControl.php.
+  Lo usan Control/UsuariosControl.php y Control/UsuarioHelper.php.
 */
 
 class HanaClave
@@ -42,7 +42,7 @@ class HanaClave
     const INTENTOS_POR_IP = 100;  //claves malas desde un mismo equipo, con cualquier usuario (alto: en una oficina
                                   //todos salen a internet con la misma dirección)
 
-    //La clave lista para guardar en colaboradores.CLAVE
+    //La clave lista para guardar en usuarios_sistema.CLAVE
     public static function cifrar($clave)
     {
         return password_hash((string)$clave, PASSWORD_BCRYPT);

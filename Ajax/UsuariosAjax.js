@@ -1,13 +1,13 @@
 //Configuración - Usuarios (Vista/UsuariosVista.php)
-//El acceso de cada persona: rol, nombre de usuario, peajes asignados y contraseña
-//temporal (le llega por correo). Sus datos (documento, nombre, correo) solo se ven:
-//se cambian en Colaboradores, donde también se registra a las personas nuevas.
-//Todo vive en la misma fila (colaboradores) y el número de usuario es el del colaborador.
+//El usuario de cada persona para entrar a HANA: crearlo a quien no tiene, su nombre de
+//usuario, su rol, la contraseña temporal (le llega por correo) y bloquear o devolver el
+//acceso. Sus datos (documento, nombre, correo y peajes) solo se ven: se cambian en
+//Colaboradores, donde también se registra a las personas nuevas.
+//El número que se usa es el de la persona (ID_COLABORADOR).
 //Habla con Control/UsuariosControl.php
 
-var tabla;//variable global
-var vrca;
-var Centroslista;
+var tabla; //la tabla de personas (DataTables)
+var vrca;  //"canvu" cuando la pantalla se abre para cambiar la clave propia
 
 //Función que se ejecuta al inicio
 function init()
@@ -28,26 +28,11 @@ function init()
 
     $("#demo-form2").on("submit", function(evento){ guardar(evento); });
 
-    //Los peajes (casillas agrupadas por proyecto) y los roles activos
-    $.post("../Control/UsuariosControl.php?op=centros", function(data){
-        $("#centros").html(data);
-    });
+    //Los roles activos (aquí se puede dar cualquiera, también los que administran)
     $.post("../Control/RolesControl.php?op=select", function(data){
         $("#rol").html(data);
     });
-    $.post("../Control/UsuariosControl.php?op=centroslistatodos", function(data){
-        Centroslista = String(data).split(',');
-    });
     $('#rol').select2({ width: '100%' });
-}
-
-//Marca o desmarca todos los centros con la casilla "Seleccionar todos"
-function seleccionarTodos()
-{
-    var marcar = $('#todosc').prop('checked');
-    for (var i = 0; i < (Centroslista || []).length; i++) {
-        $("#r" + Centroslista[i]).prop("checked", marcar);
-    }
 }
 
 //Muestra el formulario (true) o la tabla (false)
@@ -79,7 +64,6 @@ function limpiar()
     document.getElementById("formularioclave").reset();
     $('#rol').val("").trigger('change');
     $("#idusuario").val("");
-    $('#centros input[type=checkbox]').prop("checked", false);
 }
 
 //La tabla de personas
@@ -102,7 +86,7 @@ function listar()
     }).DataTable();
 }
 
-//Guarda el acceso de la persona: rol, usuario y peajes
+//Guarda el usuario de la persona: si no tenía, se le crea (con la contraseña temporal por correo)
 function guardar(evento)
 {
     evento.preventDefault();
@@ -128,38 +112,47 @@ function guardar(evento)
     });
 }
 
-//Trae a una persona con sus peajes y la carga en el formulario
-function mostrar(idusuario)
+//Carga a una persona en el formulario. crear = true cuando todavía no tiene usuario
+function cargarPersona(idusuario, crear)
 {
     hanaCargando(true);
-    var pidePersona = $.post("../Control/UsuariosControl.php?op=mostrar", {idusuario : idusuario});
-    var pideCentros = $.post("../Control/UsuariosControl.php?op=centroslista", {idusuario : idusuario});
-    $.when(pidePersona, pideCentros)
-        .done(function(resPersona, resCentros){
-            hanaCargando(false);
-            var data = JSON.parse(resPersona[0]);
-            limpiar();
-            $("#idusuario").val(data.ID_COLABORADOR);
-            $("#documento").val(data.DOC_COLABORADOR);
-            $("#persona").val(data.NOM_COLABORADOR);
-            $("#correo").val(data.MAIL_COLABORADOR);
+    $.post("../Control/UsuariosControl.php?op=mostrar", {idusuario : idusuario}, function(respuesta){
+        hanaCargando(false);
+        var data = JSON.parse(respuesta);
+        if (!data) { alert("Esa persona ya no existe. Actualiza la página."); return; }
+        limpiar();
+        $("#idusuario").val(data.ID_COLABORADOR);
+        $("#documento").val(data.DOC_COLABORADOR);
+        $("#persona").val(data.NOM_COLABORADOR);
+        $("#correo").val(data.MAIL_COLABORADOR);
+        if (crear) {
+            //Se le propone su documento como nombre de usuario
+            $("#usuario").val(data.DOC_COLABORADOR || "");
+            $('#rol').val("").trigger('change');
+            $("#ayudaUsuario").text("Todavía no tiene usuario. Al guardar se le crea, con una contraseña temporal que le llega por correo (si el correo no sale, se muestra aquí una sola vez).");
+        } else {
             $("#usuario").val(data.USUARIO || "");
             //Si su rol está apagado no sale en la lista: se agrega para verlo
             if (data.ID_ROL_USUARIO_SISTEMA && !$('#rol option[value="' + data.ID_ROL_USUARIO_SISTEMA + '"]').length) {
                 $('#rol').append(new Option(data.NOM_ROL_USUARIO_SISTEMA || data.ID_ROL_USUARIO_SISTEMA, data.ID_ROL_USUARIO_SISTEMA));
             }
             $('#rol').val(data.ID_ROL_USUARIO_SISTEMA).trigger('change');
-            var lista = String(resCentros[0]).split(',');
-            for (var i = 0; i < lista.length; i++) { $("#r" + lista[i]).prop("checked", true); }
-            mostrarform(true);
-            //La contraseña temporal solo sirve para quien ya tiene usuario
-            $('#btnclave').toggle(!!data.USUARIO);
-        })
-        .fail(function(xhr){
-            hanaCargando(false);
-            hanaErrorAjax(xhr, "No se pudieron cargar los datos.");
-        });
+            $("#ayudaUsuario").text(String(data.ACCESO) === "1" ? "Puede entrar a HANA." : "Su acceso está bloqueado: no puede entrar hasta que se le devuelva (botón del candado en la tabla).");
+        }
+        mostrarform(true);
+        //La contraseña temporal solo sirve para quien ya tiene usuario
+        $('#btnclave').toggle(!crear);
+    }).fail(function(xhr){
+        hanaCargando(false);
+        hanaErrorAjax(xhr, "No se pudieron cargar los datos.");
+    });
 }
+
+//Editar el usuario de una persona
+function mostrar(idusuario) { cargarPersona(idusuario, false); }
+
+//Crearle el usuario a una persona que no tiene
+function crearUsuario(idusuario) { cargarPersona(idusuario, true); }
 
 //Le da a la persona una contraseña temporal nueva: le llega por correo (si el correo no sale, se muestra aquí una sola vez)
 function claveTemporal()
@@ -173,37 +166,22 @@ function claveTemporal()
     });
 }
 
-//Desactiva a la persona (pregunta antes)
+//Bloquea el acceso (pregunta antes): no puede entrar, pero la persona sigue en las listas
 function anular(idusuario){
-    hanaConfirmar("¿Desactivar a esta persona? No podrá entrar y dejará de salir en las listas.", function(){
+    hanaConfirmar("¿Bloquear el acceso de esta persona? No podrá entrar a HANA, pero sigue saliendo en las listas. A la persona se la desactiva en Colaboradores.", function(){
         $.post("../Control/UsuariosControl.php?op=anular", {idusuario : idusuario}, function(data){
             alert(data);
             tabla.ajax.reload();
-        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo desactivar."); });
+        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo bloquear el acceso."); });
     });
 }
-//Vuelve a activar a la persona (pregunta antes)
+//Le devuelve el acceso (pregunta antes)
 function activar(idusuario){
-    hanaConfirmar("¿Activar a esta persona?", function(){
+    hanaConfirmar("¿Devolverle el acceso? Podrá volver a entrar a HANA con su contraseña.", function(){
         $.post("../Control/UsuariosControl.php?op=activar", {idusuario : idusuario}, function(data){
             alert(data);
             tabla.ajax.reload();
-        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo activar."); });
-    });
-}
-
-//Muestra en una ventana los peajes asignados a una persona
-function centros(idusuario){
-    hanaCargando(true);
-    $.post("../Control/UsuariosControl.php?op=MostrarCentros", {idusuario : idusuario}, function(data)
-    {
-        hanaCargando(false);
-        var lista = $.trim(String(data).replace(/<br\s*\/?>/gi, "\n"));
-        alert(lista !== "" ? lista : "Esta persona no tiene peajes asignados.", null, { titulo: "Peajes asignados" });
-    })
-    .fail(function(xhr){
-        hanaCargando(false);
-        hanaErrorAjax(xhr, "No se pudieron cargar los peajes.");
+        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo devolver el acceso."); });
     });
 }
 

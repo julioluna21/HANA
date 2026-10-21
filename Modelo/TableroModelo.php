@@ -104,7 +104,8 @@ class Tablero
     {
         $persona = HanaDB::fila("SELECT c.ID_COLABORADOR, c.NOM_COLABORADOR, r.NOM_ROL_USUARIO_SISTEMA AS ROL
                                FROM colaboradores c
-                               LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
+                               LEFT JOIN usuarios_sistema u ON u.ID_COLABORADOR = c.ID_COLABORADOR
+                               LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = u.ID_ROL_USUARIO_SISTEMA
                               WHERE c.ID_COLABORADOR = ?", 'i', array((int)$idColaborador));
         if (!$persona) { return null; }
         $diaSiguiente = date('Y-m-d', strtotime("$fecha +1 day"));

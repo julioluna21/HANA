@@ -82,7 +82,7 @@ $enlaceF = isset($_GET['f']) ? preg_replace('/[^0-9a-f]/i', '', (string)$_GET['f
     </div>
     <script src="../vendors/jquery/dist/jquery.min.js"></script>
     <!-- Alertas personalizadas: debe cargar antes de RestablecerAjax.js -->
-    <script src="../Ajax/AlertasAjax.js?v=5"></script>
+    <script src="../Ajax/AlertasAjax.js?v=6"></script>
     <script src="../Ajax/RestablecerAjax.js?v=1"></script>
   </body>
 </html>

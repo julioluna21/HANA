@@ -1,5 +1,13 @@
 <?php
 /*
+  Pantalla sin uso: el Dashboard (Power BI dentro de HANA) se quitó del sistema; el informe mensual cubre esos datos. Si alguien entra por la
+  dirección, va al inicio. El código de abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
+/*
   HANA - Tablero de Power BI
   ---------------------------------------------------------------------------
   Muestra dentro de HANA el tablero publicado en Power BI (en un iframe).

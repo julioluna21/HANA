@@ -35,7 +35,7 @@ function hanaColumnaDeCelda($ref)
 function hanaLeerXlsx($ruta, $nombreHoja = '')
 {
     if (!hanaPuedeLeerXlsx()) {
-        return array('error' => 'Este servidor no puede leer archivos de Excel. Guarda la hoja PREGUNTAS como CSV y sube ese archivo.');
+        return array('error' => 'No se pudo leer el archivo de Excel. Guarda la hoja PREGUNTAS como CSV y sube ese archivo.');
     }
 
     $zip = new ZipArchive();

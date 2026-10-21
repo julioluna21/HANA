@@ -1,5 +1,16 @@
 <?php
 /*
+  Archivo sin uso: la conexión de Power BI se quitó del sistema (el informe mensual cubre esos datos).
+  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
+  abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Datos para Power BI
   ---------------------------------------------------------------------------
   Usuario de conexión (rol LECTOR POWER BI, solo lee):

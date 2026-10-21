@@ -209,7 +209,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           var HANA_ADJ_LISTAS = <?php echo pagParametroSi('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
           var HANA_ADJ_MAX_MB = <?php echo (int)max(1, pagParametroNum('ADJUNTOS_MAX_MB', 10)); ?>;
         </script>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=10"></script>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=11"></script>
         <script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script>
 <?php
     } else {

@@ -44,10 +44,12 @@ class Roles
                                           'si', array((string)$nombre, (int)$excepto));
         }
 
-        //Cuántas personas activas tienen el rol (un rol con personas no se desactiva)
+        //Cuántas personas activas tienen un usuario activo con el rol (un rol con personas no se desactiva)
         public function personasActivas($idRol)
         {
-                $fila = HanaDB::fila("SELECT COUNT(*) AS n FROM colaboradores WHERE ID_ROL_USUARIO_SISTEMA = ? AND ESTADO = 1", 'i', array((int)$idRol));
+                $fila = HanaDB::fila("SELECT COUNT(*) AS n FROM usuarios_sistema u
+                                        INNER JOIN colaboradores c ON c.ID_COLABORADOR = u.ID_COLABORADOR
+                                       WHERE u.ID_ROL_USUARIO_SISTEMA = ? AND u.ESTADO = 1 AND c.ESTADO = 1", 'i', array((int)$idRol));
                 return $fila ? (int)$fila['n'] : 0;
         }
 

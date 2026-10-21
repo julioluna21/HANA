@@ -91,61 +91,6 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         break;
 
     //-----------------------------------------------------------------------
-    // Prueba de correo: revisa el servidor y envía un correo real mostrando
-    // cada intento (ver hanaEnviar en CorreoConfig.php)
-    //-----------------------------------------------------------------------
-    case 'probarCorreo':
-        $para = isset($_POST['para']) ? trim($_POST['para']) : '';
-        if (!filter_var($para, FILTER_VALIDATE_EMAIL)) { parError(400, 'Escribe un correo válido para la prueba.'); }
-        require_once __DIR__ . '/CorreoConfig.php';
-        require_once __DIR__ . '/../public/PHPMailer-master/src/Exception.php';
-        require_once __DIR__ . '/../public/PHPMailer-master/src/PHPMailer.php';
-        require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
-
-        //1. Lo que se puede revisar sin enviar nada
-        $revision = array();
-        $cuentaCorreo = hanaCorreoDatos(); //la cuenta que se usa: la de Global.php si es real; si no, la de respaldo
-        $host = $cuentaCorreo['host'];
-        $revision[] = array('Cuenta de correo', true, 'Servidor ' . $host . ':' . $cuentaCorreo['port'] . ' (' . $cuentaCorreo['secure'] . '), cuenta ' . $cuentaCorreo['user']
-                       . ($cuentaCorreo['pass'] === HANA_CORREO_PASSWORD ? ' (la del sistema original)' : ' (la de Global.php)'));
-        $revision[] = array('Extensión openssl de PHP', extension_loaded('openssl'), extension_loaded('openssl') ? 'Activa' : 'Sin ella no se puede usar SSL ni TLS');
-        if ($host !== '') {
-            $ip = gethostbyname($host);
-            $revision[] = array('El nombre del servidor se encuentra (DNS)', $ip !== $host, $ip !== $host ? $host . ' = ' . $ip : 'No se encontró ' . $host);
-            //¿El hosting deja salir conexiones a esos puertos? Si no, es un bloqueo del servidor
-            foreach (array(465, 587, 25) as $puerto) {
-                $inicio = microtime(true);
-                $conexionPuerto = @fsockopen($host, $puerto, $errno, $errstr, 5);
-                $revision[] = array('Conexión a ' . $host . ':' . $puerto, (bool)$conexionPuerto,
-                               $conexionPuerto ? 'Abre en ' . round((microtime(true) - $inicio) * 1000) . ' ms' : 'No abre (' . ($errstr ?: 'sin respuesta') . '). Si ninguno abre, el hosting bloquea la salida de correo');
-                if ($conexionPuerto) { fclose($conexionPuerto); }
-            }
-        }
-        $revision[] = array('mail() de PHP (correo del servidor)', function_exists('mail') && !in_array('mail', array_map('trim', explode(',', (string)ini_get('disable_functions')))),
-                       function_exists('mail') ? 'Disponible' : 'Deshabilitado en este servidor');
-
-        //2. El envío real, con todos los intentos
-        $mail = new \PHPMailer\PHPMailer\PHPMailer();
-        $mail->CharSet = 'UTF-8';
-        hanaConfigurarSmtp($mail);
-        $mail->FromName = 'HANA - Prueba de correo';
-        $mail->addAddress($para);
-        $mail->isHTML(true);
-        $mail->Subject = 'Prueba de correo de HANA';
-        $mail->Body = hanaCorreoHtml('', 'Prueba de correo de HANA', '<p style="margin:0 0 10px;">Este es un correo de prueba enviado desde <strong>Parámetros del sistema</strong> el '
-                    . date('d/m/Y') . ' a las ' . date('H:i') . '.</p><p style="margin:0;">Si te llegó, el correo del sistema está funcionando.</p>');
-        $diag = array();
-        $ok = hanaEnviar($mail, 'PRUEBA', $diag);
-        echo json_encode(array('ok' => $ok, 'revision' => $revision, 'intentos' => $diag), JSON_UNESCAPED_UNICODE);
-        break;
-
-    //Los últimos envíos de correo, con su resultado
-    case 'correoLog':
-        $envios = Bitacora::ultimosCorreos(60);
-        echo json_encode($envios ? $envios : array(), JSON_UNESCAPED_UNICODE);
-        break;
-
-    //-----------------------------------------------------------------------
     // Días habilitados: el reporte diario solo se llena HOY. Si alguien
     // necesita registrar o corregir otro día, el administrador se lo abre
     // aquí y después se lo cierra (tabla dia_habilitado)
@@ -155,7 +100,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $personas = Organizacion::personasConProyectos();
         //Los días: arriba los que siguen abiertos; debajo los ya cerrados, para que quede el rastro
         $dias = $modeloParametros->diasHabilitados();
-        if ($dias === false) { parError(500, 'Falta la tabla de días habilitados. Corre el script 15_DIA_HABILITADO_Y_HOY.sql.'); }
+        if ($dias === false) {
+            error_log('HANA - no se pudo leer la tabla dia_habilitado (script 15)'); //el detalle queda para el administrador
+            parError(500, 'Los días habilitados no están disponibles en este momento. Avísale al administrador del sistema.');
+        }
         echo json_encode(array('hoy' => HanaFechas::hoy(), 'personas' => $personas ? $personas : array(), 'dias' => $dias),
                          JSON_UNESCAPED_UNICODE);
         break;

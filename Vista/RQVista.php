@@ -219,10 +219,8 @@ if (isset($_SESSION['IdUsuarios'])) {
         $rolTiene = $diag['rolTiene'];
 
         if (!$tablasListas) {
-            $titulo = 'Falta preparar la base de datos';
-            $texto  = 'El módulo de requisiciones todavía no está creado en la base de datos. '
-                    . 'Hay que ejecutar el script <code>00_MIGRACION_PRODUCCION.sql</code> '
-                    . '(o <code>rq_modulo.sql</code>) en phpMyAdmin, sobre la base del sistema.';
+            $titulo = 'Módulo no disponible';
+            $texto  = 'El módulo de requisiciones todavía no está disponible. Avísale al administrador del sistema.';
         } elseif ($rolTiene) {
             $titulo = 'Cierra sesión y vuelve a entrar';
             $texto  = 'Tus permisos ya incluyen requisiciones, pero los permisos se cargan al '

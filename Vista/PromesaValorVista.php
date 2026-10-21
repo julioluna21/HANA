@@ -1,4 +1,12 @@
 <?php
+/*
+  Pantalla sin uso: la promesa de valor se quitó del sistema. Si alguien entra por la
+  dirección, va al inicio. El código de abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
 //Ausentismo - Promesa de valor
 //Por cada peaje y cada cargo: cuántas personas se prometieron para el día
 //(promesa de valor) y cuántas trabajaron (ejecutado). Reemplaza las hojas

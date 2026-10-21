@@ -1417,7 +1417,7 @@ function adjnSubir(idLista, alTerminar) {
         })
         .fail(function (xhr) {
             adjnPendientes = [];
-            alTerminar('La lista quedó guardada, pero los archivos no se pudieron subir: ' + rdError(xhr, 'error del servidor') + '\nPuedes abrir la lista y adjuntarlos desde «Corregir».');
+            alTerminar('La lista quedó guardada, pero los archivos no se pudieron subir: ' + rdError(xhr, 'intenta de nuevo') + '\nPuedes abrir la lista y adjuntarlos desde «Corregir».');
         });
 }
 

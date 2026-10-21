@@ -43,7 +43,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         array("6M", "proyectosVista.php", "fa-folder-open", "Proyectos", "Administra los proyectos y concesiones"),
         array("5M", "centroOperativoVista.php", "fa-building", "Centros de operación", "Administra los centros operativos"),
         array("2M", "RolesVista.php", "fa-key", "Permisos de usuario", "Define qué puede hacer cada rol"),
-        array("24M", "ParametrosVista.php", "fa-sliders", "Parámetros del sistema", "Módulos activos, plazos, correo y catálogos"),
+        array("24M", "ParametrosVista.php", "fa-sliders", "Parámetros del sistema", "Módulos activos, plazos y catálogos"),
         array("COLABORADORES", "ColaboradoresVista.php", "fa-user-plus", "Colaboradores", "Las personas que trabajan en los proyectos"),
         array("USUARIOS", "UsuariosVista.php", "fa-users", "Usuarios", "El acceso de cada persona a HANA"),
         array("7M", "TitulosNovedadesVista.php", "fa-tags", "Títulos de novedades", "Parametriza los títulos de novedades"),
@@ -52,9 +52,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         array("REPORTE", "ReporteDiarioVista.php", "fa-calendar-check-o", "Reporte diario", "Hoy en qué estás, listas de chequeo y más"),
         array("12M", "GruposListasVista.php", "fa-list-ul", "Editar listas", "Crea y edita las preguntas de cada lista"),
         array("12M", "NotificacionesVista.php", "fa-envelope-o", "Correos de listas", "Configura los reportes automáticos por correo"),
-        array("AUSENTISMO", "AusentismoVista.php", "fa-user-times", "Registrar ausentismo", "El reporte de ausentismo de cada peaje"),
-        array("PROMESA", "PromesaValorVista.php", "fa-users", "Promesa de valor", "Personal prometido y ejecutado, por peaje y cargo"),
-        array("13M", "reporteVista.php", "fa-bar-chart", "Dashboard", "Indicadores y gráficas del sistema")
+        array("AUSENTISMO", "AusentismoVista.php", "fa-user-times", "Registrar ausentismo", "El reporte de ausentismo de cada peaje")
     );
 ?>
         <!-- Contenido de la página -->
@@ -104,8 +102,6 @@ if (isset($_SESSION['IdUsuarios'])) {
         || in_array('19M', $modulosAcceso) || in_array('21M', $modulosAcceso) || in_array('37M', $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'REPORTE'; }
     if ((!isset($menuModuloActivo) || $menuModuloActivo('AUSENTISMO')) && ($esCoordMenu || !empty($menuJefe) || in_array('20M', $modulosAcceso)
         || in_array('21M', $modulosAcceso) || in_array('22M', $modulosAcceso) || in_array('25M', $modulosAcceso))) { $permitidos[] = 'AUSENTISMO'; }
-    //La promesa de valor está en el menú de Ausentismo (head.php calcula quién entra)
-    if (!empty($menuPromesa) || !empty($menuPromesaCons)) { $permitidos[] = 'PROMESA'; }
 
     foreach ($accesos as $acceso) {
         if (!in_array($acceso[0], $permitidos)) { continue; } //sin permiso: se salta

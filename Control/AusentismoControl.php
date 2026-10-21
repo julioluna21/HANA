@@ -16,8 +16,8 @@
     - El coordinador cierra el mes al entregarlo; lo reabre quien tenga 23M.
     - Registro rápido (ausencia, ausenciaCambiar, ausenciaBorrar): una ausencia
       a la vez, eligiendo día, cargo y motivo. Escribe en las mismas celdas de
-      la matriz y con las mismas reglas, así que el consolidado, el Excel,
-      Power BI y el historial no cambian.
+      la matriz y con las mismas reglas, así que el consolidado, el Excel
+      y el historial no cambian.
 */
 session_start();
 require_once __DIR__ . "/../Modelo/AusentismoModelo.php";

@@ -113,7 +113,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <thead><tr><th>RQ</th><th>Centro</th><th>Solicitó</th><th>Qué se pide</th><th class="rd-num-col">Días esperando</th><th class="rd-no-imprimir cd-col-decidir">Decidir</th></tr></thead>
                 <tbody id="tbRq"></tbody></table></div>
             </div>
-            <!-- Ausentismo del día y, dentro, la promesa de valor contra lo ejecutado (el porqué de la diferencia) -->
+            <!-- Ausentismo del día: cada ausencia con su motivo (quién cubrió a quién) -->
             <div class="tab-pane" id="tabAus">
               <h4 class="cd-sub-imprimir">Ausentismo</h4> <!-- al imprimir, el título va primero en su hoja -->
               <div id="cdAusProy"></div>
@@ -121,18 +121,6 @@ if (isset($_SESSION['IdUsuarios'])) {
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>Peaje</th><th>Proyecto</th><th>Cargo</th><th>Motivo</th><th class="rd-num-col">Personas</th><th>Registró</th></tr></thead>
                 <tbody id="tbAus"></tbody></table></div>
-              <div id="cdPromesaAus">
-                <h4 class="rd-subtitulo">Promesa de valor del día</h4>
-                <p class="rd-ayuda" style="margin-top:0;">Diferencia = ejecutado − promesa de valor. En negativo faltó gente; las ausencias de arriba explican por qué.</p>
-                <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                  <thead><tr><th>Peaje</th><th>Proyecto</th><th class="rd-num-col">Promesa</th><th class="rd-num-col">Ejecutado</th><th class="rd-num-col">Diferencia</th>
-                    <th class="rd-num-col">Ausencias</th><th>Estado</th></tr></thead>
-                  <tbody id="tbPvPeaje"></tbody></table></div>
-                <h4 class="rd-subtitulo">Por cargo</h4>
-                <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                  <thead><tr><th>Cargo</th><th class="rd-num-col">Promesa</th><th class="rd-num-col">Ejecutado</th><th class="rd-num-col">Diferencia</th><th class="rd-num-col">Ausencias</th></tr></thead>
-                  <tbody id="tbPvCargo"></tbody></table></div>
-              </div>
             </div>
           </div>
         </div>
@@ -156,7 +144,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=10"></script>
-<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=17"></script>
+<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=18"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

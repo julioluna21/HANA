@@ -24,21 +24,31 @@ define('DB_PASSWORD', '');          //en XAMPP, root no tiene contraseña
 define('DB_ENCODE', 'utf8mb4');     //las tablas son utf8mb4: así también se guardan bien emojis y símbolos
 define('PRO_NOMBRE', 'bd_hana_app');
 
-//Cuenta de correo del sistema (la usan Control/CorreoConfig.php y todos los envíos).
-//La contraseña real la da el administrador del correo: nunca se escribe en otro archivo
+//Cuenta de correo del sistema: con ella salen TODOS los correos (Control/CorreoHelper.php).
+//Es un dato del servidor: se escribe solo aquí, no en Parámetros del sistema ni en el código.
+//La contraseña real la da el administrador del correo. Las dos formas de conectarse:
+//  SSL: MAIL_PORT 465 y MAIL_SECURE 'ssl'  (la conexión va cifrada desde el primer momento)
+//  TLS: MAIL_PORT 587 y MAIL_SECURE 'tls'  (se conecta y enseguida pasa a cifrado, STARTTLS)
+//Las dos son seguras; se usa la que diga el proveedor del correo. Si un correo no sale, el
+//motivo queda en bitacora_sistema (TIPO 'CORREO') y en el error_log de PHP.
 define('MAIL_HOST', 'regencysa.net');
 define('MAIL_PORT', 465);
 define('MAIL_SECURE', 'ssl');
 define('MAIL_USER', 'no-reply@regencysa.net');
 define('MAIL_PASSWORD', 'ESCRIBE_AQUI_LA_CONTRASENA');
+//Solo si el certificado del servidor de correo no coincide con su nombre (por ejemplo, el
+//certificado es de mail.dominio y MAIL_HOST es dominio): quitar las dos barras de abajo.
+//Es mejor corregir MAIL_HOST con el nombre del certificado que apagar la revisión.
+//define('MAIL_VERIFICAR_CERTIFICADO', false);
 
-//Clave de las tareas programadas de cPanel (resúmenes de correo de listas).
-//Una cadena larga y aleatoria, distinta en cada servidor. Se usa en la URL:
-//  .../Control/NotificacionesControl.php?op=resumenDiario&token=ESTA_CLAVE
+//Clave secreta del servidor: una cadena larga y aleatoria, distinta en cada servidor.
+//Con ella se firman los enlaces de "Olvidé mi contraseña". (Antes también era la clave de
+//las tareas programadas por dirección; ahora las tareas las corre cron y no la necesitan.)
 define('HANA_TOKEN_TAREAS', 'CAMBIA_ESTO_POR_UNA_CLAVE_LARGA_Y_ALEATORIA');
 
-//Opcional: la dirección donde está instalado HANA, sin barra al final. La usa el enlace de
-//"Olvidé mi contraseña" que llega al correo. Si no se define, el enlace apunta a
-//https://hana.cloudregencyapps.com (o al equipo local, si se prueba en XAMPP).
+//Opcional: la dirección donde está instalado HANA, sin barra al final. La usan el enlace de
+//"Olvidé mi contraseña" y el botón "Entrar a HANA" de los correos que mandan las tareas
+//de cron. Si no se define, apuntan a https://hana.cloudregencyapps.com (o al equipo local,
+//si se prueba en XAMPP).
 //Solo hace falta si HANA se instala en otra dirección.
 //define('HANA_URL', 'https://hana.cloudregencyapps.com');

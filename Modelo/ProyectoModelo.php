@@ -65,7 +65,8 @@ class Proyecto
         {
                 $sql = "SELECT c.ID_COLABORADOR AS id, c.NOM_COLABORADOR AS nombre, r.NOM_ROL_USUARIO_SISTEMA AS rol
                           FROM colaboradores c
-                          LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = c.ID_ROL_USUARIO_SISTEMA
+                          LEFT JOIN usuarios_sistema u ON u.ID_COLABORADOR = c.ID_COLABORADOR
+                          LEFT JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = u.ID_ROL_USUARIO_SISTEMA
                          WHERE c.ESTADO = 1
                          ORDER BY c.NOM_COLABORADOR";
                 return ejecutarConsulta($sql);

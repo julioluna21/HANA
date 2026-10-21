@@ -271,7 +271,7 @@
 
         if (xhr && xhr.status === 0) {
             //status 0: la petición ni siquiera llego al servidor
-            detalle = 'No hay conexi\u00f3n con el servidor. Revisa tu conexi\u00f3n a internet e intenta de nuevo.';
+            detalle = 'No hay conexi\u00f3n con HANA. Revisa tu conexi\u00f3n a internet e intenta de nuevo.';
         } else if (xhr) {
             var texto = String(xhr.responseText || '').replace(/^\s+|\s+$/g, '');
             //Si el servidor respondió {"error": "..."} se muestra ese mensaje

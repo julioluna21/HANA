@@ -2,10 +2,11 @@
 /*
   HANA - Usuarios
   ---------------------------------------------------------------------------
-  El acceso de cada persona a HANA: su rol, su nombre de usuario, los peajes que
-  tiene asignados y la contraseña temporal (le llega por correo).
+  El usuario de cada persona para entrar a HANA (tabla usuarios_sistema): crearlo a quien
+  no tiene, su nombre de usuario, su rol, la contraseña temporal (le llega por correo) y
+  bloquear o devolver el acceso.
   A las personas se las registra en Colaboradores (ColaboradoresVista.php), y allí se
-  cambian su documento, su nombre y su correo; aquí se ven, pero no se cambian.
+  cambian su documento, su nombre, su correo y sus peajes; aquí se ven, pero no se cambian.
   Lo que hace cada botón está en Ajax/UsuariosAjax.js y los datos los entrega
   Control/UsuariosControl.php.
   Permiso: 1M (o 24M). Con ?op=canvu cada persona cambia su propia clave (no pide permisos).
@@ -34,7 +35,7 @@ include('head.php');
 
         <div class="x_panel">
           <div class="x_title">
-            <h2><?php echo $modoClave ? 'Cambiar mi contraseña' : 'Usuarios'; ?><small><?php echo $modoClave ? '' : 'El acceso de cada persona a HANA'; ?></small></h2>
+            <h2><?php echo $modoClave ? 'Cambiar mi contraseña' : 'Usuarios'; ?><small><?php echo $modoClave ? '' : 'El usuario de cada persona para entrar a HANA'; ?></small></h2>
             <?php //El modo de la pantalla no se copia tal cual de la dirección: así no se puede inyectar código ?>
             <input type="hidden" name="cambioclave" id="cambioclave" value="<?php echo $modoClave ? 'canvu' : ''; ?>">
             <div class="clearfix"></div>
@@ -47,7 +48,7 @@ include('head.php');
            <form name="demo-form2" id="demo-form2" method="POST">
                       <input type="hidden" name="idusuario" id="idusuario">
                       <h4 style="margin-top:0;">La persona</h4>
-                      <p class="rd-ayuda">Su documento, su nombre y su correo se cambian en Configuración → Colaboradores.</p>
+                      <p class="rd-ayuda">Su documento, su nombre, su correo y sus peajes se cambian en Configuración → Colaboradores.</p>
                       <div class="row">
                            <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                <label for="documento">Documento:</label>
@@ -76,12 +77,10 @@ include('head.php');
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                 <label for="usuario">Nombre de usuario:</label>
                                 <input type="text" class="form-control" name="usuario" id="usuario" maxlength="50" autocomplete="off">
-                                <p class="rd-ayuda" style="margin-top:4px;" id="ayudaUsuario">Sin usuario, la persona sale en los reportes pero no entra a HANA. Al ponérselo, el sistema le da una contraseña temporal y se la manda por correo.</p>
+                                <p class="rd-ayuda" style="margin-top:4px;" id="ayudaUsuario">Al crearle el usuario, el sistema le da una contraseña temporal y le llega por correo (si el correo no sale, se muestra aquí una sola vez).</p>
                               </div>
                         </div>
 
-                        <div class="row" id="centros">
-                        </div>
 
                             <div class="form-group col-lg-12 col-md-12 col-sm-12 col-xs-12" id="">
                               <SPAN title="Guardar">
@@ -155,8 +154,7 @@ include('head.php');
                   <th style="min-width: 180px;">Correo</th>
                   <th style="min-width: 160px;">Rol</th>
                   <th style="min-width: 140px;">Usuario</th>
-                  <th>Peajes</th>
-                  <th>Estado</th>
+                  <th>Acceso</th>
                   <th style="min-width: 110px;">Opción</th>
                     </thead>
                       <tbody>
@@ -184,7 +182,7 @@ include('head.php');
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/UsuariosAjax.js?v=5"></script>
+<script type="text/javascript" src="../Ajax/UsuariosAjax.js?v=6"></script>
 <?php
 }else{
   echo "<script>

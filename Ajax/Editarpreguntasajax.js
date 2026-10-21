@@ -79,7 +79,7 @@ function cargarPreguntas() {
                     + ' data-orden-original="' + (i + 1) + '">' //posición con la que cargo, sirve para detectar movimientos
                     + '  <span class="handle" title="Arrastra para reordenar"><i class="fa fa-hand-paper-o"></i></span>' //la manito
                     + '  <span class="badge-orden">' + (i + 1) + '</span>' //número de la pregunta; NO cambia al arrastrar
-                    + '  <span class="txt-id" title="ID en la base de datos">#' + pregunta.id + '</span>' //ID solo lectura
+                    + '  <span class="txt-id" title="Número de la pregunta">#' + pregunta.id + '</span>' //ID solo lectura
                     + '  <input type="text" class="form-control in-pregunta" value="' + escAttr(pregunta.pregunta) + '">' //texto editable
                     + '  <select class="form-control in-tipo">' + opts + '</select>' //tipo de respuesta
                     + '  <button type="button" class="btn btn-success btn-sm btn-una" title="Guardar solo esta pregunta"'

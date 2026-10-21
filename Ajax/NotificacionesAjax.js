@@ -175,7 +175,7 @@ function probarEnvio() {
     $.post("../Control/NotificacionesControl.php?op=probar", { destinatarios: dest, idNotificacion: $("#idNotificacion").val() || "" })
         .done(function () { alert("Correo de prueba enviado. Revisa la bandeja de entrada (y la carpeta de spam)."); })
         .fail(function (xhr) {
-            //El servidor devuelve el motivo exacto del fallo (error de SMTP, correo mal escrito, etc.)
+            //El sistema dice qué revisar (los destinatarios) o que se avise al administrador
             hanaErrorAjax(xhr, "No se pudo enviar el correo de prueba.");
         })
         .always(function () {

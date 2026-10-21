@@ -28,7 +28,7 @@ $("#frmAcceso").on('submit',function(evento){ //inicio de sesión: usuario y cla
             catch (error) {
                 hanaBoton(boton, false);
                 console.error('Respuesta inesperada del servidor al iniciar sesión:', data);
-                alert('El servidor respondió con un error y no se pudo iniciar sesión. Revisa que exista Conexion/Global.php con los datos correctos de la base de datos (ver LEEME.md).');
+                alert('No se pudo iniciar sesión por un problema del sistema. Intenta de nuevo en unos minutos; si sigue pasando, avísale al administrador del sistema.');
                 return;
             }
             if (!data.error){//Si data diferente de nulo

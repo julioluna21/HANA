@@ -143,8 +143,8 @@ if (!isset($_SESSION["IdUsuarios"])){
   <!-- jQuery -->
   <script src="../vendors/jquery/dist/jquery.min.js"></script>
   <!-- Alertas personalizadas: debe cargar antes de LoginAjax.js -->
-  <script src="../Ajax/AlertasAjax.js?v=5"></script>
-  <script type="text/javascript" src="../Ajax/LoginAjax.js?v=4"></script>
+  <script src="../Ajax/AlertasAjax.js?v=6"></script>
+  <script type="text/javascript" src="../Ajax/LoginAjax.js?v=5"></script>
   <!-- Bootstrap -->
     
     

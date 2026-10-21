@@ -2,11 +2,12 @@
 /*
   HANA - Colaboradores
   ---------------------------------------------------------------------------
-  Las personas que trabajan en los proyectos: documento, nombre y correo.
-  Al registrar a una persona se le crea su usuario para entrar a HANA (su documento,
-  con una contraseña temporal que le llega por correo) y queda con el rol que se elija
-  entre los que no administran; por defecto, USUARIO BASE.
-  Su rol, su usuario, sus peajes y su contraseña se cambian en Usuarios (UsuariosVista.php).
+  Las personas que trabajan en los proyectos: documento, nombre, correo y los peajes que
+  tiene asignados cada una.
+  Al registrar a una persona, una ventana pregunta si se le crea el usuario para entrar a
+  HANA: el nombre de usuario (por defecto, su documento) y un rol de los que no administran
+  (por defecto, USUARIO BASE). La contraseña temporal le llega por correo.
+  Su usuario, su rol y su contraseña se cambian en Usuarios (UsuariosVista.php).
   Lo que hace cada botón está en Ajax/ColaboradoresAjax.js y los datos los entrega
   Control/ColaboradoresControl.php.
   Permiso: 3M (o 24M). Sin el permiso, vuelve al inicio.
@@ -58,12 +59,14 @@ include('head.php');
                     <input type="email" class="form-control" name="correo" id="correo" maxlength="60" required>
                   </div>
                   <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
-                    <label for="rol">Rol (lo que hace en HANA):</label>
-                    <select name="rol" id="rol" class="form-control"></select>
-                    <!-- Al registrar se elige; después el rol se cambia en Usuarios -->
-                    <p class="rd-ayuda" style="margin-top:4px;" id="ayudaRol">Al registrarla se le crea su usuario (su documento) y le llega por correo con una contraseña temporal. Los roles que administran, como ADMIN TEC, se dan en Usuarios.</p>
+                    <label>Usuario para entrar a HANA:</label>
+                    <p class="form-control-static" id="usuarioActual">—</p>
+                    <!-- El usuario, el rol y la contraseña se cambian en Usuarios -->
+                    <p class="rd-ayuda" style="margin-top:0;" id="ayudaUsuario">Al registrarla se pregunta si se le crea el usuario. El usuario, el rol y la contraseña se cambian en Usuarios.</p>
                   </div>
                 </div>
+                <!-- Los peajes que ve la persona además de los que coordina o de los que es jefe -->
+                <div class="row" id="centros"></div>
 
                 <div class="form-group col-lg-12 col-md-12 col-sm-12 col-xs-12">
                   <SPAN title="Guardar">
@@ -96,8 +99,8 @@ include('head.php');
                         <th style="min-width: 100px;">Documento</th>
                         <th style="min-width: 220px;">Nombre</th>
                         <th style="min-width: 180px;">Correo</th>
-                        <th style="min-width: 160px;">Rol</th>
-                        <th style="min-width: 140px;">Usuario</th>
+                        <th>Peajes</th>
+                        <th style="min-width: 140px;">Usuario y rol</th>
                         <th>Estado</th>
                         <th style="min-width: 110px;">Opción</th>
                       </thead>
@@ -117,12 +120,43 @@ include('head.php');
 </div>
 <!-- /page content -->
 
+<!-- Ventana para crearle el usuario a una persona: sale al registrarla, o con el botón de la tabla -->
+<div class="modal fade" id="modalUsuario" tabindex="-1" role="dialog" aria-labelledby="modalUsuarioTitulo">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <form id="formUsuario">
+        <div class="modal-header rd-modal-cab">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+          <h4 class="modal-title" id="modalUsuarioTitulo">¿Crear el usuario?</h4>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="idcolaborador" id="usuIdPersona">
+          <p id="usuPregunta" style="margin-top:0;">¿Le creamos un usuario para entrar a HANA?</p>
+          <div class="form-group">
+            <label for="usuNombre">Nombre de usuario:</label>
+            <input type="text" class="form-control" name="usuario" id="usuNombre" maxlength="50" autocomplete="off" required>
+          </div>
+          <div class="form-group">
+            <label for="usuRol">Rol (lo que hace en HANA):</label>
+            <select name="rol" id="usuRol" class="form-control"></select>
+            <p class="rd-ayuda" style="margin-top:4px;">La contraseña temporal le llega por correo. Los roles que administran, como ADMIN TEC, se dan en Usuarios.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal" id="btnUsuarioNo">No, por ahora no</button>
+          <button type="submit" class="btn btn-primary" id="btnUsuarioSi"><i class="fa fa-user-plus"></i> Sí, crear el usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <?php
 
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/ColaboradoresAjax.js?v=2"></script>
+<script type="text/javascript" src="../Ajax/ColaboradoresAjax.js?v=3"></script>
 <?php
 } else {
   echo "<script>window.location.replace('InicioVista.php');</script>";

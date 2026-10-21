@@ -61,7 +61,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=10"></script>
-<script type="text/javascript" src="../Ajax/TableroAjax.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/TableroAjax.js?v=13"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

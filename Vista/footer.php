@@ -12,9 +12,9 @@
   <!-- Alertas personalizadas: va de primera para que todo alert() de la página ya use la ventana del sistema -->
   <!-- Alertas personalizadas de HANA: va de primera para que todo alert() de la
        página use la ventana del sistema en vez de la del navegador -->
-  <script src="../Ajax/AlertasAjax.js?v=5"></script>
+  <script src="../Ajax/AlertasAjax.js?v=6"></script>
   <!-- Visor de imágenes: las fotos se abren en la misma página, no en otra pestaña -->
-  <script src="../Ajax/VisorAjax.js?v=3"></script>
+  <script src="../Ajax/VisorAjax.js?v=4"></script>
   <!-- jQuery -->
   <script src="../vendors/jquery/dist/jquery.min.js"></script>
   <!-- Bootstrap -->

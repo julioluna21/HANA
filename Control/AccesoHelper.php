@@ -84,9 +84,8 @@ function hanaVista($valor)
 function hanaPermisosModulo()
 {
     return array(
-        'HOY' => '28M', 'ARQUEOS' => '29M', 'CRONOGRAMA' => '30M', 'VACANTES' => '31M', 'COMUNICACIONES' => '32M',
-        'PROMESA' => '38M' //promesa de valor: registrar el ejecutado
-        //33M, 34M y 35M quedan libres: no se usan en el sistema
+        'HOY' => '28M', 'ARQUEOS' => '29M', 'CRONOGRAMA' => '30M', 'VACANTES' => '31M', 'COMUNICACIONES' => '32M'
+        //33M, 34M y 35M quedan libres, y también 38M, 39M y 40M (eran de la promesa de valor, que se quitó)
     );
 }
 
@@ -139,32 +138,6 @@ function hanaPuedeModulo($modulo)
 
 //¿Ese día lo puede registrar o corregir la persona de la sesión? (hoy, o un día habilitado)
 function hanaEnVentana($fecha) { return HanaFechas::enVentana($fecha, hanaIdColaborador()); }
-
-//---------------------------------------------------------------------------
-// Promesa de valor: quién entra (lo usan el menú, los mosaicos y las pantallas)
-//---------------------------------------------------------------------------
-function hanaPromesaEntrar()
-{
-    if (hanaIdColaborador() <= 0 || !isset($_SESSION['Modulos']) || !HanaConfig::modulo('PROMESA')) { return false; }
-    foreach (array('20M', '21M', '22M', '39M', '40M') as $casilla) { if (hanaTienePermiso($casilla)) { return true; } } //consultan o definen en todos los proyectos
-    if (hanaPuedeModulo('PROMESA')) { return true; }                                                           //coordinador, ADMIN TEC o casilla 38M
-    //El jefe de peaje, solo si el administrador deja que registre el ejecutado de su peaje
-    return HanaConfig::si('PV_JEFES_REGISTRAN', false) && Organizacion::esJefeDePeaje(hanaIdColaborador());
-}
-
-//¿Puede abrir el consolidado del mes? (casilla 40M)
-function hanaPromesaConsolidado()
-{
-    return isset($_SESSION['Modulos']) && HanaConfig::modulo('PROMESA') && hanaTienePermiso('40M');
-}
-
-//Los proyectos del consolidado: todos con 20M (gerente de operaciones) o 24M (ADMIN TEC); si no, los que coordina.
-//Devuelve [lista de proyectos, ¿son todos?]
-function hanaProyectosConsolidado()
-{
-    $todos = hanaTienePermiso('20M') || hanaTienePermiso('24M');
-    return array(HanaDB::proyectosCoordinados(hanaIdColaborador(), $todos), $todos);
-}
 
 //---------------------------------------------------------------------------
 // Novedades
