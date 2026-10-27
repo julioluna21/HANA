@@ -71,14 +71,17 @@ function hanaNombreBonito($nombre)
     return function_exists('mb_convert_case') ? mb_convert_case(mb_strtolower($n, 'UTF-8'), MB_CASE_TITLE, 'UTF-8') : ucwords(strtolower($n));
 }
 
-//La dirección de una pantalla del sistema, para los botones de los correos: la del servidor
-//donde está corriendo. Desde una tarea programada (sin navegador) es HANA_URL de Global.php
-//o, si no está, la de producción
+//La dirección de una pantalla del sistema, para los botones de los correos.
+//Si HANA_URL está en Conexion/Global.php, todos los enlaces van ahí, se manden desde
+//donde se manden (el navegador, el cron o la prueba de correos). Si no está: la del
+//servidor donde está corriendo o, desde una tarea programada, la de producción
 function hanaUrlSistema($vista = 'login.php')
 {
+    if (defined('HANA_URL') && preg_match('#^https?://[^/]+#i', (string)HANA_URL)) {
+        return rtrim((string)HANA_URL, '/') . '/Vista/' . $vista;
+    }
     if (empty($_SERVER['HTTP_HOST'])) {
-        $base = defined('HANA_URL') ? rtrim(HANA_URL, '/') : 'https://hana.cloudregencyapps.com';
-        return $base . '/Vista/' . $vista;
+        return 'https://hana.cloudregencyapps.com/Vista/' . $vista;
     }
     $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
     return ($https ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\') . '/Vista/' . $vista;
