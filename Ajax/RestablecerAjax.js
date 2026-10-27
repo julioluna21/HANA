@@ -7,7 +7,7 @@
      caracteres, y las manda al servidor (op=restablecer), que vuelve a revisar todo.
   3. Si quedó guardada, avisa y lleva al inicio de sesión.
 */
-var rsMinimo = 8; //el servidor manda el mínimo real al revisar el enlace
+var rsMinimo = 4; //el servidor manda el mínimo real al revisar el enlace (Parámetros del sistema)
 
 //Los tres datos del enlace (u, v, f), tal como los dejó la página
 function rsDatosEnlace() {

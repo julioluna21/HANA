@@ -1,6 +1,7 @@
 <?php
 /*
-  Pantalla sin uso: el consolidado de promesa de valor se quitó del sistema. Si alguien entra por la
+  Pantalla sin uso: el consolidado de la promesa de personas se quitó. La promesa vigente
+  (en horas) es Vista/PromesaValorVista.php. Si alguien entra por la
   dirección, va al inicio. El código de abajo se conserva solo como referencia.
 */
 header('Location: InicioVista.php');
@@ -85,7 +86,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
 <script type="text/javascript" src="../Ajax/PromesaConsolidadoAjax.js?v=4"></script>
 <?php
     } else {

@@ -4,7 +4,8 @@
   ---------------------------------------------------------------------------
   Caja menor, recambio y casetas, con la misma forma de los formatos en PDF.
   Se guarda lo que se contó y nada que se pueda sacar de ahí:
-    - arqueo.BILLETES_MONEDAS: los billetes y monedas (caja menor y recambio);
+    - arqueo.BILLETES_MONEDAS: los billetes y monedas de la caja menor (y de los recambios registrados
+      antes del script 43; desde entonces el recambio los guarda por separado, como líneas);
     - arqueo_linea: cada documento, cada concepto del recambio y cada campo de la caseta;
     - arqueo.FONDO_AUTORIZADO: el fondo de ese día (caja menor y recambio). En casetas
       va vacío, porque el valor esperado es una de sus líneas (ROL ESPERADO).
@@ -30,13 +31,36 @@ class Arqueo
     //guarda como línea: queda en arqueo.BILLETES_MONEDAS (ver mostrar())
     public static $EFECTIVO = array(
         'CAJA_MENOR' => array('EFECTIVO' => 'Efectivo (billetes y monedas)'),
+        //En el recambio los billetes y las monedas van por separado, cada uno como línea (script 43).
+        //Los recambios registrados antes los tienen juntos en arqueo.BILLETES_MONEDAS (ver conEfectivo())
         'RECAMBIO'   => array('BASES_CASETAS'    => 'Dinero para bases en casetas',
                               'BASE_SUPERVISORA' => 'Dinero base supervisora',
-                              'EFECTIVO'         => 'Dinero en efectivo (billetes y monedas)',
+                              'BILLETES'         => 'Dinero en efectivo: billetes',
+                              'MONEDAS'          => 'Dinero en efectivo: monedas',
                               'CAJA_FUERTE'      => 'Dinero custodiado en caja fuerte')
     );
     public static $DOCUMENTOS = array('FACTURA' => 'Factura', 'REINTEGRO' => 'Reintegro de fondo',
-                                      'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltante registrado');
+                                      'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltantes');
+    //Los conceptos de documentos que se pueden usar en un arqueo nuevo. Un concepto apagado en
+    //arqueo_concepto (ESTADO = 0, como el reintegro de fondo desde el script 45) ya no se ofrece,
+    //pero los arqueos viejos que lo tienen lo siguen mostrando con su nombre
+    public static $DOCUMENTOS_ACTIVOS = array('FACTURA' => 'Factura', 'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltantes');
+
+    //Los nombres de los conceptos de caja menor y recambio salen de arqueo_concepto (el administrador
+    //los cambia en Parámetros del sistema → Listas). Los de arriba son los de fábrica, por si la base no
+    //responde. El formato en PDF conserva los títulos impresos del formato en papel
+    public static function nombresDeLaBase()
+    {
+        $filas = HanaDB::q("SELECT TIPO_ARQUEO, CODIGO, NOMBRE, ESTADO FROM arqueo_concepto WHERE CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO') ORDER BY ORDEN, ID_CONCEPTO");
+        if (is_array($filas) && count($filas)) { self::$DOCUMENTOS_ACTIVOS = array(); }
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            if ($fila['TIPO_ARQUEO'] === 'CAJA_MENOR' && isset(self::$DOCUMENTOS[$fila['CODIGO']])) {
+                self::$DOCUMENTOS[$fila['CODIGO']] = $fila['NOMBRE'];
+                if ((int)$fila['ESTADO'] === 1) { self::$DOCUMENTOS_ACTIVOS[$fila['CODIGO']] = $fila['NOMBRE']; }
+            }
+            if ($fila['TIPO_ARQUEO'] === 'RECAMBIO' && isset(self::$EFECTIVO['RECAMBIO'][$fila['CODIGO']])) { self::$EFECTIVO['RECAMBIO'][$fila['CODIGO']] = $fila['NOMBRE']; }
+        }
+    }
 
     //Total del arqueo en SQL = billetes y monedas + las líneas que suman - las que restan.
     //Sirve para los tres tipos: los documentos y los conceptos del recambio suman; en casetas
@@ -192,6 +216,12 @@ class Arqueo
         }
         $lineas = array();
         foreach (self::$EFECTIVO[$arqueo['TIPO']] as $codigo => $nombre) {
+            //Un recambio de antes del script 43: billetes y monedas juntos, en el lugar de los billetes
+            if ($codigo === 'BILLETES' && (float)$arqueo['BILLETES_MONEDAS'] != 0 && !isset($porConcepto['BILLETES'])) {
+                $lineas[] = array('ID_CONCEPTO' => null, 'CODIGO' => 'EFECTIVO', 'NOMBRE' => 'Dinero en efectivo (billetes y monedas)', 'ROL' => 'SUMA',
+                                  'FECHA' => null, 'VALOR' => round((float)$arqueo['BILLETES_MONEDAS'], 2), 'OBSERVACION' => null);
+                continue;
+            }
             if ($codigo === 'EFECTIVO') {
                 $lineas[] = array('ID_CONCEPTO' => null, 'CODIGO' => 'EFECTIVO', 'NOMBRE' => $nombre, 'ROL' => 'SUMA', 'FECHA' => null,
                                   'VALOR' => round((float)$arqueo['BILLETES_MONEDAS'], 2), 'OBSERVACION' => null);
@@ -283,3 +313,5 @@ class Arqueo
                          'si', array($motivo, (int)$idArqueo));
     }
 }
+
+Arqueo::nombresDeLaBase(); //los nombres que dejó el administrador

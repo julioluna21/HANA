@@ -1,4 +1,14 @@
 <?php
+/*
+  Pantalla sin uso: la Administración del reporte diario se quitó porque repetía lo
+  mismo que el Reporte general (ControlDiarioVista.php), que ya muestra todo lo que
+  llenan coordinadores y jefes, por módulo y por proyecto. Si alguien entra por la
+  dirección, va al Reporte general. El código de abajo se conserva solo como referencia.
+*/
+header('Location: ControlDiarioVista.php?ver=cronograma');
+exit;
+?>
+<?php
 //Administración del reporte diario - Cronograma y vehículo (consulta)
 //Lo que llenan TODOS los coordinadores, para el administrador (permiso 21M).
 //Es de solo lectura: cada coordinador sigue llenando lo suyo en su pantalla
@@ -50,7 +60,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
 <script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=8"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }

@@ -3,8 +3,8 @@
   HANA - Usuarios
   ---------------------------------------------------------------------------
   El usuario de cada persona para entrar a HANA (tabla usuarios_sistema): crearlo a quien
-  no tiene, su nombre de usuario, su rol, la contraseña temporal (le llega por correo) y
-  bloquear o devolver el acceso.
+  no tiene, su nombre de usuario, su rol, la contraseña (la escribe el administrador, o el
+  sistema pone una al azar; le llega por correo) y bloquear o devolver el acceso.
   A las personas se las registra en Colaboradores (ColaboradoresVista.php), y allí se
   cambian su documento, su nombre, su correo y sus peajes; aquí se ven, pero no se cambian.
   Lo que hace cada botón está en Ajax/UsuariosAjax.js y los datos los entrega
@@ -62,7 +62,7 @@ include('head.php');
                       <div class="row">
                            <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                <label for="correo">Correo:</label>
-                               <!-- A este correo le llegan la contraseña temporal, los avisos y la recuperación de la clave -->
+                               <!-- A este correo le llegan la contraseña, los avisos y la recuperación de la clave -->
                                <input type="email" class="form-control" name="correo" id="correo" readonly>
                             </div>
                              <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" >
@@ -77,18 +77,32 @@ include('head.php');
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
                                 <label for="usuario">Nombre de usuario:</label>
                                 <input type="text" class="form-control" name="usuario" id="usuario" maxlength="50" autocomplete="off">
-                                <p class="rd-ayuda" style="margin-top:4px;" id="ayudaUsuario">Al crearle el usuario, el sistema le da una contraseña temporal y le llega por correo (si el correo no sale, se muestra aquí una sola vez).</p>
+                                <p class="rd-ayuda" style="margin-top:4px;" id="ayudaUsuario"></p>
                               </div>
+                        </div>
+                      <!-- La contraseña la escribe el administrador. Al guardar, le llega por correo a la persona -->
+                      <div class="row">
+                            <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                                <label for="claveNueva" id="lblClaveNueva">Contraseña:</label>
+                                <div class="input-group">
+                                  <input type="password" class="form-control" name="claveNueva" id="claveNueva" maxlength="72" autocomplete="new-password">
+                                  <span class="input-group-btn">
+                                    <button class="btn btn-default" type="button" id="btnVerClave" title="Ver u ocultar la contraseña"><i class="fa fa-eye"></i></button>
+                                    <button class="btn btn-default" type="button" id="btnGenerarClave" title="Escribir una al azar">Generar</button>
+                                  </span>
+                                </div>
+                                <p class="rd-ayuda" style="margin-top:4px;" id="ayudaClave"></p>
+                            </div>
+                            <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
+                                <label for="claveNueva2">Confirma la contraseña:</label>
+                                <input type="password" class="form-control" name="claveNueva2" id="claveNueva2" maxlength="72" autocomplete="new-password">
+                            </div>
                         </div>
 
 
                             <div class="form-group col-lg-12 col-md-12 col-sm-12 col-xs-12" id="">
                               <SPAN title="Guardar">
                                 <button class="btn btn-primary" type="submit" id="btnGuardar"><i class="fa fa-save"></i> Guardar
-                                </button>
-                              </SPAN>
-                             <SPAN title="Darle una contraseña temporal nueva">
-                                <button class="btn btn-primary" onclick="claveTemporal()" type="button" id="btnclave"><i class="fa fa-key "></i> Nueva contraseña temporal
                                 </button>
                               </SPAN>
                               <SPAN title="Cancelar">
@@ -111,7 +125,7 @@ include('head.php');
                                 <input type="hidden" name="idusuario" id="idusuario2" value="<?php echo $modoClave ? (int)$_SESSION['Idcolaborador'] : ''; ?>">
                                <label>Contraseña:</label><br>
                                <input type="password" class="form-control" name="clave" id="clave" required="" autofocus autocomplete="new-password">
-                               <span class="rd-ayuda">Mínimo 8 caracteres. No puede empezar ni terminar con espacios.</span>
+                               <span class="rd-ayuda">Mínimo <?php echo (int)pagClaveMinimo(); ?> caracteres. No puede empezar ni terminar con espacios.</span>
                             </div>
 
                             <div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12">
@@ -182,7 +196,8 @@ include('head.php');
 include('footer.php');
 
 ?>
-<script type="text/javascript" src="../Ajax/UsuariosAjax.js?v=6"></script>
+<script>var CLAVE_LARGO_MINIMO = <?php echo (int)pagClaveMinimo(); ?>; //Parámetros del sistema → Contraseñas e ingreso</script>
+<script type="text/javascript" src="../Ajax/UsuariosAjax.js?v=8"></script>
 <?php
 }else{
   echo "<script>

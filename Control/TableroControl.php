@@ -1,10 +1,11 @@
 <?php
 /*
-  HANA - Controlador del tablero del reporte diario
+  HANA - Controlador del tablero por proyectos (va dentro del Reporte general)
   ---------------------------------------------------------------------------
-    19M  entrar al tablero
-    20M  ver todos los proyectos (gerente de operaciones). Sin él, cada quien ve lo suyo:
-         el coordinador su proyecto, el jefe de peaje su peaje
+    resumen  los mosaicos de los proyectos y de sus peajes: solo el director de
+             operaciones (43M) o el administrador (24M)
+    persona  el reporte de una persona ese día: lo abre también el Reporte general (19M)
+    Cada quien ve lo de sus peajes asignados (Configuración → Colaboradores); el ADMIN TEC, todo
 */
 session_start();
 require_once __DIR__ . "/../Modelo/TableroModelo.php";
@@ -23,28 +24,28 @@ function tabError($codigo, $mensaje)
 }
 
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { tabError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
-if (!hanaTienePermiso(PERMISO_TABLERO)) { tabError(403, 'No tienes permiso para el tablero del reporte diario.'); }
+if (!hanaPuede('REPORTE', 'ver')) { tabError(403, 'No tienes permiso para el reporte general.'); }
+$opTablero = isset($_GET['op']) ? $_GET['op'] : '';
+if ($opTablero === 'resumen' && !hanaPuede('REPORTE', 'tablero')) {
+    tabError(403, 'El tablero por proyectos es del director de operaciones.');
+}
 
 $idColaborador = (int)$_SESSION['Idcolaborador'];
-$verTodos = hanaTienePermiso(PERMISO_TABLERO_TODOS);
+$verTodos = hanaVeTodo(); //el ADMIN TEC ve todo; los demás, lo de sus peajes asignados
 $tablero   = new Tablero();
 $hoy = date('Y-m-d');
 
 $fecha = HanaVal::fecha(isset($_GET['fecha']) ? $_GET['fecha'] : $hoy);
 if ($fecha === '' || $fecha > $hoy) { $fecha = $hoy; }
 
-$alcance = $tablero->alcance($idColaborador, $verTodos);
+$alcance = $tablero->alcance($idColaborador, $verTodos, array_keys(hanaMisCentrosIds()));
 
-//¿Puede abrir el reporte de esta persona? La jerarquía se mira hacia abajo:
-//el gerente de operaciones (20M) ve a todos; el coordinador, a los jefes de su proyecto;
-//cada quien se ve a sí mismo. Un jefe de peaje no abre el de su coordinador
-$coordino = array();
-foreach ($tablero->proyectos(array_keys($alcance['proyectos']), $fecha) as $proyecto) {
-    if ((int)$proyecto['ID_COLABORADOR_COORDINADOR'] === $idColaborador) { $coordino[(int)$proyecto['ID_PROYECTO']] = true; }
-}
+//¿Puede abrir el reporte de esta persona? Si trabaja en sus proyectos (los de sus peajes asignados)
+$coordino = $alcance['proyectos']; //abre el reporte de quien trabaja en sus proyectos
 //¿Quien mira el tablero puede ver a esta persona? Sí, si ve todo, si es ella misma o si coordina su proyecto
 function tabPuedeVer($idPersona, $idProyecto, $idColaborador, $verTodos, $coordino)
 {
+    //$coordino ahora son los proyectos de sus peajes asignados
     return $idPersona > 0 && ($verTodos || $idPersona === $idColaborador || isset($coordino[(int)$idProyecto]));
 }
 
@@ -58,12 +59,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         foreach ($centros as $centro) { $porProyecto[(int)$centro['ID_PROYECTO']][] = $centro; }
         foreach ($proyectos as $i => $proyecto) {
             $lista = isset($porProyecto[(int)$proyecto['ID_PROYECTO']]) ? $porProyecto[(int)$proyecto['ID_PROYECTO']] : array();
-            $conJefe = 0; $reportaron = 0; $conLista = 0; $vacantes = 0; $rqPendientes = 0; $arqueos = 0; $arqueosDif = 0;
+            $conJefe = 0; $reportaron = 0; $conLista = 0; $vacantes = 0; $arqueos = 0; $arqueosDif = 0;
             foreach ($lista as $indice => $centro) {
                 //Los jefes de peaje hacen la lista de chequeo; Hoy en qué estás es del coordinador
                 if ($centro['ID_COLABORADOR_JEFE']) { $conJefe++; if ($centro['SITUACION']) { $reportaron++; } }
                 if ((int)$centro['LISTAS'] > 0) { $conLista++; }
-                $vacantes += (int)$centro['VACANTES']; $rqPendientes += (int)$centro['RQ_PENDIENTES'];
+                $vacantes += (int)$centro['VACANTES'];
                 $arqueos += (int)$centro['ARQUEOS']; $arqueosDif += (int)$centro['ARQUEOS_DIF'];
             }
             foreach ($lista as $indice => $centro) {
@@ -72,7 +73,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $proyectos[$i]['COORD_PUEDE_VER'] = tabPuedeVer((int)$proyecto['ID_COLABORADOR_COORDINADOR'], $proyecto['ID_PROYECTO'], $idColaborador, $verTodos, $coordino);
             $proyectos[$i]['CENTROS'] = $lista;
             $proyectos[$i]['RESUMEN'] = array('centros' => count($lista), 'conJefe' => $conJefe, 'reportaron' => $reportaron, 'conLista' => $conLista,
-                                         'vacantes' => $vacantes, 'rq' => $rqPendientes, 'arqueos' => $arqueos, 'arqueosDif' => $arqueosDif);
+                                         'vacantes' => $vacantes, 'arqueos' => $arqueos, 'arqueosDif' => $arqueosDif);
         }
         echo hanaJsonTexto(array('fecha' => $fecha, 'hoy' => $hoy, 'verTodos' => $verTodos, 'proyectos' => $proyectos), JSON_UNESCAPED_UNICODE);
         break;

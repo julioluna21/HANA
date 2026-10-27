@@ -52,7 +52,7 @@ class listas{
              $sql = "UPDATE `lista_chequeo` SET `ID_CENTRO_OP`='$selectCentro',`FEC_REGISTRO`='$fechaEncuesta',`ID_COLABORADOR`='$idColaborador' WHERE `ID_LISTA_CHEQUEO`='$idLista'";
              return ejecutarConsulta($sql);
      }
-     //Los peajes asignados a una persona en Usuarios
+     //Los peajes asignados a una persona en Colaboradores
      public function centrosAsignados($idPersona)
      {
              $sql = "SELECT asoc_usuarios_sistemas_x_cop.* FROM asoc_usuarios_sistemas_x_cop WHERE asoc_usuarios_sistemas_x_cop.ID_COLABORADOR=" . intval($idPersona);
@@ -178,7 +178,9 @@ class listas{
              if ($busqueda === 0) {
                      $sql = "SELECT * FROM colaboradores WHERE ESTADO= '1' ORDER BY NOM_COLABORADOR ASC";
              } else {
-                     $sql = "SELECT * FROM colaboradores WHERE NOM_COLABORADOR LIKE '%".$busqueda."%' AND ESTADO= '1' ORDER BY NOM_COLABORADOR ASC";
+                     //El texto de búsqueda se escapa (comillas) y se neutralizan los comodines % y _ antes del LIKE
+                     $texto = addcslashes(mysqli_real_escape_string($GLOBALS['conexion'], (string)$busqueda), '%_');
+                     $sql = "SELECT * FROM colaboradores WHERE NOM_COLABORADOR LIKE '%".$texto."%' AND ESTADO= '1' ORDER BY NOM_COLABORADOR ASC";
              }
              return ejecutarConsulta($sql);
              
@@ -189,7 +191,9 @@ class listas{
              if ($busqueda === 0) {
                      $sql = "SELECT * FROM centros_operacion WHERE ESTADO= '1' ORDER BY NOM_CENTRO_OP ASC";
              } else {
-                     $sql = "SELECT * FROM centros_operacion WHERE NOM_CENTRO_OP LIKE '%".$busqueda."%' OR ID_CENTRO_OP LIKE '%".$busqueda."%' AND ESTADO= '1' ORDER BY NOM_CENTRO_OP ASC";
+                     //El texto de búsqueda se escapa (comillas) y se neutralizan los comodines % y _ antes del LIKE
+                     $texto = addcslashes(mysqli_real_escape_string($GLOBALS['conexion'], (string)$busqueda), '%_');
+                     $sql = "SELECT * FROM centros_operacion WHERE (NOM_CENTRO_OP LIKE '%".$texto."%' OR ID_CENTRO_OP LIKE '%".$texto."%') AND ESTADO= '1' ORDER BY NOM_CENTRO_OP ASC";
              }
              return ejecutarConsulta($sql);
              
@@ -204,17 +208,15 @@ class listas{
              if ($busqueda !== 0 && $busqueda !== '0' && $busqueda !== '') {
                      //Los paréntesis son necesarios: sin ellos el OR se mezcla con el AND
                      //del estado y aparecen centros inactivos al buscar por nombre
-                     $filtro = " AND (centros_operacion.NOM_CENTRO_OP LIKE '%".$busqueda."%'
-                                   OR centros_operacion.ID_CENTRO_OP LIKE '%".$busqueda."%') ";
+                     $texto = addcslashes(mysqli_real_escape_string($GLOBALS['conexion'], (string)$busqueda), '%_');
+                     $filtro = " AND (centros_operacion.NOM_CENTRO_OP LIKE '%".$texto."%'
+                                   OR centros_operacion.ID_CENTRO_OP LIKE '%".$texto."%') ";
              }
-             //Los centros asignados al usuario y los de los proyectos que coordina
-             //(las listas de chequeo las llena el coordinador)
+             //Los peajes asignados a la persona en Colaboradores (el ADMIN TEC, todos)
              $sql = "SELECT centros_operacion.ID_CENTRO_OP, centros_operacion.NOM_CENTRO_OP
                      FROM centros_operacion
                      WHERE (centros_operacion.ID_CENTRO_OP IN (SELECT ID_CENTRO_OP FROM asoc_usuarios_sistemas_x_cop
                                                      WHERE ID_COLABORADOR = $idUsuario)
-                          OR centros_operacion.ID_PROYECTO IN (SELECT p.ID_PROYECTO FROM proyectos p
-                                 WHERE p.ID_COLABORADOR_COORDINADOR = $idUsuario AND p.ESTADO = '1')
                           OR " . ($todos ? "1 = 1" : "1 = 0") . ")
                        AND centros_operacion.ESTADO = '1'
                        $filtro
@@ -243,13 +245,11 @@ class listas{
         {
                 $idUsuario = intval($idUsuario);
                 $idCentro  = intval($idCentro);
-                //Asignado en Usuarios, o de un proyecto que coordina
+                //Asignado a la persona en Colaboradores (el ADMIN TEC, todos)
                 $sql = "SELECT 1 AS ok FROM centros_operacion
                          WHERE centros_operacion.ID_CENTRO_OP = $idCentro
                            AND (centros_operacion.ID_CENTRO_OP IN (SELECT ID_CENTRO_OP FROM asoc_usuarios_sistemas_x_cop
                                                      WHERE ID_COLABORADOR = $idUsuario)
-                          OR centros_operacion.ID_PROYECTO IN (SELECT p.ID_PROYECTO FROM proyectos p
-                                 WHERE p.ID_COLABORADOR_COORDINADOR = $idUsuario AND p.ESTADO = '1')
                           OR " . ($todos ? "1 = 1" : "1 = 0") . ") LIMIT 1";
                 return (bool)ejecutarConsultaSimpleFila($sql);
         }

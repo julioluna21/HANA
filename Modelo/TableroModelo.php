@@ -4,14 +4,13 @@
   ---------------------------------------------------------------------------
   Tres niveles: proyectos -> centros de cada proyecto -> el reporte de una
   persona en un día. Qué ve cada quien sale de la jerarquía:
-    - Con el permiso 20M (gerente de operaciones): todos los proyectos.
+    - Con el permiso 20M (director de operaciones): todos los proyectos.
     - El coordinador de un proyecto: ese proyecto completo.
     - El jefe de un centro: ese centro, dentro de su proyecto.
 */
 require_once __DIR__ . "/HanaDB.php";
 require_once __DIR__ . "/HoyModelo.php";
 require_once __DIR__ . "/CronogramaModelo.php";
-require_once __DIR__ . "/RQEstados.php";
 require_once __DIR__ . "/ArqueoModelo.php";
 
 class Tablero
@@ -20,25 +19,22 @@ class Tablero
     // Alcance: qué proyectos y centros puede ver esta persona
     //   devuelve ['proyectos' => [id => true], 'centros' => [id => true]]
     //-----------------------------------------------------------------------
-    public function alcance($idColaborador, $verTodos)
+    public function alcance($idColaborador, $verTodos, $idsCentros = array())
     {
+        //Lo que ve cada quien: los peajes asignados ($idsCentros) y sus proyectos; $verTodos (el ADMIN TEC): todo
         $alcance = array('proyectos' => array(), 'centros' => array());
-        $centros = HanaDB::q("SELECT c.ID_CENTRO_OP, c.ID_PROYECTO, c.ID_COLABORADOR_JEFE, p.ID_COLABORADOR_COORDINADOR
+        $mios = array_flip(array_map('intval', (array)$idsCentros));
+        $centros = HanaDB::q("SELECT c.ID_CENTRO_OP, c.ID_PROYECTO
                              FROM centros_operacion c
                              INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
                             WHERE c.ESTADO = '1' AND p.ESTADO = '1'");
         foreach ((array)$centros as $centro) {
-            $loVe = $verTodos || (int)$centro['ID_COLABORADOR_COORDINADOR'] === (int)$idColaborador
-                            || (int)$centro['ID_COLABORADOR_JEFE'] === (int)$idColaborador;
-            if ($loVe) {
+            if ($verTodos || isset($mios[(int)$centro['ID_CENTRO_OP']])) {
                 $alcance['centros'][(int)$centro['ID_CENTRO_OP']] = true;
                 $alcance['proyectos'][(int)$centro['ID_PROYECTO']] = true;
             }
         }
-        //Un proyecto sin centros todavía, pero del que la persona es coordinadora
-        $proyectos = $verTodos ? HanaDB::q("SELECT ID_PROYECTO FROM proyectos WHERE ESTADO = '1'")
-                        : HanaDB::q("SELECT ID_PROYECTO FROM proyectos WHERE ESTADO = '1' AND ID_COLABORADOR_COORDINADOR = ?", 'i', array((int)$idColaborador));
-        foreach ((array)$proyectos as $proyecto) { $alcance['proyectos'][(int)$proyecto['ID_PROYECTO']] = true; }
+        if ($verTodos) { foreach ((array)HanaDB::q("SELECT ID_PROYECTO FROM proyectos WHERE ESTADO = '1'") as $proyecto) { $alcance['proyectos'][(int)$proyecto['ID_PROYECTO']] = true; } }
         return $alcance;
     }
 
@@ -61,8 +57,7 @@ class Tablero
                        (SELECT COUNT(*) FROM arqueo a WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP AND a.FECHA = ? AND a.ESTADO = 1) AS ARQUEOS,
                        (SELECT COUNT(*) FROM arqueo a WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP AND a.FECHA = ? AND a.ESTADO = 1 AND " . Arqueo::sqlDiferencia() . " <> 0) AS ARQUEOS_DIF,
                        (SELECT COUNT(*) FROM lista_chequeo l WHERE l.ID_CENTRO_OP = c.ID_CENTRO_OP
-                                AND l.FEC_REGISTRO >= ? AND l.FEC_REGISTRO < ?) AS LISTAS,
-                       (SELECT COUNT(*) FROM rq r WHERE r.ID_CENTRO_OP = c.ID_CENTRO_OP AND r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . ") AS RQ_PENDIENTES
+                                AND l.FEC_REGISTRO >= ? AND l.FEC_REGISTRO < ?) AS LISTAS
                   FROM centros_operacion c
                   LEFT JOIN colaboradores j ON j.ID_COLABORADOR = c.ID_COLABORADOR_JEFE
                   LEFT JOIN reporte_hoy h ON h.ID_COLABORADOR = c.ID_COLABORADOR_JEFE AND h.FECHA = ?
@@ -134,18 +129,8 @@ class Tablero
                                 FROM arqueo a INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = a.ID_CENTRO_OP
                                WHERE a.ID_COLABORADOR_ARQUEA = ? AND a.FECHA = ? AND a.ESTADO = 1
                                ORDER BY a.HORA", 'is', array((int)$idColaborador, $fecha));
-        //RQ que pidió esta persona: las que esperan aprobación y las de ese día
-        $rqPedidas = HanaDB::q("SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ,
-                                " . RqEstado::sqlCampo('r.ID_RQ_ESTADO', 'NOM_RQ_ESTADO') . " AS NOM_RQ_ESTADO, c.NOM_CENTRO_OP,
-                                (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ', ') FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS
-                           FROM rq r
-                           INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                          WHERE r.ID_RQ_ESTADO <> " . RqEstado::ANULADA . " AND r.ID_COLABORADOR_SOLICITA = ?
-                            AND (r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . " OR r.FECHA_RQ = ?)
-                          ORDER BY r.FEC_CREACION DESC LIMIT 20", 'is', array((int)$idColaborador, $fecha));
         return array(
             'esCoordinador' => HanaDB::esCoordinador($idColaborador),
-            'rq'         => $rqPedidas ? $rqPedidas : array(),
             'persona'    => $persona,
             'hoy'        => $hoyReg,
             'cronograma' => $modeloCronograma->items($idColaborador, $fecha, $diaSiguiente, $hoy),

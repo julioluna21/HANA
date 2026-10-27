@@ -167,6 +167,22 @@ if (isset($_SESSION['IdUsuarios'])) {
 
             #listaEditor .editor-item.dragging{ opacity:.4; background:#fcf8e3; } /* fila mientras se arrastra */
             #listaEditor .editor-item.movida{ background:#fffaf0; } /* fila movida y aun sin guardar */
+            #listaEditor .handle{ touch-action:none; } /* en el celular, arrastrar con el dedo no mueve la página */
+
+            /* En el celular cada pregunta es una tarjeta: arriba la manito, el número y los botones;
+               debajo el texto y el tipo de respuesta, cada uno a todo el ancho. En una sola línea
+               el texto quedaba de 25px y los botones se salían de la pantalla */
+            @media (max-width: 767px){
+                .editor-head{ display:none; }
+                #listaEditor .editor-item{ flex-wrap:wrap; gap:8px 10px; padding:10px; }
+                #listaEditor .handle     { order:1; flex:0 0 30px; }
+                #listaEditor .badge-orden{ order:2; }
+                #listaEditor .txt-id     { order:3; flex:1 1 auto; text-align:left; }
+                #listaEditor .btn-una    { order:4; flex:0 0 42px; }
+                #listaEditor .btn-completa{ order:5; flex:0 0 42px; margin-left:0; }
+                #listaEditor .in-pregunta{ order:6; flex:1 1 100%; }
+                #listaEditor .in-tipo    { order:7; flex:1 1 100%; }
+            }
         </style>
 
         <?php
@@ -175,7 +191,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
         <!-- Lógica de esta pantalla. El ?v= obliga al navegador a bajar la versión
              nueva y no una vieja guardada en cache -->
-        <script type="text/javascript" src="../Ajax/Editarpreguntasajax.js?v=9"></script>
+        <script type="text/javascript" src="../Ajax/Editarpreguntasajax.js?v=10"></script>
 <?php
     } else {
         //Hay sesión pero el usuario no tiene el modulo: va al inicio (volver atrás dejaba la página en blanco si se abrió desde un enlace)

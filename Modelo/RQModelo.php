@@ -49,22 +49,35 @@ class Rq
     public function confirmar() { global $conexion; $conexion->commit(); }
     public function deshacer()  { global $conexion; $conexion->rollback(); }
 
+    //¿La base ya tiene el peaje de cada ítem (rq_detalle.ID_CENTRO_OP, script 45)?
+    //Si todavía no se corrió el script, las RQ siguen funcionando con un solo peaje
+    private static $conPeajeItem = null;
+    public static function hayPeajePorItem()
+    {
+        global $conexion;
+        if (self::$conPeajeItem === null) {
+            $resultado = $conexion->query("SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+                                            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rq_detalle' AND COLUMN_NAME = 'ID_CENTRO_OP'");
+            $fila = $resultado ? $resultado->fetch_assoc() : null;
+            self::$conPeajeItem = $fila && (int)$fila['n'] > 0;
+            if (!self::$conPeajeItem) { error_log('HANA - RQ: falta la columna rq_detalle.ID_CENTRO_OP (script 45). Las RQ quedan con un solo peaje.'); }
+        }
+        return self::$conPeajeItem;
+    }
+
     //-----------------------------------------------------------------------
     // Catálogos
     //-----------------------------------------------------------------------
 
-    //De qué peajes es el usuario: los que tiene asignados en Usuarios, los peajes donde es
-    //jefe y los de los proyectos que coordina. Con $todos (ADMIN TEC), todos los peajes
+    //De qué peajes es el usuario: los que tiene asignados en Colaboradores.
+    //Con $todos (ADMIN TEC), todos los peajes
     private function condPeajes($idUsuario, $todos)
     {
         $idUsuario = intval($idUsuario);
         if ($todos) { return "(1 = 1)"; }
-        $persona = $idUsuario; //el usuario es la misma persona (colaboradores)
-        $coordina = "p.ID_COLABORADOR_COORDINADOR = $persona";
-        return "(EXISTS (SELECT 1 FROM asoc_usuarios_sistemas_x_cop a
-                          WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP
-                            AND a.ID_COLABORADOR = $idUsuario)
-                 OR c.ID_COLABORADOR_JEFE = $persona OR $coordina)";
+        return "EXISTS (SELECT 1 FROM asoc_usuarios_sistemas_x_cop a
+                         WHERE a.ID_CENTRO_OP = c.ID_CENTRO_OP
+                           AND a.ID_COLABORADOR = $idUsuario)";
     }
 
     //Los peajes del usuario, para el formulario y los filtros
@@ -80,8 +93,7 @@ class Rq
         return $this->ejecutar($sql);
     }
 
-    //Confirma que el peaje sea del usuario (asignado en Usuarios, jefe de ese peaje o
-    //coordinador de su proyecto) y devuelve su proyecto.
+    //Confirma que el peaje sea del usuario (asignado en Colaboradores) y devuelve su proyecto.
     //Así nadie puede crear una RQ en un peaje ajeno modificando el formulario
     public function proyectoDeCentro($idUsuario, $idCentro, $todos = false)
     {
@@ -165,13 +177,15 @@ class Rq
         return $this->insertarId($sql);
     }
 
-    //Agrega un ítem a la RQ (si la cantidad no es válida, queda en 1)
-    public function insertarDetalle($idRq, $descripcion, $justificacion, $cantidad, $unidad, $soporte)
+    //Agrega un ítem a la RQ (si la cantidad no es válida, queda en 1).
+    //$idCentro: el peaje del ítem (otro peaje del mismo proyecto, o el de la RQ)
+    public function insertarDetalle($idRq, $descripcion, $justificacion, $cantidad, $unidad, $soporte, $idCentro)
     {
         $cantidad = is_numeric($cantidad) && $cantidad > 0 ? (float)$cantidad : 1;
-        $sql = "INSERT INTO rq_detalle (ID_RQ, DESCRIPCION, JUSTIFICACION, CANTIDAD, UNIDAD, SOPORTE_ULTIMA_ADQUISICION)
-                VALUES (" . intval($idRq) . ", " . $this->textoSql($descripcion) . ", " . $this->textoSql($justificacion) . ",
-                        $cantidad, " . $this->textoSql($unidad !== '' ? $unidad : 'Unidad') . ", " . $this->textoSql($soporte) . ")";
+        $conPeaje = self::hayPeajePorItem();
+        $sql = "INSERT INTO rq_detalle (ID_RQ, " . ($conPeaje ? "ID_CENTRO_OP, " : "") . "DESCRIPCION, JUSTIFICACION, CANTIDAD, UNIDAD, SOPORTE_ULTIMA_ADQUISICION)
+                VALUES (" . intval($idRq) . ", " . ($conPeaje ? intval($idCentro) . ", " : "") . $this->textoSql($descripcion) . ", " . $this->textoSql($justificacion) . ",
+                        $cantidad, " . $this->textoSql($unidad !== '' ? $unidad : 'UNIDAD') . ", " . $this->textoSql($soporte) . ")";
         return $this->insertarId($sql);
     }
 
@@ -213,7 +227,13 @@ class Rq
     {
         $filtro = '';
         if (intval($idProyecto) > 0) { $filtro .= " AND c.ID_PROYECTO = " . intval($idProyecto); }
-        if (intval($idCentro)   > 0) { $filtro .= " AND r.ID_CENTRO_OP = " . intval($idCentro); }
+        //El peaje: el de la RQ o el de alguno de sus ítems (una RQ puede pedir para varios peajes)
+        if (intval($idCentro)   > 0) {
+            $filtro .= self::hayPeajePorItem()
+                ? " AND (r.ID_CENTRO_OP = " . intval($idCentro) . "
+                         OR EXISTS (SELECT 1 FROM rq_detalle dc WHERE dc.ID_RQ = r.ID_RQ AND dc.ID_CENTRO_OP = " . intval($idCentro) . "))"
+                : " AND r.ID_CENTRO_OP = " . intval($idCentro);
+        }
 
         //Se filtra por un rango de fechas y no con MONTH()/YEAR(): así la base
         //puede usar el índice de FECHA_RQ y el filtro sigue rápido con muchas RQ
@@ -240,6 +260,7 @@ class Rq
                        (SELECT COUNT(*) FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS,
                        (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ' · ')
                           FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS RESUMEN,
+                       " . self::sqlOtrosPeajes() . " AS OTROS_PEAJES,
                        " . RqEstado::sqlVencida('r.ID_RQ_ESTADO', RqEstado::sqlDesde('r.ID_RQ')) . " AS VENCIDA
                   FROM rq r
                   INNER JOIN centros_operacion c  ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
@@ -262,7 +283,7 @@ class Rq
         $idRq = intval($idRq);
         //ID_PROYECTO sale del peaje, con el nombre que espera la pantalla
         $sql = "SELECT r.*, c.ID_PROYECTO, IF(r.ID_RQ_ESTADO = " . RqEstado::ANULADA . ", 0, 1) AS ESTADO,
-                       p.NOM_PROYECTO, c.NOM_CENTRO_OP,
+                       p.NOM_PROYECTO, c.NOM_CENTRO_OP, " . self::sqlOtrosPeajes() . " AS OTROS_PEAJES,
                        " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO', array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'ORDEN', 'DIAS_ESPERADOS')) . ",
                        col.NOM_COLABORADOR AS SOLICITA,
                        DATEDIFF(NOW(), " . RqEstado::sqlDesde('r.ID_RQ') . ") AS DIAS_EN_ESTADO,
@@ -286,10 +307,24 @@ class Rq
                     AND hr.ESTADO_ANTERIOR = " . RqEstado::RECHAZADA . " AND hr.ESTADO_NUEVO = " . RqEstado::SOLICITADA . ")";
     }
 
-    //Los ítems de una RQ
+    //Los otros peajes que aparecen en los ítems de la RQ (distintos al de la RQ), separados por coma
+    public static function sqlOtrosPeajes()
+    {
+        if (!self::hayPeajePorItem()) { return "NULL"; }
+        return "(SELECT GROUP_CONCAT(DISTINCT co.NOM_CENTRO_OP ORDER BY co.NOM_CENTRO_OP SEPARATOR ', ')
+                   FROM rq_detalle dp INNER JOIN centros_operacion co ON co.ID_CENTRO_OP = dp.ID_CENTRO_OP
+                  WHERE dp.ID_RQ = r.ID_RQ AND dp.ID_CENTRO_OP <> r.ID_CENTRO_OP)";
+    }
+
+    //Los ítems de una RQ, con el nombre del peaje de cada uno
     public function detalle($idRq)
     {
-        return $this->ejecutar("SELECT * FROM rq_detalle WHERE ID_RQ = " . intval($idRq) . " ORDER BY ID_RQ_DETALLE");
+        if (!self::hayPeajePorItem()) {
+            return $this->ejecutar("SELECT d.*, NULL AS PEAJE_ITEM FROM rq_detalle d WHERE d.ID_RQ = " . intval($idRq) . " ORDER BY d.ID_RQ_DETALLE");
+        }
+        return $this->ejecutar("SELECT d.*, c.NOM_CENTRO_OP AS PEAJE_ITEM FROM rq_detalle d
+                                  LEFT JOIN centros_operacion c ON c.ID_CENTRO_OP = d.ID_CENTRO_OP
+                                 WHERE d.ID_RQ = " . intval($idRq) . " ORDER BY d.ID_RQ_DETALLE");
     }
 
     //El historial de la RQ, del más reciente al más antiguo

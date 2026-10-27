@@ -23,7 +23,7 @@ function comError($codigo, $mensaje)
 //Si el administrador apagó este módulo (Parámetros del sistema), no se registra nada
 require_once __DIR__ . '/../Modelo/HanaConfig.php';
 if (!HanaConfig::modulo('COMUNICACIONES')) { comError(403, 'Este módulo está desactivado. Lo activa el administrador en Parámetros del sistema.'); }
-hanaUsarModulo('COMUNICACIONES'); //la casilla COMUNICACIONES de Roles da acceso en todos los proyectos
+hanaUsarModulo('COMUNICACIONES');
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { comError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
 $idColaborador = (int)$_SESSION['Idcolaborador'];
 $idUsuario     = (int)$_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
@@ -32,29 +32,25 @@ $hoy = date('Y-m-d');
 $ultimoEditable = HanaFechas::ventana()[1]; //las fechas no pueden pasar de hoy
 
 /*
-  Oficios como las RQ: cualquiera los crea y los responde, pero solo en SUS proyectos:
-    - los que coordina (o todos, si es ADMIN TEC o tiene 32M);
-    - los de los peajes de los que es jefe (Centros de operación);
-    - los de los peajes que tiene asignados en Usuarios.
-  Marcar como resuelta o reabrir: el coordinador del proyecto, el ADMIN TEC o quien tenga 32M.
+  Casillas de Comunicaciones y oficios (Permisos de usuario), en los peajes asignados a la persona:
+    - 32M: registrar comunicaciones y responderlas;
+    - 50M: verlas;
+    - 51M: marcarlas como resueltas, reabrirlas y corregir o anular las que registraron otros.
+  Quien la registró la puede corregir y anular. El ADMIN TEC (24M) todo, en todos los proyectos.
 */
-$resuelveTodo = hanaTienePermiso('24M') || hanaTienePermiso('32M');
+if (!hanaEntra('COMUNICACIONES')) { comError(403, 'Tu rol no tiene acceso a Comunicaciones y oficios. Se da en Configuración → Permisos de usuario.'); }
+$puedeLlenar  = hanaPuede('COMUNICACIONES', 'llenar');
+$resuelveTodo = hanaPuede('COMUNICACIONES', 'otros');
 $centros = array(); $proyectos = array();
-$agregar = function ($filas) use (&$centros, &$proyectos) {
-    foreach ((array)$filas as $centro) {
-        $centros[(int)$centro['ID_CENTRO_OP']] = $centro;
-        $proyectos[(int)$centro['ID_PROYECTO']] = array('ID_PROYECTO' => (int)$centro['ID_PROYECTO'], 'NOM_PROYECTO' => $centro['NOM_PROYECTO']);
-    }
-};
-$agregar(hanaCentrosCoordinador($idColaborador)); //los que coordina (todos si ADMIN TEC o 32M)
-$agregar(Organizacion::centrosJefeConProyecto($idColaborador));     //los peajes de los que es jefe
-$agregar(Organizacion::centrosAsignadosConProyecto($idUsuario));    //asignados en Usuarios
-if (!count($proyectos)) { comError(403, 'No tienes proyectos asignados. Pide que te asignen un peaje en Configuración → Usuarios o Centros de operación.'); }
+foreach (hanaMisCentros() as $centro) {
+    $centros[(int)$centro['ID_CENTRO_OP']] = $centro;
+    $proyectos[(int)$centro['ID_PROYECTO']] = array('ID_PROYECTO' => (int)$centro['ID_PROYECTO'], 'NOM_PROYECTO' => $centro['NOM_PROYECTO']);
+}
+if (!count($proyectos)) { comError(403, 'No tienes peajes asignados. Pide que te los asignen en Configuración → Colaboradores.'); }
 
-//¿Puede marcar como resuelta (o reabrir) una comunicación de este proyecto?
-$puedeResolver = function ($idProyecto) use ($resuelveTodo, $idColaborador) {
-    if ($resuelveTodo) { return true; }
-    return Organizacion::coordinadorDe($idProyecto) === $idColaborador;
+//¿Puede marcar como resuelta (o reabrir) una comunicación de este proyecto? (51M, en sus proyectos)
+$puedeResolver = function ($idProyecto) use ($resuelveTodo, $proyectos) {
+    return $resuelveTodo && isset($proyectos[(int)$idProyecto]);
 };
 
 //Trae una comunicación y revisa que esté activa y que sea de un proyecto de la persona
@@ -73,7 +69,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo hanaJsonTexto(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'proyectos' => array_values($proyectos), 'centros' => array_values($centros),
                                'tipos' => Comunicacion::$TIPOS, 'medios' => Comunicacion::$MEDIOS,
                                'pendiente' => Comunicacion::$PENDIENTE, 'diasRespuesta' => Comunicacion::diasRespuesta(),
-                               'proyectosResuelve' => array_values(array_filter(array_keys($proyectos), $puedeResolver))),
+                               'proyectosResuelve' => array_values(array_filter(array_keys($proyectos), $puedeResolver)),
+                               'puedeLlenar' => $puedeLlenar),
                          JSON_UNESCAPED_UNICODE);
         break;
 
@@ -94,9 +91,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $filas = $modeloComunicacion->listar($ids, $desde, $hasta, $abiertas, $hoy);
         foreach ($filas as $i => $fila) {
             //Lo que esta persona puede hacer con cada una (la pantalla muestra los botones según esto)
-            $resuelve = $resuelveTodo || (int)$fila['COORDINADOR_PROYECTO'] === $idColaborador;
+            $resuelve = $puedeResolver($fila['ID_PROYECTO']);
             $filas[$i]['PUEDE_RESOLVER'] = $resuelve;
-            $filas[$i]['PUEDE_EDITAR'] = $resuelve || (int)$fila['ID_COLABORADOR_REGISTRA'] === $idColaborador;
+            $filas[$i]['PUEDE_EDITAR'] = $resuelve || ($puedeLlenar && (int)$fila['ID_COLABORADOR_REGISTRA'] === $idColaborador);
+            $filas[$i]['PUEDE_RESPONDER'] = $puedeLlenar;
         }
         echo hanaJsonTexto($filas, JSON_UNESCAPED_UNICODE);
         break;
@@ -105,11 +103,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'hilo':
         $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_GET['id']) ? (int)$_GET['id'] : 0);
         echo hanaJsonTexto(array('hilo' => $modeloComunicacion->hilo($comunicacion['ID_COMUNICACION']), 'puedeResolver' => $puedeResolver($comunicacion['ID_PROYECTO']),
-                               'resuelta' => $comunicacion['FECHA_ATENCION'] !== null), JSON_UNESCAPED_UNICODE);
+                               'resuelta' => $comunicacion['FECHA_ATENCION'] !== null, 'fechaCierre' => $comunicacion['FECHA_ATENCION']), JSON_UNESCAPED_UNICODE);
         break;
 
-    //Cualquiera con el proyecto asignado responde
+    //Responde quien registra comunicaciones (32M), en sus proyectos
     case 'responder':
+        if (!$puedeLlenar) { comError(403, 'Tu rol solo consulta las comunicaciones.'); }
         $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
         $texto = HanaVal::texto(isset($_POST['texto']) ? $_POST['texto'] : '', 2000);
         if ($texto === null) { comError(400, 'Escribe la respuesta.'); }
@@ -117,11 +116,11 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Respuesta agregada.'), JSON_UNESCAPED_UNICODE);
         break;
 
-    //El coordinador del proyecto, el ADMIN TEC o 32M: marcar como resuelta o reabrir
+    //Marcar como resuelta o reabrir: casilla 51M, en sus proyectos
     case 'resolver':
     case 'reabrir':
         $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
-        if (!$puedeResolver($comunicacion['ID_PROYECTO'])) { comError(403, 'La marca como resuelta el coordinador del proyecto o el administrador.'); }
+        if (!$puedeResolver($comunicacion['ID_PROYECTO'])) { comError(403, 'Marcarla como resuelta necesita su casilla en Permisos de usuario.'); }
         $nota = HanaVal::texto(isset($_POST['texto']) ? $_POST['texto'] : '', 2000);
         $ahora = date('Y-m-d H:i:s');
         if ($_GET['op'] === 'resolver') {
@@ -140,6 +139,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     //Crea una comunicación nueva o guarda los cambios de una existente
     case 'guardar':
+        if (!$puedeLlenar && !$resuelveTodo) { comError(403, 'Tu rol solo consulta las comunicaciones.'); }
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         $antes = null;
         if ($id > 0) {
@@ -173,7 +173,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (isset($_POST['atencion']) && trim($_POST['atencion']) !== '') {
             $datos['atencion'] = HanaVal::fecha($_POST['atencion']);
             if ($datos['atencion'] === '' || $datos['atencion'] < $datos['fecha'] || $datos['atencion'] > $ultimoEditable) {
-                comError(400, 'La fecha de atención debe estar entre la fecha de recepción y hoy.');
+                comError(400, 'La fecha de cierre debe estar entre la fecha de recepción y hoy.');
             }
         }
         //Ya atendida, no está pendiente de nadie
@@ -198,10 +198,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                          JSON_UNESCAPED_UNICODE);
         break;
 
-    //Anula una comunicación (solo quien la registró o quien tenga el permiso 5M)
+    //Anula una comunicación (quien la registró, o quien tenga la casilla 51M)
     case 'anular':
         $comunicacion = comCargar($modeloComunicacion, $proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
-        if ((int)$comunicacion['ID_COLABORADOR_REGISTRA'] !== $idColaborador && !hanaTienePermiso('5M')) {
+        if (!($puedeLlenar && (int)$comunicacion['ID_COLABORADOR_REGISTRA'] === $idColaborador) && !$puedeResolver($comunicacion['ID_PROYECTO'])) {
             comError(403, 'Solo quien la registró puede anularla.');
         }
         $motivo = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 300);

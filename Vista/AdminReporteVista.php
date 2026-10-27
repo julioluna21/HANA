@@ -1,4 +1,14 @@
 <?php
+/*
+  Pantalla sin uso: la Administración del reporte diario se quitó porque repetía lo
+  mismo que el Reporte general (ControlDiarioVista.php), que ya muestra todo lo que
+  llenan coordinadores y jefes, por módulo y por proyecto. Si alguien entra por la
+  dirección, va al Reporte general. El código de abajo se conserva solo como referencia.
+*/
+header('Location: ControlDiarioVista.php');
+exit;
+?>
+<?php
 //Administración del reporte diario - pantalla de entrada
 //Para el administrador (permiso 21M): consultar todo lo que llenan los
 //coordinadores. Desde aquí se llega a las cinco consultas y a las
@@ -15,8 +25,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             array('AdminCronogramaVista.php', 'fa-calendar', 'Cronograma y vehículo', 'El de cada coordinador, con el estado del vehículo', ''),
             array('AdminVacantesVista.php', 'fa-user-plus', 'Vacantes', 'Las de todos los centros y su acuerdo de servicio', ''),
             array('AdminComunicacionesVista.php', 'fa-inbox', 'Comunicaciones y oficios', 'Las de todos los proyectos y su tiempo de respuesta', ''),
-            array('ControlDiarioVista.php', 'fa-list-alt', 'Reporte general del día', 'Quién reportó y quién falta, por módulo', '19M'),
-            array('TableroVista.php', 'fa-th-large', 'Tablero por proyectos', 'Cada proyecto con sus peajes y jefes', '19M'),
+            array('ControlDiarioVista.php', 'fa-list-alt', 'Reporte general del día', 'El tablero por proyectos y quién reportó y quién falta, por módulo', '19M'),
             array('ListasVista.php', 'fa-check-square-o', 'Listas de chequeo', 'Las listas diligenciadas', '11M'),
             array('RQVista.php', 'fa-wrench', 'Requisiciones (RQ)', 'Todas las RQ', '15M'),
             array('ArqueosVista.php', 'fa-cog', 'Fondos autorizados', 'El fondo de cada centro para los arqueos', '5M'),

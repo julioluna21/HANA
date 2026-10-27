@@ -64,7 +64,7 @@ $enlaceF = isset($_GET['f']) ? preg_replace('/[^0-9a-f]/i', '', (string)$_GET['f
             <div>
               <input type="password" id="rsClave" name="clave" class="form-control" placeholder="Contraseña nueva" required autocomplete="new-password" />
             </div>
-            <p class="rs-ayuda" id="rsRegla">Mínimo 8 caracteres.</p>
+            <p class="rs-ayuda" id="rsRegla"></p>
             <div>
               <input type="password" id="rsClave2" name="clave2" class="form-control" placeholder="Repite la contraseña nueva" required autocomplete="new-password" />
             </div>
@@ -83,6 +83,6 @@ $enlaceF = isset($_GET['f']) ? preg_replace('/[^0-9a-f]/i', '', (string)$_GET['f
     <script src="../vendors/jquery/dist/jquery.min.js"></script>
     <!-- Alertas personalizadas: debe cargar antes de RestablecerAjax.js -->
     <script src="../Ajax/AlertasAjax.js?v=6"></script>
-    <script src="../Ajax/RestablecerAjax.js?v=1"></script>
+    <script src="../Ajax/RestablecerAjax.js?v=2"></script>
   </body>
 </html>

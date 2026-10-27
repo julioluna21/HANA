@@ -18,9 +18,10 @@ class Vacante
     //Días hábiles para cubrir una vacante (Parámetros del sistema: VACANTE_DIAS_ANS)
     public static function diasAns() { return max(1, HanaConfig::num('VACANTE_DIAS_ANS', 5)); }
 
-    //Estados de la vacante y del proceso en Gestión Humana (lo que se guarda => cómo se muestra)
+    //Estados de la vacante y del proceso en Gestión Humana (lo que se guarda => cómo se muestra).
+    //Los de Gestión Humana los edita el administrador en Parámetros del sistema → Listas
     public static $ESTADOS = array('ABIERTA' => 'Abierta', 'CUBIERTA' => 'Cubierta', 'CANCELADA' => 'Cancelada');
-    public static $ESTADOS_GH = array('RECLUTAMIENTO' => 'Reclutamiento', 'EMO' => 'EMO', 'DOCUMENTOS' => 'Documentos', 'CONTRATACION' => 'Contratación');
+    public static $ESTADOS_GH = array(); //se llena al final del archivo (HanaConfig::LISTAS)
 
     //Las vacantes de unos centros. $soloAbiertas: todas las abiertas, de
     //cualquier fecha; si no, las que se abrieron en el rango de fechas
@@ -46,6 +47,7 @@ class Vacante
     //  DIAS_A_HOY      días desde la vacante (solo mientras está abierta)
     //  TIEMPO_CIERRE   días que tardó en cubrirse
     //  RESULTADO_ANS   CUMPLE / NO_CUMPLE (cerradas); EN_TIEMPO / VENCIDA (abiertas)
+    //  FECHA_COMPROMISO_GH  si está vacía, la del acuerdo de servicio
     public static function calcular($vacante, $hoy)
     {
         $dias = function ($desde, $hasta) { return (int)round((strtotime($hasta) - strtotime($desde)) / 86400); };
@@ -54,6 +56,9 @@ class Vacante
         if ($vacante['ESTADO_VACANTE'] === 'CANCELADA') { $vacante['RESULTADO_ANS'] = null; }
         elseif ($vacante['FECHA_CIERRE'])               { $vacante['RESULTADO_ANS'] = $vacante['FECHA_CIERRE'] <= $vacante['FECHA_ANS'] ? 'CUMPLE' : 'NO_CUMPLE'; }
         else                                      { $vacante['RESULTADO_ANS'] = $hoy <= $vacante['FECHA_ANS'] ? 'EN_TIEMPO' : 'VENCIDA'; }
+        //La fecha comprometida por Gestión Humana es la del acuerdo de servicio mientras el administrador
+        //no la cambie (las vacantes registradas antes de que fuera automática la tienen vacía)
+        if (empty($vacante['FECHA_COMPROMISO_GH'])) { $vacante['FECHA_COMPROMISO_GH'] = $vacante['FECHA_ANS']; }
         return $vacante;
     }
 
@@ -103,13 +108,12 @@ class Comunicacion
 
     //Tipos de comunicación (lo que se guarda => cómo se muestra)
     public static $TIPOS = array('POR_ATENDER' => 'Por atender', 'POR_ENVIAR' => 'Por enviar');
+    //Medios y «Pendiente de»: los edita el administrador en Parámetros del sistema → Listas.
     //Medios por los que llega un oficio. WhatsApp no es uno de ellos: los oficios que llegaron
     //por ese medio quedaron como "Otro"
-    public static $MEDIOS = array('CORREO' => 'Correo electrónico', 'OFICIO' => 'Oficio físico',
-                                  'LLAMADA' => 'Llamada', 'OTRO' => 'Otro');
+    public static $MEDIOS = array(); //se llena al final del archivo (HanaConfig::LISTAS)
     //A quién le corresponde el siguiente paso
-    public static $PENDIENTE = array('COORDINADOR_OP' => 'Coordinador operativo', 'DIRECCION' => 'Dirección',
-                                     'COMUNICACIONES' => 'Comunicaciones', 'GH' => 'Gestión Humana', 'CONTABLE' => 'Contable');
+    public static $PENDIENTE = array(); //se llena al final del archivo (HanaConfig::LISTAS)
 
     //Comunicaciones de los proyectos indicados: las del rango de fechas o las que siguen abiertas
     public function listar($idsProyectos, $desde, $hasta, $soloAbiertas, $hoy)
@@ -230,3 +234,8 @@ class Comunicacion
                          'si', array($motivo, (int)$id));
     }
 }
+
+//Las listas que el administrador edita en Parámetros del sistema → Listas (las de fábrica están en HanaConfig::LISTAS)
+Vacante::$ESTADOS_GH     = HanaConfig::opciones('LISTA_ESTADOS_GH');
+Comunicacion::$MEDIOS    = HanaConfig::opciones('LISTA_MEDIOS');
+Comunicacion::$PENDIENTE = HanaConfig::opciones('LISTA_PENDIENTE');

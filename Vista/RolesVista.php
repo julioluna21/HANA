@@ -62,52 +62,46 @@ include('head.php');
                                                   <div class="row">
                            <div class="col-xs-12">
                              <label>Qué puede hacer este rol:</label>
-                             <p class="rd-ayuda" style="margin:2px 0 10px;">Un rol es un grupo de casillas; a cada persona se le pone uno en Usuarios, y es lo que se muestra como su función.
-                               Dónde trabaja cada quien sale de Proyectos (coordinador), Centros de operación (jefe de peaje) y Usuarios (peajes asignados).
-                               El coordinador de cada proyecto ya usa las pantallas de "llenar" de su proyecto; si marcas una de esas casillas, el rol la usa en todos los proyectos.
-                               Con 24M (ADMIN TEC) se crea, corrige y anula en todos los módulos y proyectos.</p>
-                             <div class="roles-grupos">
-                               <fieldset class="roles-grupo"><legend>Configuración</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r1" value="1M"> <span>Usuarios: el acceso de cada persona (rol, usuario, peajes y contraseña)</span> <small>1M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r2" value="2M"> <span>Permisos de usuario (esta pantalla)</span> <small>2M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r3" value="3M"> <span>Colaboradores: registrar personas y cambiar sus datos (al registrarlas se les crea el usuario)</span> <small>3M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r5" value="5M"> <span>Centros de operación (y fondos, vehículos y campos de casetas)</span> <small>5M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r6" value="6M"> <span>Proyectos</span> <small>6M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r24" value="24M"> <span>Parámetros del sistema y control total (crear, corregir y anular en todo)</span> <small>24M</small></label>
-                               </fieldset>
-                               <fieldset class="roles-grupo"><legend>Novedades</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r7" value="7M"> <span>Títulos de novedades</span> <small>7M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r10" value="10M"> <span>Novedades (registrar y responder)</span> <small>10M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r16" value="16M"> <span>Ver todas las novedades (no solo las propias)</span> <small>16M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r42" value="42M"> <span>Asignar una novedad a una persona</span> <small>42M</small></label>
-                               </fieldset>
-                               <fieldset class="roles-grupo"><legend>Requisiciones (RQ)</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r15" value="15M"> <span>Requisiciones: entrar y ver las propias</span> <small>15M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r41" value="41M"> <span>Pedir RQ (en sus peajes)</span> <small>41M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r18" value="18M"> <span>Aprobar o rechazar RQ</span> <small>18M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r17" value="17M"> <span>Ver todas las RQ (no solo las propias)</span> <small>17M</small></label>
-                               </fieldset>
-                               <fieldset class="roles-grupo"><legend>Reporte diario: llenar</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r28" value="28M"> <span>Hoy en qué estás</span> <small>28M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r11" value="11M"> <span>Listas de chequeo: llenarlas y corregirlas (en sus peajes)</span> <small>11M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r12" value="12M"> <span>Editar listas y correos de listas</span> <small>12M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r29" value="29M"> <span>Arqueos</span> <small>29M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r36" value="36M"> <span>Autorizar fondos de arqueos (el coordinador, solo en su proyecto)</span> <small>36M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r30" value="30M"> <span>Cronograma y vehículo (ver todos los proyectos)</span> <small>30M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r31" value="31M"> <span>Vacantes</span> <small>31M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r32" value="32M"> <span>Comunicaciones y oficios</span> <small>32M</small></label>
-                               </fieldset>
-                               <fieldset class="roles-grupo"><legend>Reporte diario: consultar</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r19" value="19M"> <span>Reporte general y tablero</span> <small>19M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r20" value="20M"> <span>Tablero: ver todos los proyectos</span> <small>20M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r21" value="21M"> <span>Administración del reporte diario (lo que llenan todos)</span> <small>21M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r22" value="22M"> <span>Consultar todos los proyectos (cronograma, ausentismo, seguimientos)</span> <small>22M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r37" value="37M"> <span>Informe mensual de gestión (PDF; con 20M, de todos los proyectos)</span> <small>37M</small></label>
-                               </fieldset>
-                               <fieldset class="roles-grupo"><legend>Ausentismo</legend>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r25" value="25M"> <span>Registrar y corregir el ausentismo de todos los proyectos (aunque el mes esté cerrado)</span> <small>25M</small></label>
-                                 <label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r23" value="23M"> <span>Reabrir meses cerrados</span> <small>23M</small></label>
-                               </fieldset>
+                             <p class="rd-ayuda" style="margin:2px 0 10px;">Las casillas dicen <strong>qué</strong> puede hacer el rol. <strong>Dónde</strong> lo dicen los peajes asignados a cada persona en Configuración → Colaboradores: si tiene solo los de un proyecto, ve y llena solo ese proyecto; si tiene todos, ve todos.
+                        Ser coordinador de un proyecto (Configuración → Proyectos) ya no da acceso por sí solo. Con 24M (ADMIN TEC) se hace todo, en todos los peajes.</p>
+<?php
+//Casillas por módulo: [código, texto]. Las mismas que usa Control/AccesoHelper.php (hanaCasillas)
+$gruposRoles = array(
+    'Configuración' => array(array('1M', 'Usuarios: el acceso de cada persona (usuario, rol y contraseña)'), array('2M', 'Permisos de usuario (esta pantalla)'),
+        array('3M', 'Colaboradores: registrar personas, sus datos y sus peajes'), array('5M', 'Centros de operación'), array('6M', 'Proyectos'),
+        array('24M', 'Parámetros del sistema y control total (todo, en todos los peajes)'), array('57M', 'Recordatorios y avisos automáticos por correo (configurarlos)')),
+    'Novedades' => array(array('7M', 'Títulos de novedades'), array('10M', 'Registrar y responder novedades'),
+        array('16M', 'Ver todas las novedades de sus peajes (no solo las propias)'), array('42M', 'Asignar una novedad a una persona')),
+    'Requisiciones (RQ)' => array(array('15M', 'Entrar y ver las propias'), array('41M', 'Pedir RQ'), array('18M', 'Aprobar o rechazar RQ de sus peajes'),
+        array('17M', 'Ver todas las RQ de sus peajes (no solo las propias)')),
+    'Hoy en qué estás' => array(array('28M', 'Llenar: registrar su día'), array('33M', 'Ver: el día de las personas de sus peajes')),
+    'Listas de chequeo' => array(array('11M', 'Llenar: diligenciar y corregir listas'), array('21M', 'Ver: revisar las listas diligenciadas'),
+        array('12M', 'Editar: crear y cambiar las listas y sus preguntas'), array('44M', 'Correos de las listas (a quién le llegan)')),
+    'Arqueos' => array(array('29M', 'Llenar: hacer arqueos'), array('45M', 'Ver: los arqueos de sus peajes'),
+        array('36M', 'Autorizar fondos y configurar los campos de casetas'), array('46M', 'Anular arqueos que hicieron otros')),
+    'Cronograma y vehículo' => array(array('30M', 'Llenar: el cronograma del proyecto y el estado del vehículo'), array('34M', 'Ver: el cronograma y el vehículo'),
+        array('47M', 'Vehículos: agregar, cambiar y quitar los de sus proyectos (placas)')),
+    'Vacantes' => array(array('31M', 'Llenar: registrar y actualizar vacantes'), array('48M', 'Ver: las vacantes de sus peajes'),
+        array('49M', 'Cambiar la fecha comprometida por Gestión Humana (con Llenar)')),
+    'Comunicaciones y oficios' => array(array('32M', 'Llenar: registrar y responder'), array('50M', 'Ver: las de sus proyectos'),
+        array('51M', 'Resolver, reabrir y corregir o anular las de otros')),
+    'Consultas' => array(array('19M', 'Reporte general (de sus peajes)'), array('43M', 'Tablero por proyectos, dentro del reporte general'),
+        array('37M', 'Informe mensual de gestión (PDF)')),
+    //El grupo «Ausentismo» (casillas 52M, 53M, 58M, 25M, 23M) se retiró junto con el módulo de ausentismo.
+    //Esos códigos quedan reservados y no se reutilizan. También quedan reservados y sin pantalla: 40M (consolidado
+    //de promesa, retirado), 4M, 8M, 9M, 13M y 27M (funciones retiradas: cargos, estados, observadores, Power BI).
+    'Promesa de valor' => array(array('54M', 'Llenar: promesa, ejecutado y justificación'), array('55M', 'Ver: la promesa de sus peajes'),
+        array('56M', 'Corregir días pasados (fuera del plazo de Parámetros)'))
+);
+?>
+<div class="roles-grupos">
+<?php foreach ($gruposRoles as $tituloGrupo => $casillasGrupo) { ?>
+<fieldset class="roles-grupo"><legend><?php echo htmlspecialchars($tituloGrupo, ENT_QUOTES, 'UTF-8'); ?></legend>
+<?php foreach ($casillasGrupo as $casillaRol) { $numeroCasilla = (int)$casillaRol[0]; ?>
+<label class="roles-casilla"><input type="checkbox" name="permiso[]" id="r<?php echo $numeroCasilla; ?>" value="<?php echo $casillaRol[0]; ?>"> <span><?php echo htmlspecialchars($casillaRol[1], ENT_QUOTES, 'UTF-8'); ?></span> <small><?php echo $casillaRol[0]; ?></small></label>
+<?php } ?>
+</fieldset>
+<?php } ?>
                              </div>
                            </div>
                          </div>

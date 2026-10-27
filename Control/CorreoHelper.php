@@ -142,6 +142,37 @@ function hanaIncrustarImagenes($mail)
 //Devuelve true si salió. $modulo dice de dónde sale (LISTAS, NOVEDADES, USUARIOS...)
 function hanaEnviar($mail, $modulo = 'GENERAL')
 {
+    //Modo prueba (solo lo enciende tareas/probar_correos.php, por línea de comandos): todo correo va
+    //únicamente al buzón de prueba, con una nota de a quién le habría llegado en el uso normal
+    if (defined('HANA_CORREO_SOLO_A') && PHP_SAPI === 'cli') {
+        $antes = array();
+        foreach (array_merge($mail->getToAddresses(), $mail->getCcAddresses(), $mail->getBccAddresses()) as $destino) {
+            if (trim((string)$destino[1]) !== '') { $antes[] = $destino[1]; } //solo el nombre, sin el correo
+        }
+        $mail->clearAllRecipients();
+        $mail->addAddress(HANA_CORREO_SOLO_A);
+        if (strpos($mail->Subject, '[PRUEBA] ') !== 0) { $mail->Subject = '[PRUEBA] ' . $mail->Subject; }
+        if (count($antes) && $mail->ContentType === 'text/html') {
+            $nota = '<div style="font-family:Arial,sans-serif;font-size:12px;background:#FFF8E1;border:1px solid #F0D58C;padding:8px 10px;margin:0 0 10px;">'
+                  . 'Correo de prueba. En el uso normal era para: ' . htmlspecialchars(implode(', ', array_unique($antes)), ENT_QUOTES, 'UTF-8') . '</div>';
+            $mail->Body = preg_match('/<body[^>]*>/i', $mail->Body) ? preg_replace('/(<body[^>]*>)/i', '$1' . $nota, $mail->Body, 1) : $nota . $mail->Body;
+            $mail->AltBody = '';
+        }
+    }
+
+    //Los correos de ejemplo (dominios reservados como ejemplo.test) no se envían: se quitan de los
+    //destinatarios. Si no queda ninguno real, no sale nada y queda anotado en la bitácora
+    $reales = array();
+    foreach ($mail->getToAddresses() as $destino) { if (!hanaCorreoDeEjemplo($destino[0])) { $reales[] = $destino; } }
+    if (!count($reales)) {
+        $mail->ErrorInfo = 'solo había correos de ejemplo (.test): no se envió';
+        hanaCorreoLog($mail, $modulo, 'sin enviar', false, $mail->ErrorInfo);
+        return false;
+    }
+    if (count($reales) !== count($mail->getToAddresses())) {
+        $mail->clearAddresses();
+        foreach ($reales as $destino) { $mail->addAddress($destino[0], $destino[1]); }
+    }
     $cta = hanaCorreoDatos();
     if (!$cta) {
         $motivo = 'La cuenta de correo no está escrita en Conexion/Global.php (MAIL_HOST, MAIL_USER y MAIL_PASSWORD).';
@@ -186,6 +217,13 @@ function hanaEnviar($mail, $modulo = 'GENERAL')
     hanaCorreoLog($mail, $modulo, $metodo, $ok, $ok ? null : $mail->ErrorInfo);
     if (!$ok) { error_log('HANA - correo (' . $modulo . ') no salió por ' . $metodo . ': ' . $mail->ErrorInfo); }
     return $ok;
+}
+
+//¿Es un correo de ejemplo? Los dominios reservados (.test, .example, .invalid, .localhost)
+//nunca entregan: se usan en los datos de prueba para que nada le llegue a nadie por error
+function hanaCorreoDeEjemplo($correo)
+{
+    return (bool)preg_match('/\.(test|example|invalid|localhost)$/i', trim((string)$correo));
 }
 
 //Anota un envío en la bitácora del sistema (si no se puede anotar, el envío sigue igual)

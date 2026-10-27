@@ -136,6 +136,50 @@ function hanaTipoArchivo($ruta)
     return ($cabecera === '%PDF-') ? 'pdf' : '';
 }
 
+//Los ítems del formulario. Llegan como arreglos paralelos: descripcion[], justificacion[],
+//cantidad[], unidad[], soporte[] y peaje[]. El peaje de cada ítem tiene que ser del mismo
+//proyecto de la RQ y uno de los peajes de la persona; vacío = el peaje de la RQ.
+//La unidad tiene que ser una de la lista (Parámetros → Listas) o la que ya tenía el ítem
+function hanaItemsRQ($modeloRq, $idUsuario, $todoRq, $idProyecto, $idCentroRq, $unidadesViejas = array())
+{
+    $descripciones   = isset($_POST['descripcion'])   ? (array)$_POST['descripcion']   : array();
+    $justificaciones = isset($_POST['justificacion']) ? (array)$_POST['justificacion'] : array();
+    $cantidades      = isset($_POST['cantidad'])      ? (array)$_POST['cantidad']      : array();
+    $unidades        = isset($_POST['unidad'])        ? (array)$_POST['unidad']        : array();
+    $soportes        = isset($_POST['soporte'])       ? (array)$_POST['soporte']       : array();
+    $peajes          = isset($_POST['peaje'])         ? (array)$_POST['peaje']         : array();
+    $listaUnidades   = HanaConfig::opciones('LISTA_UNIDADES_RQ');
+    $peajesValidos   = array((int)$idCentroRq => true);
+
+    $items = array();
+    foreach ($descripciones as $i => $descripcion) {
+        if (trim($descripcion) === '') { continue; } //fila vacía: se ignora
+        if ((function_exists('mb_strlen') ? mb_strlen(trim($descripcion), 'UTF-8') : strlen(trim($descripcion))) > 255) { hanaError(400, 'La descripción del ítem ' . ($i + 1) . ' es muy larga (máximo 255 caracteres).'); }
+        $unidad = isset($unidades[$i]) ? trim((string)$unidades[$i]) : '';
+        if ($unidad === '') { $unidad = 'UNIDAD'; }
+        //Llega el código de la lista ("GALON"); si llega el nombre ("Galón", "unidad"), se cambia por su código
+        if (!isset($listaUnidades[$unidad])) {
+            foreach ($listaUnidades as $codigo => $nombre) {
+                if (mb_strtolower($nombre, 'UTF-8') === mb_strtolower($unidad, 'UTF-8') || $codigo === mb_strtoupper($unidad, 'UTF-8')) { $unidad = $codigo; break; }
+            }
+        }
+        if (!isset($listaUnidades[$unidad]) && !in_array($unidad, $unidadesViejas, true)) { hanaError(400, 'Elige la unidad del ítem ' . ($i + 1) . ' de la lista.'); }
+        $idPeaje = isset($peajes[$i]) ? (int)$peajes[$i] : 0;
+        if ($idPeaje <= 0) { $idPeaje = (int)$idCentroRq; }
+        if (!isset($peajesValidos[$idPeaje])) {
+            if ($modeloRq->proyectoDeCentro($idUsuario, $idPeaje, $todoRq) !== (int)$idProyecto) { hanaError(400, 'El peaje del ítem ' . ($i + 1) . ' tiene que ser uno de tus peajes del mismo proyecto de la RQ.'); }
+            $peajesValidos[$idPeaje] = true;
+        }
+        $items[] = array('descripcion'   => $descripcion,
+                         'justificacion' => isset($justificaciones[$i]) ? $justificaciones[$i] : '',
+                         'cantidad'      => isset($cantidades[$i]) ? $cantidades[$i] : 1,
+                         'unidad'        => $unidad,
+                         'soporte'       => isset($soportes[$i]) ? $soportes[$i] : '',
+                         'peaje'         => $idPeaje);
+    }
+    return $items;
+}
+
 //---------------------------------------------------------------------------
 // Operaciones
 //---------------------------------------------------------------------------
@@ -157,7 +201,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'verTodas'     => hanaTienePermiso(PERMISO_VER_TODAS_RQ) || $puedeAprobar,
             'puedeAprobar' => $puedeAprobar,
             'puedePedir'   => $puedePedir,
-            'anios'        => $anios
+            'anios'        => $anios,
+            //Si la base ya guarda el peaje de cada ítem (script 45)
+            'peajePorItem' => Rq::hayPeajePorItem(),
+            //Las unidades de medida de los ítems, en el orden de Parámetros → Listas
+            'unidades'     => array_map(function ($codigo, $nombre) { return array($codigo, $nombre); },
+                                        array_keys(HanaConfig::opciones('LISTA_UNIDADES_RQ')), array_values(HanaConfig::opciones('LISTA_UNIDADES_RQ')))
         ), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -193,10 +242,14 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $archivos[$i]['RUTA'] = ($archivo['TIPO'] === 'soporte') ? 'soporte.pdf' : 'foto.jpg';
         }
 
+        //Cada ítem con el nombre de su unidad (de la lista editable; los datos viejos, tal cual)
+        $itemsRq = hanaFilas($modeloRq->detalle($idRq));
+        foreach ($itemsRq as $i => $itemRq) { $itemsRq[$i]['UNIDAD_NOMBRE'] = HanaConfig::nombreOpcion('LISTA_UNIDADES_RQ', $itemRq['UNIDAD']); }
+
         $acciones = hanaAccionesRQ($datosRq, $idColaborador, $puedeAprobar, $maxReintentos);
         echo json_encode(array(
             'rq'          => $datosRq,
-            'items'       => hanaFilas($modeloRq->detalle($idRq)),
+            'items'       => $itemsRq,
             'historial'   => hanaFilas($modeloRq->seguimiento($idRq)),
             'archivos'    => $archivos,
             //Aprobar o rechazar: solo con el permiso 18M y mientras esté en "Solicitada"
@@ -217,7 +270,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!$puedePedir) { hanaError(403, 'Pedir RQ necesita la casilla 41M (Pedir RQ) en tus permisos de usuario.'); }
         $idCentro = isset($_POST['centro']) ? intval($_POST['centro']) : 0;
         $idProyecto = $modeloRq->proyectoDeCentro($idUsuario, $idCentro, $todoRq);
-        if (!$idProyecto) { hanaError(400, 'Elige uno de tus peajes: los asignados en Usuarios, de los que eres jefe o de los proyectos que coordinas.'); }
+        if (!$idProyecto) { hanaError(400, 'Elige uno de tus peajes (los que tienes asignados en Configuración → Colaboradores).'); }
 
         //Fecha: la que se escriba, si es válida y no es futura; si no, hoy
         $fecha = isset($_POST['fecha']) ? trim($_POST['fecha']) : '';
@@ -242,23 +295,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             }
         }
 
-        //Los ítems llegan como arreglos paralelos: descripción[], justificación[]...
-        $descripciones  = isset($_POST['descripcion'])   ? (array)$_POST['descripcion']   : array();
-        $justificaciones  = isset($_POST['justificacion']) ? (array)$_POST['justificacion'] : array();
-        $cantidades  = isset($_POST['cantidad'])      ? (array)$_POST['cantidad']      : array();
-        $unidades  = isset($_POST['unidad'])        ? (array)$_POST['unidad']        : array();
-        $soportes   = isset($_POST['soporte'])       ? (array)$_POST['soporte']       : array();
-
-        $items = array();
-        foreach ($descripciones as $i => $descripcion) {
-            if (trim($descripcion) === '') { continue; } //fila vacía: se ignora
-            if ((function_exists('mb_strlen') ? mb_strlen(trim($descripcion), 'UTF-8') : strlen(trim($descripcion))) > 255) { hanaError(400, 'La descripción del ítem ' . ($i + 1) . ' es muy larga (máximo 255 caracteres).'); }
-            $items[] = array('descripcion'   => $descripcion,
-                             'justificacion' => isset($justificaciones[$i]) ? $justificaciones[$i] : '',
-                             'cantidad'      => isset($cantidades[$i]) ? $cantidades[$i] : 1,
-                             'unidad'        => isset($unidades[$i]) ? $unidades[$i] : 'Unidad',
-                             'soporte'       => isset($soportes[$i])  ? $soportes[$i]  : '');
-        }
+        $items = hanaItemsRQ($modeloRq, $idUsuario, $todoRq, $idProyecto, $idCentro);
         if (count($items) === 0) { hanaError(400, 'Agrega al menos un ítem con su descripción.'); }
 
         //Normal o urgente. No se elige a quién avisar: la RQ le llega a
@@ -307,7 +344,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         foreach ($items as $item) {
             if (!$ok) { break; }
-            $ok = $modeloRq->insertarDetalle($idRq, $item['descripcion'], $item['justificacion'], $item['cantidad'], $item['unidad'], $item['soporte']) > 0;
+            $ok = $modeloRq->insertarDetalle($idRq, $item['descripcion'], $item['justificacion'], $item['cantidad'], $item['unidad'], $item['soporte'], $item['peaje']) > 0;
         }
         if ($ok) { $ok = $modeloRq->insertarSeguimiento($idRq, null, RqEstado::SOLICITADA, $idColaborador, 'RQ registrada') > 0; }
 
@@ -394,17 +431,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (count($partesFecha) !== 3 || !checkdate((int)$partesFecha[1], (int)$partesFecha[2], (int)$partesFecha[0])) { hanaError(400, 'La fecha no es válida.'); }
         if ($fecha > date('Y-m-d')) { hanaError(400, 'La fecha de la RQ no puede ser posterior a hoy.'); }
 
-        $descripciones = isset($_POST['descripcion'])   ? (array)$_POST['descripcion']   : array();
-        $justificaciones = isset($_POST['justificacion']) ? (array)$_POST['justificacion'] : array();
-        $cantidades = isset($_POST['cantidad'])      ? (array)$_POST['cantidad']      : array();
-        $unidades = isset($_POST['unidad'])        ? (array)$_POST['unidad']        : array();
-        $soportes  = isset($_POST['soporte'])       ? (array)$_POST['soporte']       : array();
-        $items = array();
-        foreach ($descripciones as $i => $descripcion) {
-            if (trim($descripcion) === '') { continue; }
-            $items[] = array('descripcion' => $descripcion, 'justificacion' => isset($justificaciones[$i]) ? $justificaciones[$i] : '', 'cantidad' => isset($cantidades[$i]) ? $cantidades[$i] : 1,
-                             'unidad' => isset($unidades[$i]) ? $unidades[$i] : 'Unidad', 'soporte' => isset($soportes[$i]) ? $soportes[$i] : '');
-        }
+        //Las unidades que ya tenían sus ítems se aceptan aunque no estén en la lista (datos viejos)
+        $unidadesViejas = array();
+        foreach (hanaFilas($modeloRq->detalle($idRq)) as $itemViejo) { $unidadesViejas[] = (string)$itemViejo['UNIDAD']; }
+        $items = hanaItemsRQ($modeloRq, $idUsuario, $todoRq, (int)$datosRq['ID_PROYECTO'], (int)$datosRq['ID_CENTRO_OP'], $unidadesViejas);
         if (count($items) === 0) { hanaError(400, 'La RQ debe tener al menos un ítem con su descripción.'); }
 
         $tipo        = hanaTipoRQ(isset($_POST['tipo']) ? $_POST['tipo'] : $datosRq['TIPO_RQ']);
@@ -415,7 +445,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $ok = $modeloRq->actualizarCabecera($idRq, $fecha, $observacion, $tipo) && $modeloRq->borrarDetalle($idRq);
         foreach ($items as $item) {
             if (!$ok) { break; }
-            $ok = $modeloRq->insertarDetalle($idRq, $item['descripcion'], $item['justificacion'], $item['cantidad'], $item['unidad'], $item['soporte']) > 0;
+            $ok = $modeloRq->insertarDetalle($idRq, $item['descripcion'], $item['justificacion'], $item['cantidad'], $item['unidad'], $item['soporte'], $item['peaje']) > 0;
         }
         if ($ok && $retrocede) {
             $ok = $modeloRq->reiniciarFlujo($idRq)

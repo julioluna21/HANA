@@ -1,7 +1,7 @@
 //Configuración - Usuarios (Vista/UsuariosVista.php)
 //El usuario de cada persona para entrar a HANA: crearlo a quien no tiene, su nombre de
-//usuario, su rol, la contraseña temporal (le llega por correo) y bloquear o devolver el
-//acceso. Sus datos (documento, nombre, correo y peajes) solo se ven: se cambian en
+//usuario, su rol, la contraseña (la escribe el administrador y le llega por correo) y
+//bloquear o devolver el acceso. Sus datos (documento, nombre, correo y peajes) solo se ven: se cambian en
 //Colaboradores, donde también se registra a las personas nuevas.
 //El número que se usa es el de la persona (ID_COLABORADOR).
 //Habla con Control/UsuariosControl.php
@@ -27,6 +27,20 @@ function init()
     listar();
 
     $("#demo-form2").on("submit", function(evento){ guardar(evento); });
+    //Ver u ocultar la contraseña que se escribe
+    $("#btnVerClave").on("click", function(){
+        var ver = $("#claveNueva").attr("type") === "password";
+        $("#claveNueva, #claveNueva2").attr("type", ver ? "text" : "password");
+        $(this).find("i").toggleClass("fa-eye", !ver).toggleClass("fa-eye-slash", ver);
+    });
+    //Una contraseña al azar, ya escrita en los dos campos y a la vista
+    $("#btnGenerarClave").on("click", function(){
+        var letras = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789", clave = "", azar = new Uint32Array(10);
+        window.crypto.getRandomValues(azar);
+        for (var i = 0; i < azar.length; i++) { clave += letras.charAt(azar[i] % letras.length); }
+        $("#claveNueva, #claveNueva2").val(clave).attr("type", "text");
+        $("#btnVerClave i").removeClass("fa-eye").addClass("fa-eye-slash");
+    });
 
     //Los roles activos (aquí se puede dar cualquiera, también los que administran)
     $.post("../Control/RolesControl.php?op=select", function(data){
@@ -62,6 +76,8 @@ function limpiar()
 {
     document.getElementById("demo-form2").reset();
     document.getElementById("formularioclave").reset();
+    $("#claveNueva, #claveNueva2").attr("type", "password");
+    $("#btnVerClave i").removeClass("fa-eye-slash").addClass("fa-eye");
     $('#rol').val("").trigger('change');
     $("#idusuario").val("");
 }
@@ -86,10 +102,16 @@ function listar()
     }).DataTable();
 }
 
-//Guarda el usuario de la persona: si no tenía, se le crea (con la contraseña temporal por correo)
+//Guarda el usuario de la persona: si no tenía, se le crea; si se escribió una contraseña, se le asigna (le llega por correo)
 function guardar(evento)
 {
     evento.preventDefault();
+    //La contraseña escrita: mínimo de caracteres y las dos iguales (el servidor lo vuelve a revisar)
+    var clave = $("#claveNueva").val(), clave2 = $("#claveNueva2").val();
+    if (clave !== "" || clave2 !== "") {
+        if (clave.length < CLAVE_LARGO_MINIMO) { alert("La contraseña debe tener al menos " + CLAVE_LARGO_MINIMO + " caracteres."); $("#claveNueva").focus(); return; }
+        if (clave !== clave2) { alert("Las dos contraseñas no coinciden. Vuelve a escribirlas."); $("#claveNueva2").focus(); return; }
+    }
     hanaBoton("#btnGuardar", true);
     var formData = new FormData($("#demo-form2")[0]);
     $.ajax({
@@ -129,7 +151,9 @@ function cargarPersona(idusuario, crear)
             //Se le propone su documento como nombre de usuario
             $("#usuario").val(data.DOC_COLABORADOR || "");
             $('#rol').val("").trigger('change');
-            $("#ayudaUsuario").text("Todavía no tiene usuario. Al guardar se le crea, con una contraseña temporal que le llega por correo (si el correo no sale, se muestra aquí una sola vez).");
+            $("#ayudaUsuario").text("Todavía no tiene usuario. Al guardar se le crea.");
+            $("#lblClaveNueva").text("Contraseña:");
+            $("#ayudaClave").text("Escríbela tú, o déjala vacía y el sistema le pone una temporal al azar. Le llega por correo con su usuario.");
         } else {
             $("#usuario").val(data.USUARIO || "");
             //Si su rol está apagado no sale en la lista: se agrega para verlo
@@ -138,10 +162,10 @@ function cargarPersona(idusuario, crear)
             }
             $('#rol').val(data.ID_ROL_USUARIO_SISTEMA).trigger('change');
             $("#ayudaUsuario").text(String(data.ACCESO) === "1" ? "Puede entrar a HANA." : "Su acceso está bloqueado: no puede entrar hasta que se le devuelva (botón del candado en la tabla).");
+            $("#lblClaveNueva").text("Contraseña nueva (opcional):");
+            $("#ayudaClave").text("Déjala vacía para no cambiarla. Si escribes una, la anterior deja de servir y la nueva le llega por correo.");
         }
         mostrarform(true);
-        //La contraseña temporal solo sirve para quien ya tiene usuario
-        $('#btnclave').toggle(!crear);
     }).fail(function(xhr){
         hanaCargando(false);
         hanaErrorAjax(xhr, "No se pudieron cargar los datos.");
@@ -153,18 +177,6 @@ function mostrar(idusuario) { cargarPersona(idusuario, false); }
 
 //Crearle el usuario a una persona que no tiene
 function crearUsuario(idusuario) { cargarPersona(idusuario, true); }
-
-//Le da a la persona una contraseña temporal nueva: le llega por correo (si el correo no sale, se muestra aquí una sola vez)
-function claveTemporal()
-{
-    var id = $("#idusuario").val();
-    if (!id) { return; }
-    hanaConfirmar("¿Darle una contraseña temporal nueva? La que tiene deja de servir.", function(){
-        $.post("../Control/UsuariosControl.php?op=claveTemporal", {idusuario : id}, function(data){
-            alert(data);
-        }).fail(function(xhr){ hanaErrorAjax(xhr, "No se pudo cambiar la contraseña."); });
-    });
-}
 
 //Bloquea el acceso (pregunta antes): no puede entrar, pero la persona sigue en las listas
 function anular(idusuario){
@@ -210,7 +222,8 @@ function cambiarclave(evento)
 
 //¿La clave nueva sirve? Tiene el mínimo de caracteres y las dos escritas son iguales.
 //El servidor vuelve a revisar las mismas reglas (Modelo/HanaClave.php)
-var CLAVE_LARGO_MINIMO = 8;
+//CLAVE_LARGO_MINIMO lo escribe la pantalla (UsuariosVista.php) con el de Parámetros del sistema
+if (typeof CLAVE_LARGO_MINIMO === 'undefined') { var CLAVE_LARGO_MINIMO = 4; }
 function validaPwds() {
     var clave = $("#clave").val(), claveRepetida = $("#clave2").val();
     if (clave.length < CLAVE_LARGO_MINIMO) {

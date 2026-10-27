@@ -15,7 +15,7 @@
 //---- Base de datos (valores de XAMPP) ----
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'bd_hana_app');   //la base donde importaste BD/HANA_BD_completa.sql
-define('DB_USERNAME', 'root');
+define('DB_USERNAME', 'root');  
 define('DB_PASSWORD', '');          //en XAMPP, root no tiene contraseña
 define('DB_ENCODE', 'utf8mb4');     //la misma codificación de las tablas (tildes, ñ y emojis)
 define('PRO_NOMBRE', 'bd_hana_app');

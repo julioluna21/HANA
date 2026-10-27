@@ -412,6 +412,7 @@ a.rd-mosaico:hover{ color: #1A1A1A; } a.rd-mosaico:hover .rd-mosaico-titulo{ col
 .par-quien{ font-size: 11px; color: #9AA0A6; margin-top: 3px; }
 .par-campo{ flex: 0 0 130px; text-align: right; }
 .par-campo .par-num{ width: 90px; display: inline-block; text-align: right; }
+.par-campo .par-txt{ width: 280px; max-width: 100%; display: inline-block; }
 .par-interruptor{ display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: bold; margin: 0; }
 .par-interruptor input{ position: absolute; opacity: 0; }
 .par-riel{ width: 42px; height: 24px; border-radius: 12px; background: #C9CFD5; position: relative; transition: background .2s; }
@@ -517,3 +518,16 @@ a.tb-chip.tb-enlace{ color: #1A1A1A; } a.tb-chip-pend.tb-enlace{ color: #8A5B0B;
 
 /* Ausentismo: los días que todavía están muy adelante no se pueden llenar */
 .aus-futuro{ background: repeating-linear-gradient(135deg, #FAFAFA, #FAFAFA 4px, #F1F1F1 4px, #F1F1F1 8px); }
+
+/* Ausentismo y promesa de valor: las dos partes de la misma sección, arriba de cada pantalla */
+.aus-secciones{ display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.aus-seccion{ display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid #E6DFDA;
+              background: #FFFFFF; color: #6E1A1E; font-weight: bold; font-size: 13px; }
+.aus-seccion:hover, .aus-seccion:focus{ background: #F6ECEC; color: #6E1A1E; text-decoration: none; }
+.aus-seccion.activa{ background: #6E1A1E; border-color: #6E1A1E; color: #FFFFFF; cursor: default; }
+@media print{ .aus-secciones{ display: none; } }
+
+/* Informe mensual: los proyectos se tocan para sacarlos o ponerlos (verde = sale) */
+.inf-proyecto{ border: 1px solid transparent; cursor: pointer; font: inherit; }
+.inf-proyecto:focus{ outline: 2px solid #6E1A1E; outline-offset: 1px; }
+.inf-proyecto.inf-quitado{ background: #F1EEEB; color: #8A817D; border-color: #E2DCD7; text-decoration: line-through; }

@@ -491,7 +491,7 @@ class InformeMensualPdf extends FPDF
         $this->arqueos($datos);
         $this->reporteDiario($datos);
         $this->vacantesOficios($datos);
-        $this->ausentismo($datos);
+        //El ausentismo se retiró del sistema: el informe ya no lleva esa sección.
     }
 
     //Empieza un tema: hoja nueva y una franja con el número, el título y de qué trata
@@ -569,7 +569,6 @@ class InformeMensualPdf extends FPDF
             array('Arqueos', self::num($totales['arq']), $totales['arqDif'] > 0 ? self::num($totales['arqDif']) . ' con diferencia' : ($totales['arq'] > 0 ? 'todos cuadraron' : 'sin arqueos en el periodo'), self::MENTA),
             array('Vacantes abiertas', self::num($totales['vacAb']), self::plural($totales['vacNuevas'], 'nueva', 'nuevas') . ' · ' . self::plural($totales['vacCub'], 'cubierta', 'cubiertas') . ' en el periodo', self::AMBAR),
             array('Oficios recibidos', self::num($totales['ofRec']), self::plural($totales['ofRes'], 'atendido', 'atendidos') . ' · ' . self::plural($totales['ofPend'], 'pendiente', 'pendientes') . ' hoy', self::AMBAR),
-            array('Ausencias', self::num($totales['aus']), 'personas por día, en todos los peajes', self::VINO),
             array('Reporte diario', $cumple . ' %', 'días con "Hoy en qué estás", promedio de los coordinadores', self::semaforo($cumple)),
         ), 4, 70);
         $this->cy += 8;
@@ -594,17 +593,17 @@ class InformeMensualPdf extends FPDF
         $this->seccion('Comparativo por proyecto', 'Lo registrado en el periodo. Vacantes y oficios: los que siguen abiertos hoy.');
         $columnas = array(array('Proyecto', 112, 'L'), array('RQ', 36, 'R'), array('Por aprobar', 46, 'R'), array('Novedades', 44, 'R'), array('Listas', 34, 'R'),
                       array('Arqueos', 38, 'R'), array('Con dif.', 36, 'R'), array('Vacantes', 40, 'R'), array('Oficios pend.', 50, 'R'),
-                      array('Ausencias', 44, 'R'), array('Reporte', 52, 'R'));
+                      array('Reporte', 52, 'R'));
         $filas = array();
         foreach ($proyectos as $proyecto) {
             $kpi = $proyecto['kpi']; $cumpleProyecto = $proyecto['reporte']['cumple'];
             $filas[] = array($proyecto['NOM_PROYECTO'], self::num($kpi['rq']), $this->aviso($kpi['rqPend'], self::AMBAR),
                              self::num($kpi['nov']), self::num($kpi['listas']), self::num($kpi['arq']), $this->aviso($kpi['arqDif'], self::VINO),
-                             self::num($kpi['vacAb']), self::num($kpi['ofPend']), self::num($kpi['aus']),
+                             self::num($kpi['vacAb']), self::num($kpi['ofPend']),
                              array('texto' => $cumpleProyecto . ' %', 'color' => self::semaforo($cumpleProyecto), 'negrita' => true));
         }
         $total = $numProyectos > 1 ? array('Total', self::num($totales['rq']), self::num($totales['rqPend']), self::num($totales['nov']), self::num($totales['listas']), self::num($totales['arq']),
-                                 self::num($totales['arqDif']), self::num($totales['vacAb']), self::num($totales['ofPend']), self::num($totales['aus']), $cumple . ' %') : null;
+                                 self::num($totales['arqDif']), self::num($totales['vacAb']), self::num($totales['ofPend']), $cumple . ' %') : null;
         $this->tabla($columnas, $filas, $total, 16);
     }
 
@@ -782,22 +781,8 @@ class InformeMensualPdf extends FPDF
     //-----------------------------------------------------------------------
     private function ausentismo($datos)
     {
-        $totales = $datos['total']; $proyectos = $datos['proyectos'];
-        $this->nuevaSeccion('Ausentismo', 'Personas ausentes por día, por motivo, proyecto y peaje. Incluye a quien dejó su cargo para cubrir otro (CUBRIENDO A…).');
-        if ($totales['aus'] <= 0) { $this->vacio('No hay ausencias registradas en el periodo.'); return; }
-        $porProyecto = array();
-        foreach ($proyectos as $proyecto) { $porProyecto[$proyecto['NOM_PROYECTO']] = $proyecto['kpi']['aus']; }
-        $this->dosBarras('Por motivo', $datos['ausMotivos'], self::VINO, 118, true, 'Por proyecto', $porProyecto, self::AMBAR, 92, false);
-        $this->cy += 18;
-
-        foreach ($proyectos as $proyecto) {
-            $this->bandaProyecto($proyecto, self::plural($proyecto['kpi']['aus'], 'ausencia', 'ausencias'));
-            if ($proyecto['kpi']['aus'] <= 0) { $this->cy = $this->vacio('Sin ausencias en el periodo.') + 12; continue; }
-            $porPeaje = array();
-            foreach ($proyecto['centros'] as $centro) { $porPeaje[self::nomCentro($centro)] = isset($centro['kpi']) ? $centro['kpi']['aus'] : 0; }
-            $this->dosBarras('Por motivo', $proyecto['ausMotivos'], self::VINO, 112, true, 'Por peaje', $porPeaje, self::AMBAR, 100, false);
-            $this->cy += 16;
-        }
+        //El ausentismo (matriz de cubrimiento) se retiró del sistema. El método se conserva
+        //inerte para no romper llamadas antiguas; ya no se invoca desde armar().
     }
 
     //Una cifra que pide atención: si es mayor que cero sale en negrita y con color; si no, un cero normal
@@ -840,13 +825,7 @@ class InformeMensualPdf extends FPDF
         $frases[] = array(self::AMBAR, $totales['ofPend'] > 0
             ? 'Hay ' . self::plural($totales['ofPend'], 'oficio sin atender', 'oficios sin atender') . '; ' . ($totales['ofVenc'] === 1 ? '1 lleva' : self::num($totales['ofVenc']) . ' llevan') . ' más de ' . self::dias($datos['plazoOficio']) . '.'
             : 'Todos los oficios y comunicaciones están atendidos.');
-        //Ausentismo: el proyecto con más
-        if ($totales['aus'] > 0) {
-            $mayor = null;
-            foreach ($datos['proyectos'] as $proyecto) { if ($mayor === null || $proyecto['kpi']['aus'] > $mayor['kpi']['aus']) { $mayor = $proyecto; } }
-            $frases[] = array(self::VINO, ($totales['aus'] === 1 ? 'Se registró ' : 'Se registraron ') . self::plural($totales['aus'], 'ausencia', 'ausencias') . ' (personas por día)'
-                         . (count($datos['proyectos']) > 1 ? '; el proyecto con más fue ' . $mayor['NOM_PROYECTO'] . ' (' . self::num($mayor['kpi']['aus']) . ').' : '.'));
-        } else { $frases[] = array(self::VINO, 'No se registraron ausencias en el periodo.'); }
+        //El ausentismo se retiró: ya no hay frase de ausencias en el resumen.
         //Reporte diario: el coordinador que menos reportó
         if (count($datos['proyectos']) > 1) {
             $menor = null;

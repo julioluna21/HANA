@@ -1,19 +1,26 @@
 <?php
 /*
+  Controlador retirado: el ausentismo (matriz de cubrimiento) se quitó del sistema.
+  En esa sección queda solo la promesa de valor (Control/PromesaValorControl.php).
+  Responde 410 y no ejecuta nada; el código de abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'El ausentismo se retiró del sistema.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Controlador de ausentismo
-    - Registra el coordinador del proyecto, en los centros de su proyecto.
-    - El jefe de peaje registra el de su peaje (si AUS_JEFES_EDITAN está
-      encendido en Parámetros). No ve los demás peajes ni el consolidado.
-    - Con 25M (ADMIN TEC, auditor) se edita el de todos los proyectos,
-      incluso con el mes cerrado. Cada cambio queda en el historial (aus_cambio).
-    - Consultan todos los proyectos: 20M (gerente de operaciones), 21M (administración)
-      y 22M (consultar todos los proyectos). Ellos y 25M ven también el consolidado
-      de todos los proyectos juntos.
+    Casillas de Ausentismo (Permisos de usuario), siempre en los peajes asignados a la persona:
+    - 52M registrar; 53M ver (y el consolidado de sus peajes, también todos juntos);
+    - 58M cerrar el mes; 25M corregir aunque el mes esté cerrado; 23M reabrir un mes.
+    Cada cambio queda en el historial (aus_cambio). El ADMIN TEC (24M) todo, en todos los peajes.
     - El consolidado se puede pedir de todo el mes o de un rango de días (desde, hasta),
       y de todo el proyecto o de un solo peaje (centro).
     - Se corrige el mes actual y los anteriores que diga el parámetro
       AUS_MESES_CORREGIBLES, mientras el mes no esté cerrado.
-    - El coordinador cierra el mes al entregarlo; lo reabre quien tenga 23M.
+    - Quien tiene 58M cierra el mes al entregarlo; lo reabre quien tenga 23M.
     - Registro rápido (ausencia, ausenciaCambiar, ausenciaBorrar): una ausencia
       a la vez, eligiendo día, cargo y motivo. Escribe en las mismas celdas de
       la matriz y con las mismas reglas, así que el consolidado, el Excel
@@ -39,17 +46,17 @@ if (!HanaConfig::modulo('AUSENTISMO')) { ausError(403, 'Este módulo está desac
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { ausError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
 
 $idColaborador = (int)$_SESSION['Idcolaborador'];
-$verTodos = hanaTienePermiso('20M') || hanaTienePermiso('21M') || hanaTienePermiso('22M');
-$puedeReabrir = hanaTienePermiso('23M');
-$editaTodo = hanaTienePermiso('25M'); //ADMIN TEC y auditor
-//Los peajes de los que es jefe: [idCentro] = idProyecto (si el administrador deja que los jefes registren)
-$jefeDe = array();
-if (HanaConfig::si('AUS_JEFES_EDITAN')) {
-    $jefeDe = Organizacion::centrosDeJefe($idColaborador);
-}
-if (!$verTodos && !$editaTodo && !hanaEsCoordinador($idColaborador) && !count($jefeDe)) {
-    ausError(403, 'No tienes acceso al ausentismo. Lo registran el coordinador del proyecto y, si el administrador lo permite, el jefe de cada peaje.');
-}
+$puedeLlenar  = hanaPuede('AUSENTISMO', 'llenar');
+$puedeVer     = hanaPuede('AUSENTISMO', 'ver');
+$puedeCerrar  = hanaPuede('AUSENTISMO', 'cerrar');
+$editaTodo    = hanaPuede('AUSENTISMO', 'cerrado'); //corrige aunque el mes esté cerrado
+$puedeReabrir = hanaPuede('AUSENTISMO', 'reabrir');
+$verTodos     = $puedeVer; //el consolidado de todos sus proyectos juntos
+$jefeDe       = array();
+if (!hanaEntra('AUSENTISMO')) { ausError(403, 'Tu rol no tiene acceso al ausentismo. Se da en Configuración → Permisos de usuario.'); }
+if (!count(hanaMisCentros())) { ausError(403, 'No tienes peajes asignados. Pide que te los asignen en Configuración → Colaboradores.'); }
+//Los peajes que puede ver (null = todos, para el ADMIN TEC)
+$centrosPermitidos = hanaVeTodo() ? null : array_map('intval', array_keys(hanaMisCentrosIds()));
 $modeloAusentismo = new Ausentismo();
 $hoy = date('Y-m-d');
 $ahora = date('Y-m-d H:i:s');
@@ -57,33 +64,28 @@ $ahora = date('Y-m-d H:i:s');
 $diasFuturo = max(0, min(31, HanaConfig::num('AUS_DIAS_FUTURO', 7)));
 $limiteFuturo = date('Y-m-d', strtotime("$hoy +$diasFuturo day"));
 
-//Los proyectos que ve, con sus centros y lo que puede hacer en cada uno:
-//  COORDINA      es el coordinador del proyecto
-//  VE_PROYECTO   ve todo el proyecto: el consolidado y el Excel (coordinador, 20M/21M/22M, 25M)
-//  CENTROS[].EDITABLE  puede registrar en ese centro (coordinador, 25M, o el jefe de ese peaje)
-//El jefe de peaje solo ve (y edita) sus peajes
+//Los proyectos de sus peajes, cada uno con SUS centros y lo que puede hacer:
+//  COORDINA            puede cerrar el mes del proyecto (58M)
+//  VE_PROYECTO         ve el consolidado y el Excel (de sus peajes)
+//  CENTROS[].EDITABLE  puede registrar en ese centro (52M, o 25M que corrige meses cerrados)
 function ausProyectos($idColaborador, $verTodos, $editaTodo, $jefeDe)
 {
-    $todos = $verTodos || $editaTodo;
-    $listaProyectos = Organizacion::proyectos();
+    $mios = hanaMisCentrosIds();
+    $registra = hanaPuede('AUSENTISMO', 'llenar') || $editaTodo;
     $porId = array();
-    foreach ((array)$listaProyectos as $proyecto) {
+    foreach ((array)Organizacion::proyectos() as $proyecto) {
         $id = (int)$proyecto['ID_PROYECTO'];
-        $coordina = (int)$proyecto['ID_COLABORADOR_COORDINADOR'] === (int)$idColaborador;
-        $esJefeAqui = in_array($id, $jefeDe, true);
-        if (!$todos && !$coordina && !$esJefeAqui) { continue; }
-        $proyecto['COORDINA'] = $coordina;
-        $proyecto['VE_PROYECTO'] = $coordina || $todos;
-        $centrosProyecto = Organizacion::centrosDeProyecto($id);
         $centros = array();
-        foreach ((array)$centrosProyecto as $centro) {
-            $suyo = isset($jefeDe[(int)$centro['ID_CENTRO_OP']]);
-            if (!$proyecto['VE_PROYECTO'] && !$suyo) { continue; } //el jefe solo ve su peaje
-            $centro['EDITABLE'] = $coordina || $editaTodo || $suyo;
+        foreach ((array)Organizacion::centrosDeProyecto($id) as $centro) {
+            if (!isset($mios[(int)$centro['ID_CENTRO_OP']])) { continue; }
+            $centro['EDITABLE'] = $registra;
             $centros[] = $centro;
         }
+        if (!count($centros)) { continue; }
+        $proyecto['COORDINA'] = hanaPuede('AUSENTISMO', 'cerrar');
+        $proyecto['VE_PROYECTO'] = true;
         $proyecto['CENTROS'] = $centros;
-        $proyecto['EDITABLE'] = count(array_filter($centros, function ($fila) { return $fila['EDITABLE']; })) > 0;
+        $proyecto['EDITABLE'] = $registra;
         $porId[$id] = $proyecto;
     }
     return $porId;
@@ -129,7 +131,7 @@ function ausMesCorregible($anio, $mes, $editaTodo = false)
 //¿Por qué no se puede editar este centro este mes? '' = sí se puede
 function ausMotivo($proyecto, $centro, $cerrado, $anio, $mes, $editaTodo)
 {
-    if (!$centro['EDITABLE']) { return 'Solo consulta: este peaje lo registran su jefe y ' . ($proyecto['COORDINADOR'] ?: 'el coordinador del proyecto') . '.'; }
+    if (!$centro['EDITABLE']) { return 'Solo consulta: tu rol no registra ausentismo.'; }
     if ($anio * 12 + $mes > ausUltimoMes()) { return 'Este mes todavía no empieza.'; }
     if ($editaTodo) { return ''; } //25M corrige aunque el mes esté cerrado
     if ($cerrado) { return 'El mes está cerrado. Para corregirlo, hay que reabrirlo (permiso 23M).'; }
@@ -348,7 +350,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'cerrar':
         $proyecto = ausProyecto($proyectos);
         list($anio, $mes) = ausPeriodo();
-        if (!$proyecto['COORDINA'] && !$editaTodo) { ausError(403, 'El mes lo cierra el coordinador del proyecto.'); }
+        if (!$proyecto['COORDINA'] && !$editaTodo) { ausError(403, 'Cerrar el mes necesita su casilla en Permisos de usuario.'); }
         $modeloAusentismo->marcarCierre($proyecto['ID_PROYECTO'], $anio, $mes, true, $idColaborador, $ahora);
         echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Mes cerrado. Ya no se puede corregir, salvo que lo reabra quien tenga el permiso.'), JSON_UNESCAPED_UNICODE);
         break;
@@ -371,14 +373,14 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         break;
 
     //El consolidado (la última hoja del Excel): todo el proyecto o uno de sus peajes (centro), que
-    //lo ven el coordinador y la administración, o todos los proyectos juntos (todos=1, con 20M,
-    //21M, 22M o 25M). Del día "desde" al día "hasta" del mes; sin días, todo el mes
+    //siempre con sus peajes, o todos sus proyectos juntos (todos=1, con la casilla de ver).
+    //Del día "desde" al día "hasta" del mes; sin días, todo el mes
     case 'consolidado':
         list($anio, $mes) = ausPeriodo();
         list($diaDesde, $diaHasta) = ausDias($anio, $mes);
         $cierre = null; $soloCentro = 0;
         if (isset($_GET['todos']) && $_GET['todos'] === '1') {
-            if (!$verTodos && !$editaTodo) { ausError(403, 'El consolidado de todos los proyectos lo ven quienes consultan todos los proyectos.'); }
+            if (!$verTodos && !$editaTodo) { ausError(403, 'El consolidado de todos tus proyectos juntos necesita la casilla de ver el ausentismo.'); }
             $ids = array_keys($proyectos);
         } else {
             $proyecto = ausProyecto($proyectos);
@@ -387,7 +389,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             if (!empty($_GET['centro'])) { $centroPedido = ausCentro($proyecto); $soloCentro = (int)$centroPedido['ID_CENTRO_OP']; }  //solo ese peaje
             $cierre = $modeloAusentismo->cierre($proyecto['ID_PROYECTO'], $anio, $mes);
         }
-        $consolidado = $modeloAusentismo->consolidado($ids, $anio, $mes, $diaDesde, $diaHasta, $soloCentro);
+        $consolidado = $modeloAusentismo->consolidado($ids, $anio, $mes, $diaDesde, $diaHasta, $soloCentro, $centrosPermitidos);
         echo hanaJsonTexto(array(
             'porCargo' => (object)$consolidado['porCargo'], 'porCentro' => (object)$consolidado['porCentro'], 'porProyecto' => (object)$consolidado['porProyecto'],
             'diasMes' => (int)date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes))), 'desde' => $diaDesde, 'hasta' => $diaHasta,

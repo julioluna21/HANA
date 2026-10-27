@@ -1,6 +1,7 @@
 <?php
 //Configuración - Parámetros del sistema
-//Las decisiones del negocio que se cambian sin tocar el código. Permiso 24M
+//Las decisiones del negocio que se cambian sin tocar el código: parámetros, listas de opciones,
+//catálogos de ausentismo y días habilitados. Permiso 24M
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -25,11 +26,13 @@ if (isset($_SESSION['IdUsuarios'])) {
           <ul class="nav nav-tabs cd-pestanas" role="tablist">
             <li class="active"><a href="#tabPar" data-toggle="tab">Parámetros</a></li>
             <li><a href="#tabDias" data-toggle="tab" id="tabDiasLink">Días habilitados</a></li>
-            <li><a href="#tabCargos" data-toggle="tab">Ausentismo: cargos</a></li>
-            <li><a href="#tabNovedades" data-toggle="tab">Ausentismo: novedades</a></li>
+            <li><a href="#tabCargos" data-toggle="tab">Cargos (promesa de valor)</a></li>
+            <li><a href="#tabListas" data-toggle="tab" id="tabListasLink">Listas</a></li>
+            <li><a href="#tabCatalogos" data-toggle="tab">Dónde se edita cada cosa</a></li>
           </ul>
           <div class="tab-content cd-contenido">
             <div class="tab-pane active" id="tabPar">
+              <div id="parCorreo"></div>
               <form id="formPar"><div id="parGrupos"><p class="rd-vacio">Cargando...</p></div>
                 <div class="rd-acciones rd-acciones-fijas"><button type="submit" class="btn btn-success" id="btnGuardarPar"><i class="fa fa-save"></i> Guardar cambios</button></div>
               </form>
@@ -63,20 +66,45 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <tbody id="tbDias"><tr><td colspan="6" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabCargos">
-              <p class="rd-ayuda" style="margin-top:0;">Los bloques de cada hoja del reporte de ausentismo. "Aplica" dice si el cargo sale en peajes, en básculas o en ambos.
+              <p class="rd-ayuda" style="margin-top:0;">Los cargos que usa la promesa de valor (cada fila de la matriz por peaje). "Aplica" dice si el cargo sale en peajes, en básculas o en ambos.
                 Un cargo desactivado ya no sale para registrar, pero lo registrado se conserva.</p>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
                 <thead><tr><th>Orden</th><th>Cargo</th><th>Aplica en</th><th>Activo</th><th></th></tr></thead>
                 <tbody id="tbCargos"></tbody></table></div>
               <button type="button" class="btn btn-success btn-sm" data-nuevo="cargo"><i class="fa fa-plus"></i> Nuevo cargo</button>
             </div>
-            <div class="tab-pane" id="tabNovedades">
-              <p class="rd-ayuda" style="margin-top:0;">Cómo se cubrió cada falta: son las filas de cada bloque. NO SE CUBRIÓ es para todos los cargos; los motivos CUBRIENDO A… cuentan como ausencia del cargo de quien cubre. Los motivos de ausencia (incapacidad, licencias…) están apagados porque se registran en la marcación de turnos. Si un motivo se marca como "no es ausencia", se ve en su fila pero no suma en las ausencias diarias.
-                Si una novedad es solo de un cargo, sale únicamente en ese bloque.</p>
+            <!-- La pestaña «Ausentismo: novedades» se retiró junto con el ausentismo. La promesa de valor no usa motivos. -->
+            <!-- Listas: las opciones de los desplegables (medios de los oficios, transportes, tipos del cronograma...) -->
+            <div class="tab-pane" id="tabListas">
+              <p class="rd-ayuda" style="margin-top:0;">Las opciones de los desplegables del reporte diario. Cambiarle el nombre a una opción cambia cómo se ve
+                en todos los registros, los nuevos y los que ya estaban. Una opción que ya se usó no se puede quitar: se le cambia el nombre.
+                Cada lista se guarda con su propio botón.</p>
+              <div id="parListas"><p class="rd-vacio">Cargando...</p></div>
+            </div>
+            <!-- Dónde se edita cada cosa: lo que se configura en otras pantallas -->
+            <div class="tab-pane" id="tabCatalogos">
+              <p class="rd-ayuda" style="margin-top:0;">Todo lo que el sistema guarda como configuración, y dónde se cambia.</p>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>Orden</th><th>Novedad</th><th>¿Es ausencia?</th><th>Solo en el cargo</th><th>Activa</th><th></th></tr></thead>
-                <tbody id="tbNovedades"></tbody></table></div>
-              <button type="button" class="btn btn-success btn-sm" data-nuevo="novedad"><i class="fa fa-plus"></i> Nueva novedad</button>
+                <thead><tr><th>Qué</th><th>Dónde se edita</th></tr></thead>
+                <tbody>
+                  <tr><td>Módulos encendidos, plazos, reglas, adjuntos, contraseñas e ingreso</td><td>Aquí, pestaña <strong>Parámetros</strong></td></tr>
+                  <tr><td>Medios de los oficios, «Pendiente de», transportes, tipos del cronograma, estados de Gestión Humana, nombres de los conceptos de caja menor y recambio</td><td>Aquí, pestaña <strong>Listas</strong></td></tr>
+                  <tr><td>Cargos de la promesa de valor</td><td>Aquí, pestaña <strong>Cargos (promesa de valor)</strong></td></tr>
+                  <tr><td>Días que se le abren a una persona para registrar fuera de fecha</td><td>Aquí, pestaña <strong>Días habilitados</strong></td></tr>
+                  <tr><td>Proyectos y su coordinador</td><td><a href="proyectosVista.php">Configuración → Proyectos</a></td></tr>
+                  <tr><td>Peajes, básculas, bases y oficinas, con su jefe</td><td><a href="centroOperativoVista.php">Configuración → Centros de operación</a></td></tr>
+                  <tr><td>Roles y sus permisos</td><td><a href="RolesVista.php">Configuración → Permisos de usuario</a></td></tr>
+                  <tr><td>Personas, sus peajes y su usuario</td><td><a href="ColaboradoresVista.php">Colaboradores</a> y <a href="UsuariosVista.php">Usuarios</a></td></tr>
+                  <tr><td>Títulos de las novedades</td><td><a href="TitulosNovedadesVista.php">Configuración → Títulos de novedades</a></td></tr>
+                  <tr><td>Listas de chequeo y sus preguntas</td><td><a href="GruposListasVista.php">Reporte diario → Editar listas</a></td></tr>
+                  <tr><td>Recordatorios por correo, resultado de la promesa de valor, aviso de promesa por debajo: hora, días y a quién le llegan</td><td><a href="NotificacionesVista.php">Reporte diario → Correos automáticos</a></td></tr>
+                  <tr><td>A quién le llegan los correos de cada lista de chequeo</td><td><a href="NotificacionesVista.php#listas">Reporte diario → Correos automáticos</a></td></tr>
+                  <tr><td>Campos del arqueo de casetas (por peaje o para todos)</td><td><a href="ArqueosVista.php#campos">Arqueos → Campos de casetas</a></td></tr>
+                  <tr><td>Fondos autorizados de caja menor y recambio</td><td><a href="ArqueosVista.php#fondos">Arqueos → Fondos autorizados</a></td></tr>
+                  <tr><td>Vehículos y su responsable</td><td><a href="CronogramaVista.php#vehiculos">Cronograma y vehículo → Vehículos</a></td></tr>
+                </tbody></table></div>
+              <p class="rd-ayuda">No se editan porque el sistema depende de ellos en sus reglas: los estados de las RQ, de las novedades, de las vacantes y de las comunicaciones,
+                las prioridades (sus días sí se cambian en Parámetros), los tipos de arqueo, los tipos de centro, las situaciones de Hoy en qué estás y el estado del vehículo.</p>
             </div>
           </div>
         </div>
@@ -86,8 +114,9 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=5"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ParametrosListasAjax.js?v=1"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

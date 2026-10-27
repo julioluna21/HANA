@@ -1,6 +1,10 @@
-//Reporte diario - Tablero por proyectos
-//Además de mostrar, enlaza: cada cifra lleva al Reporte general de ese día y ese proyecto, en la pestaña
-//del tema, y la franja "Ir a" lleva a los módulos que la persona tiene en su menú
+//Reporte general - Tablero por proyectos (director de operaciones, 43M, o administrador)
+//Va dentro del Reporte general (ControlDiarioVista.php), arriba de las pestañas: un mosaico por
+//proyecto y, al escoger uno, sus peajes con su jefe. El día y el proyecto son los mismos del
+//reporte: ControlDiarioAjax.js llama a tableroCargar() cada vez que los cambia, y al tocar un
+//mosaico o una cifra se escoge ese proyecto en el reporte (y se abre la pestaña del tema).
+//Todo va dentro de una función para no chocar con los nombres de ControlDiarioAjax.js
+(function () {
 var URL_TAB = '../Control/TableroControl.php';
 var datosTab = null;       //la última respuesta del servidor
 var proyectoAbierto = 0;   //0 = viendo los mosaicos de proyectos
@@ -10,31 +14,28 @@ var TIPO_ARQ = { CAJA_MENOR: 'Caja menor', RECAMBIO: 'Recambio', CASETA: 'Caseta
 var TIPO_CENTRO = { PEAJE: 'Peaje', BASCULA: 'Báscula', BASE: 'Base', OFICINA: 'Oficina' };
 
 $(function () {
-    //Se puede llegar con ?proyecto=ID
-    var idProyectoUrl = parseInt(new URLSearchParams(window.location.search).get('proyecto'), 10);
-    if (idProyectoUrl > 0) { proyectoAbierto = idProyectoUrl; }
-    cargar('');
-
-    $('#tbFecha').on('change', function () { if (this.value) { cargar(this.value); } });
-    $('#btnDiaAnt').on('click', function () { cargar(rdSumarDias(datosTab.fecha, -1)); });
-    $('#btnDiaSig').on('click', function () { if (datosTab.fecha < datosTab.hoy) { cargar(rdSumarDias(datosTab.fecha, 1)); } });
+    //Un mosaico abre ese proyecto en el reporte (las cifras de adentro abren además su pestaña)
     $(document).on('click', '.tb-proyecto', function (evento) {
-        if ($(evento.target).closest('a').length) { return; } //un enlace de adentro lleva a su módulo: no abre el proyecto
-        proyectoAbierto = $(this).data('id'); pintar(); window.scrollTo(0, 0);
+        if ($(evento.target).closest('[data-ir]').length) { return; }
+        window.cdIrA('', $(this).data('id'));
     });
-    $(document).on('click', '#volverProyectos', function (evento) { evento.preventDefault(); proyectoAbierto = 0; pintar(); });
+    $(document).on('click', '[data-ir]', function (evento) { evento.preventDefault(); evento.stopPropagation(); window.cdIrA($(this).data('ir'), $(this).data('proy')); });
+    $(document).on('click', '#volverProyectos', function (evento) { evento.preventDefault(); window.cdIrA('', 0); });
     $(document).on('click', '[data-persona]', function () { verPersona($(this).data('persona')); });
-    $(document).on('click', '.btn-ver-lista', function (evento) { evento.preventDefault(); rdVerLista($(this).data('id')); });
 });
+
+//Lo llama ControlDiarioAjax.js con el día y el proyecto del reporte (0 = todos)
+window.tableroCargar = function (fecha, idProyecto) {
+    proyectoAbierto = parseInt(idProyecto, 10) || 0;
+    if (datosTab && datosTab.fecha === fecha) { pintar(); return; }
+    cargar(fecha);
+};
 
 //Trae el resumen del día elegido y pinta el tablero
 function cargar(fecha) {
     $.getJSON(URL_TAB + '?op=resumen' + (fecha ? '&fecha=' + encodeURIComponent(fecha) : ''))
         .done(function (respuesta) {
             datosTab = respuesta;
-            $('#tbFecha').val(respuesta.fecha).attr('max', respuesta.hoy);
-            $('#btnDiaSig').prop('disabled', respuesta.fecha >= respuesta.hoy);
-            $('#tbAlcance').text(respuesta.verTodos ? 'Ves todos los proyectos.' : 'Ves los proyectos y peajes a tu cargo.');
             pintar();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el tablero.'); });
@@ -58,10 +59,10 @@ function estadoDia(situacion, ingreso, salida) {
 //"1 lista" / "3 listas"
 function cantidadTexto(cantidad, singular, plural) { return cantidad + ' ' + (cantidad === 1 ? singular : plural); }
 
-//A dónde lleva una cifra del tablero: al Reporte general de ese día y ese proyecto, en la pestaña del tema.
-//ver: hoy, listas, arqueos, cronograma, vehículos, vacantes, comunicaciones o rq (lo entiende ControlDiarioAjax.js)
+//Lo que hace una cifra del tablero: escoge ese proyecto en el reporte y abre la pestaña del tema.
+//ver: hoy, listas, arqueos, cronograma, vehiculos, vacantes o comunicaciones (los entiende ControlDiarioAjax.js)
 function irReporte(vista, idProyecto) {
-    return 'ControlDiarioVista.php?fecha=' + encodeURIComponent(datosTab.fecha) + '&proyecto=' + parseInt(idProyecto, 10) + '&ver=' + vista;
+    return ' data-ir="' + vista + '" data-proy="' + parseInt(idProyecto, 10) + '"';
 }
 
 //texto: "vacante|vacantes" (singular|plural). Con href, la cifra es un enlace
@@ -69,19 +70,19 @@ function chip(icono, cantidad, texto, clase, href) {
     var formas = texto.split('|'), palabra = (cantidad === 1 || formas.length === 1) ? formas[0] : formas[1];
     var dentro = '<i class="fa ' + icono + '"></i> ' + cantidad + ' ' + rdEsc(palabra);
     var claseChip = 'tb-chip ' + (cantidad > 0 ? (clase || '') : 'tb-chip-cero');
-    return href ? '<a class="' + claseChip + ' tb-enlace" href="' + href + '" title="Ver el detalle en el Reporte general">' + dentro + ' <i class="fa fa-angle-right"></i></a>'
+    return href ? '<a class="' + claseChip + ' tb-enlace" href="#"' + href + ' title="Ver el detalle abajo, en su pestaña">' + dentro + ' <i class="fa fa-angle-right"></i></a>'
                 : '<span class="' + claseChip + '">' + dentro + '</span>';
 }
 
 //Los módulos a los que se puede ir desde el tablero. Solo salen los que la persona tiene en su menú lateral,
 //así no hay que repetir aquí las reglas de permisos
-var MODULOS_IR = [['RQVista.php', 'fa-wrench', 'Requisiciones'], ['VacantesVista.php', 'fa-user-plus', 'Vacantes'], ['ComunicacionesVista.php', 'fa-inbox', 'Comunicaciones'],
+var MODULOS_IR = [['VacantesVista.php', 'fa-user-plus', 'Vacantes'], ['ComunicacionesVista.php', 'fa-inbox', 'Comunicaciones'],
                   ['ArqueosVista.php', 'fa-money', 'Arqueos'], ['ListasVista.php', 'fa-check-square-o', 'Listas de chequeo'], ['CronogramaVista.php', 'fa-calendar', 'Cronograma y vehículo'],
                   ['AusentismoVista.php', 'fa-user-times', 'Ausentismo'], ['novedadesVista.php', 'fa-comment', 'Novedades'], ['InformeMensualVista.php', 'fa-file-pdf-o', 'Informe de gestión']];
 
 //Botones para ir a los reportes y módulos de un proyecto
 function franjaIrA(idProyecto) {
-    var html = '<a class="btn btn-default btn-sm" href="' + irReporte('hoy', idProyecto) + '"><i class="fa fa-list-alt"></i> Reporte general de este proyecto</a>';
+    var html = '<a class="btn btn-default btn-sm" href="#" id="volverProyectos"><i class="fa fa-th-large"></i> Todos los proyectos</a>';
     MODULOS_IR.forEach(function (modulo) {
         if ($('.side-menu a[href="' + modulo[0] + '"]').length) { html += '<a class="btn btn-default btn-sm" href="' + modulo[0] + '"><i class="fa ' + modulo[1] + '"></i> ' + modulo[2] + '</a>'; }
     });
@@ -92,8 +93,7 @@ function franjaIrA(idProyecto) {
 // Nivel 1: proyectos
 //---------------------------------------------------------------------------
 function pintarProyectos() {
-    $('#tituloTablero').text('Tablero del reporte diario');
-    $('#migasTablero').html('<a href="ReporteDiarioVista.php"><i class="fa fa-calendar-check-o"></i> Reporte diario</a> <span>›</span> Tablero');
+    $('#tbTitulo').text('Tablero por proyectos');
     $('#nivelCentros').hide();
     var html = '';
     for (var i = 0; i < datosTab.proyectos.length; i++) {
@@ -104,7 +104,7 @@ function pintarProyectos() {
         var porcentaje = proyecto.COORDINADOR ? Math.round(100 * hechas / 3) : 0;
         var idProyecto = parseInt(proyecto.ID_PROYECTO, 10);
         //Cada parte del reporte del coordinador lleva a su pestaña del Reporte general
-        var marca = function (ok, texto, vista) { return '<a class="tb-parte tb-enlace ' + (ok ? 'tb-parte-ok' : '') + '" href="' + irReporte(vista, idProyecto) + '"><i class="fa ' + (ok ? 'fa-check' : 'fa-clock-o') + '"></i> ' + texto + '</a>'; };
+        var marca = function (ok, texto, vista) { return '<a class="tb-parte tb-enlace ' + (ok ? 'tb-parte-ok' : '') + '" href="#"' + irReporte(vista, idProyecto) + '><i class="fa ' + (ok ? 'fa-check' : 'fa-clock-o') + '"></i> ' + texto + '</a>'; };
         html += '<div class="tb-proyecto" data-id="' + parseInt(proyecto.ID_PROYECTO, 10) + '" role="button" tabindex="0">' +
              '<div class="tb-proy-nombre">' + rdEsc(proyecto.NOM_PROYECTO) + '</div>' +
              '<div class="tb-proy-coord">' + (proyecto.COORDINADOR ? '<i class="fa fa-user"></i> ' + rdEsc(proyecto.COORDINADOR) + ' ' + estadoDia(proyecto.COORD_SITUACION, proyecto.COORD_INGRESO, null)
@@ -115,7 +115,6 @@ function pintarProyectos() {
                               marca(partes[2], 'Cronograma revisado', 'cronograma') + '</div>' : '') + '</div>' +
              '<div class="tb-chips">' + chip('fa-user-plus', resumen.vacantes, 'vacante abierta|vacantes abiertas', 'tb-chip-pend', irReporte('vacantes', idProyecto)) +
              chip('fa-inbox', +proyecto.COMUNICACIONES, 'comunicación abierta|comunicaciones abiertas', 'tb-chip-pend', irReporte('comunicaciones', idProyecto)) +
-             chip('fa-wrench', resumen.rq, 'RQ por aprobar', 'tb-chip-pend', irReporte('rq', idProyecto)) +
              chip('fa-money', resumen.arqueos, 'arqueo|arqueos', resumen.arqueosDif ? 'tb-chip-mal' : 'tb-chip-ok', irReporte('arqueos', idProyecto)) + '</div></div>';
     }
     $('#nivelProyectos').html(html || '<p class="rd-vacio">No tienes proyectos a tu cargo. En Proyectos y en Centros de operación se asigna quién coordina y quién es jefe.</p>').show();
@@ -125,9 +124,7 @@ function pintarProyectos() {
 // Nivel 2: centros de un proyecto
 //---------------------------------------------------------------------------
 function pintarProyecto(proyecto) {
-    $('#tituloTablero').text(proyecto.NOM_PROYECTO);
-    $('#migasTablero').html('<a href="ReporteDiarioVista.php"><i class="fa fa-calendar-check-o"></i> Reporte diario</a> <span>›</span> ' +
-                            '<a href="#" id="volverProyectos">Tablero</a> <span>›</span> ' + rdEsc(proyecto.NOM_PROYECTO));
+    $('#tbTitulo').text('Tablero por proyectos · ' + proyecto.NOM_PROYECTO);
     $('#nivelProyectos').hide();
     var idProyecto = parseInt(proyecto.ID_PROYECTO, 10);
     $('#tbIrA').html(franjaIrA(idProyecto)); //los enlaces a los demás módulos
@@ -149,13 +146,11 @@ function pintarProyecto(proyecto) {
              (centro.ID_COLABORADOR_JEFE
                 ? '<div class="tb-persona tb-persona-sm' + (centro.PUEDE_VER ? '' : ' tb-sin-acceso') + '"' +
                   (centro.PUEDE_VER ? ' data-persona="' + parseInt(centro.ID_COLABORADOR_JEFE, 10) + '" role="button" tabindex="0"' : '') + '>' +
-                  '<span class="tb-rol">Jefe de peaje</span>' + rdEsc(centro.JEFE) +
-                  (+centro.RQ_PENDIENTES > 0 ? '<br><span class="rd-tag rd-tag-pend">' + cantidadTexto(+centro.RQ_PENDIENTES, 'RQ por aprobar', 'RQ por aprobar') + '</span>' : '') + '</div>'
+                  '<span class="tb-rol">Jefe de peaje</span>' + rdEsc(centro.JEFE) + '</div>'
                 : '<div class="rd-ayuda" style="margin:6px 0 8px;">Sin jefe asignado</div>') +
              '<div class="tb-chips">' + chip('fa-check-square-o', +centro.LISTAS, 'lista|listas', 'tb-chip-ok', irReporte('listas', idProyecto)) +
              chip('fa-money', +centro.ARQUEOS, 'arqueo|arqueos', +centro.ARQUEOS_DIF ? 'tb-chip-mal' : 'tb-chip-ok', irReporte('arqueos', idProyecto)) +
-             chip('fa-user-plus', +centro.VACANTES, 'vacante|vacantes', 'tb-chip-pend', irReporte('vacantes', idProyecto)) +
-             chip('fa-wrench', +centro.RQ_PENDIENTES, 'RQ por aprobar', 'tb-chip-pend', irReporte('rq', idProyecto)) + '</div></div>';
+             chip('fa-user-plus', +centro.VACANTES, 'vacante|vacantes', 'tb-chip-pend', irReporte('vacantes', idProyecto)) + '</div></div>';
     }
     $('#tbCentros').html(html || '<p class="rd-vacio">Este proyecto no tiene centros activos que puedas ver.</p>');
     $('#nivelCentros').show();
@@ -181,7 +176,7 @@ function verPersona(id) {
                 html += '<p>' + estadoDia(registroHoy.SITUACION, registroHoy.HORA_INGRESO, registroHoy.HORA_SALIDA) + '</p>';
                 var donde = (registroHoy.LUGARES || []).concat(registroHoy.LUGAR_OTRO ? [registroHoy.LUGAR_OTRO] : []);
                 if (donde.length) { html += '<p><strong>Dónde:</strong> ' + rdEsc(donde.join(' · ')) + '</p>'; }
-                if (registroHoy.ACTIVIDAD) { html += '<p><strong>Qué hizo:</strong><br>' + rdParrafo(registroHoy.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
+                if (registroHoy.ACTIVIDAD) { html += '<p><strong>Plan del día:</strong><br>' + rdParrafo(registroHoy.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
                 if (registroHoy.OBSERVACION) { html += '<p><strong>Observación:</strong> ' + rdEsc(registroHoy.OBSERVACION) + '</p>'; }
             }
 
@@ -207,20 +202,6 @@ function verPersona(id) {
                 html += '</ul>';
             }
 
-            //RQ que pidió: lo principal de un jefe de peaje
-            html += '<h5 class="rd-subtitulo">RQ</h5>';
-            if (!respuesta.rq.length) { html += '<p class="rd-ayuda">Ninguna esperando aprobación ni pedida ese día.</p>'; }
-            else {
-                html += '<ul class="tb-lista">';
-                for (var numRq = 0; numRq < respuesta.rq.length; numRq++) {
-                    var rq = respuesta.rq[numRq];
-                    html += '<li><span class="cd-rq ' + (rq.TIPO_RQ === 'U' ? 'cd-rq-u' : '') + '">' + (rq.TIPO_RQ === 'U' ? 'RQ U-' : 'RQ-') + rdEsc(rq.NUMERO_RQ) + '</span> ' +
-                         rdEsc(rq.NOM_CENTRO_OP) + ' · ' + rdEsc(rq.ITEMS || '') + ' <small>' + rdEsc(rq.NOM_RQ_ESTADO) + '</small> ' +
-                         '<a href="#" class="btn-ver-rq" data-id="' + parseInt(rq.ID_RQ, 10) + '"><i class="fa fa-eye"></i> Ver detalle y fotos</a></li>';
-                }
-                html += '</ul>';
-            }
-
             //Arqueos: del coordinador
             if (respuesta.esCoordinador) { html += '<h5 class="rd-subtitulo">Arqueos</h5>'; }
             if (!respuesta.esCoordinador) { /* un jefe de peaje no hace arqueos */ }
@@ -239,3 +220,4 @@ function verPersona(id) {
         })
         .fail(function (xhr) { $('#modalPersona').modal('hide'); alert(rdError(xhr, 'No se pudo abrir el reporte.')); });
 }
+})();

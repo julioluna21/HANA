@@ -245,3 +245,8 @@
 .rq-tipo-op-n:has(input:checked){ border-color: #F2C230; background: #FFFBEA; }
 .rq-tipo-op-u:has(input:checked){ border-color: #D32F2F; background: #FDECEA; }
 @media (max-width: 480px){ .rq-tipos{ grid-template-columns: 1fr; } }
+
+/* Una RQ que pide para varios peajes: los otros peajes, al lado del principal */
+.rq-otros-peajes{ color: #6b6b6b; font-size: 12px; }
+.rq-det-item-peaje{ color: #6b6b6b; font-size: 12px; margin-top: 3px; }
+.rq-ayuda{ display: block; color: #8a8a8a; font-size: 11.5px; margin-top: 3px; }

@@ -16,10 +16,13 @@ if (isset($_SESSION['IdUsuarios'])) {
     //Si el administrador apagó este módulo (Parámetros del sistema), la pantalla no abre
     require_once __DIR__ . '/../Control/PaginaControl.php';
     if (!pagModuloActivo('LISTAS')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
-    //Las listas las diligencia quien tenga 11M en sus permisos. También las
-    //ven quien las administra (12M) y la administración del reporte (21M)
-    $esCoordinador = pagEsCoordinador();
-    if (in_array("11M", $modulosAcceso) or in_array("12M", $modulosAcceso) or in_array("21M", $modulosAcceso)) {
+    //Las diligencia quien tenga la casilla de llenar (11M); las revisa quien tenga la de ver (21M)
+    //o la de editarlas (12M). Siempre las de sus peajes asignados
+    $esCoordinador = false;
+    //Quien no llena entra solo a revisar: no ve el botón de responder, ni el aviso de "hoy no has
+    //registrado", ni el de corregir
+    $llenaListas = in_array("11M", $modulosAcceso) || in_array("24M", $modulosAcceso);
+    if (in_array("11M", $modulosAcceso) or in_array("12M", $modulosAcceso) or in_array("21M", $modulosAcceso) or in_array("24M", $modulosAcceso)) {
         include('head.php');
 ?>  
         <!-- Estilos de la lista de chequeo: botones grandes, barra de avance y firma en pantalla -->
@@ -126,7 +129,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                                 <div id="listadoregistros">
                                     <div class="x_panel">
                                         <div class="x_title">
-                                            <h2>Listas por responder</h2>
+                                            <h2><?php echo $llenaListas ? 'Listas por responder' : 'Listas diligenciadas'; ?></h2>
 
                                             <div class="clearfix"></div>
                                         </div>
@@ -203,14 +206,18 @@ if (isset($_SESSION['IdUsuarios'])) {
                 100% { box-shadow: 0 0 0 0 rgba(217,83,79,0); }
             }
         </style>
-        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
+        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
         <script>
           //Archivos al llenar una lista nueva: si están permitidos y el tamaño máximo (Parámetros del sistema)
           var HANA_ADJ_LISTAS = <?php echo pagParametroSi('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
           var HANA_ADJ_MAX_MB = <?php echo (int)max(1, pagParametroNum('ADJUNTOS_MAX_MB', 10)); ?>;
+          //Quién puede qué: llenar listas (11M); corregir solo las propias, o todas el ADMIN TEC (24M)
+          var HANA_LISTAS_LLENA = <?php echo $llenaListas ? 'true' : 'false'; ?>;
+          var HANA_LISTAS_TODO = <?php echo in_array('24M', $modulosAcceso) ? 'true' : 'false'; ?>;
+          var HANA_YO = <?php echo (int)$_SESSION['Idcolaborador']; ?>;
         </script>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=11"></script>
-        <script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=12"></script>
+        <?php if ($llenaListas) { ?><script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script><?php } ?>
 <?php
     } else {
         echo "<script> 

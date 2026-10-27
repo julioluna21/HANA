@@ -10,11 +10,9 @@ if (isset($_SESSION['IdUsuarios'])) {
     require_once __DIR__ . '/../Control/PaginaControl.php';
     if (!pagModuloActivo('CRONOGRAMA')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
     pagUsarModulo('CRONOGRAMA');
-    //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    $esCoordinador = pagEsCoordinador();
-
-    //Lo llena el coordinador; 5M: catálogo de vehículos; 20M y 21M: consultan todos los proyectos
-    if ($esCoordinador || in_array("5M", $modulosAcceso) || in_array("20M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("22M", $modulosAcceso)) {
+    //Lo llena, lo ve o maneja los vehículos quien tenga esas casillas, en los proyectos de sus peajes
+    $esCoordinador = pagPuede('CRONOGRAMA', 'llenar') && pagTieneCentros();
+    if (pagEntra('CRONOGRAMA')) {
         include('head.php');
 ?>
 <link href="../public/css/reporte.css?v=16" rel="stylesheet">
@@ -67,7 +65,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             <span class="crono-vh crono-vh-OPERATIVO">Vehículo operativo</span>
             <span class="crono-vh crono-vh-INOPERATIVO">Inoperativo</span>
           </div>
-          <p class="rd-ayuda">Toca un día para planear, marcar lo que hiciste o registrar el estado del vehículo.
+          <p class="rd-ayuda" id="cAyuda">Toca un día para planear lo que vas a hacer, marcar cómo te fue o registrar el estado del vehículo.
             Las visitas a un peaje quedan realizadas solas si ese día lo marcaste en "Hoy en qué estás".
             El estado del vehículo se registra el mismo día; los sábados, domingos y festivos también se pueden dejar registrados por adelantado.</p>
 
@@ -85,7 +83,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         </div>
       </div>
 
-      <!-- Catálogo de vehículos (5M) -->
+      <!-- Vehículos de sus proyectos: agregar, cambiar y quitar (casilla 47M) -->
       <div class="x_panel" id="panelVehiculos" style="display:none;">
         <div class="x_title"><h2><i class="fa fa-car"></i> Vehículos</h2>
           <button type="button" class="btn btn-default pull-right" id="btnVolverVh"><i class="fa fa-arrow-left"></i> Volver</button>
@@ -95,9 +93,11 @@ if (isset($_SESSION['IdUsuarios'])) {
             <input type="hidden" name="id" id="vhId">
             <div class="form-group col-md-2 col-sm-4 col-xs-6"><label for="vhPlaca">Placa: <span class="rd-req">*</span></label>
               <input type="text" id="vhPlaca" name="placa" class="form-control" maxlength="10" placeholder="BOB120"></div>
-            <div class="form-group col-md-3 col-sm-8 col-xs-6"><label for="vhDesc">Descripción:</label>
+            <div class="form-group col-md-2 col-sm-8 col-xs-6"><label for="vhDesc">Descripción:</label>
               <input type="text" id="vhDesc" name="descripcion" class="form-control" maxlength="80" placeholder="Ej: camioneta"></div>
-            <div class="form-group col-md-3 col-sm-6 col-xs-12"><label for="vhResp">Responsable:</label>
+            <div class="form-group col-md-2 col-sm-6 col-xs-12"><label for="vhProyecto">Proyecto: <span class="rd-req">*</span></label>
+              <select id="vhProyecto" name="proyecto" class="form-control"></select></div>
+            <div class="form-group col-md-2 col-sm-6 col-xs-12"><label for="vhResp">Responsable:</label>
               <select id="vhResp" name="responsable" class="form-control"><option value="">Sin asignar</option></select></div>
             <div class="form-group col-md-2 col-sm-3 col-xs-6"><label for="vhEstado">Estado:</label>
               <select id="vhEstado" name="estado" class="form-control"><option value="1">Activo</option><option value="0">Inactivo</option></select></div>
@@ -106,7 +106,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           </form>
           <div class="table-responsive">
             <table class="table table-bordered rd-tabla">
-              <thead><tr><th>Placa</th><th>Descripción</th><th>Responsable</th><th>Estado</th><th></th></tr></thead>
+              <thead><tr><th>Placa</th><th>Descripción</th><th>Proyecto</th><th>Responsable</th><th>Estado</th><th></th></tr></thead>
               <tbody id="filasVh"></tbody>
             </table>
           </div>
@@ -131,8 +131,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/CronogramaAjax.js?v=14"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/CronogramaAjax.js?v=17"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

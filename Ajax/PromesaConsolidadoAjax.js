@@ -1,3 +1,5 @@
+//Archivo sin uso (ninguna pantalla lo carga): era el consolidado de la promesa de personas.
+//La promesa vigente, en horas, es Ajax/PromesaValorAjax.js.
 //Consolidado de promesa de valor, ejecutado y ausentismo (lo que ve el gerente de operaciones).
 //Se pide una vez por mes (y por días) y con eso se pintan las tres vistas: todos los proyectos,
 //un proyecto o un solo peaje

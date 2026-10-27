@@ -10,12 +10,9 @@ if (isset($_SESSION['IdUsuarios'])) {
     require_once __DIR__ . '/../Control/PaginaControl.php';
     if (!pagModuloActivo('COMUNICACIONES')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
     pagUsarModulo('COMUNICACIONES');
-    //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    $esCoordinador = pagEsCoordinador();
-    //Oficios como las RQ: entra cualquiera con un proyecto asignado (coordina, es jefe de un peaje o
-    //tiene peajes asignados en Usuarios). El controlador revisa los proyectos uno por uno
-    $tieneAsignados = pagTienePeajes();
-    if ($esCoordinador || $tieneAsignados) {
+    //La registra, la ve o la resuelve quien tenga esas casillas, en sus peajes asignados
+    $esCoordinador = pagPuede('COMUNICACIONES', 'llenar') && pagTieneCentros();
+    if (pagEntra('COMUNICACIONES')) {
         include('head.php');
 ?>
 <link href="../public/css/reporte.css?v=16" rel="stylesheet">
@@ -28,7 +25,7 @@ if (isset($_SESSION['IdUsuarios'])) {
       <div class="x_panel" id="panelLista">
         <div class="x_title">
           <h2><i class="fa fa-inbox"></i> Comunicaciones y oficios</h2>
-          <div class="pull-right rd-botones-titulo"><button type="button" class="btn btn-success" id="btnNueva"><i class="fa fa-plus-square"></i> Nueva</button></div>
+          <div class="pull-right rd-botones-titulo"><button type="button" class="btn btn-success rd-btn-flotante" id="btnNueva"><i class="fa fa-plus-square"></i> Nueva<span class="rd-solo-movil"> comunicación</span></button></div>
           <div class="clearfix"></div>
         </div>
         <div class="x_content">
@@ -36,7 +33,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             <div class="rd-contador rd-cnt-pend"><span class="rd-num" id="cAtender">0</span><span class="rd-lbl">Por atender</span></div>
             <div class="rd-contador rd-cnt-pend"><span class="rd-num" id="cEnviar">0</span><span class="rd-lbl">Por enviar</span></div>
             <div class="rd-contador rd-cnt-mal"><span class="rd-num" id="cVencidas">0</span><span class="rd-lbl">Abiertas fuera de tiempo</span></div>
-            <div class="rd-contador rd-cnt-ok"><span class="rd-num" id="cCumple">0</span><span class="rd-lbl">Atendidas a tiempo</span></div>
+            <div class="rd-contador rd-cnt-ok"><span class="rd-num" id="cCumple">0</span><span class="rd-lbl">Cerradas a tiempo</span></div>
           </div>
           <div class="row">
             <div class="form-group col-md-4 col-sm-6 col-xs-12"><label for="fProyecto">Proyecto:</label>
@@ -56,7 +53,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="table-responsive">
             <table class="table table-bordered rd-tabla rd-tabla-compacta">
               <thead><tr><th>Tipo</th><th>ID / radicado</th><th>Recepción</th><th>Medio</th><th>Remitente / área</th><th>Asunto / solicitud</th>
-                <th>Registró</th><th>Atención</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Estado</th><th></th></tr></thead>
+                <th>Registró</th><th title="El día en que se cerró: se atendió o se envió">Cerrada el</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Estado</th><th></th></tr></thead>
               <tbody id="filas"><tr><td colspan="12" class="rd-vacio">Cargando...</td></tr></tbody>
             </table>
           </div>
@@ -92,18 +89,18 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <select id="mPendiente" name="pendiente" class="form-control"></select></div>
             </div>
             <div id="grupoAtencion">
-            <h4 class="rd-subtitulo">Atención</h4>
+            <h4 class="rd-subtitulo">Cierre</h4>
             <div class="row">
-              <div class="form-group col-md-3 col-sm-4 col-xs-12"><label for="mAtencion">Fecha de atención:</label>
+              <div class="form-group col-md-3 col-sm-4 col-xs-12"><label for="mAtencion">Fecha de cierre:</label>
                 <input type="date" id="mAtencion" name="atencion" class="form-control">
-                <small class="rd-ayuda">Mientras esté vacía, la comunicación sigue abierta.</small></div>
+                <small class="rd-ayuda">El día en que se atendió o se envió. Mientras esté vacía, la comunicación sigue abierta.</small></div>
               <div class="form-group col-md-9 col-sm-8 col-xs-12"><label for="mRespuesta">Respuesta o gestión:</label>
                 <textarea id="mRespuesta" name="respuesta" class="form-control" rows="2" maxlength="2000"></textarea></div>
             </div>
             </div>
             <!-- Archivos: el oficio escaneado, la respuesta, soportes -->
             <div id="mAdjuntos"></div>
-            <!-- Conversación: todos los del proyecto responden; el coordinador o el admin la resuelven -->
+            <!-- Conversación: responde quien registra comunicaciones; la resuelve quien tenga esa casilla -->
             <div id="mHiloCaja" class="com-hilo-caja" style="display:none;">
               <h4 class="rd-subtitulo"><i class="fa fa-comments-o"></i> Conversación <span id="mEstado"></span></h4>
               <div id="mHilo" class="com-hilo"></div>
@@ -129,8 +126,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/ComunicacionAjax.js?v=5"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/ComunicacionAjax.js?v=8"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

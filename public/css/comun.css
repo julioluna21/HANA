@@ -85,11 +85,37 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before
 .row:after{ clear: both; }
 
 /* En celular, cada columna de formulario ocupa el ancho completo y deja
-   un respiro entre una y otra */
+   un respiro entre una y otra. Las que la pantalla pidió de a dos o de a tres
+   por fila (col-xs-6, col-xs-4...: mes y año, fechas desde y hasta, campos cortos)
+   sí se respetan, para que los filtros no ocupen toda la pantalla del celular.
+   Esas filas se arman con flex para que cada pareja quede alineada aunque una
+   etiqueta ocupe dos líneas */
 @media (max-width: 767px){
-    .row > [class*="col-"]{ float: none; width: auto; }
+    .row > [class*="col-"]:not([class*="col-xs-"]){ float: none; width: auto; }
     .form-group[class*="col-"]{ margin-bottom: 12px; }
+    .row:has(> [class*="col-xs-"]:not([class*="col-xs-12"])){ display: flex; flex-wrap: wrap; align-items: flex-end; }
+    .row:has(> [class*="col-xs-"]:not([class*="col-xs-12"]))::before,
+    .row:has(> [class*="col-xs-"]:not([class*="col-xs-12"]))::after{ display: none; }
+    .row:has(> [class*="col-xs-"]:not([class*="col-xs-12"])) > :not([class*="col-xs-"]){ width: 100%; flex: 0 0 100%; }
+    .row:has(> [class*="col-xs-"]:not([class*="col-xs-12"])) > [class*="col-xs-"]{ float: none; }
+    /* Una hora con su botón «Ahora» no cabe en media pantalla: va sola en su fila */
+    .row > [class*="col-xs-"]:has(.rd-con-ahora){ width: 100%; flex: 0 0 100%; }
 }
+
+/* En celular, los campos de fecha de las parejas (desde/hasta) son angostos:
+   con menos relleno a los lados se alcanza a ver la fecha completa */
+@media (max-width: 767px){
+    input[type="date"].form-control{ padding-left: 7px; padding-right: 4px; }
+    input[type="date"].form-control::-webkit-calendar-picker-indicator{ margin-left: 1px; padding: 0; width: 14px; }
+    input[type="date"].form-control::-webkit-datetime-edit{ padding: 0; }
+}
+
+/* Novedades carga chat.css, que le pone una flechita a todo menú desplegable.
+   En la barra de arriba sobra: la campana quedaba con una flecha suelta al lado */
+.nav_menu .dropdown-toggle::after{ display: none !important; }
+
+/* Correos automáticos: el cargo va al lado del nombre de cada persona, no debajo */
+.ca-persona-fila .rd-ayuda{ display: inline; margin: 0; }
 
 /* Los paneles de la plantilla (.x_panel y .x_content) usan float, así que su
    ancho lo define el contenido y no la pantalla. Con una tabla ancha, como la de
@@ -283,4 +309,23 @@ input, textarea, select, [contenteditable="true"]{
 .nav-md .container.body .right_col,
 .nav-sm .container.body .right_col{
     overflow-x: clip;
+}
+
+
+/* El botón principal de una pantalla (Nueva RQ, Nueva vacante, Nuevo arqueo...): en el celular
+   queda fijo abajo a la derecha, grande, para que se vea sin tener que subir hasta el título */
+.rd-solo-movil{ display: none; }
+/* En el computador también resalta: más grande que los demás botones y con sombra */
+@media (min-width: 768px){
+  .rd-btn-flotante{ padding: 9px 18px; font-size: 15px; font-weight: 600; border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(26,187,156,.35); }
+  .rd-btn-flotante .fa{ font-size: 16px; margin-right: 3px; }
+}
+@media (max-width: 767px){
+  .rd-btn-flotante{ position: fixed !important; right: 16px; bottom: 18px; z-index: 1040; float: none !important; margin: 0 !important;
+                    padding: 13px 20px; font-size: 16px; font-weight: 600; border-radius: 28px;
+                    box-shadow: 0 6px 18px rgba(0,0,0,.28); }
+  .rd-btn-flotante .fa{ font-size: 18px; margin-right: 4px; }
+  .rd-solo-movil{ display: inline; }
+  body.nav-md .right_col, body.nav-sm .right_col{ padding-bottom: 84px; } /* que el botón no tape lo último de la página */
 }

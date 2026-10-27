@@ -10,11 +10,10 @@ if (isset($_SESSION['IdUsuarios'])) {
     require_once __DIR__ . '/../Control/PaginaControl.php';
     if (!pagModuloActivo('ARQUEOS')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
     pagUsarModulo('ARQUEOS');
-    //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    $esCoordinador = pagEsCoordinador();
-
-    //Hace arqueos quien diligencia el reporte (11M); configura fondos quien administra centros (5M)
-    if ($esCoordinador || in_array("5M", $modulosAcceso) || in_array("36M", $modulosAcceso)) { //5M: campos y anular; 36M: autorizar fondos
+    //Hace arqueos quien tiene la casilla de hacerlos; los ve, autoriza fondos o anula quien tenga
+    //esas casillas. Siempre en sus peajes asignados (Permisos de usuario + Colaboradores)
+    $esCoordinador = pagPuede('ARQUEOS', 'llenar') && pagTieneCentros();
+    if (pagEntra('ARQUEOS')) {
         include('head.php');
 ?>
 <link href="../public/css/reporte.css?v=16" rel="stylesheet">
@@ -33,7 +32,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="pull-right rd-botones-titulo">
             <button type="button" class="btn btn-default" id="btnFondos" style="display:none;"><i class="fa fa-cog"></i> Fondos autorizados</button>
             <button type="button" class="btn btn-default" id="btnCampos" style="display:none;"><i class="fa fa-list-ul"></i> Campos de casetas</button>
-            <button type="button" class="btn btn-success" id="btnNuevoArq" style="display:none;"><i class="fa fa-plus-square"></i> Nuevo arqueo</button>
+            <button type="button" class="btn btn-success rd-btn-flotante" id="btnNuevoArq" style="display:none;"><i class="fa fa-plus-square"></i> Nuevo arqueo</button>
           </div>
           <div class="clearfix"></div>
         </div>
@@ -127,10 +126,11 @@ if (isset($_SESSION['IdUsuarios'])) {
             </div>
 
             <div id="arqBloqueDocs">
-              <h4 class="rd-subtitulo">Facturas, reintegros, recibos y faltantes</h4>
+              <h4 class="rd-subtitulo">Facturas, recibos de caja y faltantes</h4>
+              <p class="rd-ayuda">No hace falta anotar cada recibo: se puede poner un solo renglón por concepto con el valor total y, en la fecha, la del recibo más antiguo.</p>
               <div class="table-responsive">
                 <table class="table rd-tabla-docs">
-                  <thead><tr><th>Fecha</th><th>Concepto</th><th>Valor</th><th>Observación</th><th></th></tr></thead>
+                  <thead><tr><th>Fecha más antigua</th><th>Concepto</th><th>Valor</th><th>Observación</th><th></th></tr></thead>
                   <tbody id="arqDocs"></tbody>
                 </table>
               </div>
@@ -220,8 +220,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=10"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=12"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

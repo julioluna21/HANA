@@ -8,31 +8,27 @@ if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     require_once __DIR__ . '/../Control/PaginaControl.php'; //lo que la pantalla necesita saber de quien entra
 
-    //El reporte del coordinador (Hoy en qué estás, arqueos, cronograma, vacantes y
-    //comunicaciones) es solo de quien coordina un proyecto. En los mosaicos se
-    //marca con el código "COORD"
-    $esCoordinador = pagEsCoordinador();
+    //Cada mosaico sale si el rol tiene alguna casilla de ese módulo (Permisos de usuario) y la persona
+    //tiene peajes asignados (Colaboradores). Se marca con códigos propios: P_HOY, P_ARQUEOS, LISTAS...
+    pagUsarModulo('HOY');
+    $esCoordinador = pagPuede('HOY', 'llenar') && pagTieneCentros(); //llena su reporte del día
     if ($esCoordinador) { $modulosAcceso[] = 'COORD'; }
-    //Listas de chequeo: las llena quien tenga 11M; las ven también 12M y 21M
-    if (in_array('11M', $modulosAcceso) || in_array('12M', $modulosAcceso) || in_array('21M', $modulosAcceso)) { $modulosAcceso[] = 'LISTAS'; }
-    if (in_array('22M', $modulosAcceso)) { $modulosAcceso[] = 'VER_TODO'; }
-    //Cada pantalla del coordinador: coordinador, ADMIN TEC o su casilla en Permisos de usuario
-    foreach (pagModulosCoordinador() as $moduloCoordinador) { if (pagPuedeModulo($moduloCoordinador)) { $modulosAcceso[] = 'P_' . $moduloCoordinador; } }
-    //Oficios: también quien tenga peajes asignados (jefe de peaje o en Usuarios)
-    if (pagTienePeajes()) { $modulosAcceso[] = 'P_COMUNICACIONES'; }
+    if ((pagPuede('LISTAS', 'llenar') || pagPuede('LISTAS', 'ver')) && pagTieneCentros()) { $modulosAcceso[] = 'LISTAS'; }
+    if (pagPuede('LISTAS', 'editar')) { $modulosAcceso[] = 'EDITAR_LISTAS'; }
+    if (pagPuede('LISTAS', 'correos') || pagPuede('TAREAS', 'editar')) { $modulosAcceso[] = 'CORREOS'; }
+    $consultaHoy = pagPuede('HOY', 'ver') && !pagPuede('HOY', 'llenar');
+    foreach (array('HOY', 'ARQUEOS', 'CRONOGRAMA', 'VACANTES', 'COMUNICACIONES') as $moduloRD) { if (pagEntra($moduloRD)) { $modulosAcceso[] = 'P_' . $moduloRD; } }
     //Módulos que el administrador apagó en Parámetros del sistema: su mosaico no sale
     //OJO: head.php vuelve a leer $modulosAcceso de la sesión y borra las marcas de
-    //arriba (COORD, LISTAS, VER_TODO). Por eso los mosaicos usan su propia copia
+    //arriba (COORD, LISTAS, P_...). Por eso los mosaicos usan su propia copia
     $accesoMosaicos = $modulosAcceso;
     $apagados = array('HoyVista.php' => 'HOY', 'ListasVista.php' => 'LISTAS', 'ArqueosVista.php' => 'ARQUEOS',
                       'CronogramaVista.php' => 'CRONOGRAMA', 'VacantesVista.php' => 'VACANTES',
-                      'ComunicacionesVista.php' => 'COMUNICACIONES', 'AusentismoVista.php' => 'AUSENTISMO');
-    //La promesa de valor está en el menú de Ausentismo
+                      'ComunicacionesVista.php' => 'COMUNICACIONES');
+    //El ausentismo se retiró del sistema. La promesa de valor va en su propio enlace del menú, no como mosaico aquí.
 
-    //Entra quien diligencia listas (11M), las edita (12M), administra centros (5M),
-    //controla (19M) o coordina un proyecto
-    if (in_array("11M", $modulosAcceso) || in_array("12M", $modulosAcceso) || in_array("5M", $modulosAcceso) || in_array("19M", $modulosAcceso) || in_array("15M", $modulosAcceso) || in_array("41M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("37M", $modulosAcceso) || $esCoordinador
-        || count(preg_grep('/^P_/', $modulosAcceso)) > 0) { //o alguna casilla de las pantallas del coordinador
+    //Entra quien tenga algún mosaico (el Reporte general, 19M, va aparte)
+    if ($esCoordinador || count(preg_grep('/^(P_|LISTAS$|EDITAR_LISTAS$|CORREOS$)/', $modulosAcceso)) > 0) {
 
         //Alertas pequeñas del día en los mosaicos: ya registrado (verde) o falta (ámbar)
         date_default_timezone_set('America/Bogota');
@@ -60,31 +56,24 @@ if (isset($_SESSION['IdUsuarios'])) {
            Los que no están listos se muestran como "Próximamente", sin enlace */
         $mosaicos = array(
             array(array('P_HOY'), 'HoyVista.php', 'fa-map-marker', 'Hoy en qué estás',
-                  'Dónde estás, tu horario y lo que hiciste hoy', true, $esCoordinador ? $alerta['hoy'] : ''),
-            array(array('15M', '41M'), 'RQVista.php', 'fa-wrench', 'Requisiciones (RQ)',
-                  !in_array('41M', $modulosAcceso) ? 'Consulta las RQ' : ($esCoordinador ? 'Las RQ de tus peajes' : 'Pide lo que necesita tu peaje'), true, ''),
+                  $consultaHoy ? 'Dónde va a estar cada persona y lo que va a hacer' : 'Dónde vas a estar, tu horario y lo que vas a hacer hoy', true, $esCoordinador ? $alerta['hoy'] : ''),
+            //Las llena quien tiene la casilla de llenar; quien solo tiene la de ver las revisa
             array(array('LISTAS'), 'ListasVista.php', 'fa-check-square-o', 'Listas de chequeo',
-                  'Diligencia las preguntas de cada lista', true, $esCoordinador ? $alerta['listas'] : ''),
-            array(array('12M'), 'GruposListasVista.php', 'fa-list-ul', 'Editar listas',
+                  pagPuede('LISTAS', 'llenar') ? 'Diligencia las preguntas de cada lista' : 'Revisa las listas que diligenciaron', true,
+                  pagPuede('LISTAS', 'llenar') ? $alerta['listas'] : ''),
+            array(array('EDITAR_LISTAS'), 'GruposListasVista.php', 'fa-list-ul', 'Editar listas',
                   'Crea y edita las listas y sus preguntas', true, ''),
-            array(array('12M'), 'NotificacionesVista.php', 'fa-envelope-o', 'Correos de listas',
-                  'Configura los reportes automáticos por correo', true, ''),
-            array(array('P_ARQUEOS', '5M', '36M'), 'ArqueosVista.php', 'fa-money', 'Arqueos',
-                  'Caja menor y recambio, contra el fondo autorizado', true, $esCoordinador ? $alerta['arqueos'] : ''),
-            array(array('P_CRONOGRAMA', '5M', 'VER_TODO'), 'CronogramaVista.php', 'fa-calendar', 'Cronograma y vehículo',
-                  'Visitas planeadas y estado del vehículo', true, $esCoordinador ? $alerta['cronograma'] : ''),
+            array(array('CORREOS'), 'NotificacionesVista.php', 'fa-envelope-o', 'Correos automáticos',
+                  'Recordatorios, resúmenes y avisos: hora, días y a quién le llegan', true, ''),
+            array(array('P_ARQUEOS'), 'ArqueosVista.php', 'fa-money', 'Arqueos',
+                  'Caja menor y recambio, contra el fondo autorizado', true, pagPuede('ARQUEOS', 'llenar') ? $alerta['arqueos'] : ''),
+            array(array('P_CRONOGRAMA'), 'CronogramaVista.php', 'fa-calendar', 'Cronograma y vehículo',
+                  'Visitas planeadas y estado del vehículo', true, pagPuede('CRONOGRAMA', 'llenar') ? $alerta['cronograma'] : ''),
             array(array('P_VACANTES'), 'VacantesVista.php', 'fa-user-plus', 'Vacantes',
                   'Cargos por cubrir y su acuerdo de servicio', true, ''),
             array(array('P_COMUNICACIONES'), 'ComunicacionesVista.php', 'fa-inbox', 'Comunicaciones y oficios',
                   'Lo que hay por atender y por enviar', true, ''),
-            array(array('21M'), 'AdminReporteVista.php', 'fa-shield', 'Administración',
-                  'Consulta todo lo que llenan los coordinadores', true, ''),
-            array(array('19M'), 'ControlDiarioVista.php', 'fa-list-alt', 'Reporte general',
-                  'Todo lo que enviaron coordinadores y jefes, por módulo', true, ''),
-            array(array('19M'), 'TableroVista.php', 'fa-th-large', 'Tablero por proyectos',
-                  'El reporte de cada coordinador y jefe de peaje', true, ''),
-            array(array('37M'), 'InformeMensualVista.php', 'fa-file-pdf-o', 'Informe mensual',
-                  'Todo lo del mes en un PDF: general y por proyecto', true, '')
+            //El Reporte general y el informe mensual o por fechas van aparte (menú lateral e Inicio), no aquí
         );
 
         include('head.php');
@@ -95,8 +84,8 @@ if (isset($_SESSION['IdUsuarios'])) {
         $faltan = array();
         if ($esCoordinador && !empty($estadoDia)) {
             if (pagModuloActivo('HOY') && !$estadoDia['hoy']['ok']) { $faltan[] = 'contar en qué estás hoy'; }
-            if (pagModuloActivo('LISTAS') && !$estadoDia['listas']['ok']) { $faltan[] = 'las listas de chequeo'; }
-            if (pagModuloActivo('CRONOGRAMA') && !$estadoDia['cronograma']['ok']) { $faltan[] = 'darle una mirada al cronograma'; }
+            if (pagModuloActivo('LISTAS') && pagPuede('LISTAS', 'llenar') && !$estadoDia['listas']['ok']) { $faltan[] = 'las listas de chequeo'; }
+            if (pagModuloActivo('CRONOGRAMA') && pagPuede('CRONOGRAMA', 'llenar') && !$estadoDia['cronograma']['ok']) { $faltan[] = 'darle una mirada al cronograma'; }
         }
         if (!$esCoordinador) { $resumen = 'Aquí tienes todo lo del reporte diario.'; }
         elseif (!count($faltan)) { $resumen = 'Vas al día con todo lo de hoy. ¡Buen trabajo!'; }

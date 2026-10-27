@@ -1,5 +1,5 @@
 <?php
-//Reporte diario - Informe mensual de gestión
+//Consultas - Informe mensual de gestión (o de las fechas que se elijan)
 //Se elige el periodo (un mes, varios meses, una quincena o las fechas que se
 //quieran) y se genera un PDF con todo lo que pasó: primero el resumen general
 //y luego una hoja por proyecto. Permiso 37M
@@ -7,22 +7,22 @@ session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
-    if (in_array("37M", $modulosAcceso)) {
+    if (in_array("37M", $modulosAcceso) || in_array("24M", $modulosAcceso)) {
         require_once __DIR__ . '/../Control/PaginaControl.php';
-        //Los proyectos que van a salir: todos (20M o 24M) o solo los que coordina
-        $todosInf = in_array('20M', $modulosAcceso) || in_array('24M', $modulosAcceso);
+        //Los proyectos que van a salir: los de sus peajes asignados (el ADMIN TEC, todos)
+        $todosInf = in_array('24M', $modulosAcceso);
         $proyectosInf = pagProyectosInforme($todosInf);
         $hoyInf = pagHoy();
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=16" rel="stylesheet">
+<link href="../public/css/reporte.css?v=18" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
     <div class="col-md-12 col-xs-12">
 
       <!-- Migas: de dónde viene esta pantalla -->
-      <div class="rd-migas"><a href="ReporteDiarioVista.php"><i class="fa fa-calendar-check-o"></i> Reporte diario</a> <span>›</span> Informe mensual</div>
+      <div class="rd-migas"><i class="fa fa-line-chart"></i> Consultas <span>›</span> Informe mensual</div>
 
       <div class="x_panel">
         <div class="x_title">
@@ -36,7 +36,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 <?php if (!count($proyectosInf)) { ?>
           <!-- Tiene la casilla, pero no hay proyectos que mostrarle -->
           <div class="rd-alerta-dia rd-alerta-pend"><i class="fa fa-info-circle"></i>
-            No tienes proyectos para el informe: no coordinas ninguno y tu rol no tiene la casilla «Tablero: ver todos los proyectos» (20M).</div>
+            No tienes proyectos para el informe: pide que te asignen peajes en Configuración → Colaboradores.</div>
 <?php } else { ?>
           <!-- data-hoy le dice a InformeMensualAjax.js qué día es hoy (hora de Colombia) -->
           <div class="inf-generar" id="infGenerar" data-hoy="<?php echo htmlspecialchars($hoyInf, ENT_QUOTES, 'UTF-8'); ?>">
@@ -78,12 +78,15 @@ if (isset($_SESSION['IdUsuarios'])) {
           </div>
 
           <h4 class="rd-subtitulo">Proyectos que salen en tu informe</h4>
-          <div class="inf-proyectos">
+          <p class="rd-ayuda" style="margin-top:0;">Los que están en verde salen. Toca uno para sacarlo del informe, y otra vez para volverlo a poner.</p>
+          <!-- Cada proyecto se prende o se apaga; InformeMensualAjax.js pone los elegidos en el enlace del PDF -->
+          <div class="inf-proyectos" id="infProyectos" role="group" aria-label="Proyectos del informe">
 <?php   foreach ($proyectosInf as $proyecto) { ?>
-            <span class="rd-tag rd-tag-ok"><i class="fa fa-road"></i> <?php echo htmlspecialchars($proyecto['NOM_PROYECTO'], ENT_QUOTES, 'UTF-8'); ?></span>
+            <button type="button" class="rd-tag rd-tag-ok inf-proyecto" data-id="<?php echo (int)$proyecto['ID_PROYECTO']; ?>" aria-pressed="true"
+                    title="Sale en el informe. Toca para sacarlo"><i class="fa fa-check"></i> <?php echo htmlspecialchars($proyecto['NOM_PROYECTO'], ENT_QUOTES, 'UTF-8'); ?></button>
 <?php   } ?>
           </div>
-          <p class="rd-ayuda"><?php echo $todosInf ? 'Ves todos los proyectos activos.' : 'Ves los proyectos que coordinas. Para ver todos hace falta la casilla «Tablero: ver todos los proyectos» (20M).'; ?></p>
+          <p class="rd-ayuda"><?php echo $todosInf ? 'Ves todos los proyectos activos.' : 'Ves los proyectos de tus peajes asignados, con los datos de todo el proyecto.'; ?></p>
 
           <h4 class="rd-subtitulo">Qué trae</h4>
           <div class="inf-contenido">
@@ -103,8 +106,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/InformeMensualAjax.js?v=2"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/InformeMensualAjax.js?v=3"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

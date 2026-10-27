@@ -20,6 +20,50 @@ var filasRQ = [];        //el listado del periodo, sin el filtro de estado
 //---------------------------------------------------------------------------
 function esc(texto) { return $('<div>').text(texto == null ? '' : String(texto)).html(); }
 
+//La lista de unidades de medida (Parámetros → Listas). Si el ítem tiene una unidad vieja que no
+//está en la lista (escrita a mano antes), se agrega como opción para no perderla
+function htmlUnidad(valor) {
+    var unidades = (configRQ && configRQ.unidades) || [['UNIDAD', 'Unidad']], html = '', esta = false;
+    valor = valor || 'UNIDAD';
+    unidades.forEach(function (u) {
+        var igual = u[0] === valor || u[0] === String(valor).toUpperCase();
+        if (igual) { esta = true; }
+        html += '<option value="' + esc(u[0]) + '"' + (igual ? ' selected' : '') + '>' + esc(u[1]) + '</option>';
+    });
+    if (!esta) { html = '<option value="' + esc(valor) + '" selected>' + esc(valor) + '</option>' + html; }
+    return '<select name="unidad[]" class="form-control">' + html + '</select>';
+}
+
+//Los peajes del mismo proyecto que el peaje de la RQ (de los que la persona tiene)
+function peajesDelProyecto(idCentroRq) {
+    var centro = $.grep(centrosRQ, function (c) { return String(c.ID_CENTRO_OP) === String(idCentroRq); })[0];
+    if (!centro) { return []; }
+    return $.grep(centrosRQ, function (c) { return String(c.ID_PROYECTO) === String(centro.ID_PROYECTO); });
+}
+
+//Las opciones del peaje de un ítem: vacío = el mismo de la RQ; o cualquier otro peaje del proyecto
+function opcionesPeajeItem(idCentroRq, valor) {
+    var html = '<option value="">El de la RQ</option>';
+    peajesDelProyecto(idCentroRq).forEach(function (c) {
+        if (String(c.ID_CENTRO_OP) === String(idCentroRq)) { return; }
+        html += '<option value="' + parseInt(c.ID_CENTRO_OP, 10) + '"' + (String(c.ID_CENTRO_OP) === String(valor) ? ' selected' : '') + '>' + esc(c.NOM_CENTRO_OP) + '</option>';
+    });
+    return html;
+}
+
+//El campo del peaje del ítem. Solo se ve si el proyecto tiene más de un peaje
+function htmlPeajeItem(idCentroRq, valor) {
+    var visible = configRQ.peajePorItem && peajesDelProyecto(idCentroRq).length > 1;
+    return '<div class="form-group col-md-6 col-sm-12 col-xs-12 rq-peaje-grupo"' + (visible ? '' : ' style="display:none;"') + '>' +
+           '<label>Para qué peaje:</label><select name="peaje[]" class="form-control rq-peaje-item">' + opcionesPeajeItem(idCentroRq, valor) + '</select>' +
+           '<small class="rq-ayuda">Si la misma RQ pide para varios peajes (por ejemplo, el agua de tres peajes), cada ítem dice el suyo.</small></div>';
+}
+
+//El peaje del ítem en el detalle y en el listado: "Peaje principal + otros"
+function textoPeajes(principal, otros) {
+    return esc(principal) + (otros ? ' <span class="rq-otros-peajes" title="La RQ también pide para estos peajes">+ ' + esc(otros) + '</span>' : '');
+}
+
 //"2026-09-18" -> "18/09/2026"
 function fechaCorta(fecha) {
     if (!fecha) { return ''; }
@@ -100,6 +144,10 @@ $(function () {
     //Al elegir el peaje se muestra qué número le tocaría
     $('#rqCentro').on('change', function () {
         var idCentro = $(this).val();
+        //Los ítems ofrecen los peajes del proyecto del peaje elegido
+        var visible = configRQ.peajePorItem && peajesDelProyecto(idCentro).length > 1;
+        $('#rqItems .rq-peaje-item').each(function () { $(this).html(opcionesPeajeItem(idCentro, $(this).val())); });
+        $('#rqItems .rq-peaje-grupo').toggle(visible);
         $('#rqNumero').attr('placeholder', 'Automático');
         if (!idCentro || $('#btnNuevaRQ').attr('data-puede') === '0') { return; } //quien no puede pedir RQ no necesita el siguiente número
         $.getJSON(URL_RQ + '?op=siguienteNumero&centro=' + encodeURIComponent(idCentro))
@@ -169,7 +217,7 @@ function cargarCatalogos() {
         .done(function (respuesta) {
             configRQ = respuesta;
             $('#vistaRQ .hana-vista-todas').text(respuesta.verTodas ? 'Todas las RQ' : 'Las de mi rol');
-            //Quien no pide RQ y solo las revisa (el gerente de operaciones) abre directo en "Todas las RQ"
+            //Quien no pide RQ y solo las revisa (el director de operaciones) abre directo en "Todas las RQ"
             if (!respuesta.puedePedir && respuesta.verTodas) {
                 vistaRQ = 'todas';
                 $('#vistaRQ .hana-vista-btn').removeClass('activo');
@@ -187,7 +235,7 @@ function cargarCatalogos() {
         .done(function (filas) {
             centrosRQ = filas;
             if (!filas.length && $('#btnNuevaRQ').attr('data-puede') !== '0') { //solo le importa a quien puede pedir
-                avisoRQ('No tienes peajes para pedir RQ. Pide que te asignen uno en Configuración → Usuarios, o que te pongan como coordinador del proyecto.');
+                avisoRQ('No tienes peajes para pedir RQ. Pide que te asignen uno en Configuración → Colaboradores.');
                 $('#btnNuevaRQ').prop('disabled', true);
             }
 
@@ -311,7 +359,10 @@ function pintarTabla(filas) {
                 return etiquetaRQ(rq.TIPO_RQ, rq.NUMERO_RQ);
             } },
             { data: 'NOM_PROYECTO', render: function (valor) { return esc(valor); } },
-            { data: 'NOM_CENTRO_OP', render: function (valor) { return esc(valor); } },
+            { data: null, render: function (rq, tipo) {
+                if (tipo !== 'display') { return rq.NOM_CENTRO_OP + (rq.OTROS_PEAJES ? ' ' + rq.OTROS_PEAJES : ''); }
+                return textoPeajes(rq.NOM_CENTRO_OP, rq.OTROS_PEAJES);
+            } },
             { data: 'FECHA_RQ', render: function (valor, tipo) {
                 return tipo === 'sort' ? valor : fechaCorta(valor);   //ordena bien aunque se vea dd/mm
             } },
@@ -391,10 +442,10 @@ function agregarItem() {
         '      <input type="number" name="cantidad[]" class="form-control" min="0.01" step="any" value="1">' +
         '    </div>' +
         '    <div class="form-group col-md-3 col-sm-6 col-xs-6">' +
-        '      <label>Unidad:</label>' +
-        '      <input type="text" name="unidad[]" class="form-control" maxlength="30" value="Unidad">' +
+        '      <label>Unidad de medida:</label>' + htmlUnidad('UNIDAD') +
         '    </div>' +
         '  </div>' +
+        '  <div class="row">' + htmlPeajeItem($('#rqCentro').val(), '') + '</div>' +
         '  <div class="row">' +
         '    <div class="form-group col-md-6 col-sm-12 col-xs-12">' +
         '      <label>Por qué se necesita:</label>' +
@@ -569,7 +620,7 @@ function pintarDetalle(detalle) {
     var html = '<div class="rq-det-cab">' +
             '<div><span class="rq-det-lbl">Tipo</span><span class="rq-etq ' + (rq.TIPO_RQ === 'U' ? 'rq-etq-u">Urgente' : 'rq-etq-n">Normal') +
                 '</span></div>' +
-            '<div><span class="rq-det-lbl">Peaje</span>' + esc(rq.NOM_CENTRO_OP) + '</div>' +
+            '<div><span class="rq-det-lbl">Peaje</span>' + textoPeajes(rq.NOM_CENTRO_OP, rq.OTROS_PEAJES) + '</div>' +
             '<div><span class="rq-det-lbl">Fecha</span>' + fechaCorta(rq.FECHA_RQ) + '</div>' +
             '<div><span class="rq-det-lbl">Solicitó</span>' + esc(rq.SOLICITA) + '</div>' +
             '<div><span class="rq-det-lbl">Estado</span>' +
@@ -583,7 +634,8 @@ function pintarDetalle(detalle) {
     for (var i = 0; i < detalle.items.length; i++) {
         var item = detalle.items[i];
         html += '<div class="rq-det-item"><div class="rq-det-item-cab"><strong>' + esc(item.DESCRIPCION) + '</strong>' +
-             '<span>' + esc(parseFloat(item.CANTIDAD)) + ' ' + esc(item.UNIDAD) + '</span></div>' +
+             '<span>' + esc(parseFloat(item.CANTIDAD)) + ' ' + esc(item.UNIDAD_NOMBRE || item.UNIDAD) + '</span></div>' +
+             (item.PEAJE_ITEM && String(item.ID_CENTRO_OP) !== String(rq.ID_CENTRO_OP) ? '<div class="rq-det-item-peaje"><i class="fa fa-map-marker"></i> Para el peaje ' + esc(item.PEAJE_ITEM) + '</div>' : '') +
              (item.JUSTIFICACION ? '<div class="rq-det-item-just">' + esc(item.JUSTIFICACION) + '</div>' : '') +
              (item.SOPORTE_ULTIMA_ADQUISICION ? '<div class="rq-det-item-sop"><i class="fa fa-paperclip"></i> Última adquisición: ' +
                esc(item.SOPORTE_ULTIMA_ADQUISICION) + '</div>' : '') +
@@ -730,8 +782,9 @@ function htmlItemRQ(item) {
         '<input type="text" name="descripcion[]" class="form-control" maxlength="255" value="' + esc(item.DESCRIPCION || '') + '"></div>' +
         '<div class="form-group col-sm-3 col-xs-6"><label>Cantidad:</label>' +
         '<input type="number" name="cantidad[]" class="form-control" min="0.01" step="any" value="' + esc(item.CANTIDAD ? parseFloat(item.CANTIDAD) : 1) + '"></div>' +
-        '<div class="form-group col-sm-3 col-xs-6"><label>Unidad:</label>' +
-        '<input type="text" name="unidad[]" class="form-control" maxlength="30" value="' + esc(item.UNIDAD || 'Unidad') + '"></div></div>' +
+        '<div class="form-group col-sm-3 col-xs-6"><label>Unidad de medida:</label>' + htmlUnidad(item.UNIDAD || 'UNIDAD') + '</div></div>' +
+        '<div class="row">' + htmlPeajeItem(detalleRQ.rq.ID_CENTRO_OP,
+            item.ID_CENTRO_OP && String(item.ID_CENTRO_OP) !== String(detalleRQ.rq.ID_CENTRO_OP) ? item.ID_CENTRO_OP : '') + '</div>' +
         '<div class="row"><div class="form-group col-sm-6 col-xs-12"><label>Por qué se necesita:</label>' +
         '<textarea name="justificacion[]" class="form-control" rows="2">' + esc(item.JUSTIFICACION || '') + '</textarea></div>' +
         '<div class="form-group col-sm-6 col-xs-12"><label>Soporte de la última adquisición:</label>' +

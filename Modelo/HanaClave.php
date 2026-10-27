@@ -24,21 +24,26 @@
     deja de coincidir y el enlace ya no sirve (se usa una sola vez). Así no hace
     falta guardar nada en la base. urlRestablecer arma la dirección del enlace.
 
-  También están aquí los números del freno al iniciar sesión (INTENTOS_MAXIMOS,
-  MINUTOS_ESPERA, INTENTOS_POR_IP) y del límite de correos de recuperación.
+  También están aquí los números del freno al iniciar sesión (intentosMaximos,
+  minutosEspera, INTENTOS_POR_IP) y del límite de correos de recuperación. El largo
+  mínimo, los intentos, la espera y lo que dura el enlace se cambian en Parámetros del sistema.
   Lo usan Control/UsuariosControl.php y Control/UsuarioHelper.php.
 */
 
+require_once __DIR__ . '/HanaConfig.php'; //los números que cambia el administrador
+
 class HanaClave
 {
-    const LARGO_MINIMO = 8;       //caracteres de una clave nueva
+    //Estos cuatro números los cambia el administrador en Parámetros del sistema → Contraseñas e ingreso
+    public static function largoMinimo()   { return max(4, HanaConfig::num('CLAVE_LARGO_MINIMO', 4)); }      //caracteres de una clave nueva
+    public static function minutosEnlace() { return max(10, HanaConfig::num('CLAVE_MINUTOS_ENLACE', 60)); }  //cuánto sirve el enlace de "Olvidé mi contraseña"
     const LARGO_MAXIMO = 72;      //bcrypt solo usa los primeros 72 bytes
-    const MINUTOS_ENLACE = 60;    //cuánto sirve el enlace de "Olvidé mi contraseña"
     const CORREOS_POR_HORA = 3;   //enlaces que se mandan como máximo al mismo correo en una hora
 
-    //El freno al iniciar sesión (los intentos quedan en bitacora_sistema, TIPO 'INGRESO')
-    const INTENTOS_MAXIMOS = 5;   //claves malas seguidas de un mismo usuario...
-    const MINUTOS_ESPERA = 15;    //...dentro de estos minutos: hay que esperar
+    //El freno al iniciar sesión (los intentos quedan en bitacora_sistema, TIPO 'INGRESO'):
+    //tantas claves malas seguidas de un mismo usuario, dentro de tantos minutos, y hay que esperar
+    public static function intentosMaximos() { return max(3, HanaConfig::num('INGRESO_INTENTOS', 5)); }
+    public static function minutosEspera()   { return max(1, HanaConfig::num('INGRESO_MINUTOS_ESPERA', 15)); }
     const INTENTOS_POR_IP = 100;  //claves malas desde un mismo equipo, con cualquier usuario (alto: en una oficina
                                   //todos salen a internet con la misma dirección)
 
@@ -84,7 +89,7 @@ class HanaClave
     {
         $clave = (string)$clave;
         if (trim($clave) === '') { return 'Escribe la nueva contraseña.'; }
-        if (mb_strlen($clave, 'UTF-8') < self::LARGO_MINIMO) { return 'La contraseña debe tener al menos ' . self::LARGO_MINIMO . ' caracteres.'; }
+        if (mb_strlen($clave, 'UTF-8') < self::largoMinimo()) { return 'La contraseña debe tener al menos ' . self::largoMinimo() . ' caracteres.'; }
         if (strlen($clave) > self::LARGO_MAXIMO) { return 'La contraseña es demasiado larga (máximo ' . self::LARGO_MAXIMO . ' caracteres).'; }
         if (trim($clave) !== $clave) { return 'La contraseña no puede empezar ni terminar con espacios.'; }
         return '';
@@ -105,7 +110,7 @@ class HanaClave
     {
         $vence = (int)$vence;
         if ($vence < time()) { return false; }                                   //ya venció
-        if ($vence > time() + self::MINUTOS_ENLACE * 60 + 60) { return false; } //una fecha inventada más allá de lo permitido
+        if ($vence > time() + self::minutosEnlace() * 60 + 60) { return false; } //una fecha inventada más allá de lo permitido
         if ((string)$claveGuardada === '') { return false; }                     //la persona no tiene clave (no tiene usuario)
         return hash_equals(self::firmaEnlace($idPersona, $vence, $claveGuardada), (string)$firma);
     }

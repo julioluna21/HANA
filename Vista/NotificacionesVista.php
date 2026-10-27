@@ -1,17 +1,22 @@
 <?php
-//Pantalla de administración de notificaciones automáticas por correo
-//Permite decidir a quien y cada cuanto se envían los reportes de cada lista de chequeo
+//Reporte diario - Correos automáticos
+//Arriba (solo el ADMIN TEC, 24M): los recordatorios, el resultado de la promesa de valor y su aviso
+//en la campana, con su hora, sus días y a quién le llegan (Control/TareasControl.php).
+//Abajo (12M): a quién y cada cuánto se envían los correos de cada lista de chequeo
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
 $modulosAcceso = explode(",", $_SESSION['Modulos']);
 
-//Se usa el mismo permiso de Grupos de listas (12M): quien administra las
-//listas de chequeo es quien configura sus notificaciones
-if (in_array("12M", $modulosAcceso)) {
+//Dos casillas separadas en Permisos de usuario: los recordatorios y avisos automáticos (57M)
+//y los correos de las listas de chequeo (44M). El ADMIN TEC (24M) ve las dos partes
+$caTareas = in_array("57M", $modulosAcceso) || in_array("24M", $modulosAcceso);
+$caListas = in_array("44M", $modulosAcceso) || in_array("24M", $modulosAcceso);
+if ($caTareas || $caListas) {
 
 include('head.php');
 ?>
+<link href="../public/css/reporte.css?v=18" rel="stylesheet">
 <!-- Contenido -->
 <div class="right_col" role="main">
   <div class="">
@@ -20,10 +25,26 @@ include('head.php');
     <div class="row">
       <div class="col-md-12 col-xs-12">
 
-        <!-- Formulario de configuración -->
+<?php if ($caTareas) { ?>
+        <!-- Recordatorios, resúmenes y avisos automáticos: hora, días y a quién le llegan (casilla 57M) -->
         <div class="x_panel">
           <div class="x_title">
-            <h2><i class="fa fa-envelope-o"></i> Notificaciones automáticas</h2>
+            <h2><i class="fa fa-clock-o"></i> Recordatorios y avisos automáticos</h2>
+            <div class="clearfix"></div>
+          </div>
+          <div class="x_content">
+            <p class="rd-intro">Cada uno se hace solo, una vez al día, desde la hora que elijas y en los días marcados. «Ver a quién le llegaría» no envía nada: solo muestra la lista.</p>
+            <div id="caAvisoCron"></div>
+            <div id="caTareas"><p class="rd-vacio">Cargando...</p></div>
+          </div>
+        </div>
+<?php } ?>
+<?php if ($caListas) { ?>
+
+        <!-- Formulario de configuración -->
+        <div class="x_panel" id="listas">
+          <div class="x_title">
+            <h2><i class="fa fa-envelope-o"></i> Correos de las listas de chequeo</h2>
             <ul class="nav navbar-right panel_toolbox">
               <li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a></li>
             </ul>
@@ -108,7 +129,7 @@ include('head.php');
         <!-- Listado de notificaciones configuradas -->
         <div class="x_panel">
           <div class="x_title">
-            <h2><i class="fa fa-list"></i> Notificaciones configuradas</h2>
+            <h2><i class="fa fa-list"></i> Correos de listas configurados</h2>
             <div class="clearfix"></div>
           </div>
           <div class="x_content">
@@ -128,7 +149,7 @@ include('head.php');
 
           </div>
         </div>
-
+<?php } ?>
       </div>
     </div>
   </div>
@@ -137,7 +158,9 @@ include('head.php');
 <?php
 include('footer.php');
 ?>
-<script type="text/javascript" src="../Ajax/NotificacionesAjax.js?v=4"></script>
+<?php if ($caListas) { ?><script type="text/javascript" src="../Ajax/NotificacionesAjax.js?v=4"></script><?php } ?>
+<?php if ($caTareas) { ?><script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/CorreosAutomaticosAjax.js?v=2"></script><?php } ?>
 <?php
 } else {
   //Con sesión pero sin permiso: va al inicio (volver atrás dejaba la página en blanco si se abrió desde un enlace)

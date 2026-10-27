@@ -1,27 +1,38 @@
 <?php
+/*
+  Pantalla retirada: el ausentismo (matriz de cubrimiento: quién cubrió a quién, los motivos
+  CUBRIENDO A..., las inducciones y los días) se quitó del sistema. En esa sección queda solo
+  la promesa de valor (Vista/PromesaValorVista.php). Si alguien entra por la dirección, va al inicio.
+  El código de abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
 //Ausentismo - el "Reporte nacional de ausentismo" dentro de HANA.
 //Las ausencias con su motivo están en la marcación de turnos: aquí se anota cómo se cubrió
 //cada falta (NO SE CUBRIÓ, CUBRIENDO A... o un apoyo a otro peaje o proyecto).
-//Registra el coordinador de cada proyecto; consultan 20M, 21M y 22M.
-//El consolidado se ve de todo el mes o de un rango de días; del proyecto, de un solo peaje o, con 20M, 21M, 22M o 25M, de todos los proyectos juntos
+//Registra quien tiene 52M y consulta quien tiene 53M, siempre en sus peajes asignados.
+//El consolidado se ve de todo el mes o de un rango de días; del proyecto, de un solo peaje o de todos sus proyectos juntos
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     require_once __DIR__ . '/../Control/PaginaControl.php';
     if (!pagModuloActivo('AUSENTISMO')) { echo "<script>window.location.replace('InicioVista.php');</script>"; exit; }
-    $esCoordinador = pagEsCoordinador();
-    //El jefe de peaje registra el de su peaje (si el administrador lo permite en Parámetros)
-    $esJefe = pagParametroSi('AUS_JEFES_EDITAN') && pagEsJefePeaje();
-    if ($esCoordinador || $esJefe || in_array("20M", $modulosAcceso) || in_array("21M", $modulosAcceso) || in_array("22M", $modulosAcceso) || in_array("25M", $modulosAcceso)) {
+    //Lo registra, lo ve, cierra o corrige quien tenga esas casillas, en sus peajes asignados
+    $esCoordinador = pagPuede('AUSENTISMO', 'llenar') && pagTieneCentros();
+    $esJefe = false;
+    if (pagAusentismoEntrar()) {
         include('head.php');
 ?>
-<link href="../public/css/reporte.css?v=17" rel="stylesheet">
+<link href="../public/css/reporte.css?v=18" rel="stylesheet">
 <style media="print">@page{ size: landscape; }</style> <!-- la matriz del mes (31 días) cabe mejor a lo ancho -->
 
 <div class="right_col" role="main">
   <div class="row">
     <div class="col-md-12 col-xs-12">
+      <?php echo pagSeccionesAusentismo('AUSENTISMO'); //Ausentismo y Promesa de valor, las dos partes de la sección ?>
       <div class="x_panel">
         <div class="x_title">
           <h2><i class="fa fa-user-times"></i> Ausentismo</h2>
@@ -57,7 +68,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <p class="rd-ayuda" style="margin-top:0;">Aquí se anota <strong>cómo se cubrió cada falta</strong> del peaje; la ausencia con su motivo ya está en la marcación de turnos.
                 Elige el día, el cargo del puesto que quedó sin cubrir, qué pasó y cuántas personas: <em>NO SE CUBRIÓ</em> (faltó la persona y nadie ocupó su puesto),
                 <em>CUBRIENDO A…</em> (la persona dejó su cargo para cubrir otro, que quedó cubierto) o un <em>APOYO</em> a otro peaje o proyecto.
-                Queda anotado en la matriz del mes, así que el consolidado, el Excel y el dashboard se actualizan solos. Si pasó varios días seguidos,
+                Queda anotado en la matriz del mes, así que el consolidado y el Excel se actualizan solos. Si pasó varios días seguidos,
                 escribe también el último día: se anota en cada día del rango. <span id="ausFuturoAyuda"></span></p>
               <div id="ausNotaRapido"></div>
               <form id="ausRapido" class="aus-rapido" autocomplete="off">
@@ -147,8 +158,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=8"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/AusentismoAjax.js?v=9"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

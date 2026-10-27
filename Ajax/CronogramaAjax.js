@@ -10,7 +10,6 @@ var proyActual = null;      //el proyecto que se está viendo (con sus centros y
 var proyEditable = false;   //solo el cronograma propio se edita; el de otro proyecto es consulta
 var TRANSPORTE_ICONO = { BUS: 'fa-bus', TAXI: 'fa-taxi', APP: 'fa-car', PARTICULAR: 'fa-car', OTRO: 'fa-road', NO_VIAJO: 'fa-home' };
 //En el cuadrito del día cabe poco: nombres cortos
-var TRANSPORTE_CORTO = { BUS: 'Bus', TAXI: 'Taxi', APP: 'Didi / app', PARTICULAR: 'Particular', OTRO: 'Otro', NO_VIAJO: 'No viajó' };
 //Calendario o lista. En el celular arranca en lista: en el calendario solo se ven rayas de color
 var vistaCrono = window.innerWidth < 768 ? 'lista' : 'calendario';
 
@@ -40,6 +39,13 @@ $(function () {
             }
             $('#cProyecto').html(htmlProyectos || '<option value="">No tienes proyectos para ver</option>').val(String(config.proyectoInicial || ''));
             $('#btnVehiculos').toggle(!!config.adminVh);
+            //Desde Parámetros del sistema se llega directo: CronogramaVista.php#vehiculos
+            if (location.hash === '#vehiculos' && config.adminVh) { setTimeout(function () { $('#btnVehiculos').trigger('click'); }, 0); }
+            //Quien no llena cronograma (por ejemplo el director de operaciones, con 34M) solo lo consulta
+            if (!config.usaCrono) {
+                $('#cAyuda').text('Toca un día para ver lo planeado, lo que se hizo y el estado del vehículo. ' +
+                                  'Es solo consulta: cada coordinador llena el cronograma de su proyecto.');
+            }
             elegirProyecto();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir el cronograma.'); });
@@ -213,7 +219,7 @@ function lineaVh(fecha, datos, largo) {
     if (vehiculoDia && vehiculoDia.TRANSPORTE) {
         html += '<div class="crono-transporte"><i class="fa ' + (TRANSPORTE_ICONO[vehiculoDia.TRANSPORTE] || 'fa-road') + '"></i> ' +
              (largo ? 'Se transportó en: ' + rdEsc(cfgC.transportes[vehiculoDia.TRANSPORTE] || vehiculoDia.TRANSPORTE)
-                    : rdEsc(TRANSPORTE_CORTO[vehiculoDia.TRANSPORTE] || vehiculoDia.TRANSPORTE)) + '</div>';
+                    : rdRecortar(cfgC.transportes[vehiculoDia.TRANSPORTE] || vehiculoDia.TRANSPORTE, 16)) + '</div>';
     }
     return html;
 }
@@ -456,7 +462,7 @@ function guardarVhDia() {
 }
 
 //---------------------------------------------------------------------------
-// Catálogo de vehículos (5M)
+// Vehículos de sus proyectos: agregar, cambiar y quitar (casilla 47M)
 //---------------------------------------------------------------------------
 var catalogoVh = [];
 
@@ -465,6 +471,13 @@ function abrirVehiculos() {
     $('#panelCalendario').hide();
     $('#panelVehiculos').show();
     $('#formVh')[0].reset(); $('#vhId').val('');
+    //Proyecto del vehículo: uno de los suyos
+    var opciones = '';
+    for (var p = 0; p < (cfgC.proyectos || []).length; p++) {
+        opciones += '<option value="' + parseInt(cfgC.proyectos[p].ID_PROYECTO, 10) + '">' + rdEsc(cfgC.proyectos[p].NOM_PROYECTO) + '</option>';
+    }
+    $('#vhProyecto').html(opciones);
+    if (proyActual) { $('#vhProyecto').val(String(proyActual.ID_PROYECTO)); }
     //Responsables: los colaboradores activos
     $.getJSON('../Control/ProyectoControl.php?op=colaboradores', function (lista) {
         var html = '<option value="">Sin asignar</option>';
@@ -484,11 +497,11 @@ function listarVehiculos() {
             var html = '';
             for (var i = 0; i < filas.length; i++) {
                 var vehiculo = filas[i];
-                html += '<tr><td><strong>' + rdEsc(vehiculo.PLACA) + '</strong></td><td>' + rdEsc(vehiculo.DESCRIPCION) + '</td><td>' + rdEsc(vehiculo.RESPONSABLE || 'Sin asignar') + '</td>' +
+                html += '<tr><td><strong>' + rdEsc(vehiculo.PLACA) + '</strong></td><td>' + rdEsc(vehiculo.DESCRIPCION) + '</td><td>' + rdEsc(vehiculo.NOM_PROYECTO || 'Sin proyecto') + '</td><td>' + rdEsc(vehiculo.RESPONSABLE || 'Sin asignar') + '</td>' +
                      '<td>' + (parseInt(vehiculo.ESTADO, 10) === 1 ? '<span class="rd-tag rd-tag-ok">Activo</span>' : '<span class="rd-tag">Inactivo</span>') + '</td>' +
                      '<td><button type="button" class="btn btn-default btn-xs btn-editar-vh" data-i="' + i + '"><i class="fa fa-pencil"></i> Editar</button></td></tr>';
             }
-            $('#filasVh').html(html || '<tr><td colspan="5" class="rd-vacio">Todavía no hay vehículos.</td></tr>');
+            $('#filasVh').html(html || '<tr><td colspan="6" class="rd-vacio">Todavía no hay vehículos en tus proyectos.</td></tr>');
         })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron cargar los vehículos.')); });
 }
@@ -498,6 +511,10 @@ function editarVehiculo() {
     var vehiculo = catalogoVh[$(this).data('i')];
     $('#vhId').val(vehiculo.ID_VEHICULO); $('#vhPlaca').val(vehiculo.PLACA); $('#vhDesc').val(vehiculo.DESCRIPCION || '');
     $('#vhResp').val(vehiculo.ID_COLABORADOR_RESPONSABLE ? String(vehiculo.ID_COLABORADOR_RESPONSABLE) : ''); $('#vhEstado').val(String(vehiculo.ESTADO));
+    if (vehiculo.ID_PROYECTO) {
+        if (!$('#vhProyecto option[value="' + parseInt(vehiculo.ID_PROYECTO, 10) + '"]').length) { $('#vhProyecto').append('<option value="' + parseInt(vehiculo.ID_PROYECTO, 10) + '">' + rdEsc(vehiculo.NOM_PROYECTO || '') + '</option>'); }
+        $('#vhProyecto').val(String(vehiculo.ID_PROYECTO));
+    }
     $('#vhPlaca').focus();
 }
 

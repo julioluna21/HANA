@@ -1,4 +1,14 @@
 <?php
+/*
+  Pantalla sin uso: el tablero por proyectos quedó dentro del Reporte general
+  (ControlDiarioVista.php), arriba de las pestañas. Esta dirección lleva allá, con el
+  mismo proyecto si venía en la dirección.
+*/
+$proyecto = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
+header('Location: ControlDiarioVista.php' . ($proyecto > 0 ? '?proyecto=' . $proyecto : ''));
+exit;
+?>
+<?php
 //Reporte diario - Tablero por proyectos
 //Para los jefes: un mosaico por proyecto; dentro, cada peaje con su jefe y lo
 //que reportó ese día; y el reporte completo de cada persona
@@ -60,8 +70,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=10"></script>
-<script type="text/javascript" src="../Ajax/TableroAjax.js?v=13"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/TableroAjax.js?v=15"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

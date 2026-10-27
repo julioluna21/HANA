@@ -1,26 +1,29 @@
 <?php
-//Reporte diario - Reporte general del día
+//Reporte diario - Reporte general del día (con el tablero por proyectos)
 //Lo que enviaron los coordinadores y jefes de peaje, organizado por módulo,
-//con quién falta por reportar. Permiso 19M (el del tablero)
+//con quién falta por reportar. Permiso 19M: cada quien ve lo de sus peajes asignados; el ADMIN TEC, todo.
+//Arriba, el tablero por proyectos: solo el director de operaciones (43M) y el administrador (24M)
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
     $modulosAcceso = explode(",", $_SESSION['Modulos']);
     if (in_array("19M", $modulosAcceso)) {
         include('head.php');
+        $verTablero = in_array("43M", $modulosAcceso) || in_array("24M", $modulosAcceso);
 ?>
 <link href="../public/css/reporte.css?v=16" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
     <div class="col-md-12 col-xs-12">
-      <div class="rd-migas"><a href="ReporteDiarioVista.php"><i class="fa fa-calendar-check-o"></i> Reporte diario</a> <span>›</span> Reporte general</div>
 
       <div class="x_panel">
         <div class="x_title">
           <h2><i class="fa fa-list-alt"></i> Reporte general del día</h2>
           <div class="pull-right rd-botones-titulo rd-no-imprimir">
-            <a class="btn btn-default" href="TableroVista.php"><i class="fa fa-th-large"></i> Tablero por proyectos</a>
+            <?php if (in_array("37M", $modulosAcceso)) { //el informe de un mes, una quincena o las fechas que se elijan ?>
+            <a class="btn btn-default" href="InformeMensualVista.php"><i class="fa fa-file-pdf-o"></i> Informe mensual</a>
+            <?php } ?>
             <button type="button" class="btn btn-default" onclick="window.print()"><i class="fa fa-print"></i> Imprimir</button>
           </div>
           <div class="clearfix"></div>
@@ -38,6 +41,23 @@ if (isset($_SESSION['IdUsuarios'])) {
           <p class="cd-titulo-imprimir" id="cdTituloImprimir"></p>
           <p class="rd-ayuda" id="cdAlcance"></p>
 
+          <?php if ($verTablero) { ?>
+          <!-- Tablero por proyectos (director de operaciones): un mosaico por proyecto; al tocar uno,
+               sus peajes con su jefe, y abajo el reporte queda solo de ese proyecto -->
+          <div id="cdTablero" class="cd-tablero rd-no-imprimir">
+            <h4 class="rd-subtitulo" id="tbTitulo">Tablero por proyectos</h4>
+            <?php if (pagPromesaEntrar()) { ?><p class="rd-ayuda"><a href="PromesaValorVista.php"><i class="fa fa-clock-o"></i> Ver la promesa de valor de cada peaje</a> (horas prometidas y ejecutadas)</p><?php } ?>
+            <div id="nivelProyectos" class="tb-proyectos"></div>
+            <div id="nivelCentros" style="display:none;">
+              <div id="tbIrA" class="tb-ir"></div>
+              <div id="tbCoordinador"></div>
+              <h4 class="rd-subtitulo">Peajes, básculas y bases</h4>
+              <div id="tbCentros" class="tb-centros"></div>
+            </div>
+            <h4 class="rd-subtitulo" style="margin-top:18px;">Reporte del día</h4>
+          </div>
+          <?php } ?>
+
           <!-- Resumen: una tarjeta por módulo; al tocarla se abre su pestaña -->
           <div class="cd-resumen" id="cdResumen"></div>
 
@@ -50,7 +70,6 @@ if (isset($_SESSION['IdUsuarios'])) {
             <li><a href="#tabVh" data-toggle="tab">Vehículos</a></li>
             <li><a href="#tabVac" data-toggle="tab">Vacantes</a></li>
             <li><a href="#tabCom" data-toggle="tab">Comunicaciones</a></li>
-            <li><a href="#tabRq" data-toggle="tab">RQ por aprobar</a></li>
             <li id="cdPestanaAus"><a href="#tabAus" data-toggle="tab">Ausentismo</a></li>
           </ul>
           <div class="tab-content cd-contenido">
@@ -62,7 +81,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <label class="rd-opcion"><input type="radio" name="fHoy" value="reportaron"> <span>Ya reportaron</span></label>
               </div>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>Persona</th><th>Estado</th><th>Dónde</th><th>Horario</th><th>Qué hizo</th><th>Registró</th><th class="rd-no-imprimir"></th></tr></thead>
+                <thead><tr><th>Persona</th><th>Estado</th><th>Dónde</th><th>Horario</th><th>Plan del día</th><th>Registró</th><th class="rd-no-imprimir"></th></tr></thead>
                 <tbody id="tbHoy"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabListas">
@@ -106,13 +125,6 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <thead><tr><th>Tipo</th><th>Recepción</th><th>Remitente</th><th>Asunto</th><th>Registró</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Pendiente de</th></tr></thead>
                 <tbody id="tbCom"></tbody></table></div>
             </div>
-            <div class="tab-pane" id="tabRq">
-              <h4 class="cd-sub-imprimir">RQ por aprobar</h4> <!-- al imprimir, el título va primero en su hoja -->
-              <div id="cdRqProy"></div>
-              <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>RQ</th><th>Centro</th><th>Solicitó</th><th>Qué se pide</th><th class="rd-num-col">Días esperando</th><th class="rd-no-imprimir cd-col-decidir">Decidir</th></tr></thead>
-                <tbody id="tbRq"></tbody></table></div>
-            </div>
             <!-- Ausentismo del día: cada ausencia con su motivo (quién cubrió a quién) -->
             <div class="tab-pane" id="tabAus">
               <h4 class="cd-sub-imprimir">Ausentismo</h4> <!-- al imprimir, el título va primero en su hoja -->
@@ -143,8 +155,9 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=10"></script>
-<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=18"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<?php if ($verTablero) { ?><script type="text/javascript" src="../Ajax/TableroAjax.js?v=15"></script><?php } ?>
+<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=21"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

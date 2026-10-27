@@ -1,6 +1,7 @@
 <?php
 /*
-  Archivo sin uso: el consolidado de promesa de valor se quitó del sistema junto con la promesa de valor.
+  Archivo sin uso: el consolidado de la promesa de personas se quitó. La promesa vigente
+  (en horas) es Control/PromesaValorControl.php.
   Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
   abajo se conserva solo como referencia.
 */

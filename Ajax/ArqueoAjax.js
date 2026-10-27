@@ -20,6 +20,9 @@ $(function () {
             $('#btnNuevoArq').toggle(!!config.puedeArquear);
             $('#btnFondos').toggle(!!config.puedeFondos);
             $('#btnCampos').toggle(!!config.puedeCampos);
+            //Desde Parámetros del sistema se llega directo: ArqueosVista.php#campos o #fondos
+            if (location.hash === '#campos' && config.puedeCampos) { setTimeout(function () { $('#btnCampos').trigger('click'); }, 0); }
+            if (location.hash === '#fondos' && config.puedeFondos) { setTimeout(function () { $('#btnFondos').trigger('click'); }, 0); }
 
             //Filtros
             var htmlCentros = '<option value="0">Todos</option>';
@@ -352,7 +355,7 @@ function abrirFondos() {
     $.getJSON(URL_ARQ + '?op=fondos')
         .done(function (filas) {
             //Pone los puntos de miles a un valor (sin decimales)
-            var html = '', formatear = function (valor) { return valor ? Math.round(valor).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''; };
+            var html = '', formatear = function (valor) { return valor ? '$ ' + Math.round(valor).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''; };
             for (var i = 0; i < filas.length; i++) {
                 var fila = filas[i], id = parseInt(fila.ID_CENTRO_OP, 10);
                 html += '<tr><td>' + rdEsc(fila.NOM_PROYECTO) + '</td><td>' + rdEsc(fila.NOM_CENTRO_OP) + '</td>' +

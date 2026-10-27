@@ -50,7 +50,9 @@ Class Cargos
 				$sql="SELECT * FROM cargos_colaboradores WHERE NOM_CARGO_COLABORADORES != 'Desarrollador' AND ESTADO = 1";
 				return ejecutarConsulta($sql);
 		} else {
-				$sql = "SELECT * FROM cargos_colaboradores WHERE NOM_CARGO_COLABORADORES LIKE '%".$busqueda."%' AND NOM_CARGO_COLABORADORES != 'Desarrollador' AND Estado= '1' ORDER BY NOM_CARGO_COLABORADORES ASC";
+				//El texto de búsqueda se escapa (comillas) y se neutralizan los comodines % y _ antes del LIKE
+				$texto = addcslashes(mysqli_real_escape_string($GLOBALS['conexion'], (string)$busqueda), '%_');
+				$sql = "SELECT * FROM cargos_colaboradores WHERE NOM_CARGO_COLABORADORES LIKE '%".$texto."%' AND NOM_CARGO_COLABORADORES != 'Desarrollador' AND Estado= '1' ORDER BY NOM_CARGO_COLABORADORES ASC";
 				return ejecutarConsulta($sql);
 		}
 		}

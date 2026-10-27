@@ -17,7 +17,9 @@
 
   Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
     Pantalla Usuarios   guardar, mostrar, anular y activar (bloquear o devolver el acceso),
-                        listar, claveTemporal y selectSinUsuario
+                        listar y selectSinUsuario. guardar también asigna la contraseña
+                        que escribió el administrador (le llega por correo).
+                        claveTemporal (una al azar) queda por compatibilidad
     Otras pantallas     select, select2 y selectc (desplegables de colaboradores y centros)
     Mi contraseña       cambiarclave
     Sin sesión          verificar (iniciar sesión), recuperar (pedir el enlace de
@@ -34,8 +36,8 @@
 
   Las claves (reglas, cifrado y enlace de recuperación) están en Modelo/HanaClave.php.
   Cada intento de entrar queda en bitacora_sistema (TIPO 'INGRESO'); con
-  HanaClave::INTENTOS_MAXIMOS claves malas seguidas hay que esperar
-  HanaClave::MINUTOS_ESPERA minutos.
+  HanaClave::intentosMaximos() claves malas seguidas hay que esperar
+  HanaClave::minutosEspera() minutos.
 */
 session_start();
 require_once "../Modelo/UsuarioModelo.php";
@@ -117,7 +119,7 @@ function correoenvio($correo, $mensaje, $asunto, $nombre = '', $boton = null)
     $mail->addAddress($correo, hanaNombreBonito($nombre));
     $mail->Subject  = $asunto;
     $mail->Body     = hanaCorreoHtml($nombre, $asunto, $mensaje, $boton);
-    $mail->AltBody  = trim(strip_tags(str_replace(array('<br>', '</p>'), "\n", $mensaje))); //para lectores que no muestran HTML
+    $mail->AltBody  = trim(html_entity_decode(strip_tags(str_replace(array('<br>', '</p>'), "\n", $mensaje)), ENT_QUOTES, 'UTF-8')); //para lectores que no muestran HTML (los enlaces sin &amp;)
     return hanaEnviar($mail, 'USUARIOS'); //queda en la bitácora (ver CorreoHelper.php)
 }
 
@@ -150,10 +152,19 @@ switch ($op)
         if (!Acceso::rolValido($idRol)) { echo 'Error: elige un rol activo.'; break; }
         if ($usuarioNuevo === '') { echo 'Error: escribe el nombre de usuario.'; break; }
 
-        //No tiene usuario: se le crea
+        //La contraseña que escribió el administrador (opcional): se revisa antes de cambiar nada
+        $claveEscrita = $valorPost('claveNueva');
+        if ($claveEscrita !== '') {
+            $problema = HanaClave::problema($claveEscrita);
+            if ($problema !== '') { echo 'Error: ' . $problema; break; }
+            if ($valorPost('claveNueva2') !== $claveEscrita) { echo 'Error: las dos contraseñas no coinciden. Vuelve a escribirlas.'; break; }
+            if (!usuPuedeCambiarClaveDe($idPersona)) { echo 'Error: la contraseña de quien administra HANA solo la cambia quien tiene 24M.'; break; }
+        }
+
+        //No tiene usuario: se le crea (con la contraseña escrita, o una temporal al azar)
         if ((string)$actual['USUARIO'] === '') {
             if ((int)$actual['ESTADO'] !== 1) { echo 'Error: la persona está inactiva. Actívala en Colaboradores antes de crearle el usuario.'; break; }
-            echo usuCrearUsuario($modeloUsuarios, $actual, $usuarioNuevo, $idRol);
+            echo usuCrearUsuario($modeloUsuarios, $actual, $usuarioNuevo, $idRol, $claveEscrita);
             break;
         }
 
@@ -164,7 +175,12 @@ switch ($op)
             $modeloUsuarios->ponerUsuario($idPersona, $usuarioNuevo);
         }
         $modeloUsuarios->ponerRol($idPersona, $idRol);
-        echo 'Usuario actualizado con éxito.';
+        if ($claveEscrita === '') { echo 'Usuario actualizado con éxito.'; break; }
+        //Le asignó una contraseña nueva: se guarda y le llega por correo
+        if (!$modeloUsuarios->guardarClave($idPersona, HanaClave::cifrar($claveEscrita))) { echo 'Error: se guardó el usuario, pero no se pudo cambiar la contraseña.'; break; }
+        Bitacora::ingreso($usuarioNuevo, $ip, true, $idPersona, 'CLAVE NUEVA'); //si estaba esperando por claves malas, ya puede entrar
+        $envio = usuEnviarDatosEntrada($actual['MAIL_COLABORADOR'], $actual['NOM_COLABORADOR'], $usuarioNuevo, $claveEscrita, true, false);
+        echo 'Usuario y contraseña actualizados con éxito.' . usuAvisoDatosEntrada($envio, $actual['MAIL_COLABORADOR'], $usuarioNuevo, $claveEscrita);
     break;
 
     //Una contraseña temporal nueva para la persona. Le llega por correo
@@ -172,12 +188,13 @@ switch ($op)
     case 'claveTemporal':
         $persona = $modeloUsuarios->mostrar($idPersona);
         if (!$persona || (string)$persona['USUARIO'] === '') { echo 'Error: esa persona no tiene usuario. Créaselo primero.'; break; }
+        if (!usuPuedeCambiarClaveDe($idPersona)) { echo 'Error: la contraseña de quien administra HANA solo la cambia quien tiene 24M.'; break; }
         $temporal = usuClaveTemporal();
         if (!$modeloUsuarios->guardarClave($idPersona, HanaClave::cifrar($temporal))) { echo 'Error: no se pudo cambiar la contraseña.'; break; }
         //Si estaba esperando por claves malas, con la clave nueva ya puede entrar
         Bitacora::ingreso($persona['USUARIO'], $ip, true, $idPersona, 'CLAVE NUEVA');
-        $enviado = usuEnviarDatosEntrada($persona['MAIL_COLABORADOR'], $persona['NOM_COLABORADOR'], $persona['USUARIO'], $temporal);
-        echo 'La contraseña se cambió con éxito.' . usuAvisoDatosEntrada($enviado, $persona['MAIL_COLABORADOR'], $persona['USUARIO'], $temporal);
+        $envio = usuEnviarDatosEntrada($persona['MAIL_COLABORADOR'], $persona['NOM_COLABORADOR'], $persona['USUARIO'], $temporal, true, true);
+        echo 'La contraseña se cambió con éxito.' . usuAvisoDatosEntrada($envio, $persona['MAIL_COLABORADOR'], $persona['USUARIO'], $temporal);
     break;
 
     //Cada quien cambia su propia contraseña. La de otra persona, solo con el permiso 1M.
@@ -190,9 +207,16 @@ switch ($op)
         $problema = HanaClave::problema($claveNueva);
         if ($problema !== '') { echo 'Error: ' . $problema; break; }
         if (isset($_POST['clave2']) && $valorPost('clave2') !== $claveNueva) { echo 'Error: las dos contraseñas no coinciden. Vuelve a escribirlas.'; break; }
-        echo $modeloUsuarios->guardarClave($idCambiar, HanaClave::cifrar($claveNueva))
-            ? "La contraseña se cambió con éxito"
-            : "Error: no se pudo actualizar la contraseña";
+        $esPropia = $idCambiar === (int)$_SESSION['Idcolaborador'];
+        if (!$esPropia && !usuPuedeCambiarClaveDe($idCambiar)) { echo 'Error: la contraseña de quien administra HANA solo la cambia quien tiene 24M.'; break; }
+        if (!$modeloUsuarios->guardarClave($idCambiar, HanaClave::cifrar($claveNueva))) { echo "Error: no se pudo actualizar la contraseña"; break; }
+        //El aviso al correo: a la persona le llega que su contraseña cambió
+        //(si la cambió otra persona, con la contraseña nueva)
+        $persona = $modeloUsuarios->mostrar($idCambiar);
+        $envio = $esPropia ? usuAvisarCambioPropio($persona['MAIL_COLABORADOR'], $persona['NOM_COLABORADOR'], $persona['USUARIO'])
+                           : usuEnviarDatosEntrada($persona['MAIL_COLABORADOR'], $persona['NOM_COLABORADOR'], $persona['USUARIO'], $claveNueva, true, false);
+        echo "La contraseña se cambió con éxito." . ($envio['ok'] ? "\n\nEl aviso llegó al correo " . $persona['MAIL_COLABORADOR'] . "."
+                                                               : "\n\nNo se pudo enviar el aviso al correo: " . $envio['motivo'] . ".");
     break;
 
     //Trae a una persona para cargarla en el formulario (sin la clave)
@@ -260,10 +284,10 @@ switch ($op)
         if ($usuario === '' || $claveEscrita === '') { usuJson(array('error' => true, 'mensaje' => 'Escribe tu usuario y tu contraseña.')); break; }
 
         //1. El freno: demasiadas claves malas con este usuario, o desde este equipo
-        if (Bitacora::fallosIngreso($usuario, HanaClave::MINUTOS_ESPERA) >= HanaClave::INTENTOS_MAXIMOS
-            || Bitacora::fallosIngresoIp($ip, HanaClave::MINUTOS_ESPERA) >= HanaClave::INTENTOS_POR_IP) {
-            usuJson(array('error' => true, 'mensaje' => 'Por seguridad, después de ' . HanaClave::INTENTOS_MAXIMOS . ' intentos con la contraseña equivocada hay que esperar '
-                                                      . HanaClave::MINUTOS_ESPERA . ' minutos. Si no la recuerdas, usa «Olvidé mi contraseña».'));
+        if (Bitacora::fallosIngreso($usuario, HanaClave::minutosEspera()) >= HanaClave::intentosMaximos()
+            || Bitacora::fallosIngresoIp($ip, HanaClave::minutosEspera()) >= HanaClave::INTENTOS_POR_IP) {
+            usuJson(array('error' => true, 'mensaje' => 'Por seguridad, después de ' . HanaClave::intentosMaximos() . ' intentos con la contraseña equivocada hay que esperar '
+                                                      . HanaClave::minutosEspera() . ' minutos. Si no la recuerdas, usa «Olvidé mi contraseña».'));
             break;
         }
 
@@ -274,10 +298,10 @@ switch ($op)
         $claveBien = HanaClave::coincide($claveEscrita, $guardada) && $persona;
         if (!$claveBien) {
             Bitacora::ingreso($usuario, $ip, false, $persona ? $persona['ID_COLABORADOR'] : null);
-            $quedan  = HanaClave::INTENTOS_MAXIMOS - Bitacora::fallosIngreso($usuario, HanaClave::MINUTOS_ESPERA);
+            $quedan  = HanaClave::intentosMaximos() - Bitacora::fallosIngreso($usuario, HanaClave::minutosEspera());
             $mensaje = 'Usuario o contraseña incorrectos. Verifica los datos e intenta de nuevo.';
             if ($quedan > 0 && $quedan <= 2) {
-                $mensaje .= ' Te ' . ($quedan === 1 ? 'queda 1 intento' : 'quedan ' . $quedan . ' intentos') . ' antes de tener que esperar ' . HanaClave::MINUTOS_ESPERA . ' minutos.';
+                $mensaje .= ' Te ' . ($quedan === 1 ? 'queda 1 intento' : 'quedan ' . $quedan . ' intentos') . ' antes de tener que esperar ' . HanaClave::minutosEspera() . ' minutos.';
             }
             usuJson(array('error' => true, 'mensaje' => $mensaje));
             break;
@@ -320,17 +344,17 @@ switch ($op)
         $usuario = trim($valorPost('LoginUsuarios'));
         if ($usuario === '') { usuJson(array('mensaje' => 'Escribe tu usuario.')); break; }
         $respuesta = 'Si ese usuario existe y tiene un correo registrado, te enviamos un enlace para crear una contraseña nueva. '
-                   . 'Revisa tu correo (también la carpeta de spam); el enlace sirve ' . HanaClave::MINUTOS_ENLACE . ' minutos. '
-                   . 'Mientras tanto, tu contraseña actual sigue sirviendo. Si no te llega, pídele al administrador una contraseña temporal.';
+                   . 'Revisa tu correo (también la carpeta de spam); el enlace sirve ' . HanaClave::minutosEnlace() . ' minutos. '
+                   . 'Mientras tanto, tu contraseña actual sigue sirviendo. Si no te llega, pídele al administrador una contraseña nueva.';
 
         $persona = $modeloUsuarios->datosRecuperacion($usuario);
         if ($persona && filter_var($persona['MAIL_COLABORADOR'], FILTER_VALIDATE_EMAIL)
             && Bitacora::correosRecientes($persona['MAIL_COLABORADOR'], USU_ASUNTO_RECUPERAR, 60) < HanaClave::CORREOS_POR_HORA) {
             $id     = (int)$persona['ID_COLABORADOR'];
-            $vence  = time() + HanaClave::MINUTOS_ENLACE * 60;
+            $vence  = time() + HanaClave::minutosEnlace() * 60;
             $enlace = HanaClave::urlRestablecer($id, $vence, HanaClave::firmaEnlace($id, $vence, $persona['CLAVE']));
             $cuerpo = '<p style="margin:0 0 12px;">Pediste crear una contraseña nueva para <strong>HANA</strong>. Hazlo con el botón de abajo.</p>'
-                    . '<p style="margin:0 0 12px;">El enlace sirve ' . HanaClave::MINUTOS_ENLACE . ' minutos y una sola vez. Si no fuiste tú, no hagas nada: tu contraseña actual sigue sirviendo.</p>'
+                    . '<p style="margin:0 0 12px;">El enlace sirve ' . HanaClave::minutosEnlace() . ' minutos y una sola vez. Si no fuiste tú, no hagas nada: tu contraseña actual sigue sirviendo.</p>'
                     . '<p style="margin:0;font-size:12px;color:#666;">Si el botón no abre, copia esta dirección en el navegador:<br>' . htmlspecialchars($enlace, ENT_QUOTES, 'UTF-8') . '</p>';
             correoenvio($persona['MAIL_COLABORADOR'], $cuerpo, USU_ASUNTO_RECUPERAR, $persona['NOM_COLABORADOR'],
                         array('texto' => 'Crear contraseña nueva', 'url' => $enlace));
@@ -344,7 +368,7 @@ switch ($op)
         $persona = usuPersonaDelEnlace($modeloUsuarios);
         if (!$persona) { usuJson(array('valido' => false, 'mensaje' => USU_ENLACE_VENCIDO)); break; }
         usuJson(array('valido' => true, 'nombre' => hanaNombreBonito($persona['NOM_COLABORADOR']), 'usuario' => $persona['USUARIO'],
-                      'minimo' => HanaClave::LARGO_MINIMO));
+                      'minimo' => HanaClave::largoMinimo()));
     break;
 
     //Guarda la clave nueva que la persona escribió en la página del enlace.
@@ -362,6 +386,9 @@ switch ($op)
         }
         //Si estaba esperando por claves malas, con la clave nueva ya puede entrar
         Bitacora::ingreso($persona['USUARIO'], $ip, true, $persona['ID_COLABORADOR'], 'CLAVE NUEVA');
+        //Aviso al correo de que la contraseña cambió (sin la contraseña)
+        $datos = $modeloUsuarios->mostrar($persona['ID_COLABORADOR']);
+        if ($datos && filter_var($datos['MAIL_COLABORADOR'], FILTER_VALIDATE_EMAIL)) { usuAvisarCambioPropio($datos['MAIL_COLABORADOR'], $datos['NOM_COLABORADOR'], $datos['USUARIO']); }
         usuJson(array('ok' => true, 'mensaje' => 'Listo: tu contraseña quedó cambiada. Ya puedes entrar con ella.'));
     break;
 

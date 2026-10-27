@@ -5,8 +5,8 @@
   Lo usa Vista/InformeMensualPdfVista.php: este controlador revisa la sesión y
   el permiso (37M), valida el periodo y le pide los datos al modelo. Deja
   $datos y $quien listos para dibujar.
-  Quien además tiene 20M (todos los proyectos) o 24M (administrador) recibe
-  todos los proyectos; los demás, solo los que coordinan
+  Cada quien recibe los proyectos de sus peajes asignados; el ADMIN TEC (24M),
+  todos
 */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 date_default_timezone_set('America/Bogota');
@@ -22,8 +22,9 @@ function infError($codigo, $mensaje)
     echo $mensaje;
     exit;
 }
-if (!in_array('37M', $modulos)) { infError(403, 'Tu rol no tiene el informe mensual de gestión (casilla 37M).'); }
+if (!in_array('37M', $modulos) && !in_array('24M', $modulos)) { infError(403, 'Tu rol no tiene el informe mensual de gestión (casilla 37M).'); }
 
+require_once __DIR__ . '/AccesoHelper.php'; //los proyectos de sus peajes asignados
 require_once __DIR__ . '/../Modelo/InformeMensualModelo.php';
 require_once __DIR__ . '/../Modelo/HanaFechas.php';
 
@@ -49,10 +50,18 @@ if (isset($_GET['desde']) || isset($_GET['hasta'])) {
 }
 
 $modeloInforme = new InformeMensual();
-$todos = in_array('20M', $modulos) || in_array('24M', $modulos); //ve todos los proyectos
-$proyectos = $modeloInforme->proyectos((int)$_SESSION['Idcolaborador'], $todos);
+$todos = in_array('24M', $modulos); //el ADMIN TEC ve todos los proyectos
+$misProyectos = hanaMisProyectos();
+$proyectos = array_values(array_filter($modeloInforme->proyectos((int)$_SESSION['Idcolaborador'], true), function ($proyecto) use ($misProyectos) { return isset($misProyectos[(int)$proyecto['ID_PROYECTO']]); }));
 if (!count($proyectos)) {
-    infError(403, 'No tienes proyectos para el informe: no coordinas ninguno y tu rol no tiene "Tablero: ver todos los proyectos" (20M).');
+    infError(403, 'No tienes proyectos para el informe: pide que te asignen peajes en Configuración → Colaboradores.');
+}
+//Los proyectos que se eligieron en la pantalla (proyectos=1,4,5). Solo cuentan los que la persona
+//puede ver; sin el dato, salen todos los suyos
+if (isset($_GET['proyectos']) && trim((string)$_GET['proyectos']) !== '') {
+    $elegidos = array_map('intval', explode(',', (string)$_GET['proyectos']));
+    $proyectos = array_values(array_filter($proyectos, function ($proyecto) use ($elegidos) { return in_array((int)$proyecto['ID_PROYECTO'], $elegidos, true); }));
+    if (!count($proyectos)) { infError(400, 'Elige al menos uno de tus proyectos para el informe.'); }
 }
 
 //El nombre de quien lo genera viene de la sesión (guardado ya escapado para HTML)

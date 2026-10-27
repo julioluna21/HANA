@@ -83,10 +83,11 @@ function rdPesos(valor) {
 //Lo escrito en un campo de pesos -> número (solo los dígitos)
 function rdLeerPesos(texto) { var digitos = String(texto || '').replace(/\D/g, ''); return digitos === '' ? 0 : parseInt(digitos, 10); }
 
-//Los campos .rd-pesos se formatean mientras se escribe: 1500000 -> 1.500.000
+//Los campos .rd-pesos se formatean mientras se escribe, siempre con el signo: 1500000 -> $ 1.500.000
+//(el servidor lee solo los dígitos)
 $(document).on('input', '.rd-pesos', function () {
     var digitos = this.value.replace(/\D/g, '').substring(0, 12);
-    this.value = digitos === '' ? '' : parseInt(digitos, 10).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    this.value = digitos === '' ? '' : '$ ' + parseInt(digitos, 10).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 });
 
 //El mensaje de error que manda el servidor, o uno por defecto
@@ -123,7 +124,7 @@ function rdAlertaDia(modulo, contenedor) {
             if (!estadoModulo) { return; }
             var ok = estadoModulo.ok, texto = '', extra = '';
             if (modulo === 'hoy') {
-                texto = ok ? 'Ya registraste Hoy en qué estás para hoy.' : 'Hoy todavía no has registrado dónde estás.';
+                texto = ok ? 'Ya registraste Hoy en qué estás para hoy.' : 'Todavía no has contado dónde vas a estar hoy ni qué vas a hacer.';
             } else if (modulo === 'listas') {
                 texto = ok ? 'Hoy ya registraste ' + estadoModulo.n + (estadoModulo.n === 1 ? ' lista' : ' listas') + ' de chequeo' +
                            (estadoModulo.ultima ? ' (la última a las ' + rdHora(String(estadoModulo.ultima).substring(11)) + ')' : '') + '.'
@@ -415,7 +416,7 @@ function rdRqDetalleHtml(detalle, fila) {
     var html = '<div class="dq-cab"><span class="cd-rq ' + (esUrgente ? 'cd-rq-u' : '') + '">' + (esUrgente ? 'RQ U-' : 'RQ-') + rdEsc(rq.NUMERO_RQ || fila.NUMERO_RQ) + '</span>' +
             (esUrgente ? ' <span class="rd-tag rd-tag-mal">Urgente</span>' : '') + (rq.NOM_RQ_ESTADO ? ' <span class="rd-tag">' + rdEsc(rq.NOM_RQ_ESTADO) + '</span>' : '') + '</div>' +
             '<div class="dq-datos">' +
-            '<div><span>Peaje</span><b>' + rdEsc(rq.NOM_CENTRO_OP || fila.NOM_CENTRO_OP) + '</b></div>' +
+            '<div><span>Peaje</span><b>' + rdEsc(rq.NOM_CENTRO_OP || fila.NOM_CENTRO_OP) + (rq.OTROS_PEAJES ? ' + ' + rdEsc(rq.OTROS_PEAJES) : '') + '</b></div>' +
             '<div><span>Proyecto</span><b>' + rdEsc(rq.NOM_PROYECTO || fila.NOM_PROYECTO) + '</b></div>' +
             '<div><span>La pidió</span><b>' + rdEsc(rq.SOLICITA || fila.SOLICITA || '') + '</b></div>' +
             '<div><span>Fecha</span><b>' + rdFecha(rq.FECHA_RQ || fila.FECHA_RQ) + ' · ' + dias + (dias === 1 ? ' día' : ' días') + ' en este estado</b></div></div>';
@@ -423,7 +424,8 @@ function rdRqDetalleHtml(detalle, fila) {
     if (items.length) {
         html += '<div class="dq-sub">Qué se pide (' + items.length + ')</div><ol class="dq-items">';
         items.forEach(function (item) {
-            html += '<li><b>' + rdEsc(item.DESCRIPCION) + '</b> · ' + rdEsc(String(parseFloat(item.CANTIDAD))) + ' ' + rdEsc(item.UNIDAD || '') +
+            html += '<li><b>' + rdEsc(item.DESCRIPCION) + '</b> · ' + rdEsc(String(parseFloat(item.CANTIDAD))) + ' ' + rdEsc(item.UNIDAD_NOMBRE || item.UNIDAD || '') +
+                 (item.PEAJE_ITEM && String(item.ID_CENTRO_OP) !== String(rq.ID_CENTRO_OP) ? ' · ' + rdEsc(item.PEAJE_ITEM) : '') +
                  (item.JUSTIFICACION ? '<div class="dq-just">' + rdEsc(item.JUSTIFICACION) + '</div>' : '') + '</li>';
         });
         html += '</ol>';

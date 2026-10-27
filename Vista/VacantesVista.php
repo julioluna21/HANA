@@ -10,9 +10,9 @@ if (isset($_SESSION['IdUsuarios'])) {
     require_once __DIR__ . '/../Control/PaginaControl.php';
     if (!pagModuloActivo('VACANTES')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
     pagUsarModulo('VACANTES');
-    //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    $esCoordinador = pagEsCoordinador();
-    if ($esCoordinador) {
+    //La llena o la ve quien tenga esas casillas, en sus peajes asignados
+    $esCoordinador = pagPuede('VACANTES', 'llenar') && pagTieneCentros();
+    if (pagEntra('VACANTES')) {
         include('head.php');
 ?>
 <link href="../public/css/reporte.css?v=16" rel="stylesheet">
@@ -25,7 +25,7 @@ if (isset($_SESSION['IdUsuarios'])) {
       <div class="x_panel" id="panelLista">
         <div class="x_title">
           <h2><i class="fa fa-user-plus"></i> Vacantes</h2>
-          <div class="pull-right rd-botones-titulo"><button type="button" class="btn btn-success" id="btnNueva"><i class="fa fa-plus-square"></i> Nueva vacante</button></div>
+          <div class="pull-right rd-botones-titulo"><button type="button" class="btn btn-success rd-btn-flotante" id="btnNueva"><i class="fa fa-plus-square"></i> Nueva vacante</button></div>
           <div class="clearfix"></div>
         </div>
         <div class="x_content">
@@ -52,7 +52,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           <p class="rd-ayuda" id="ayudaAns"></p>
           <div class="table-responsive">
             <table class="table table-bordered rd-tabla rd-tabla-compacta">
-              <thead><tr><th>#RQ</th><th>Centro</th><th>Cargo</th><th>Fecha vacante</th><th>Acuerdo hasta</th><th>Cierre</th>
+              <thead><tr><th>#RQ</th><th>Centro</th><th>Cargo</th><th>Fecha vacante</th><th>Acuerdo hasta</th><th title="El día en que la vacante se cubrió o se canceló">Cerrada el</th>
                 <th class="rd-num-col">Días</th><th>Motivo</th><th>Estado</th><th>Resultado</th><th>Nombre</th><th>Compromiso GH</th><th></th></tr></thead>
               <tbody id="filas"><tr><td colspan="13" class="rd-vacio">Cargando...</td></tr></tbody>
             </table>
@@ -85,15 +85,15 @@ if (isset($_SESSION['IdUsuarios'])) {
               <div class="form-group col-md-3 col-sm-4 col-xs-6"><label for="vGh">Estado en Gestión Humana:</label>
                 <select id="vGh" name="gh" class="form-control"><option value="">Sin información</option></select></div>
               <div class="form-group col-md-3 col-sm-4 col-xs-6"><label for="vCompromiso">Fecha comprometida por GH:</label>
-                <input type="date" id="vCompromiso" name="compromiso" class="form-control"></div>
+                <input type="date" id="vCompromiso" name="compromiso" class="form-control"><small class="rd-ayuda" id="ayudaCompromiso"></small></div>
               <div class="form-group col-md-6 col-sm-4 col-xs-12"><label for="vNombre">Nombre de quien la cubre:</label>
                 <input type="text" id="vNombre" name="nombre" class="form-control" maxlength="120"></div>
             </div>
             <div class="row">
               <div class="form-group col-md-3 col-sm-4 col-xs-6"><label for="vEstado">Estado de la vacante:</label>
                 <select id="vEstado" name="estado" class="form-control"></select></div>
-              <div class="form-group col-md-3 col-sm-4 col-xs-6" id="grupoCierre"><label for="vCierre">Fecha de cierre: <span class="rd-req">*</span></label>
-                <input type="date" id="vCierre" name="cierre" class="form-control"></div>
+              <div class="form-group col-md-3 col-sm-4 col-xs-6" id="grupoCierre"><label>Cerrada el:</label>
+                <p class="form-control-static" id="vCierreTxt"></p><small class="rd-ayuda">Se pone sola al guardarla como cubierta o cancelada.</small></div>
               <div class="form-group col-md-6 col-sm-4 col-xs-12"><label for="vObs">Observación:</label>
                 <input type="text" id="vObs" name="obs" class="form-control" maxlength="300"></div>
             </div>
@@ -110,8 +110,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/VacanteAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/VacanteAjax.js?v=7"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

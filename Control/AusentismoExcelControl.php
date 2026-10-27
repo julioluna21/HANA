@@ -1,13 +1,25 @@
 <?php
 /*
+  Controlador retirado: el ausentismo (matriz de cubrimiento) se quitó del sistema.
+  En esa sección queda solo la promesa de valor (Control/PromesaValorControl.php).
+  Responde 410 y no ejecuta nada; el código de abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'El ausentismo se retiró del sistema.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Ausentismo en Excel: quién puede descargarlo y con qué datos
   ---------------------------------------------------------------------------
   Lo usa Vista/AusentismoExcelVista.php: este controlador revisa la sesión,
   el módulo y lo pedido, y le pide los datos al modelo. Se puede pedir:
     - un proyecto (proyecto=ID): una hoja por centro y la del consolidado;
     - un solo peaje (proyecto=ID y centro=ID): su hoja y su total;
-    - todos los proyectos (todos=1, con 20M, 21M, 22M o 25M): una hoja por
+    - todos sus proyectos (todos=1, con la casilla de ver el ausentismo): una hoja por
       proyecto con su consolidado y al final la de todos juntos;
+  Siempre con los peajes asignados a la persona (el ADMIN TEC, todos).
   de todo el mes o de un rango de días (desde, hasta). Deja listos:
     $todos, $proyectoPedido (el proyecto; con todos, solo el nombre), $anio, $mes,
     $dias (los días del mes), $diaDesde y $diaHasta (el rango de días pedido),
@@ -28,7 +40,11 @@ function negar($mensaje) { http_response_code(403); header('Content-Type: text/p
 
 if (!HanaConfig::modulo('AUSENTISMO')) { negar('El módulo de ausentismo está desactivado.'); }
 $idColaborador = hanaIdColaborador();
-$verTodos = hanaTienePermiso('20M') || hanaTienePermiso('21M') || hanaTienePermiso('22M') || hanaTienePermiso('25M');
+if (!hanaEntra('AUSENTISMO')) { negar('Tu rol no tiene acceso al ausentismo.'); }
+$verTodos = hanaPuede('AUSENTISMO', 'ver') || hanaPuede('AUSENTISMO', 'cerrado');
+$misCentros = hanaMisCentrosIds();
+$centrosPermitidos = hanaVeTodo() ? null : array_map('intval', array_keys($misCentros));
+$misProyectos = hanaMisProyectos();
 $todos = isset($_GET['todos']) && $_GET['todos'] === '1';
 
 $anio = isset($_GET['anio']) ? (int)$_GET['anio'] : 0;
@@ -51,20 +67,22 @@ $proyectos = array();
 $soloCentro = null;
 
 if ($todos) {
-    if (!$verTodos) { negar('El consolidado de todos los proyectos lo ven quienes consultan todos los proyectos.'); }
+    if (!$verTodos) { negar('El consolidado de todos tus proyectos juntos necesita la casilla de ver el ausentismo.'); }
     $proyectoPedido = array('ID_PROYECTO' => 0, 'NOM_PROYECTO' => 'TODOS LOS PROYECTOS');
     foreach (Organizacion::proyectos() as $proyecto) {
-        $proyecto['CONS'] = $modeloAusentismo->consolidado($proyecto['ID_PROYECTO'], $anio, $mes, $diaDesde, $diaHasta);
+        if (!isset($misProyectos[(int)$proyecto['ID_PROYECTO']])) { continue; }
+        $proyecto['CONS'] = $modeloAusentismo->consolidado($proyecto['ID_PROYECTO'], $anio, $mes, $diaDesde, $diaHasta, 0, $centrosPermitidos);
         $proyectos[] = $proyecto;
     }
-    $consolidado = $modeloAusentismo->consolidado(array_map(function ($proyecto) { return $proyecto['ID_PROYECTO']; }, $proyectos), $anio, $mes, $diaDesde, $diaHasta);
+    $consolidado = $modeloAusentismo->consolidado(array_map(function ($proyecto) { return $proyecto['ID_PROYECTO']; }, $proyectos), $anio, $mes, $diaDesde, $diaHasta, 0, $centrosPermitidos);
 } else {
     $idProyecto = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
     $proyectoPedido = Organizacion::proyectoActivo($idProyecto);
-    if (!$proyectoPedido || (!$verTodos && (int)$proyectoPedido['ID_COLABORADOR_COORDINADOR'] !== $idColaborador)) { negar('Ese proyecto no está entre los que puedes ver.'); }
+    if (!$proyectoPedido || !isset($misProyectos[$idProyecto])) { negar('Ese proyecto no está entre los que puedes ver.'); }
     $idCentro = isset($_GET['centro']) ? (int)$_GET['centro'] : 0; //0 = todos los peajes del proyecto
     foreach (Organizacion::centrosDeProyecto($idProyecto) as $centro) {
         if ($idCentro && (int)$centro['ID_CENTRO_OP'] !== $idCentro) { continue; }
+        if ($centrosPermitidos !== null && !isset($misCentros[(int)$centro['ID_CENTRO_OP']])) { continue; } //solo sus peajes
         $centro['CARGOS'] = array_values(array_filter($cargos, function ($cargo) use ($centro) { return Ausentismo::cargoAplica($cargo, $centro['TIPO_CENTRO']); }));
         $centro['VALS'] = $modeloAusentismo->mesCentro($centro['ID_CENTRO_OP'], $anio, $mes);
         $centros[] = $centro;
@@ -73,7 +91,7 @@ if ($todos) {
         if (!count($centros)) { negar('Ese peaje no es del proyecto.'); }
         $soloCentro = $centros[0];
     }
-    $consolidado = $modeloAusentismo->consolidado($idProyecto, $anio, $mes, $diaDesde, $diaHasta, $idCentro);
+    $consolidado = $modeloAusentismo->consolidado($idProyecto, $anio, $mes, $diaDesde, $diaHasta, $idCentro, $centrosPermitidos);
 }
 
 //Los nombres de proyectos, centros, cargos y motivos pueden venir guardados con códigos

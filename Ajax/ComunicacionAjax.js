@@ -20,6 +20,8 @@ $(function () {
     $.getJSON(URL_COM + '?op=config')
         .done(function (config) {
             cfgM = config;
+            //Quien solo consulta no registra ni responde
+            if (config.puedeLlenar === false) { $('#btnNueva').hide(); $('#mNuevaResp, #btnResponder').hide(); }
             var htmlProyectos = '<option value="0">Todos</option>', htmlFormProyectos = '', htmlTipos = '';
             for (var i = 0; i < config.proyectos.length; i++) {
                 var opcion = '<option value="' + parseInt(config.proyectos[i].ID_PROYECTO, 10) + '">' + rdEsc(config.proyectos[i].NOM_PROYECTO) + '</option>';
@@ -32,6 +34,8 @@ $(function () {
             rdPeriodo('#fMes', '#fAnio', config.hoy); $('#fMes').val('0'); $('#fAnio').prop('disabled', true);
             $('#ayudaPlazo').text('Cumple si se atiende en ' + config.diasRespuesta + ' días o menos desde la recepción.');
             listar();
+            //Abrir la pantalla cuenta como revisarla hoy (recordatorio de las 9 a. m.)
+            $.post('../Control/EstadoDiaControl.php?op=visto', { modulo: 'COMUNICACIONES' });
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir comunicaciones.'); });
 
@@ -181,7 +185,7 @@ function cargarHilo(id) {
                 }
             });
             $('#mHilo').html(html || '<p class="rd-vacio" style="margin:6px 0;">Todavía no hay respuestas. Escribe la primera.</p>');
-            $('#mEstado').html(respuesta.resuelta ? '<span class="rd-tag rd-tag-ok">Resuelta</span>' : '<span class="rd-tag rd-tag-pend">Abierta</span>');
+            $('#mEstado').html(respuesta.resuelta ? '<span class="rd-tag rd-tag-ok">Cerrada el ' + rdFecha(respuesta.fechaCierre) + '</span>' : '<span class="rd-tag rd-tag-pend">Abierta</span>');
             $('#btnResolver').toggle(respuesta.puedeResolver && !respuesta.resuelta);
             $('#btnReabrir').toggle(respuesta.puedeResolver && respuesta.resuelta);
         })

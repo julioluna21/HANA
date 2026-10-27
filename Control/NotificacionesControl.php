@@ -8,7 +8,7 @@
   Operaciones: guardar, mostrar, anular, activar, listar, selectColaborador y probar.
   Los resúmenes diario y semanal los envía el servidor con cron
   (tareas/resumen_diario.php y tareas/resumen_semanal.php), no esta dirección.
-  Permiso: 12M.
+  Casilla 44M (correos de las listas de chequeo).
 */
 session_start();
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
@@ -18,7 +18,7 @@ if (isset($_GET['op']) && in_array($_GET['op'], array('resumenDiario', 'resumenS
     echo "Esta dirección ya no se usa.";
     exit();
 }
-hanaGuardia(array('12M')); //Correos de listas: 12M
+hanaGuardia(array('44M', '24M')); //Correos de las listas de chequeo: casilla 44M (Permisos de usuario)
 require_once "../Modelo/NotificacionesModelo.php";
 $modeloNotificaciones = new Notificaciones();
 

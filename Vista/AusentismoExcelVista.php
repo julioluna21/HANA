@@ -1,5 +1,15 @@
 <?php
 /*
+  Pantalla retirada: el ausentismo (matriz de cubrimiento: quién cubrió a quién, los motivos
+  CUBRIENDO A..., las inducciones y los días) se quitó del sistema. En esa sección queda solo
+  la promesa de valor (Vista/PromesaValorVista.php). Si alguien entra por la dirección, va al inicio.
+  El código de abajo se conserva solo como referencia.
+*/
+header('Location: InicioVista.php');
+exit;
+?>
+<?php
+/*
   HANA - Ausentismo: descargar el "Reporte nacional de ausentismo" en Excel
   Con la misma estructura del archivo que se usa hoy: una hoja por centro, con
   un bloque por cargo (novedades × días) y las ausencias diarias; y al final

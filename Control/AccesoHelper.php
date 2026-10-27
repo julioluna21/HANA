@@ -35,15 +35,20 @@ require_once __DIR__ . '/../Modelo/HanaFechas.php';
 define('PERMISO_VER_TODAS_NOVEDADES', '16M');
 define('PERMISO_VER_TODAS_RQ',        '17M');
 define('PERMISO_APROBAR_RQ',          '18M'); //aprobar o rechazar RQ
-define('PERMISO_TABLERO',             '19M'); //entrar al tablero del reporte diario
-define('PERMISO_TABLERO_TODOS',       '20M'); //ver todos los proyectos en el tablero (gerente de operaciones)
-define('PERMISO_ADMIN_REPORTE',       '21M'); //administración: consultar todo lo que llenan los coordinadores
-define('PERMISO_VER_PROYECTOS',       '22M'); //consultar todos los proyectos (cronograma y ausentismo)
+define('PERMISO_TABLERO',             '19M'); //entrar al reporte general (el coordinador ve su proyecto)
+define('PERMISO_TABLERO_TODOS',       '20M'); //RESERVADO/retirado: el alcance (qué proyectos) ya no sale de esta casilla,
+                                                //sino de los peajes asignados + lo que coordina + el control total (24M). No se reutiliza.
+define('PERMISO_TABLERO_PROYECTOS',   '43M'); //el tablero por proyectos dentro del reporte general (director de operaciones)
+define('PERMISO_ADMIN_REPORTE',       '21M'); //consultar lo que llenan todos (listas, cronograma y ausentismo). Su pantalla de Administración se quitó: lo mismo está en el Reporte general
+define('PERMISO_VER_PROYECTOS',       '22M'); //RESERVADO/retirado: igual que 20M, el alcance sale de los peajes asignados. No se reutiliza.
 define('PERMISO_AUS_REABRIR',         '23M'); //ausentismo: reabrir un mes cerrado
 define('PERMISO_PARAMETROS',          '24M'); //parámetros del sistema; además es el control total del ADMIN TEC:
                                                 //crea, corrige y anula en todos los módulos y proyectos
 define('PERMISO_PEDIR_RQ',            '41M'); //pedir RQ en sus peajes
 define('PERMISO_ASIGNAR_NOVEDAD',     '42M'); //asignar una novedad a una persona
+//Reporte diario: consultar. Solo ver, nunca llenar ni corregir (el director de operaciones)
+define('PERMISO_HOY_CONSULTAR',       '33M'); //ver lo que registra cada coordinador en Hoy en qué estás
+define('PERMISO_CRONO_CONSULTAR',     '34M'); //ver el cronograma y el vehículo de todos los proyectos
 
 //La persona que tiene la sesión
 function hanaIdColaborador() { return isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0; }
@@ -76,64 +81,190 @@ function hanaVista($valor)
 }
 
 //---------------------------------------------------------------------------
-// El reporte del coordinador. Lo llena quien coordina un proyecto. El ADMIN
-// TEC (24M) puede usar esas pantallas en todos los proyectos, y cada pantalla
-// tiene su casilla en Permisos de usuario: quien la tenga la usa en todos los proyectos.
-// La pantalla dice a qué módulo pertenece con hanaUsarModulo('ARQUEOS')
+// QUÉ puede hacer cada quien y DÓNDE
+//
+//   QUÉ: las casillas de su rol (Configuración → Permisos de usuario). Cada módulo
+//        tiene casillas separadas: ver, llenar y, donde aplica, editar o acciones
+//        especiales (anular lo de otros, vehículos, fondos...). Ninguna casilla dice
+//        "en todos los proyectos".
+//   DÓNDE: los peajes (centros de operación) asignados a la persona en
+//        Configuración → Usuarios. Si tiene solo los de Accenorte, ve y llena solo
+//        Accenorte; si tiene todos, ve todos. El ADMIN TEC (24M) ve todos siempre,
+//        para no quedarse por fuera de un peaje nuevo.
+//
+//   Ser el coordinador de un proyecto (Configuración → Proyectos) ya no da acceso
+//   por sí solo: dice quién es el coordinador (correos, reportes, de quién es el
+//   cronograma del proyecto).
 //---------------------------------------------------------------------------
-function hanaPermisosModulo()
+
+//Las casillas de cada módulo. Si mañana se agrega una acción, se agrega aquí y en
+//Vista/RolesVista.php
+function hanaCasillas()
 {
     return array(
-        'HOY' => '28M', 'ARQUEOS' => '29M', 'CRONOGRAMA' => '30M', 'VACANTES' => '31M', 'COMUNICACIONES' => '32M'
-        //33M, 34M y 35M quedan libres, y también 38M, 39M y 40M (eran de la promesa de valor, que se quitó)
+        'HOY'            => array('llenar' => '28M', 'ver' => '33M'),
+        'LISTAS'         => array('llenar' => '11M', 'ver' => '21M', 'editar' => '12M', 'correos' => '44M'),
+        'ARQUEOS'        => array('llenar' => '29M', 'ver' => '45M', 'fondos' => '36M', 'anular' => '46M'),
+        'CRONOGRAMA'     => array('llenar' => '30M', 'ver' => '34M', 'vehiculos' => '47M'),
+        'VACANTES'       => array('llenar' => '31M', 'ver' => '48M', 'compromiso' => '49M'),
+        'COMUNICACIONES' => array('llenar' => '32M', 'ver' => '50M', 'otros' => '51M'),
+        'AUSENTISMO'     => array('llenar' => '52M', 'ver' => '53M', 'cerrar' => '58M', 'cerrado' => '25M', 'reabrir' => '23M'),
+        'PROMESA'        => array('llenar' => '54M', 'ver' => '55M', 'pasados' => '56M'),
+        'REPORTE'        => array('ver' => '19M', 'tablero' => '43M', 'informe' => '37M'),
+        'TAREAS'         => array('editar' => '57M')
     );
 }
 
-//Deja anotado en qué módulo está trabajando la pantalla, para revisar los permisos de ese módulo
-function hanaUsarModulo($modulo) { $GLOBALS['hanaModuloActual'] = (string)$modulo; }
+//¿La persona de la sesión puede hacer eso en ese módulo? El ADMIN TEC (24M) puede todo
+function hanaPuede($modulo, $accion)
+{
+    if (hanaIdColaborador() <= 0) { return false; }
+    if (hanaTienePermiso('24M')) { return true; }
+    $casillas = hanaCasillas();
+    return isset($casillas[$modulo][$accion]) && hanaTienePermiso($casillas[$modulo][$accion]);
+}
 
-//¿La persona de la sesión usa la pantalla del módulo actual en TODOS los proyectos?
-//(solo aplica a ella misma: no cambia cómo se ve a los demás en el tablero o en los reportes)
+//¿Tiene alguna casilla de ese módulo? (para el menú y para abrir la pantalla)
+function hanaEntra($modulo)
+{
+    if (hanaIdColaborador() <= 0) { return false; }
+    $casillas = hanaCasillas();
+    if (!isset($casillas[$modulo])) { return false; }
+    foreach (array_keys($casillas[$modulo]) as $accion) { if (hanaPuede($modulo, $accion)) { return true; } }
+    return false;
+}
+
+//¿Las casillas de ese módulo son de un rol? (para recordatorios: personas que no tienen la sesión)
+function hanaRolPuede($permisosRol, $modulo, $accion)
+{
+    $lista = is_array($permisosRol) ? $permisosRol : explode(',', (string)$permisosRol);
+    if (in_array('24M', $lista, true)) { return true; }
+    $casillas = hanaCasillas();
+    return isset($casillas[$modulo][$accion]) && in_array($casillas[$modulo][$accion], $lista, true);
+}
+
+//Los peajes donde trabaja la persona: los asignados en Colaboradores. La de la sesión con 24M: todos.
+//Cada uno con ID_CENTRO_OP, NOM_CENTRO_OP, TIPO_CENTRO, ID_PROYECTO y NOM_PROYECTO
+function hanaMisCentros($idColaborador = null)
+{
+    static $cache = array();
+    $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
+    if ($id <= 0) { return array(); }
+    $todos = $id === hanaIdColaborador() && hanaTienePermiso('24M');
+    $llave = $id . ($todos ? 't' : '');
+    if (!isset($cache[$llave])) { $cache[$llave] = $todos ? HanaDB::centrosTodos() : HanaDB::centrosUsuario($id); }
+    return $cache[$llave];
+}
+
+//Los números de esos peajes, como llave: [idCentro] = true
+function hanaMisCentrosIds($idColaborador = null)
+{
+    $ids = array();
+    foreach (hanaMisCentros($idColaborador) as $centro) { $ids[(int)$centro['ID_CENTRO_OP']] = true; }
+    return $ids;
+}
+
+//Los proyectos de esos peajes, sin repetir: [idProyecto] = fila (ID_PROYECTO, NOM_PROYECTO)
+function hanaMisProyectos($idColaborador = null)
+{
+    $proyectos = array();
+    foreach (hanaMisCentros($idColaborador) as $centro) {
+        $proyectos[(int)$centro['ID_PROYECTO']] = array('ID_PROYECTO' => (int)$centro['ID_PROYECTO'], 'NOM_PROYECTO' => $centro['NOM_PROYECTO']);
+    }
+    return $proyectos;
+}
+
+//Condición SQL "este campo es uno de mis peajes" (1 = 1 para el ADMIN TEC; 0 = 1 si no tiene ninguno)
+function hanaSqlMisCentros($campo)
+{
+    if (hanaTienePermiso('24M')) { return '1 = 1'; }
+    $ids = array_keys(hanaMisCentrosIds());
+    return count($ids) ? $campo . ' IN (' . implode(',', array_map('intval', $ids)) . ')' : '0 = 1';
+}
+
+//---------------------------------------------------------------------------
+// Compatibilidad: estas funciones ya las usaban las pantallas del reporte diario.
+// Ahora siguen la regla de arriba (casillas + peajes asignados)
+//---------------------------------------------------------------------------
+function hanaPermisosModulo()
+{
+    $lista = array();
+    foreach (array('HOY', 'ARQUEOS', 'CRONOGRAMA', 'VACANTES', 'COMUNICACIONES') as $modulo) { $lista[$modulo] = hanaCasillas()[$modulo]['llenar']; }
+    return $lista;
+}
+
+//Deja anotado en qué módulo está trabajando la pantalla
+function hanaUsarModulo($modulo) { $GLOBALS['hanaModuloActual'] = (string)$modulo; }
+function hanaModuloActual() { return isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : ''; }
+
+//Solo el ADMIN TEC ve todos los peajes sin tenerlos asignados
 function hanaVeTodo($idColaborador = null)
 {
     $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
-    if ($id <= 0 || $id !== hanaIdColaborador() || !isset($_SESSION['Modulos'])) { return false; }
-    if (hanaTienePermiso('24M')) { return true; }
-    $modulo = isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : '';
-    $casillas = hanaPermisosModulo();
-    return $modulo !== '' && isset($casillas[$modulo]) && hanaTienePermiso($casillas[$modulo]);
+    return $id > 0 && $id === hanaIdColaborador() && hanaTienePermiso('24M');
 }
 
-//¿Esta persona coordina algún proyecto? (si no se pasa nadie, se pregunta por quien tiene la sesión)
+//¿La persona de la sesión llena el módulo actual? (su casilla de llenar y al menos un peaje).
+//Si se pregunta por otra persona, dice si coordina algún proyecto (es un dato, no un permiso)
 function hanaEsCoordinador($idColaborador = null)
 {
     $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
-    return HanaDB::esCoordinador($id, hanaVeTodo($id));
+    if ($id !== hanaIdColaborador()) { return HanaDB::esCoordinador($id, false); }
+    $modulo = hanaModuloActual();
+    return $modulo !== '' && hanaPuede($modulo, 'llenar') && count(hanaMisCentros()) > 0;
 }
 
-//Los proyectos que coordina la persona (o todos, si su rol ve todo)
+//Los proyectos de la persona (los de sus peajes asignados)
 function hanaProyectosCoordinados($idColaborador = null)
 {
-    $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
-    return HanaDB::proyectosCoordinados($id, hanaVeTodo($id));
+    return array_values(hanaMisProyectos($idColaborador));
 }
 
-//Los peajes de los proyectos que coordina la persona
+//Los peajes de la persona (los asignados; el ADMIN TEC de la sesión, todos)
 function hanaCentrosCoordinador($idColaborador = null)
 {
-    $id = $idColaborador === null ? hanaIdColaborador() : (int)$idColaborador;
-    return HanaDB::centrosCoordinador($id, hanaVeTodo($id));
+    return hanaMisCentros($idColaborador);
 }
 
-//¿La persona de la sesión puede usar la pantalla de ese módulo? (coordinador, ADMIN TEC o su casilla)
+//¿Puede abrir la pantalla de ese módulo? (alguna casilla del módulo y al menos un peaje)
 function hanaPuedeModulo($modulo)
 {
-    if (hanaIdColaborador() <= 0) { return false; }
-    $antes = isset($GLOBALS['hanaModuloActual']) ? $GLOBALS['hanaModuloActual'] : '';
-    hanaUsarModulo($modulo);
-    $esCoordinador = hanaEsCoordinador();
-    hanaUsarModulo($antes);
-    return $esCoordinador;
+    return hanaEntra($modulo) && count(hanaMisCentros()) > 0;
+}
+
+//---------------------------------------------------------------------------
+// Promesa de valor (horas por peaje, cargo y día)
+//   Ver (55M) y llenar (54M) en sus peajes. Corregir días pasados, fuera del
+//   plazo del parámetro (56M). Lo decide hanaPromesaDesde() por peaje.
+//---------------------------------------------------------------------------
+function hanaPromesaVeTodo() { return hanaTienePermiso('24M'); }
+
+//¿Puede abrir la pantalla? Con ver o llenar, peajes y el módulo encendido
+function hanaPromesaEntrar()
+{
+    return HanaConfig::modulo('PROMESA') && (hanaPuede('PROMESA', 'ver') || hanaPuede('PROMESA', 'llenar')) && count(hanaMisCentros()) > 0;
+}
+
+//Los proyectos que ve (los de sus peajes). PROPIO: puede llenar en alguno de sus peajes de ese proyecto
+function hanaPromesaProyectos()
+{
+    $llena = hanaPuede('PROMESA', 'llenar');
+    $lista = array();
+    foreach (hanaMisProyectos() as $proyecto) { $proyecto['PROPIO'] = $llena; $lista[] = $proyecto; }
+    return $lista;
+}
+
+//Desde qué día puede escribir en un peaje (null = no puede escribir).
+//Con 56M, cualquier día; con 54M, desde hoy menos los días del parámetro. Solo en sus peajes
+function hanaPromesaDesde($idProyecto, $idCentro = 0)
+{
+    if (!hanaPuede('PROMESA', 'llenar')) { return null; }
+    $mios = hanaMisCentrosIds();
+    if ((int)$idCentro > 0 && !isset($mios[(int)$idCentro])) { return null; }
+    if ((int)$idCentro <= 0 && !isset(hanaMisProyectos()[(int)$idProyecto])) { return null; }
+    if (hanaPuede('PROMESA', 'pasados')) { return '2000-01-01'; }
+    $dias = HanaConfig::num('PROMESA_DIAS_CORREGIBLES', 7);
+    return date('Y-m-d', strtotime(HanaFechas::hoy() . ' -' . max(0, $dias) . ' day'));
 }
 
 //¿Ese día lo puede registrar o corregir la persona de la sesión? (hoy, o un día habilitado)
@@ -146,7 +277,8 @@ function hanaEnVentana($fecha) { return HanaFechas::enVentana($fecha, hanaIdCola
 //Condición SQL sobre la tabla novedades_hallazgos (la arma el modelo)
 function hanaCondNovedades($vista)
 {
-    return Acceso::condNovedades(hanaVista($vista), hanaIdColaborador(), hanaTienePermiso(PERMISO_VER_TODAS_NOVEDADES), hanaIdRol());
+    return Acceso::condNovedades(hanaVista($vista), hanaIdColaborador(), hanaTienePermiso(PERMISO_VER_TODAS_NOVEDADES) || hanaTienePermiso('24M'), hanaIdRol(),
+                                 hanaSqlMisCentros('novedades_hallazgos.ID_CENTRO_OP'));
 }
 
 //¿Puede abrir esta novedad concreta? Se usa al mostrar el detalle, para que
@@ -165,7 +297,8 @@ function hanaPuedeVerNovedad($idNovedad)
 function hanaCondRQ($vista, $alias = 'r')
 {
     return Acceso::condRQ(hanaVista($vista), hanaIdColaborador(),
-                          hanaTienePermiso(PERMISO_VER_TODAS_RQ) || hanaTienePermiso(PERMISO_APROBAR_RQ), $alias);
+                          hanaTienePermiso(PERMISO_VER_TODAS_RQ) || hanaTienePermiso(PERMISO_APROBAR_RQ) || hanaTienePermiso('24M'), $alias,
+                          'hanaSqlMisCentros');
 }
 
 //---------------------------------------------------------------------------

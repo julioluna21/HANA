@@ -180,6 +180,35 @@ function initDrag() {
     });
 
     cont.addEventListener('drop', function (evento) { evento.preventDefault(); }); //solo evita el comportamiento por defecto
+
+    //En el celular el arrastre de arriba no funciona (es solo para mouse): se hace con el dedo.
+    //Se toca y se mantiene la manito, y la fila sigue al dedo hasta que se suelta
+    cont.addEventListener('touchstart', function (evento) {
+        var manito = evento.target.closest ? evento.target.closest('.handle') : null;
+        if (!manito) return;
+        _arrastrado = manito.closest('.editor-item');
+        if (_arrastrado) { _arrastrado.classList.add('dragging'); }
+    }, { passive: true });
+    cont.addEventListener('touchmove', function (evento) {
+        if (!_arrastrado) return;
+        evento.preventDefault(); //mientras se arrastra, la página no se desplaza
+        var dedo = evento.touches[0];
+        var debajo = document.elementFromPoint(dedo.clientX, dedo.clientY);
+        var filaDestino = debajo && debajo.closest ? debajo.closest('#listaEditor .editor-item') : null;
+        if (!filaDestino || filaDestino === _arrastrado) return;
+        var caja = filaDestino.getBoundingClientRect();
+        var despues = (dedo.clientY - caja.top) > caja.height / 2;
+        cont.insertBefore(_arrastrado, despues ? filaDestino.nextSibling : filaDestino);
+        marcarCambios();
+    }, { passive: false });
+    var soltar = function () {
+        if (!_arrastrado) return;
+        _arrastrado.classList.remove('dragging');
+        _arrastrado = null;
+        marcarCambios();
+    };
+    cont.addEventListener('touchend', soltar);
+    cont.addEventListener('touchcancel', soltar);
 }
 
 //Guarda SOLO la fila del botón verde presionado (texto y tipo). No cambia el orden

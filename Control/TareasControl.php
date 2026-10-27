@@ -1,115 +1,158 @@
 <?php
 /*
-  Archivo sin uso: los recordatorios por correo a los coordinadores se quitaron. Las
-  tareas que siguen (los resúmenes de las listas) las corre el servidor con cron, en la
-  carpeta tareas/.
-  Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el código de
-  abajo se conserva solo como referencia.
-*/
-http_response_code(410);
-header('Content-Type: application/json; charset=utf-8');
-echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
-exit;
-?>
-<?php
-/*
-  HANA - Tareas programadas: recordatorios del día a los coordinadores
+  HANA - Correos automáticos: configuración y prueba (Reporte diario → Correos automáticos)
   ---------------------------------------------------------------------------
-  Se llama desde cPanel (Tareas Cron), por ejemplo todos los días a las 10 a. m.:
+  Con sesión y la casilla de recordatorios y avisos automáticos (57M; el ADMIN TEC también):
+    op=listar             las tareas, su configuración, los roles y cuándo corrió cada una
+    op=guardar (POST)     la configuración de una tarea: clave + config (JSON)
+    op=simular (POST)     a quién le llegaría hoy, sin enviar nada
+    op=ejecutar (POST)    la envía ya (queda en la bitácora)
 
-    curl -s "https://hana.cloudregencyapps.com/Control/TareasControl.php?op=recordatorios&token=LA_CLAVE" > /dev/null
-
-  LA_CLAVE es HANA_TOKEN_TAREAS de Conexion/Global.php (la misma de los
-  resúmenes de listas).
-
-  Para cada coordinador con correo, revisa lo que le falta hoy (solo de los
-  módulos encendidos): Hoy en qué estás, listas de chequeo, revisar el
-  cronograma y el estado del vehículo. Si le falta algo, le escribe un correo
-  corto. Se envía solo si el parámetro RECORDATORIOS_CORREO está encendido.
-
-  Con &simular=1 no envía nada: devuelve a quién le llegaría y qué (lo usa la
-  vista previa de Parámetros → Correo, con sesión y permiso 24M).
+  Sin sesión, para un servicio externo o el cron de cPanel que llama una dirección:
+    op=programador&token=LA_CLAVE   hace lo mismo que tareas/programador.php
+  LA_CLAVE es HANA_TOKEN_TAREAS de Conexion/Global.php (mínimo 16 caracteres).
+  Lo que hace cada tarea está en tareas/libreria.php; su configuración, en Modelo/TareasModelo.php.
 */
 session_start();
-require_once __DIR__ . '/../Conexion/Global.php';
-require_once __DIR__ . '/../Modelo/HanaConfig.php';
-require_once __DIR__ . '/../Modelo/EstadoDiaModelo.php';
-require_once __DIR__ . '/../Modelo/OrganizacionModelo.php';
-require_once __DIR__ . '/CorreoConfig.php';
-require_once __DIR__ . '/../public/PHPMailer-master/src/Exception.php';
-require_once __DIR__ . '/../public/PHPMailer-master/src/PHPMailer.php';
-require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
+require_once __DIR__ . '/../Modelo/HanaTexto.php';
+require_once __DIR__ . '/AccesoHelper.php';
+chdir(__DIR__); //la librería de tareas carga archivos con rutas relativas a Control
+require_once __DIR__ . '/../tareas/libreria.php';
 header('Content-Type: application/json; charset=utf-8');
-date_default_timezone_set('America/Bogota');
 
-//Responde con un código de error y un mensaje en JSON, y corta la ejecución
-function tareaError($codigo, $mensaje)
+function tarError($codigo, $mensaje)
 {
     http_response_code($codigo);
-    echo json_encode(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
+    echo hanaJsonTexto(array('error' => $mensaje), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-//Entra la tarea programada (con el token) o el administrador desde Parámetros (24M)
-$simular = !empty($_GET['simular']);
-$conSesion = isset($_SESSION['Modulos']) && in_array('24M', explode(',', $_SESSION['Modulos']));
-$token = isset($_GET['token']) ? (string)$_GET['token'] : '';
-$conToken = defined('HANA_TOKEN_TAREAS') && strlen(HANA_TOKEN_TAREAS) >= 16 && hash_equals(HANA_TOKEN_TAREAS, $token);
-if (!$conToken && !($conSesion && $simular)) { tareaError(403, 'Acceso no permitido.'); }
+$op = isset($_GET['op']) ? (string)$_GET['op'] : '';
 
-switch (isset($_GET['op']) ? $_GET['op'] : '') {
+//El programador por dirección: solo con la clave de Global.php
+if ($op === 'programador') {
+    $token = isset($_GET['token']) ? (string)$_GET['token'] : '';
+    $clave = defined('HANA_TOKEN_TAREAS') ? (string)HANA_TOKEN_TAREAS : '';
+    if (strlen($clave) < 16 || stripos($clave, 'CAMBIA_ESTO') !== false || !hash_equals($clave, $token)) { tarError(403, 'Acceso no permitido.'); }
+    $hechas = array();
+    foreach (array_keys(Tareas::DEFINICIONES) as $tarea) {
+        if (!Tareas::leToca($tarea, time())) { continue; }
+        $resultado = tareaEjecutar($tarea, false, 'programador (dirección)');
+        $hechas[$tarea] = array('enviados' => $resultado['enviados'], 'fallos' => $resultado['fallos']);
+    }
+    echo hanaJsonTexto(array('ok' => true, 'hechas' => (object)$hechas), JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
-    //Envía los recordatorios por correo de lo que falta por registrar (si están encendidos en Parámetros)
-    case 'recordatorios':
-        if (!$simular && !HanaConfig::si('RECORDATORIOS_CORREO', false)) {
-            echo json_encode(array('ok' => true, 'enviados' => 0, 'mensaje' => 'Los recordatorios están apagados en Parámetros.'), JSON_UNESCAPED_UNICODE);
+if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { tarError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
+if (!hanaPuede('TAREAS', 'editar')) { tarError(403, 'Los recordatorios y avisos automáticos necesitan su casilla en Permisos de usuario.'); }
+$idColaborador = (int)$_SESSION['Idcolaborador'];
+$nombreSesion = isset($_SESSION['Nombre']) ? html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8') : '';
+
+//La tarea pedida (o 400)
+function tarClave()
+{
+    $clave = isset($_POST['clave']) ? (string)$_POST['clave'] : '';
+    if (!isset(Tareas::DEFINICIONES[$clave])) { tarError(400, 'Esa tarea no existe.'); }
+    return $clave;
+}
+
+switch ($op) {
+    case 'listar':
+        $ultimas = Tareas::ultimas();
+        $tareas = array();
+        foreach (Tareas::DEFINICIONES as $clave => $def) {
+            $tareas[] = array('clave' => $clave, 'nombre' => $def['nombre'], 'descripcion' => $def['descripcion'], 'entrega' => $def['entrega'],
+                              'campos' => $def['campos'], 'items' => isset($def['items']) ? $def['items'] : null,
+                              'config' => Tareas::config($clave), 'ultima' => isset($ultimas[$clave]) ? $ultimas[$clave] : null);
+        }
+        //Si el programador está corriendo: la última vez que alguna tarea se hizo sola
+        $ultimoProgramador = HanaDB::fila("SELECT MAX(FECHA) AS F FROM bitacora_sistema WHERE TIPO = 'TAREA' AND QUIEN LIKE 'programador%'");
+        $personas = array_map(function ($p) { return array('ID' => (int)$p['ID'], 'NOMBRE' => html_entity_decode($p['NOMBRE'], ENT_QUOTES, 'UTF-8'),
+                                                         'ROL' => $p['ROL'], 'SIN_CORREO' => !filter_var(trim((string)$p['CORREO']), FILTER_VALIDATE_EMAIL)); }, Tareas::personasActivas());
+        echo hanaJsonTexto(array('tareas' => $tareas, 'roles' => Tareas::roles(), 'personas' => $personas, 'correoListo' => hanaCorreoDatos() !== null,
+                                 'ultimoProgramador' => $ultimoProgramador ? $ultimoProgramador['F'] : null), JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'guardar':
+        $clave = tarClave();
+        $def = Tareas::DEFINICIONES[$clave];
+        $llega = json_decode(isset($_POST['config']) ? (string)$_POST['config'] : '', true);
+        if (!is_array($llega)) { tarError(400, 'No llegó la configuración.'); }
+        $config = Tareas::config($clave);
+        $config['activo'] = !empty($llega['activo']) ? 1 : 0;
+        if (in_array('hora', $def['campos'], true)) {
+            $hora = isset($llega['hora']) ? (int)$llega['hora'] : -1;
+            if ($hora < 0 || $hora > 23) { tarError(400, 'Elige la hora (de 0 a 23).'); }
+            $config['hora'] = $hora;
+        }
+        if (in_array('dias', $def['campos'], true)) {
+            $config['dias'] = array_values(array_intersect(array(1, 2, 3, 4, 5, 6, 7), array_map('intval', (array)(isset($llega['dias']) ? $llega['dias'] : array()))));
+            if (!count($config['dias']) && $config['activo']) { tarError(400, 'Marca al menos un día, o apágala.'); }
+        }
+        if (in_array('roles', $def['campos'], true)) {
+            $validos = array_map('intval', array_column(Tareas::roles(), 'ID'));
+            $config['roles'] = array_values(array_intersect($validos, array_map('intval', (array)(isset($llega['roles']) ? $llega['roles'] : array()))));
+        }
+        if (in_array('items', $def['campos'], true)) {
+            $config['items'] = array_values(array_intersect(array_keys($def['items']), (array)(isset($llega['items']) ? $llega['items'] : array())));
+            if (!count($config['items']) && $config['activo']) { tarError(400, 'Marca al menos una cosa que se revise, o apágalo.'); }
+        }
+        if (in_array('personas', $def['campos'], true)) {
+            $validas = array_map(function ($p) { return (int)$p['ID']; }, Tareas::personasActivas());
+            $config['personas'] = array_values(array_intersect($validas, array_map('intval', (array)(isset($llega['personas']) ? $llega['personas'] : array()))));
+        }
+        if (in_array('momento', $def['campos'], true)) { $config['momento'] = (isset($llega['momento']) && $llega['momento'] === 'SIGUIENTE_DIA') ? 'SIGUIENTE_DIA' : 'INMEDIATO'; }
+        if (in_array('correo', $def['campos'], true)) { $config['correo'] = !empty($llega['correo']) ? 1 : 0; }
+        if (in_array('coordinador', $def['campos'], true)) { $config['coordinador'] = !empty($llega['coordinador']) ? 1 : 0; }
+        if ($clave === 'PROMESA_AVISO' && $config['activo'] && !$config['coordinador'] && !count($config['roles']) && !count($config['personas'])) {
+            tarError(400, 'Elige a quién le llega el aviso (personas, roles o el coordinador del proyecto), o apágalo.');
+        }
+        if (in_array('correos', $def['campos'], true)) {
+            $correos = array_values(array_filter(array_map('trim', preg_split('/[,;\s]+/', isset($llega['correos']) ? (string)$llega['correos'] : ''))));
+            foreach ($correos as $correo) { if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) { tarError(400, '«' . $correo . '» no es un correo válido.'); } }
+            $config['correos'] = implode(', ', $correos);
+        }
+        if (in_array('nota', $def['campos'], true)) {
+            $nota = trim(strip_tags(isset($llega['nota']) ? (string)$llega['nota'] : ''));
+            if (mb_strlen($nota, 'UTF-8') > 500) { tarError(400, 'La nota pasa de 500 caracteres.'); }
+            $config['nota'] = $nota;
+        }
+        if (!Tareas::guardar($clave, $config, $idColaborador, date('Y-m-d H:i:s'))) { tarError(500, 'No se pudo guardar. ¿Ya se corrió el script 42?'); }
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Guardado.'), JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'simular':
+        $clave = tarClave();
+        if ($clave === 'PROMESA_AVISO') {
+            //El aviso de la campana no se envía: se dice quién lo vería
+            $config = Tareas::config($clave);
+            $lineas = array(Tareas::DEFINICIONES[$clave]['nombre'] . ($config['activo'] ? '' : ' (está apagado)'),
+                            $config['momento'] === 'INMEDIATO' ? 'Aparece en la campana en cuanto se registra la promesa por debajo.'
+                                                               : 'Aparece en la campana desde las ' . $config['hora'] . ':00 del día siguiente.');
+            $lineas[] = $config['correo'] ? 'También llega por correo en ese momento.' : 'Solo en la campana (sin correo).';
+            if ($config['coordinador']) { $lineas[] = 'Lo ve el coordinador de cada proyecto, de sus peajes.'; }
+            foreach (Tareas::destinatarios($config) as $persona) {
+                $correo = trim((string)$persona['MAIL_COLABORADOR']);
+                $lineas[] = 'Lo ve ' . html_entity_decode($persona['NOM_COLABORADOR'], ENT_QUOTES, 'UTF-8') . ', de todos los proyectos'
+                          . ($config['correo'] ? (filter_var($correo, FILTER_VALIDATE_EMAIL) ? ' (correo: ' . $correo . ')' : ' (no tiene correo registrado)') : '') . '.';
+            }
+            echo hanaJsonTexto(array('lineas' => $lineas), JSON_UNESCAPED_UNICODE);
             break;
         }
-        $hoy = date('Y-m-d');
-        $estadoDia = new EstadoDia();
-        //La dirección para entrar al sistema (la misma de esta página, dos carpetas arriba)
-        $base = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost')
-              . rtrim(dirname(dirname(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/Control/x.php')), '/\\') . '/Vista/ReporteDiarioVista.php';
+        $resultado = tareaEjecutar($clave, true, 'simulación');
+        echo hanaJsonTexto(array('lineas' => $resultado['lineas']), JSON_UNESCAPED_UNICODE);
+        break;
 
-        $coordinadores = Organizacion::coordinadoresConCorreo();
-        $salida = array(); $enviados = 0;
-        foreach ((array)$coordinadores as $coordinador) {
-            $estado = $estadoDia->resumen((int)$coordinador['ID_COLABORADOR'], $hoy);
-            if (!$estado) { continue; }
-            $falta = array();
-            if (HanaConfig::modulo('HOY') && !$estado['hoy']['ok']) { $falta[] = 'Contar en <strong>Hoy en qué estás</strong> dónde vas a estar y qué vas a hacer.'; }
-            if (HanaConfig::modulo('LISTAS') && !$estado['listas']['ok']) { $falta[] = 'Diligenciar las <strong>listas de chequeo</strong> de los peajes que visites.'; }
-            if (HanaConfig::modulo('CRONOGRAMA') && !$estado['cronograma']['ok']) { $falta[] = 'Darle una mirada a tu <strong>cronograma</strong>.'; }
-            if (HanaConfig::modulo('CRONOGRAMA') && $estado['cronograma']['vehiculos'] > 0 && $estado['cronograma']['vehiculosReg'] < $estado['cronograma']['vehiculos']) {
-                $falta[] = 'Registrar el <strong>estado del vehículo</strong> de hoy.';
-            }
-            $nombre = trim(explode(' ', html_entity_decode($coordinador['NOM_COLABORADOR'], ENT_QUOTES, 'UTF-8'))[0]);
-            $correo = trim((string)$coordinador['MAIL_COLABORADOR']);
-            $fila = array('coordinador' => $coordinador['NOM_COLABORADOR'], 'correo' => $correo, 'falta' => array_map('strip_tags', $falta), 'resultado' => '');
-            if (!count($falta)) { $fila['resultado'] = 'Al día: no se le escribe'; $salida[] = $fila; continue; }
-            if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) { $fila['resultado'] = 'Sin correo válido en Colaboradores'; $salida[] = $fila; continue; }
-            if ($simular) { $fila['resultado'] = 'Se le enviaría'; $salida[] = $fila; continue; }
-
-            //El correo: corto, cordial y con el enlace para entrar
-            $mail = new \PHPMailer\PHPMailer\PHPMailer();
-            $mail->CharSet = 'UTF-8';
-            hanaConfigurarSmtp($mail);
-            $mail->FromName = 'HANA - Reporte diario';
-            $mail->addAddress($correo, hanaNombreBonito($coordinador['NOM_COLABORADOR']));
-            $mail->Subject = 'Lo que te falta hoy en HANA';
-            //La misma plantilla de todos los correos, saludando a la persona por su nombre
-            $mail->Body = hanaCorreoHtml($coordinador['NOM_COLABORADOR'], 'Lo que te falta hoy en HANA',
-                '<p style="margin:0 0 8px;">Un recordatorio rápido. Para hoy te falta:</p><ul style="margin:0 0 10px;padding-left:20px;"><li style="margin-bottom:4px;">'
-                . implode('</li><li style="margin-bottom:4px;">', $falta) . '</li></ul><p style="margin:0;color:#7A716E;font-size:13px;">Si ya lo hiciste, ignora este mensaje.</p>',
-                array('texto' => 'Entrar a HANA', 'url' => $base));
-            $ok = hanaEnviar($mail, 'RECORDATORIO');
-            $fila['resultado'] = $ok ? 'Enviado' : 'No se pudo enviar (ver el registro de correos)';
-            if ($ok) { $enviados++; }
-            $salida[] = $fila;
-        }
-        echo json_encode(array('ok' => true, 'simulado' => $simular, 'enviados' => $enviados, 'detalle' => $salida), JSON_UNESCAPED_UNICODE);
+    case 'ejecutar':
+        $clave = tarClave();
+        if (Tareas::DEFINICIONES[$clave]['entrega'] !== 'CORREO') { tarError(400, 'Esta tarea no envía correos.'); }
+        if (!Tareas::config($clave)['activo']) { tarError(400, 'Está apagada. Enciéndela y guarda antes de enviarla.'); }
+        $resultado = tareaEjecutar($clave, false, 'Enviar ahora: ' . $nombreSesion);
+        echo hanaJsonTexto(array('ok' => !$resultado['fallos'], 'lineas' => $resultado['lineas'],
+                                 'mensaje' => $resultado['enviados'] . ' correo(s) enviado(s)' . ($resultado['fallos'] ? ', ' . $resultado['fallos'] . ' con error.' : '.')), JSON_UNESCAPED_UNICODE);
         break;
 
     default:
-        tareaError(400, 'Operación no reconocida.');
+        tarError(400, 'Operación no reconocida.');
 }

@@ -51,6 +51,11 @@ if (!isset($_SESSION["IdUsuarios"])){
     .login_content h1, .login_content label, .login_content .btn{
       -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
     }
+    /* En el celular, con letra menor de 16px el iPhone acerca la página al tocar el campo
+       y queda desacomodada. Con 16px no lo hace */
+    @media (max-width: 767px){
+      .login_content .form-control{ font-size: 16px; height: 42px; }
+    }
   </style>
 </head>
 <style>

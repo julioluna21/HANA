@@ -1,18 +1,16 @@
 <?php
 /*
-  HANA - Lo que comparten las tareas programadas (carpeta tareas/)
+  HANA - Lo que comparten los archivos de la carpeta tareas/ que se corren con cron
   ---------------------------------------------------------------------------
-  Las tareas las corre el servidor con cron, por línea de comandos:
+  Se corren por línea de comandos; si alguien entra por la dirección, responde 403
+  y no hace nada (además, tareas/.htaccess bloquea la carpeta). Lo que hace cada
+  tarea está en tareas/libreria.php; lo que se puede configurar de cada una (hora,
+  días, a quién le llega...), en Reporte diario → Correos automáticos.
 
-      /usr/bin/php /home/USUARIO/RUTA_DE_HANA/tareas/resumen_diario.php
-
-  No se pueden abrir desde el navegador: si alguien entra por la dirección,
-  responde 403 y no hace nada (además, tareas/.htaccess bloquea la carpeta).
-  Por eso no llevan clave en la dirección ni dependen de una sesión.
-
-  Lo que escriben (cuántos correos salieron y si alguno falló) sale
-  en la pantalla cuando se prueban a mano, o en el correo / archivo que cron
-  tenga configurado. Cada correo también queda en bitacora_sistema (TIPO 'CORREO').
+  Lo que escriben (cuántos correos salieron y si alguno falló) sale en la pantalla
+  cuando se prueban a mano, o en el correo o archivo que cron tenga configurado.
+  Cada correo queda en bitacora_sistema (TIPO 'CORREO') y cada vez que corre una
+  tarea, también (TIPO 'TAREA').
 */
 if (PHP_SAPI !== 'cli') {
     http_response_code(403);
@@ -20,28 +18,27 @@ if (PHP_SAPI !== 'cli') {
     echo "Acceso no permitido.";
     exit;
 }
-
-date_default_timezone_set('America/Bogota'); //"hoy" y "ayer" son los de Colombia
 //Algunos archivos del sistema cargan otros con rutas relativas a la carpeta Control
 chdir(__DIR__ . '/../Control');
+require_once __DIR__ . '/libreria.php';
 
-require_once __DIR__ . '/../Conexion/Global.php';
-require_once __DIR__ . '/../public/PHPMailer-master/src/Exception.php';
-require_once __DIR__ . '/../public/PHPMailer-master/src/PHPMailer.php';
-require_once __DIR__ . '/../public/PHPMailer-master/src/SMTP.php';
-require_once __DIR__ . '/../Control/CorreoHelper.php';
-
-//Escribe una línea con la fecha y la hora, para que el registro de cron se entienda
-function tareaLinea($texto)
+//¿Se pidió --simular? Entonces la tarea solo dice a quién le enviaría, sin enviar nada
+function tareaSimular()
 {
-    echo '[' . date('Y-m-d H:i:s') . '] ' . $texto . PHP_EOL;
+    global $argv;
+    return in_array('--simular', (array)$argv, true);
 }
 
-//Si la cuenta de correo no está en Global.php, la tarea avisa y termina con error (cron lo reporta)
-function tareaRevisarCorreo()
+//Corre una tarea a mano (los archivos de cada tarea). Si ya corrió hoy, no la repite,
+//salvo con --forzar: así no llega dos veces si también está el programador en cron
+function tareaAMano($clave)
 {
-    if (!hanaCorreoDatos()) {
-        tareaLinea('No se envía nada: falta la cuenta de correo en Conexion/Global.php (MAIL_HOST, MAIL_USER y MAIL_PASSWORD).');
-        exit(1);
+    global $argv;
+    $simular = tareaSimular();
+    if (!$simular && !in_array('--forzar', (array)$argv, true) && Tareas::corrioHoy($clave, date('Y-m-d'))) {
+        tareaLinea(Tareas::DEFINICIONES[$clave]['nombre'] . ': ya se envió hoy. Para enviarla otra vez: --forzar');
+        exit(0);
     }
+    $resultado = tareaEjecutar($clave, $simular, 'a mano (línea de comandos)');
+    exit($resultado['fallos'] ? 1 : 0);
 }

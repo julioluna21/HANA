@@ -222,13 +222,7 @@ class InformeMensual
               GROUP BY ID_CENTRO_OP", 'sssssss', array($desde, $hasta, $desde, $hasta, $hasta, $hasta, $per['hoy'])),
             array('NUEVAS' => 'vacNuevas', 'CUBIERTAS' => 'vacCub', 'ABIERTAS' => 'vacAb', 'FUERA_DE_PLAZO' => 'vacFuera'));
 
-        //---- Ausentismo del mes: personas por día, solo las novedades que cuentan como ausencia
-        self::sumar($porCentro, HanaDB::q(
-            "SELECT r.ID_CENTRO_OP AS ID_CENTRO, SUM(r.CANTIDAD) AS PERSONAS
-               FROM aus_registro r INNER JOIN aus_novedad n ON n.ID_NOVEDAD_AUS = r.ID_NOVEDAD_AUS
-              WHERE n.CUENTA_AUSENCIA = 1 AND r.FECHA >= ? AND r.FECHA < ? AND r.ID_CENTRO_OP IN ($idsCentros)
-              GROUP BY r.ID_CENTRO_OP", 'ss', array($desde, $hasta)),
-            array('PERSONAS' => 'aus'));
+        //El ausentismo (matriz de cubrimiento) se retiró del sistema: el informe ya no lo incluye.
 
         //Lo de cada peaje sube a su proyecto
         foreach ($porCentro as $id => $cuentas) {
@@ -255,19 +249,7 @@ class InformeMensual
             unset($cuentasProyecto);
         }
 
-        //---- Ausentismo por motivo, de cada proyecto y del total
-        $ausPorMotivo = HanaDB::q(
-            "SELECT c.ID_PROYECTO, n.NOMBRE, n.ORDEN, SUM(r.CANTIDAD) AS PERSONAS
-               FROM aus_registro r
-               INNER JOIN aus_novedad n ON n.ID_NOVEDAD_AUS = r.ID_NOVEDAD_AUS
-               INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-              WHERE n.CUENTA_AUSENCIA = 1 AND r.FECHA >= ? AND r.FECHA < ? AND r.ID_CENTRO_OP IN ($idsCentros)
-              GROUP BY c.ID_PROYECTO, n.ID_NOVEDAD_AUS, n.NOMBRE, n.ORDEN
-              ORDER BY n.ORDEN, n.NOMBRE", 'ss', array($desde, $hasta));
-        foreach ((array)$ausPorMotivo as $fila) {
-            $porProyecto[(int)$fila['ID_PROYECTO']]['ausMotivos'][$fila['NOMBRE']] = (int)$fila['PERSONAS'];
-            $informe['ausMotivos'][$fila['NOMBRE']] = (isset($informe['ausMotivos'][$fila['NOMBRE']]) ? $informe['ausMotivos'][$fila['NOMBRE']] : 0) + (int)$fila['PERSONAS'];
-        }
+        //El ausentismo por motivo se retiró: ausMotivos queda vacío (lo conserva ceros()/el arreglo base).
 
         //---- El reporte diario de cada coordinador y lo que sigue pendiente
         foreach ($porProyecto as $idProyecto => $proyecto) {

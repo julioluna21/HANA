@@ -146,7 +146,8 @@ class Ausentismo
     //   porCentro:   [idCentro][idNovedad] = total de esos días
     //   porProyecto: [idProyecto][idNovedad] = total de esos días
     //-----------------------------------------------------------------------
-    public function consolidado($proyectos, $anio, $mes, $diaDesde = 1, $diaHasta = 31, $soloCentro = 0)
+    //$centrosPermitidos: solo esos peajes (los de quien consulta); null = todos
+    public function consolidado($proyectos, $anio, $mes, $diaDesde = 1, $diaHasta = 31, $soloCentro = 0, $centrosPermitidos = null)
     {
         $ids = array_values(array_unique(array_map('intval', (array)$proyectos)));
         $porCargo = array(); $porCentro = array(); $porProyecto = array();
@@ -157,6 +158,10 @@ class Ausentismo
         $params = array_merge($ids, array($desde, $hasta));
         $centro = '';
         if ((int)$soloCentro > 0) { $centro = ' AND r.ID_CENTRO_OP = ?'; $tipos .= 'i'; $params[] = (int)$soloCentro; }
+        if ($centrosPermitidos !== null) {
+            $permitidos = array_map('intval', (array)$centrosPermitidos);
+            $centro .= count($permitidos) ? ' AND r.ID_CENTRO_OP IN (' . implode(',', $permitidos) . ')' : ' AND 0 = 1';
+        }
         $filas = HanaDB::q("SELECT c.ID_PROYECTO, r.ID_CENTRO_OP, r.ID_CARGO_AUS, r.ID_NOVEDAD_AUS, DAY(r.FECHA) AS DIA, r.CANTIDAD
                           FROM aus_registro r INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
                          WHERE c.ID_PROYECTO IN ($marcas) AND r.FECHA >= ? AND r.FECHA < ?$centro", $tipos, $params);

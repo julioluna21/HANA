@@ -5,22 +5,39 @@ var cfgAus = null, proyAus = null, centroAus = null, datosAus = null;
 var cambiosAus = {};        //"cargo-novedad-dia" => cantidad (solo lo que cambió)
 var DIA_SEMANA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
+//Ausentismo y Promesa de valor son las dos partes de la misma sección: al pasar de una a la
+//otra (las pestañas de arriba) se lleva el proyecto, el mes y el año que se están viendo
+function seccionDeLaDireccion(selector, nombre) {
+    var encontrado = new RegExp('[?&]' + nombre + '=(\\d+)').exec(window.location.search);
+    if (encontrado && $(selector + ' option[value="' + encontrado[1] + '"]').length) { $(selector).val(encontrado[1]); }
+}
+function seccionIrA(enlace, proyecto, mes, anio) {
+    $(document).on('click', enlace, function (evento) {
+        evento.preventDefault();
+        window.location.href = $(this).attr('href') + '?proyecto=' + encodeURIComponent($(proyecto).val() || '') +
+                               '&mes=' + encodeURIComponent($(mes).val() || '') + '&anio=' + encodeURIComponent($(anio).val() || '');
+    });
+}
+
 $(function () {
     $.getJSON(URL_AUS + '?op=config')
         .done(function (config) {
             cfgAus = config;
             rdPeriodo('#aMes', '#aAnio', config.hoy);
-            if (!config.veTodos) { $('#consAlcance option[value="todos"]').remove(); } //el consolidado de todos los proyectos: 20M, 21M, 22M y 25M
+            if (!config.veTodos) { $('#consAlcance option[value="todos"]').remove(); } //el consolidado de todos sus proyectos, si tiene más de uno
             var html = '';
             config.proyectos.forEach(function (proyecto) {
                 html += '<option value="' + parseInt(proyecto.ID_PROYECTO, 10) + '">' + rdEsc(proyecto.NOM_PROYECTO) + (proyecto.COORDINA ? ' (el tuyo)' : (proyecto.EDITABLE && !proyecto.VE_PROYECTO ? ' (tu peaje)' : '')) + '</option>';
             });
             $('#aProyecto').html(html || '<option value="">No tienes proyectos</option>').val(String(config.proyectoInicial || ''));
+            //Si viene de Promesa de valor, el mismo proyecto, mes y año
+            seccionDeLaDireccion('#aProyecto', 'proyecto'); seccionDeLaDireccion('#aMes', 'mes'); seccionDeLaDireccion('#aAnio', 'anio');
             elegirProyectoAus();
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir ausentismo.'); });
 
     rdVigilarCambios('#ausForm');
+    seccionIrA('#irPromesa', '#aProyecto', '#aMes', '#aAnio');
     $('#aProyecto').on('change', function () { if (confirmarSalida()) { elegirProyectoAus(); } });
     $('#aCentro').on('change', function () { if (confirmarSalida()) { elegirCentroAus(+this.value); } else { $(this).val(String(centroAus.ID_CENTRO_OP)); } });
     $('#aMes, #aAnio').on('change', function () { if (confirmarSalida()) { cargarAus(); } });

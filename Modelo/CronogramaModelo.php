@@ -6,17 +6,17 @@
   la persona planea cada día, a la derecha el estado del vehículo.
 */
 require_once __DIR__ . "/HanaDB.php";
+require_once __DIR__ . "/HanaConfig.php"; //las listas que edita el administrador
 
 class Cronograma
 {
-    //Tipos de actividad (lo que se guarda => cómo se muestra)
-    public static $TIPOS = array('VISITA' => 'Visita', 'REUNION' => 'Reunión', 'DESCANSO' => 'Descanso',
-                                 'VACACIONES' => 'Vacaciones', 'OTRO' => 'Otro');
+    //Tipos de actividad (lo que se guarda => cómo se muestra). La edita el administrador en
+    //Parámetros del sistema → Listas
+    public static $TIPOS = array(); //se llena al final del archivo (HanaConfig::LISTAS)
     //Estado del vehículo cada día. Inoperativo incluye la falla reportada a flota
     public static $ESTADOS_VH = array('OPERATIVO' => 'Operativo', 'INOPERATIVO' => 'Inoperativo');
-    //Cómo se transportó el coordinador cuando el vehículo no estaba operativo
-    public static $TRANSPORTES = array('BUS' => 'Bus', 'TAXI' => 'Taxi', 'APP' => 'Aplicación (Didi, Uber…)',
-                                       'PARTICULAR' => 'Vehículo particular', 'OTRO' => 'Otro', 'NO_VIAJO' => 'No se desplazó');
+    //Cómo se transportó el coordinador cuando el vehículo no estaba operativo (la edita el administrador)
+    public static $TRANSPORTES = array(); //se llena al final del archivo (HanaConfig::LISTAS)
 
     //-----------------------------------------------------------------------
     // Lo planeado en un rango de fechas, con su estado real:
@@ -178,14 +178,32 @@ class Cronograma
         return $filas ? $filas : array();
     }
 
-    //Catálogo completo, para quien administra (5M)
-    public function catalogo()
+    //Catálogo de vehículos para quien los agrega y cambia (47M): los de esos proyectos (null = todos)
+    public function catalogo($idsProyectos = null)
     {
+        $filtro = '';
+        if ($idsProyectos !== null) {
+            $ids = array_map('intval', (array)$idsProyectos);
+            $filtro = count($ids) ? ' WHERE v.ID_PROYECTO IN (' . implode(',', $ids) . ')' : ' WHERE 0 = 1';
+        }
         $filas = HanaDB::q("SELECT v.*, p.NOM_PROYECTO, col.NOM_COLABORADOR AS RESPONSABLE
                           FROM vehiculo v
                           LEFT JOIN proyectos p ON p.ID_PROYECTO = v.ID_PROYECTO
-                          LEFT JOIN colaboradores col ON col.ID_COLABORADOR = v.ID_COLABORADOR_RESPONSABLE
+                          LEFT JOIN colaboradores col ON col.ID_COLABORADOR = v.ID_COLABORADOR_RESPONSABLE" . $filtro . "
                          ORDER BY v.ESTADO DESC, v.PLACA");
+        return $filas ? $filas : array();
+    }
+
+    //Los vehículos activos de esos proyectos y los que tiene a cargo la persona ($todos: todos)
+    public function vehiculosDeProyectos($idsProyectos, $idColaborador, $todos = false)
+    {
+        $ids = array_map('intval', (array)$idsProyectos);
+        $enProyectos = $todos ? '1 = 1' : (count($ids) ? 'v.ID_PROYECTO IN (' . implode(',', $ids) . ')' : '0 = 1');
+        $filas = HanaDB::q("SELECT v.ID_VEHICULO, v.PLACA, v.DESCRIPCION, v.ID_PROYECTO, v.ID_COLABORADOR_RESPONSABLE, col.NOM_COLABORADOR AS RESPONSABLE
+                              FROM vehiculo v
+                              LEFT JOIN colaboradores col ON col.ID_COLABORADOR = v.ID_COLABORADOR_RESPONSABLE
+                             WHERE v.ESTADO = 1 AND ($enProyectos OR v.ID_COLABORADOR_RESPONSABLE = ?)
+                             ORDER BY v.PLACA", 'i', array((int)$idColaborador));
         return $filas ? $filas : array();
     }
 
@@ -207,3 +225,7 @@ class Cronograma
         return (bool)HanaDB::fila("SELECT 1 AS ok FROM vehiculo WHERE PLACA = ? AND ID_VEHICULO <> ?", 'si', array($placa, (int)$idExcepto));
     }
 }
+
+//Las listas que el administrador edita en Parámetros del sistema → Listas (las de fábrica están en HanaConfig::LISTAS)
+Cronograma::$TIPOS       = HanaConfig::opciones('LISTA_TIPOS_CRONO');
+Cronograma::$TRANSPORTES = HanaConfig::opciones('LISTA_TRANSPORTES');

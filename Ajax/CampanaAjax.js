@@ -49,7 +49,7 @@
 
         if (!items.length) {
             lista.html('<li class="hana-campana-vacia"><i class="fa fa-check-circle"></i>' +
-                       'No tienes novedades nuevas.</li>');
+                       'No tienes avisos nuevos.</li>');
             $('#campanaTodas').hide();
             return;
         }
@@ -57,7 +57,7 @@
         var html = '';
         for (var i = 0; i < items.length; i++) {
             var item = items[i];
-            html += '<li><a class="hana-campana-item" data-id="' + parseInt(item.id, 10) + '" data-tipo="' + (item.tipo === 'rq' ? 'rq' : 'novedad') + '">' +
+            html += '<li><a class="hana-campana-item" data-id="' + parseInt(item.id, 10) + '" data-tipo="' + tipoSeguro(item.tipo) + '">' +
                     '<span class="marca ' + seguro(item.prioridad) + '"></span>' +
                     '<span class="texto">' +
                     '<div class="titulo">' + seguro(item.titulo) + '</div>' +
@@ -110,12 +110,24 @@
         if (temporizador) { clearInterval(temporizador); temporizador = null; }
     }
 
-    //Abre el aviso: primero lo marca como leído. Las RQ van a su pantalla
+    //Los tipos de aviso que hay: novedad, rq y promesa
+    function tipoSeguro(tipo) { return (tipo === 'rq' || tipo === 'promesa') ? tipo : 'novedad'; }
+
+    //El aviso de la promesa es un peaje en un día: id = días desde el 1/1/2000 × 10000 + peaje
+    //(ver Modelo/CampanaModelo.php). Lleva a la promesa de valor de ese peaje y ese mes
+    function irAPromesa(id) {
+        var numero = parseInt(id, 10), centro = numero % 10000;
+        var fecha = new Date(Date.UTC(2000, 0, 1) + Math.floor(numero / 10000) * 86400000);
+        location.href = 'PromesaValorVista.php?centro=' + centro + '&anio=' + fecha.getUTCFullYear() + '&mes=' + (fecha.getUTCMonth() + 1);
+    }
+
+    //Abre el aviso: primero lo marca como leído. Las RQ y la promesa van a su pantalla
     function abrir(id, tipo) {
-        tipo = (tipo === 'rq') ? 'rq' : 'novedad';
+        tipo = tipoSeguro(tipo);
         $.ajax({ url: URL + '?op=leer', type: 'POST', data: { id: id, tipo: tipo },
                  dataType: 'json', global: false })
             .always(function () {
+                if (tipo === 'promesa') { irAPromesa(id); return; }
                 if (tipo === 'rq') {
                     if (typeof window.verRQ === 'function' && location.pathname.indexOf('RQVista') !== -1) {
                         window.verRQ(id);

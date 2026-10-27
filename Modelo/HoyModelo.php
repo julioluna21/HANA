@@ -2,7 +2,7 @@
 /*
   HANA - Modelo de "Hoy en qué estás" (Reporte diario)
   ---------------------------------------------------------------------------
-  El día de cada persona: dónde estuvo, a qué hora entró y salió, y qué hizo,
+  El día de cada persona: dónde va a estar, a qué hora entra y sale, y qué va a hacer,
   en un solo texto. Es la hoja "Hoy en qué estás" del reporte diario.
 
   Todas las consultas son preparadas (los datos viajan aparte del SQL): no se
@@ -81,10 +81,19 @@ class Hoy
         $id = (int)$registro['ID_REPORTE_HOY'];
 
         $registro['CENTROS'] = array();
-        foreach ((array)$this->q("SELECT ID_CENTRO_OP FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id)) as $centro) {
+        //Con su nombre y proyecto: quien consulta el día de otro (33M) no tiene esos peajes en su lista
+        $registro['CENTROS_DET'] = array();
+        $marcados = $this->q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.NOM_PROYECTO
+                                FROM reporte_hoy_centro hc
+                                INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = hc.ID_CENTRO_OP
+                                LEFT JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
+                               WHERE hc.ID_REPORTE_HOY = ?
+                               ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP", 'i', array($id));
+        foreach ((array)$marcados as $centro) {
             $registro['CENTROS'][] = (int)$centro['ID_CENTRO_OP'];
+            $registro['CENTROS_DET'][] = $centro;
         }
-        return $registro; //ACTIVIDAD (qué hizo en el día) ya viene en la fila
+        return $registro; //ACTIVIDAD (qué va a hacer en el día) ya viene en la fila
     }
 
     //-----------------------------------------------------------------------
@@ -101,6 +110,38 @@ class Hoy
                              FROM reporte_hoy h
                             WHERE h.ID_COLABORADOR = ? AND h.FECHA >= ? AND h.FECHA < ?
                             ORDER BY h.FECHA", 'iss', array((int)$idColaborador, $desde, $hasta));
+        return $filas ? $filas : array();
+    }
+
+    //-----------------------------------------------------------------------
+    // A quién se puede consultar (33M): las personas que llenan Hoy en qué estás
+    // (su rol tiene la casilla 28M, o ya tienen días registrados) y que trabajan en
+    // alguno de los peajes de quien consulta. $idsCentros: esos peajes (null = todos,
+    // para el ADMIN TEC). Cada una con los proyectos de sus peajes
+    //-----------------------------------------------------------------------
+    public function personasConsulta($idsCentros = null)
+    {
+        $enMisPeajes = '1 = 1';
+        if ($idsCentros !== null) {
+            $ids = array_map('intval', (array)$idsCentros);
+            if (!count($ids)) { return array(); }
+            $enMisPeajes = "EXISTS (SELECT 1 FROM asoc_usuarios_sistemas_x_cop a2 WHERE a2.ID_COLABORADOR = col.ID_COLABORADOR
+                                    AND a2.ID_CENTRO_OP IN (" . implode(',', $ids) . "))";
+        }
+        $filas = $this->q("SELECT col.ID_COLABORADOR, col.NOM_COLABORADOR,
+                                  (SELECT GROUP_CONCAT(DISTINCT p.NOM_PROYECTO ORDER BY p.NOM_PROYECTO SEPARATOR ', ')
+                                     FROM asoc_usuarios_sistemas_x_cop a
+                                     INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = a.ID_CENTRO_OP AND c.ESTADO = '1'
+                                     INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO AND p.ESTADO = '1'
+                                    WHERE a.ID_COLABORADOR = col.ID_COLABORADOR) AS PROYECTOS
+                             FROM colaboradores col
+                             LEFT JOIN usuarios_sistema u ON u.ID_COLABORADOR = col.ID_COLABORADOR
+                             LEFT JOIN rol_usuarios_sistemas ro ON ro.ID_ROL_USUARIO_SISTEMA = u.ID_ROL_USUARIO_SISTEMA
+                            WHERE col.ESTADO = 1
+                              AND (CONCAT(',', IFNULL(ro.PERMISOS, ''), ',') LIKE '%,28M,%'
+                                   OR col.ID_COLABORADOR IN (SELECT DISTINCT ID_COLABORADOR FROM reporte_hoy))
+                              AND $enMisPeajes
+                            ORDER BY (PROYECTOS IS NULL), col.NOM_COLABORADOR");
         return $filas ? $filas : array();
     }
 

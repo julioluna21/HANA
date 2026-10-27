@@ -50,7 +50,9 @@ class grupos{
                      $sql = "SELECT * FROM grupo_lista_chequeo WHERE ESTADO= '1' ORDER BY NOM_GRUPO_LISTA_CHEQUEO ASC";
                      return ejecutarConsulta($sql);
              } else {
-                     $sql = "SELECT * FROM grupo_lista_chequeo WHERE NOM_GRUPO_LISTA_CHEQUEO LIKE '%".$busqueda."%' AND ESTADO= '1' ORDER BY NOM_GRUPO_LISTA_CHEQUEO ASC";
+                     //El texto de búsqueda se escapa (comillas) y se neutralizan los comodines % y _ antes del LIKE
+                     $texto = addcslashes(mysqli_real_escape_string($GLOBALS['conexion'], (string)$busqueda), '%_');
+                     $sql = "SELECT * FROM grupo_lista_chequeo WHERE NOM_GRUPO_LISTA_CHEQUEO LIKE '%".$texto."%' AND ESTADO= '1' ORDER BY NOM_GRUPO_LISTA_CHEQUEO ASC";
                      return ejecutarConsulta($sql);
              }
              

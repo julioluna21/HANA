@@ -94,4 +94,35 @@ class Parametros
         return HanaDB::q("UPDATE dia_habilitado SET ESTADO = 0, ID_COLABORADOR_DESHABILITA = ?, FEC_DESHABILITA = ? WHERE ID_DIA_HABILITADO = ?",
                          'isi', array((int)$quien, $ahora, (int)$id));
     }
+
+    //-----------------------------------------------------------------------
+    // Listas de opciones (HanaConfig::LISTAS) y nombres de los conceptos de arqueo
+    //-----------------------------------------------------------------------
+    //Cuántos registros usan cada código de una lista: [CODIGO => n]. $columna = 'tabla.COLUMNA'
+    //de HanaConfig::LISTAS (fija en el código, nunca viene de la pantalla)
+    public function usosLista($columna)
+    {
+        list($tabla, $campo) = explode('.', $columna);
+        if (!preg_match('/^[a-z_]+$/', $tabla) || !preg_match('/^[A-Z_]+$/', $campo)) { return array(); }
+        $filas = HanaDB::q("SELECT `$campo` AS CODIGO, COUNT(*) AS N FROM `$tabla` WHERE `$campo` IS NOT NULL GROUP BY `$campo`");
+        $usos = array();
+        foreach (is_array($filas) ? $filas : array() as $fila) { $usos[(string)$fila['CODIGO']] = (int)$fila['N']; }
+        return $usos;
+    }
+
+    //Los conceptos fijos del arqueo de caja menor y de recambio (los de casetas se configuran en Arqueos → Campos)
+    public function conceptosArqueo()
+    {
+        $filas = HanaDB::q("SELECT ID_CONCEPTO, TIPO_ARQUEO, CODIGO, NOMBRE, ORDEN FROM arqueo_concepto
+                             WHERE CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')
+                             ORDER BY TIPO_ARQUEO = 'RECAMBIO', ORDEN, ID_CONCEPTO");
+        return is_array($filas) ? $filas : array();
+    }
+
+    //Cambia el nombre de un concepto fijo de caja menor o recambio
+    public function nombrarConcepto($id, $nombre)
+    {
+        return HanaDB::q("UPDATE arqueo_concepto SET NOMBRE = ? WHERE ID_CONCEPTO = ? AND CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')",
+                         'si', array($nombre, (int)$id));
+    }
 }

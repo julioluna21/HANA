@@ -68,7 +68,7 @@
          Debe ir DESPUES de DataTables -->
     <script src="../Ajax/ComunAjax.js?v=1"></script>
     <!-- Campana de notificaciones: se revisa sola una vez por minuto -->
-    <script src="../Ajax/CampanaAjax.js?v=1"></script>
+    <script src="../Ajax/CampanaAjax.js?v=2"></script>
 
     
 

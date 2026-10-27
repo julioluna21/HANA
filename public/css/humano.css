@@ -249,6 +249,9 @@ p.rd-ayuda::before{ content: "\f0eb"; font-family: FontAwesome; position: absolu
   .nav_menu .nav.navbar-nav, .nav_menu .navbar-right{ display: flex; align-items: center; flex-wrap: nowrap; margin: 0 0 0 auto; float: none; }
   .nav_menu .navbar-right > li{ float: none; }
   .nav_menu .user-profile{ max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
+  /* La flechita del menú del usuario queda siempre a la vista, aunque el nombre se corte con «...» */
+  .nav_menu .user-profile{ position: relative; padding-right: 22px !important; }
+  .nav_menu .user-profile .fa-angle-down{ position: absolute; right: 6px; top: 50%; margin-top: -8px; }
   .nav_menu .toggle{ flex: 0 0 auto; }
 
   /* Filas de formulario: un campo por línea, con aire */

@@ -4,13 +4,12 @@
   ---------------------------------------------------------------------------
   Todo lo que enviaron los coordinadores y jefes de peaje en un día,
   organizado por módulo. El alcance es el mismo del tablero:
-    - con 20M (gerente de operaciones): todo
+    - con 20M (director de operaciones): todo
     - el coordinador: su proyecto (él y los jefes de sus centros)
     - el jefe de peaje: lo suyo
 */
 require_once __DIR__ . "/TableroModelo.php"; //trae también los modelos de Hoy en qué estás y del cronograma
 require_once __DIR__ . "/VacanteModelo.php";
-require_once __DIR__ . "/RQEstados.php";
 require_once __DIR__ . "/ArqueoModelo.php";
 
 class ControlDiario
@@ -209,28 +208,6 @@ class ControlDiario
                              ORDER BY p.NOM_PROYECTO, c.TIPO_CENTRO = 'BASCULA', c.NOM_CENTRO_OP, ca.ORDEN, n.ORDEN",
                            's' . str_repeat('i', count($idsCentros)), array_merge(array($fecha), $idsCentros));
         } catch (\Throwable $error) { return array(); } //si el ausentismo no está instalado
-        return $filas ? $filas : array();
-    }
-
-    //Requisiciones de estos centros que siguen esperando aprobación, con cuántos días llevan
-    public function rqPendientes($idsCentros)
-    {
-        if (!count($idsCentros)) { return array(); }
-        $marcas = $this->marcas($idsCentros);
-        $filas = HanaDB::q("SELECT r.ID_RQ, r.NUMERO_RQ, r.TIPO_RQ, r.FECHA_RQ, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO,
-                               col.NOM_COLABORADOR AS SOLICITA, DATEDIFF(NOW(), " . RqEstado::sqlDesde('r.ID_RQ') . ") AS DIAS,
-                               (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ', ') FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS ITEMS,
-                               -- Los archivos de la RQ (fotos y soportes), separados por |, para mostrarlos donde se aprueba:
-                               -- el número de cada uno con .jpg si es foto o .pdf si es soporte (el contenido se pide aparte)
-                               (SELECT GROUP_CONCAT(CONCAT(a.ID_ADJUNTO, IF(a.TIPO = 'soporte', '.pdf', '.jpg')) ORDER BY a.ID_ADJUNTO SEPARATOR '|') FROM adjunto a
-                                 WHERE a.MODULO = 'RQ' AND a.ESTADO = 1 AND a.ID_REGISTRO = r.ID_RQ) AS ARCHIVOS
-                          FROM rq r
-                          INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
-                          INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
-                          LEFT JOIN colaboradores col ON col.ID_COLABORADOR = r.ID_COLABORADOR_SOLICITA
-                         WHERE r.ID_RQ_ESTADO = " . RqEstado::SOLICITADA . " AND r.ID_CENTRO_OP IN ($marcas)
-                         ORDER BY (r.TIPO_RQ = 'U') DESC, DIAS DESC",
-                       str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
         return $filas ? $filas : array();
     }
 }

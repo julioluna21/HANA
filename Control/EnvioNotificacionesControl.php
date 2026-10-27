@@ -15,8 +15,8 @@ require_once __DIR__ . '/../Modelo/BitacoraModelo.php'; //cada correo queda enla
 use PHPMailer\PHPMailer\PHPMailer;
 
 //Paleta del sistema, para que el correo se vea igual que la aplicación
-define('HANA_AZUL',  '#2A3F54'); //el mismo color del menú lateral
-define('HANA_CELESTE','#5395a8');
+define('HANA_VINO',  '#6E1A1E'); //vino de la marca, el mismo color del menú lateral
+define('HANA_MENTA', '#1ABB9C'); //verde menta, color de acento del sistema
 
 //Guarda el motivo del último fallo de envío, para poder mostrarlo al diagnosticar
 $GLOBALS['hanaUltimoError'] = '';
@@ -92,7 +92,7 @@ function hanaPlantillaCorreo($titulo, $subtitulo, $contenido)
 
       <!-- Cabecera con el color del sistema -->
       <tr>
-        <td style="background:'.HANA_AZUL.'; padding:22px 28px; color:#ffffff;">
+        <td style="background:'.HANA_VINO.'; padding:22px 28px; color:#ffffff;">
           <div style="font-size:22px; font-weight:bold;">'.$titulo.'</div>
           <div style="font-size:13px; opacity:.85; margin-top:4px;">'.$subtitulo.'</div>
         </td>
@@ -152,7 +152,7 @@ function hanaBloqueRespuestas($idLista, $modeloNotificaciones)
 
     return '
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:13px; margin-top:10px;">
-      <tr style="background:'.HANA_CELESTE.'; color:#ffffff;">
+      <tr style="background:'.HANA_MENTA.'; color:#ffffff;">
         <th align="left" style="padding:9px 10px; width:34px;">#</th>
         <th align="left" style="padding:9px 10px;">Pregunta</th>
         <th align="left" style="padding:9px 10px; width:33%;">Respuesta</th>
@@ -164,7 +164,7 @@ function hanaBloqueRespuestas($idLista, $modeloNotificaciones)
 function hanaFichaCabecera($nombre, $centro, $fecha)
 {
     return '
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f9fa; border-left:4px solid '.HANA_CELESTE.'; margin-bottom:6px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f9fa; border-left:4px solid '.HANA_MENTA.'; margin-bottom:6px;">
       <tr>
         <td style="padding:12px 14px; font-size:13px;">
           <strong>Diligenciado por:</strong> '.htmlspecialchars($nombre).'<br>
@@ -224,7 +224,8 @@ function hanaNotificarInmediato($idLista)
 // ---------------------------------------------------------------------------
 // RESUMEN DIARIO / SEMANAL: agrupa todas las listas del periodo por persona
 // ---------------------------------------------------------------------------
-function hanaEnviarResumen($frecuencia)
+//Con $simular no envía nada: anota en $GLOBALS['hanaResumenSimulado'] a quién le llegaría cada resumen
+function hanaEnviarResumen($frecuencia, $simular = false)
 {
     $modeloNotificaciones = new Notificaciones();
 
@@ -269,7 +270,7 @@ function hanaEnviarResumen($frecuencia)
         $resumen = '
         <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
           <tr>
-            <td style="background:'.HANA_CELESTE.'; color:#fff; padding:14px; text-align:center; border-radius:6px;">
+            <td style="background:'.HANA_MENTA.'; color:#fff; padding:14px; text-align:center; border-radius:6px;">
               <span style="font-size:26px; font-weight:bold;">'.$total.'</span>
               <span style="font-size:13px;"> diligenciamiento(s)</span>
               <span style="opacity:.5; margin:0 10px;">|</span>
@@ -288,6 +289,11 @@ function hanaEnviarResumen($frecuencia)
         $asunto = ($aviso->ASUNTO != '')
                 ? $aviso->ASUNTO
                 : 'HANA - '.$etiqueta.' - '.$aviso->NOM_GRUPO_LISTA_CHEQUEO;
+        if ($simular) {
+            $GLOBALS['hanaResumenSimulado'][] = $aviso->NOM_GRUPO_LISTA_CHEQUEO . ' (' . $total . ' lista(s)) → ' . $aviso->DESTINATARIOS;
+            $enviados++;
+            continue;
+        }
 
         Bitacora::contexto($aviso->ID_NOTIFICACION); //en la bitácora: qué aviso mandó el resumen
         $salio = hanaEnviarCorreo($aviso->DESTINATARIOS, $asunto, $html);

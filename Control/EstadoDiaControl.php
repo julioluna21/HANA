@@ -3,7 +3,8 @@
   HANA - Estado del día de quien tiene la sesión (alertas del reporte diario)
   ---------------------------------------------------------------------------
     op=estado        lo del día: Hoy en qué estás, listas, arqueos, cronograma
-    op=visto&modulo  deja constancia de que abrió una pantalla (el cronograma)
+    op=visto&modulo  deja constancia de que abrió una pantalla (cronograma, vacantes
+                     o comunicaciones; el recordatorio de las 9 a. m. lo tiene en cuenta)
 */
 session_start();
 require_once __DIR__ . "/../Modelo/EstadoDiaModelo.php";
@@ -29,7 +30,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'visto':
         //Solo los módulos que se revisan (no se llenan) llevan constancia de visita
         $modulo = isset($_POST['modulo']) ? $_POST['modulo'] : '';
-        if (!in_array($modulo, array('CRONOGRAMA'), true)) { http_response_code(400); echo hanaJsonTexto(array('error' => 'Módulo no válido.')); exit; }
+        if (!in_array($modulo, array('CRONOGRAMA', 'VACANTES', 'COMUNICACIONES'), true)) { http_response_code(400); echo hanaJsonTexto(array('error' => 'Módulo no válido.')); exit; }
         $estadoDia->visto($idColaborador, $modulo, date('Y-m-d H:i:s'));
         echo hanaJsonTexto(array('ok' => true));
         break;

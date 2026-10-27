@@ -202,7 +202,7 @@ include('head.php');
                   <h2>Listado de novedades</h2>
                   <SPAN title="Registrar novedad" style="float:right">
               <!--span - abarcar. Es un contenedor en línea. Sirve para aplicar estilo al texto o agrupar elementos en línea.-->
-              <button class="btn btn-success" id="btnagregar" onclick="mostrarform(true)">
+              <button class="btn btn-success rd-btn-flotante" id="btnagregar" onclick="mostrarform(true)">
                 <!--Al hacer click, muestra el formulario-->
                 <i class="fa fa-plus-square">
                   <!--Muestra el texto marcado con un estilo en cursiva o itálica.-->
@@ -318,7 +318,7 @@ include('head.php');
              <!-- chat.css se carga aquí, DESPUES de head.php, así que sus colores y su
                   regla ".row{display:-webkit-box}" ganaban sobre los nuestros. Por eso
                   se vuelven a cargar nuestras hojas justo despues: así mandan las de HANA -->
-             <link href="../public/css/comun.css?v=1" rel="stylesheet">
+             <link href="../public/css/comun.css?v=6" rel="stylesheet">
              <link href="../public/css/paleta.css?v=1" rel="stylesheet">
              <!-- Estilos de la pantalla de novedades: foto con vista previa y estados visibles -->
              <link href="../public/css/novedades.css?v=1" rel="stylesheet">

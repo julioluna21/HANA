@@ -58,6 +58,14 @@ function usuPersonaAdministra($idPersona)
     return $fila ? usuRolAdministra($fila['PERMISOS']) : false;
 }
 
+//¿La persona de la sesión puede cambiarle la contraseña a esa persona?
+//A quien administra (1M, 2M, 3M o 24M) solo la cambia quien tiene 24M
+function usuPuedeCambiarClaveDe($idPersona)
+{
+    $misCasillas = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
+    return in_array('24M', $misCasillas, true) || !usuPersonaAdministra($idPersona);
+}
+
 //¿El nombre de usuario sirve? Devuelve el problema, o '' si sirve
 function usuProblemaNombre($modeloUsuarios, $usuario, $idPersona)
 {
@@ -68,54 +76,91 @@ function usuProblemaNombre($modeloUsuarios, $usuario, $idPersona)
     return '';
 }
 
-//Le crea el usuario a una persona que no tiene: el nombre de usuario, el rol y una contraseña
-//temporal al azar, que le llega por correo (si el correo no sale, se muestra una sola vez).
-//Quien llama ya revisó que el rol se pueda dar. Devuelve el mensaje para la pantalla
-//(empieza con «Error:» si no se pudo)
-function usuCrearUsuario($modeloUsuarios, $persona, $usuario, $idRol)
+//Por qué no salió el último correo (para decirlo en pantalla)
+function usuMotivoCorreo($mail)
+{
+    if (!hanaCorreoDatos()) { return 'la contraseña de la cuenta de correo no está escrita en Conexion/Global.php del servidor (MAIL_PASSWORD)'; }
+    $error = trim(preg_replace('/\s+/', ' ', (string)$mail->ErrorInfo));
+    return 'el servidor de correo respondió: ' . ($error !== '' ? $error : 'sin detalle');
+}
+
+//Le crea el usuario a una persona que no tiene: el nombre de usuario, el rol y la contraseña.
+//La contraseña es la que escribió quien lo crea; si no escribió ninguna, una temporal al azar.
+//Le llega por correo (si el correo no sale, se muestra una sola vez).
+//Quien llama ya revisó que el rol se pueda dar y que la contraseña escrita cumpla las reglas.
+//Devuelve el mensaje para la pantalla (empieza con «Error:» si no se pudo)
+function usuCrearUsuario($modeloUsuarios, $persona, $usuario, $idRol, $claveEscrita = '')
 {
     $idPersona = (int)$persona['ID_COLABORADOR'];
     if ($modeloUsuarios->tieneUsuario($idPersona)) { return 'Error: esta persona ya tiene usuario.'; }
     $problema = usuProblemaNombre($modeloUsuarios, $usuario, $idPersona);
     if ($problema !== '') { return 'Error: ' . $problema; }
-    $temporal = usuClaveTemporal();
-    if (!$modeloUsuarios->crearUsuario($idPersona, $usuario, HanaClave::cifrar($temporal), $idRol)) {
+    $temporal = $claveEscrita === '';
+    $clave = $temporal ? usuClaveTemporal() : $claveEscrita;
+    if (!$modeloUsuarios->crearUsuario($idPersona, $usuario, HanaClave::cifrar($clave), $idRol)) {
         return 'Error: no se pudo crear el usuario.';
     }
-    $enviado = usuEnviarDatosEntrada($persona['MAIL_COLABORADOR'], $persona['NOM_COLABORADOR'], $usuario, $temporal);
-    return 'Usuario creado con éxito.' . usuAvisoDatosEntrada($enviado, $persona['MAIL_COLABORADOR'], $usuario, $temporal);
+    $envio = usuEnviarDatosEntrada($persona['MAIL_COLABORADOR'], $persona['NOM_COLABORADOR'], $usuario, $clave, false, $temporal);
+    return 'Usuario creado con éxito.' . usuAvisoDatosEntrada($envio, $persona['MAIL_COLABORADOR'], $usuario, $clave);
 }
 
-//Le manda a la persona su usuario y su contraseña temporal. Devuelve true si el correo salió
-function usuEnviarDatosEntrada($correo, $nombre, $usuario, $clave)
+//Le manda a la persona su usuario y su contraseña.
+//  $cambio   true = ya tenía usuario y se le asignó una contraseña nueva
+//  $temporal true = la generó el sistema al azar
+//Devuelve array('ok' => bool, 'motivo' => por qué no salió)
+function usuEnviarDatosEntrada($correo, $nombre, $usuario, $clave, $cambio = false, $temporal = true)
 {
-    $mensaje = '<p style="margin:0 0 12px;">Ya tienes usuario en <strong>HANA</strong>, el sistema de la operación de los peajes. Estos son tus datos para entrar:</p>'
+    $etiqueta = $temporal ? 'Contraseña temporal' : 'Contraseña';
+    $intro = $cambio ? 'Se te asignó una contraseña nueva para entrar a <strong>HANA</strong>. La anterior ya no sirve. Estos son tus datos:'
+                     : 'Ya tienes usuario en <strong>HANA</strong>, el sistema de la operación de los peajes. Estos son tus datos para entrar:';
+    $mensaje = '<p style="margin:0 0 12px;">' . $intro . '</p>'
              . '<table cellpadding="0" cellspacing="0" style="margin:0 0 14px;font-size:14px;">'
              . '<tr><td style="padding:6px 12px 6px 0;color:#7A716E;">Usuario</td><td style="padding:6px 0;font-weight:bold;">' . htmlspecialchars($usuario, ENT_QUOTES, 'UTF-8') . '</td></tr>'
-             . '<tr><td style="padding:6px 12px 6px 0;color:#7A716E;">Contraseña temporal</td><td style="padding:6px 0;font-weight:bold;font-family:monospace;">' . htmlspecialchars($clave, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+             . '<tr><td style="padding:6px 12px 6px 0;color:#7A716E;">' . $etiqueta . '</td><td style="padding:6px 0;font-weight:bold;font-family:monospace;">' . htmlspecialchars($clave, ENT_QUOTES, 'UTF-8') . '</td></tr>'
              . '</table>'
-             . '<p style="margin:0 0 6px;">Al entrar, cámbiala en el menú de tu nombre → <strong>Cambiar clave</strong>. Si se te olvida, pide una nueva con «Olvidé mi contraseña».</p>';
-    $asunto = 'Tu usuario de HANA';
+             . '<p style="margin:0 0 6px;">Si quieres, cámbiala al entrar en el menú de tu nombre → <strong>Cambiar clave</strong>. Si se te olvida, pide una nueva con «Olvidé mi contraseña».</p>'
+             . ($cambio ? '<p style="margin:8px 0 0;color:#7A716E;font-size:13px;">Si no pediste este cambio, avísale al administrador de HANA.</p>' : '');
+    $asunto = $cambio ? 'Tu contraseña de HANA cambió' : 'Tu usuario de HANA';
     $mail = new PHPMailer();
     hanaConfigurarSmtp($mail); //cuenta, servidor, UTF-8 y HTML
     $mail->FromName = 'HANA - Grupo Regency';
     $mail->addAddress($correo, hanaNombreBonito($nombre));
     $mail->Subject = $asunto;
     $mail->Body    = hanaCorreoHtml($nombre, $asunto, $mensaje, array('texto' => 'Entrar a HANA', 'url' => hanaUrlSistema('login.php')));
-    $mail->AltBody = "Ya tienes usuario en HANA.\nUsuario: " . $usuario . "\nContraseña temporal: " . $clave
-                   . "\nAl entrar, cámbiala en el menú de tu nombre → Cambiar clave.";
-    return hanaEnviar($mail, 'USUARIOS'); //con la cuenta de Global.php; queda en la bitácora (ver CorreoHelper.php)
+    $mail->AltBody = ($cambio ? "Se te asignó una contraseña nueva para entrar a HANA." : "Ya tienes usuario en HANA.")
+                   . "\nUsuario: " . $usuario . "\n" . $etiqueta . ": " . $clave
+                   . "\nSi quieres, cámbiala al entrar en el menú de tu nombre → Cambiar clave.";
+    $ok = hanaEnviar($mail, 'USUARIOS'); //con la cuenta de Global.php; queda en la bitácora (ver CorreoHelper.php)
+    return array('ok' => (bool)$ok, 'motivo' => $ok ? '' : usuMotivoCorreo($mail));
 }
 
-//El aviso para quien registró o dio la clave: si el correo salió, solo se dice a dónde
-//llegó; si no salió, se muestran los datos una sola vez para que se los pase a la persona
-function usuAvisoDatosEntrada($enviado, $correo, $usuario, $clave)
+//Aviso a una persona de que su contraseña cambió (cuando la cambia ella misma). No lleva la contraseña
+function usuAvisarCambioPropio($correo, $nombre, $usuario)
 {
-    if ($enviado) {
-        return "\n\nEl usuario «" . $usuario . "» y su contraseña temporal le llegaron por correo a " . $correo . '.';
+    $mensaje = '<p style="margin:0 0 10px;">Tu contraseña de <strong>HANA</strong> (usuario <strong>' . htmlspecialchars($usuario, ENT_QUOTES, 'UTF-8') . '</strong>) se cambió el '
+             . date('d/m/Y') . ' a las ' . date('g:i a') . '.</p>'
+             . '<p style="margin:0;">Si fuiste tú, no tienes que hacer nada. Si no, pide una nueva con «Olvidé mi contraseña» y avísale al administrador.</p>';
+    $asunto = 'Tu contraseña de HANA cambió';
+    $mail = new PHPMailer();
+    hanaConfigurarSmtp($mail);
+    $mail->FromName = 'HANA - Grupo Regency';
+    $mail->addAddress($correo, hanaNombreBonito($nombre));
+    $mail->Subject = $asunto;
+    $mail->Body    = hanaCorreoHtml($nombre, $asunto, $mensaje, array('texto' => 'Entrar a HANA', 'url' => hanaUrlSistema('login.php')));
+    $mail->AltBody = trim(html_entity_decode(strip_tags(str_replace('</p>', "\n", $mensaje)), ENT_QUOTES, 'UTF-8'));
+    $ok = hanaEnviar($mail, 'USUARIOS');
+    return array('ok' => (bool)$ok, 'motivo' => $ok ? '' : usuMotivoCorreo($mail));
+}
+
+//El aviso para quien registró o asignó la clave: si el correo salió, solo se dice a dónde
+//llegó; si no salió, se dice por qué y se muestran los datos una sola vez para pasárselos a la persona
+function usuAvisoDatosEntrada($envio, $correo, $usuario, $clave)
+{
+    if ($envio['ok']) {
+        return "\n\nEl usuario «" . $usuario . "» y su contraseña le llegaron por correo a " . $correo . '.';
     }
-    return "\n\nNo se pudo enviar el correo a " . $correo . ". Estos son sus datos para entrar:"
-         . "\nUsuario: " . $usuario . "\nContraseña temporal: " . $clave
-         . "\n\nAnótalos y pásaselos a la persona: no se vuelven a mostrar."
-         . "\nSi se le olvida, puede pedir una nueva con «Olvidé mi contraseña».";
+    return "\n\nNo se pudo enviar el correo a " . $correo . ": " . $envio['motivo'] . '.'
+         . "\nEstos son sus datos para entrar:"
+         . "\nUsuario: " . $usuario . "\nContraseña: " . $clave
+         . "\n\nAnótalos y pásaselos a la persona: no se vuelven a mostrar.";
 }

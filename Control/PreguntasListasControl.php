@@ -7,11 +7,11 @@
   Cada petición llega con ?op=... y cae en uno de los "case" de abajo:
     guardar, mostrar, importar (desde Excel o CSV), mostrarPreguntas, anular, select,
     reordenar, posiciones, guardarLote y listar.
-  Permiso: 12M para cambiarlas; con 11M solo se consultan.
+  Casilla 12M para cambiarlas; con llenar (11M), ver (21M) o correos (44M) solo se consultan.
 */
 session_start();
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
-hanaGuardia(array('12M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M')); //Cambiar preguntas: 12M; verlas: 11M o 12M
+hanaGuardia(array('12M', '24M'), array('select', 'mostrar', 'mostrarPreguntas', 'listar'), array(), array('11M', '12M', '21M', '24M')); //Cambiar preguntas: 12M; verlas: llenar, ver o editar listas
 require_once "../Modelo/PreguntasListasModelo.php";
 $modeloPreguntas = new preguntas();
 

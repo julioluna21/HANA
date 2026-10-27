@@ -1,6 +1,8 @@
 //Reporte diario - "Hoy en qué estás"
 //Carga un día, lo guarda y muestra el mes con los días que faltan.
 //Solo se registra HOY; otro día, únicamente si el administrador lo habilitó.
+//Con la casilla 33M (Reporte diario: consultar) se elige un coordinador y se ve
+//su día y su mes, en solo consulta: el servidor no deja guardar el día de otro.
 //Todo texto de la base se escapa al pintarlo
 
 var URL_HOY = '../Control/HoyControl.php';
@@ -8,6 +10,9 @@ var cfgHoy = { hoy: '', primerEditable: '', ultimoEditable: '', habilitados: [],
 var diaHoy = '';          //el día que se está viendo (AAAA-MM-DD)
 var editableHoy = false;  //si ese día todavía se puede modificar
 var ultimoDiaHoy = '';    //hasta qué día se puede avanzar: hoy, o un día habilitado que esté más adelante
+var ultimoPropioHoy = ''; //lo mismo, para el día propio (los días habilitados son solo de quien tiene la sesión)
+var personaHoy = 0;       //de quién es el día que se ve: 0 = el propio; si no, el coordinador que se consulta
+var avisoConsultaHoy = ''; //el texto original del aviso de solo consulta (el del día propio)
 
 var NOMBRES_DIA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -44,6 +49,16 @@ function mensajeError(xhr, base) {
     try { return JSON.parse(xhr.responseText).error || base; } catch (error) { return base; }
 }
 
+//Lo que se agrega a cada consulta para pedir el día de otro coordinador
+function conPersona() { return personaHoy ? '&persona=' + personaHoy : ''; }
+
+//El nombre del coordinador que se está consultando
+function nombrePersona() {
+    var lista = cfgHoy.personas || [];
+    for (var i = 0; i < lista.length; i++) { if (+lista[i].ID_COLABORADOR === personaHoy) { return lista[i].NOM_COLABORADOR; } }
+    return '';
+}
+
 //---------------------------------------------------------------------------
 // Inicio
 //---------------------------------------------------------------------------
@@ -57,7 +72,7 @@ function irADia(fecha) {
 }
 
 $(function () {
-    rdAlertaDia('hoy', '#alertaDia');
+    avisoConsultaHoy = $('#hoyConsulta').html();
     rdVigilarCambios('#formHoy');
     //Botones rápidos: "Hoy" y uno por cada día que el administrador habilitó
     $(document).on('click', '#hoyRapido [data-fecha]', function () {
@@ -68,8 +83,10 @@ $(function () {
     $.getJSON(URL_HOY + '?op=config')
         .done(function (config) {
             cfgHoy = config;
+            //El aviso de "hoy no has registrado" es solo para quien llena su día
+            if (config.esCoordinador) { rdAlertaDia('hoy', '#alertaDia'); }
             pintarSituaciones();
-            pintarCentros();
+            pintarCentros(config.centros, true);
 
             //Año y mes de "Mi mes": del año pasado al actual
             var anioHoy = +config.hoy.substring(0, 4), html = '';
@@ -79,10 +96,11 @@ $(function () {
 
             //Lo normal es que el último día sea hoy; si hay un día habilitado más adelante, ese
             config.habilitados = config.habilitados || [];
-            ultimoDiaHoy = config.hoy;
-            config.habilitados.forEach(function (fechaHabilitada) { if (fechaHabilitada > ultimoDiaHoy) { ultimoDiaHoy = fechaHabilitada; } });
-            $('#hoyFecha').attr('max', ultimoDiaHoy);
+            ultimoPropioHoy = config.hoy;
+            config.habilitados.forEach(function (fechaHabilitada) { if (fechaHabilitada > ultimoPropioHoy) { ultimoPropioHoy = fechaHabilitada; } });
             pintarHabilitados();
+            if (!prepararPersonas()) { return; }
+            modoPersona();
 
             //Se puede llegar con ?fecha=AAAA-MM-DD (desde "Mi mes" o el tablero)
             var pedida = new URLSearchParams(window.location.search).get('fecha');
@@ -96,10 +114,23 @@ $(function () {
     $('#btnDiaAnterior').on('click', function () { irADia(sumarDias(diaHoy, -1)); });
     $('#btnDiaSiguiente').on('click', function () { if (diaHoy < ultimoDiaHoy) { irADia(sumarDias(diaHoy, 1)); } });
 
-    //Situación: laboral muestra lugares, horario y qué hizo
+    //Situación: laboral muestra lugares, horario y qué va a hacer
     $(document).on('change', 'input[name="situacion"]', mostrarLaboral);
 
     $('#formHoy').on('submit', guardarDia);
+
+    //Con 33M: cambiar el coordinador que se consulta
+    $('#hoyPersona').on('change', function () {
+        if (rdHayCambios && !window.confirm('Tienes cambios sin guardar en este día. ¿Quieres cambiar de persona y perderlos?')) {
+            $(this).val(String(personaHoy));
+            return;
+        }
+        rdCambiosGuardados();
+        personaHoy = +this.value || 0;
+        modoPersona();
+        cargarDia(diaHoy && diaHoy <= ultimoDiaHoy ? diaHoy : cfgHoy.hoy);
+        cargarMes();
+    });
 
     $('#mesMes, #mesAnio').on('change', cargarMes);
     $(document).on('click', '.hoy-fila-mes', function () {
@@ -107,6 +138,43 @@ $(function () {
         $('html, body').animate({ scrollTop: 0 }, 200);
     });
 });
+
+//---------------------------------------------------------------------------
+// De quién es el día (solo con 33M)
+//---------------------------------------------------------------------------
+//Llena la lista de coordinadores. Devuelve false si no hay nada que mostrar
+function prepararPersonas() {
+    if (!cfgHoy.consulta) { personaHoy = 0; return true; }
+    var html = cfgHoy.esCoordinador ? '<option value="0">Mi día</option>' : '';
+    (cfgHoy.personas || []).forEach(function (persona) {
+        if (+persona.ID_COLABORADOR === +cfgHoy.yo) { return; } //el propio ya es "Mi día"
+        html += '<option value="' + parseInt(persona.ID_COLABORADOR, 10) + '">' + esc(persona.NOM_COLABORADOR) +
+             ' · ' + esc(persona.PROYECTOS || 'ya no coordina ningún proyecto') + '</option>';
+    });
+    $('#hoyPersona').html(html);
+    $('#hoyPersonaBloque').show();
+    if (!html) {
+        $('#formHoy').hide();
+        $('#hoyConsulta').html('<i class="fa fa-info-circle"></i> Todavía no hay coordinadores asignados a los proyectos.').show();
+        $('#mesFilas').html('<tr><td colspan="5" class="rd-vacio">No hay nada que mostrar.</td></tr>');
+        return false;
+    }
+    //Se puede llegar con ?persona=ID; quien no coordina arranca en el primer coordinador
+    var pedida = parseInt(new URLSearchParams(window.location.search).get('persona') || '0', 10);
+    if (pedida && $('#hoyPersona option[value="' + pedida + '"]').length) { $('#hoyPersona').val(String(pedida)); }
+    personaHoy = +($('#hoyPersona').val() || 0);
+    return true;
+}
+
+//Ajusta la pantalla a de quién es el día: el propio (se llena) o el de otro (solo consulta)
+function modoPersona() {
+    var propio = !personaHoy;
+    //Al día propio se llega hasta un día habilitado más adelante; al de otro, hasta hoy
+    ultimoDiaHoy = propio ? ultimoPropioHoy : cfgHoy.hoy;
+    $('#hoyFecha').attr('max', ultimoDiaHoy);
+    $('#hoyRapido [data-habilitado]').toggle(propio);
+    $('#mesTitulo').text(propio ? 'Mi mes' : 'Mes de ' + nombrePersona());
+}
 
 //---------------------------------------------------------------------------
 // Situaciones y centros
@@ -120,11 +188,13 @@ function pintarSituaciones() {
     $('#hoySituaciones').html(html);
 }
 
-//Los centros asignados, agrupados por proyecto, como casillas grandes
-function pintarCentros() {
-    var centros = cfgHoy.centros || [];
+//Los centros asignados, agrupados por proyecto, como casillas grandes.
+//propio: los del coordinador que tiene la sesión; si no, los del coordinador que se consulta
+function pintarCentros(centros, propio) {
+    centros = centros || [];
     if (!centros.length) {
-        $('#hoyCentros').html('<p class="rd-ayuda">Tus proyectos no tienen peajes activos. Puedes escribir el lugar en "Otro lugar".</p>');
+        $('#hoyCentros').html(propio ? '<p class="rd-ayuda">Tus proyectos no tienen peajes activos. Puedes escribir el lugar en "Otro lugar".</p>'
+                                     : '<p class="rd-ayuda">No marcó peajes de sus proyectos.</p>');
         return;
     }
     var html = '', grupo = null;
@@ -165,11 +235,25 @@ function pintarHabilitados() {
 // Cargar un día
 //---------------------------------------------------------------------------
 function cargarDia(fecha) {
-    $.getJSON(URL_HOY + '?op=obtener&fecha=' + encodeURIComponent(fecha))
+    $.getJSON(URL_HOY + '?op=obtener&fecha=' + encodeURIComponent(fecha) + conPersona())
         .done(function (respuesta) {
             diaHoy = respuesta.fecha;
             editableHoy = !!respuesta.editable;
             var registro = respuesta.registro;
+
+            //Los peajes: los propios, o los de los proyectos del coordinador que se consulta
+            //más los que marcó ese día (aunque ya no sean de sus proyectos)
+            if (respuesta.propio === false) {
+                var centrosOtro = (respuesta.centros || []).slice(), vistos = {};
+                centrosOtro.forEach(function (centro) { vistos[+centro.ID_CENTRO_OP] = true; });
+                ((registro && registro.CENTROS_DET) || []).forEach(function (centro) { if (!vistos[+centro.ID_CENTRO_OP]) { centrosOtro.push(centro); } });
+                pintarCentros(centrosOtro, false);
+                $('#hoyConsulta').html('<i class="fa fa-eye"></i> Solo consulta: es el día de <strong>' + esc(nombrePersona()) +
+                                       '</strong>. Cada coordinador registra y corrige el suyo.');
+            } else {
+                pintarCentros(cfgHoy.centros, true);
+                $('#hoyConsulta').html(avisoConsultaHoy);
+            }
 
             $('#hoyFecha').val(diaHoy);
             $('#btnDiaSiguiente').prop('disabled', diaHoy >= ultimoDiaHoy);
@@ -184,7 +268,7 @@ function cargarDia(fecha) {
             $('#hoyIngreso').val(registro ? hhmm(registro.HORA_INGRESO) : '');
             $('#hoySalida').val(registro ? hhmm(registro.HORA_SALIDA) : '');
             $('#hoyLugarOtro').val(registro && registro.LUGAR_OTRO ? registro.LUGAR_OTRO : '');
-            $('#hoyActividad').val(registro && registro.ACTIVIDAD ? registro.ACTIVIDAD : ''); //qué hizo en el día
+            $('#hoyActividad').val(registro && registro.ACTIVIDAD ? registro.ACTIVIDAD : ''); //qué va a hacer en el día
             $('#hoyObservacion').val(registro && registro.OBSERVACION ? registro.OBSERVACION : '');
             $('input[name="centros[]"]').prop('checked', false);
             if (registro) {
@@ -193,7 +277,7 @@ function cargarDia(fecha) {
                 }
             }
             //Solo consulta: todo queda bloqueado y sin botón de guardar
-            $('#formHoy').find('input, textarea').prop('disabled', !editableHoy);
+            $('#formHoy').find('input, textarea, .rd-btn-ahora').prop('disabled', !editableHoy);
             $('#btnGuardarHoy').toggle(editableHoy);
 
             mostrarLaboral();
@@ -218,9 +302,9 @@ function guardarDia(evento) {
     if (situacion === 'LABORAL') {
         if (!$('#hoyIngreso').val()) { alert('Escribe la hora de ingreso.'); $('#hoyIngreso').focus(); return; }
         if (!$('input[name="centros[]"]:checked').length && !$.trim($('#hoyLugarOtro').val())) {
-            alert('Marca al menos un peaje o escribe en qué otro lugar estuviste.'); return;
+            alert('Marca al menos un peaje o escribe en qué otro lugar vas a estar.'); return;
         }
-        if (!$.trim($('#hoyActividad').val())) { alert('Escribe qué hiciste hoy.'); $('#hoyActividad').focus(); return; }
+        if (!$.trim($('#hoyActividad').val())) { alert('Escribe qué vas a hacer hoy.'); $('#hoyActividad').focus(); return; }
     }
 
     var formulario = new FormData($('#formHoy')[0]);
@@ -242,7 +326,7 @@ function guardarDia(evento) {
 //---------------------------------------------------------------------------
 function cargarMes() {
     var anio = +$('#mesAnio').val(), mes = +$('#mesMes').val();
-    $.getJSON(URL_HOY + '?op=mes&anio=' + anio + '&mes=' + mes)
+    $.getJSON(URL_HOY + '?op=mes&anio=' + anio + '&mes=' + mes + conPersona())
         .done(function (respuesta) {
             var porDia = {};
             for (var i = 0; i < respuesta.filas.length; i++) { porDia[respuesta.filas[i].FECHA] = respuesta.filas[i]; }

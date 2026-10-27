@@ -19,14 +19,16 @@ class Acceso
 
     //Condición SQL sobre la tabla novedades_hallazgos.
     //$vista 'mias' o 'todas'; $verTodas: tiene el permiso 16M; $idRol: su rol
-    public static function condNovedades($vista, $idColaborador, $verTodas, $idRol)
+    //$enMisCentros: condición SQL "la novedad es de uno de mis peajes" (la arma AccesoHelper)
+    public static function condNovedades($vista, $idColaborador, $verTodas, $idRol, $enMisCentros = '1 = 1')
     {
         $idPersona = (int)$idColaborador;
         $mias = "(novedades_hallazgos.ID_COLABORADOR_REPORTA = $idPersona
                   OR novedades_hallazgos.ID_COLABORADOR_ASIGNADO = $idPersona)";
         if ($vista !== 'todas') { return $mias; }
-        if ($verTodas) { return '1 = 1'; }
-        return "($mias OR novedades_hallazgos.ID_ROL_DESTINO = " . (int)$idRol . ")";
+        //Ver todas: todas las de sus peajes. Sin ese permiso: las dirigidas a su rol, también de sus peajes
+        if ($verTodas) { return $enMisCentros === '1 = 1' ? '1 = 1' : "($mias OR $enMisCentros)"; }
+        return "($mias OR (novedades_hallazgos.ID_ROL_DESTINO = " . (int)$idRol . " AND $enMisCentros))";
     }
 
     //¿Esa novedad cumple la condición de acceso?
@@ -39,12 +41,19 @@ class Acceso
 
     //Condición SQL sobre la tabla rq (con el alias que use la consulta).
     //$verTodas: tiene 17M (ver todas) o 18M (aprobar)
-    public static function condRQ($vista, $idColaborador, $verTodas, $alias = 'r')
+    //$enMisCentros: una función que recibe el campo y devuelve la condición "es de mis peajes"
+    public static function condRQ($vista, $idColaborador, $verTodas, $alias = 'r', $enMisCentros = null)
     {
         $alias = preg_replace('/[^a-z_]/i', '', (string)$alias);
         $mias = "($alias.ID_COLABORADOR_SOLICITA = " . (int)$idColaborador . ")";
-        if ($vista !== 'todas') { return $mias; }
-        return $verTodas ? '1 = 1' : $mias;
+        if ($vista !== 'todas' || !$verTodas) { return $mias; }
+        if (!$enMisCentros) { return '1 = 1'; }
+        $centro = $enMisCentros("$alias.ID_CENTRO_OP");
+        if ($centro === '1 = 1') { return '1 = 1'; }
+        //Ver todas (o aprobar): las de sus peajes, por el peaje de la RQ o el de alguno de sus ítems
+        $item = (class_exists('Rq') && Rq::hayPeajePorItem())
+              ? " OR EXISTS (SELECT 1 FROM rq_detalle dq WHERE dq.ID_RQ = $alias.ID_RQ AND " . $enMisCentros('dq.ID_CENTRO_OP') . ")" : '';
+        return "($mias OR $centro$item)";
     }
 
     //Los roles activos, para el selector "Rol a notificar" (devuelve el resultado de mysqli)

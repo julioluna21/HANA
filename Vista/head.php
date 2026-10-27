@@ -40,7 +40,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
   <!-- Alertas personalizadas de HANA (reemplazan las ventanas del navegador y de bootbox) -->
   <link href="../public/css/alertas.css?v=5" rel="stylesheet">
   <!-- Estilos comunes: tablas en celular, indicador de carga y barra de progreso -->
-  <link href="../public/css/comun.css?v=3" rel="stylesheet">
+  <link href="../public/css/comun.css?v=6" rel="stylesheet">
   <!-- Tablas adaptables al celular (la librería ya venia en vendors) -->
   <link href="../vendors/datatables.net-responsive-bs/css/responsive.bootstrap.min.css" rel="stylesheet">
 
@@ -52,13 +52,13 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
   <!-- Aspecto más cálido y humano (tipografía Nunito, esquinas suaves, fondos cálidos).
        Va de último para quedar encima de la plantilla. Quitar estas dos líneas deja el aspecto anterior -->
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link href="../public/css/humano.css?v=16" rel="stylesheet">
+  <link href="../public/css/humano.css?v=17" rel="stylesheet">
 
   <!-- Paleta de colores de HANA. Va de ULTIMO a proposito: así sus colores
        mandan sobre los de la plantilla sin tener que editar custom.min.css -->
   <link href="../public/css/paleta.css?v=1" rel="stylesheet">
   <!-- Campana de notificaciones -->
-  <link href="../public/css/campana.css?v=2" rel="stylesheet">
+  <link href="../public/css/campana.css?v=3" rel="stylesheet">
   <!-- Al imprimir o guardar como PDF: nada se corta ni se monta (va de último para que mande) -->
   <link href="../public/css/impresion.css?v=5" rel="stylesheet">
 
@@ -116,60 +116,50 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
     
       
     <?php
-      //El reporte del coordinador (Hoy en qué estás, arqueos, cronograma, vacantes,
-      //comunicaciones) solo aparece para quien coordina un proyecto. Lo demás (RQ,
-      //listas, ausentismo, oficios) sale según las casillas del rol de cada persona
+      //Cada pantalla sale si el rol tiene alguna de sus casillas (Permisos de usuario), la persona
+      //tiene peajes asignados (Colaboradores) y el módulo está encendido (Parámetros del sistema)
       require_once __DIR__ . '/../Control/PaginaControl.php';
-      $menuCoord = pagEsCoordinador();
-      //Cada pantalla del coordinador sale si es coordinador, ADMIN TEC o tiene su casilla en Permisos de usuario
-      $menuPuedeModulo = function ($modulo) { return pagPuedeModulo($modulo); };
-      $menuAlgunModulo = false;
-      foreach (pagModulosCoordinador() as $moduloCoordinador) { if ($menuPuedeModulo($moduloCoordinador)) { $menuAlgunModulo = true; break; } }
-      //Oficios: también quien tenga peajes asignados (jefe de peaje o en Usuarios)
-      $menuOficios = $menuPuedeModulo('COMUNICACIONES') || pagTienePeajes();
-      if ($menuOficios && pagModuloActivo('COMUNICACIONES')) { $menuAlgunModulo = true; }
-      //Los módulos que el administrador apagó en Parámetros del sistema no salen
       $menuModuloActivo = function ($modulo) { return pagModuloActivo($modulo); };
-      //Listas de chequeo: las llena quien tenga 11M; las ven también 12M (las edita) y 21M (administración)
-      $menuListas = in_array("11M",$modulosAcceso) || in_array("12M",$modulosAcceso) || in_array("21M",$modulosAcceso);
+      $menuVe = function ($modulo, $activo = null) use ($menuModuloActivo) { return pagEntra($modulo) && $menuModuloActivo($activo === null ? $modulo : $activo); };
+      $menuHoy = $menuVe('HOY'); $menuArq = $menuVe('ARQUEOS'); $menuCrono = $menuVe('CRONOGRAMA');
+      $menuVac = $menuVe('VACANTES'); $menuOficios = $menuVe('COMUNICACIONES');
+      $menuListas = (pagPuede('LISTAS', 'llenar') || pagPuede('LISTAS', 'ver')) && pagTieneCentros() && $menuModuloActivo('LISTAS');
+      $menuEditarListas = pagPuede('LISTAS', 'editar');
+      $menuCorreos = pagPuede('LISTAS', 'correos') || pagPuede('TAREAS', 'editar');
+      $menuCoord = $menuHoy || $menuArq || $menuCrono || $menuVac || $menuOficios;
     ?>
-    <?php if(in_array("11M",$modulosAcceso) or in_array("12M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("19M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("37M",$modulosAcceso) or $menuCoord or $menuAlgunModulo){ ?>  
+    <?php if($menuCoord or $menuListas or $menuEditarListas or $menuCorreos){ ?>
     <!-- Reporte diario: las listas de chequeo y las demás secciones del día -->
     <li><a><i class="fa fa-calendar-check-o"></i>Reporte diario<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
         <li><a href="ReporteDiarioVista.php">Todo el reporte</a></li>
-        <?php if(in_array("21M",$modulosAcceso)){ ?><li><a href="AdminReporteVista.php">Administración</a></li><?php } ?>
-        <?php if($menuPuedeModulo('HOY') and $menuModuloActivo('HOY')){ ?><li><a href="HoyVista.php">Hoy en qué estás</a></li><?php } ?>
-        <?php if(($menuPuedeModulo('ARQUEOS') or in_array("5M",$modulosAcceso) or in_array("36M",$modulosAcceso)) and $menuModuloActivo('ARQUEOS')){ ?><li><a href="ArqueosVista.php">Arqueos</a></li><?php } ?>
-        <?php if(($menuPuedeModulo('CRONOGRAMA') or in_array("5M",$modulosAcceso) or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso)) and $menuModuloActivo('CRONOGRAMA')){ ?><li><a href="CronogramaVista.php">Cronograma y vehículo</a></li><?php } ?>
-        <?php if($menuPuedeModulo('VACANTES') and $menuModuloActivo('VACANTES')){ ?><li><a href="VacantesVista.php">Vacantes</a></li><?php } ?>
-        <?php if($menuOficios and $menuModuloActivo('COMUNICACIONES')){ ?><li><a href="ComunicacionesVista.php">Comunicaciones y oficios</a></li><?php } ?>
-        <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="ControlDiarioVista.php">Reporte general</a></li><?php } ?>
-        <?php if($menuListas and $menuModuloActivo('LISTAS')){ ?><li><a href="ListasVista.php">Listas de chequeo</a></li><?php } ?>    
-        <?php if(in_array("12M",$modulosAcceso)){ ?><li><a href="GruposListasVista.php">Editar listas</a></li><?php } ?> 
-        <?php if(in_array("12M",$modulosAcceso)){ ?><li><a href="NotificacionesVista.php">Correos de listas</a></li><?php } ?>
+        <?php if($menuHoy){ ?><li><a href="HoyVista.php">Hoy en qué estás</a></li><?php } ?>
+        <?php if($menuArq){ ?><li><a href="ArqueosVista.php">Arqueos</a></li><?php } ?>
+        <?php if($menuCrono){ ?><li><a href="CronogramaVista.php">Cronograma y vehículo</a></li><?php } ?>
+        <?php if($menuVac){ ?><li><a href="VacantesVista.php">Vacantes</a></li><?php } ?>
+        <?php if($menuOficios){ ?><li><a href="ComunicacionesVista.php">Comunicaciones y oficios</a></li><?php } ?>
+        <?php if($menuListas){ ?><li><a href="ListasVista.php">Listas de chequeo</a></li><?php } ?>
+        <?php if($menuEditarListas){ ?><li><a href="GruposListasVista.php">Editar listas</a></li><?php } ?>
+        <?php if($menuCorreos){ ?><li><a href="NotificacionesVista.php">Correos automáticos</a></li><?php } ?>
       </ul>
     </li><?php } ?>
 
     <?php if(in_array("19M",$modulosAcceso) or in_array("37M",$modulosAcceso)){ ?>
-    <!-- Consultas: el seguimiento de todos los proyectos, aparte de lo que se llena cada día -->
+    <!-- Consultas: donde se revisa lo que se llena en el Reporte diario. Es la misma información,
+         vista de otra manera: el coordinador la llena en Reporte diario y el director de operaciones
+         la revisa aquí (Reporte general: por día, módulo y proyecto, con el tablero por proyectos;
+         Informe mensual: un mes, una quincena o las fechas que se elijan) -->
     <li><a><i class="fa fa-line-chart"></i>Consultas<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
-        <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="TableroVista.php">Tablero por proyectos</a></li><?php } ?>
+        <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="ControlDiarioVista.php">Reporte general</a></li><?php } ?>
         <?php if(in_array("37M",$modulosAcceso)){ ?><li><a href="InformeMensualVista.php">Informe mensual</a></li><?php } ?>
       </ul>
-    </li><?php } ?> 
-      
-    <?php //Ausentismo. Lo registran el coordinador, el jefe de su peaje y quien tenga 25M;
-      //lo consultan 20M, 21M y 22M
-      $menuJefe = pagParametroSi('AUS_JEFES_EDITAN') && pagEsJefePeaje();
-      $menuAusReg = $menuModuloActivo('AUSENTISMO') && ($menuCoord or $menuJefe or in_array("20M",$modulosAcceso) or in_array("21M",$modulosAcceso) or in_array("22M",$modulosAcceso) or in_array("25M",$modulosAcceso));
-      if($menuAusReg){ ?>
-    <li><a><i class="fa fa-user-times"></i> Ausentismo <span class="fa fa-chevron-down"></span></a>
-      <ul class="nav child_menu">
-        <?php if($menuAusReg){ ?><li><a href="AusentismoVista.php">Registrar ausentismo</a></li><?php } ?>
-      </ul>
-    </li>
+    </li><?php } ?>
+
+    <?php //Promesa de valor (el ausentismo se retiró del sistema): con su casilla y peajes asignados
+      $menuPromesa = pagPromesaEntrar(); //ya revisa que el módulo esté encendido
+      if($menuPromesa){ ?>
+    <li><a href="PromesaValorVista.php"><i class="fa fa-clock-o"></i> Promesa de valor</a></li>
     <?php } ?>
 
 

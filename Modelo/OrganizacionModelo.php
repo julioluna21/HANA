@@ -75,7 +75,7 @@ class Organizacion
     }
 
     //-----------------------------------------------------------------------
-    // Jefes de peaje (Centros de operación) y centros asignados (Usuarios)
+    // Jefes de peaje (Centros de operación) y centros asignados (Colaboradores)
     //-----------------------------------------------------------------------
     //Los peajes de los que es jefe: [idCentro] = idProyecto
     public static function centrosDeJefe($idColaborador)
@@ -101,14 +101,14 @@ class Organizacion
                                   'ii', array((int)$idCentro, (int)$idColaborador));
     }
 
-    //¿Tiene ese centro asignado en Usuarios?
+    //¿Tiene ese centro asignado en Colaboradores?
     public static function centroAsignado($idUsuario, $idCentro)
     {
         return (bool)HanaDB::fila("SELECT 1 AS ok FROM asoc_usuarios_sistemas_x_cop WHERE ID_COLABORADOR = ?
                                     AND ID_CENTRO_OP = ?", 'ii', array((int)$idUsuario, (int)$idCentro));
     }
 
-    //¿Tiene algún peaje (como jefe o asignado en Usuarios)? Con $idProyecto, solo en ese proyecto
+    //¿Tiene algún peaje (como jefe o asignado en Colaboradores)? Con $idProyecto, solo en ese proyecto
     public static function tienePeajes($idColaborador, $idUsuario, $idProyecto = 0)
     {
         return (bool)HanaDB::fila("SELECT 1 AS ok FROM centros_operacion c
@@ -168,6 +168,20 @@ class Organizacion
         $filas = HanaDB::q("SELECT DISTINCT c.ID_COLABORADOR, c.NOM_COLABORADOR, c.MAIL_COLABORADOR
                           FROM proyectos p INNER JOIN colaboradores c ON c.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR
                          WHERE p.ESTADO = '1'");
+        return $filas ? $filas : array();
+    }
+
+    //Las personas con rol de coordinador (el nombre del rol dice COORDINADOR), activas,
+    //con usuario activo. Son a quienes les llegan los recordatorios de las 9 a. m. y las 5 p. m.
+    public static function coordinadoresPorRol()
+    {
+        $filas = HanaDB::q("SELECT c.ID_COLABORADOR, c.NOM_COLABORADOR, c.MAIL_COLABORADOR
+                              FROM usuarios_sistema u
+                             INNER JOIN colaboradores c ON c.ID_COLABORADOR = u.ID_COLABORADOR
+                             INNER JOIN rol_usuarios_sistemas r ON r.ID_ROL_USUARIO_SISTEMA = u.ID_ROL_USUARIO_SISTEMA
+                             WHERE u.ESTADO = 1 AND c.ESTADO = 1 AND r.ESTADO = 1
+                               AND UPPER(r.NOM_ROL_USUARIO_SISTEMA) LIKE '%COORDINADOR%'
+                             ORDER BY c.NOM_COLABORADOR");
         return $filas ? $filas : array();
     }
 

@@ -207,6 +207,20 @@
 .hana-notif-fila .texto{ flex: 1; }
 .hana-notif-fila .titulo{ font-weight: bold; font-size: 14px; }
 .hana-notif-fila .detalle{ color: #6B7076; font-size: 13px; margin-top: 2px; }
+/* Filtros de la pantalla */
+.hana-notif-filtros{ margin-bottom: 4px; }
+.hana-notif-filtros label{ font-weight: normal; color: #6B7076; margin-bottom: 3px; }
+.hana-notif-pie-filtros{ display: flex; align-items: center; gap: 12px; min-height: 59px; padding-top: 22px; }
+.hana-notif-cuantas{ color: #6B7076; font-size: 13px; }
+.hana-notif-fila .hana-notif-tipo{
+    display: inline-block; font-size: 11px; font-weight: bold; color: #4A5056; background: #EEF0F2;
+    border-radius: 4px; padding: 1px 6px; margin-right: 4px;
+}
+@media (max-width: 767px){
+    .hana-notif-pie-filtros{ min-height: 0; padding-top: 0; }
+    .hana-notif-filtros > .col-xs-6{ width: 50%; float: left; }
+    .hana-notif-filtros .form-group{ margin-bottom: 10px; }
+}
 .hana-notif-fila .nueva{
     background: #6E1A1E; color: #FFFFFF; font-size: 10px; font-weight: bold;
     padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle;

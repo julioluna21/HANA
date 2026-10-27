@@ -1,4 +1,4 @@
-//Reporte diario - Informe de gestión (mensual o por rango de fechas)
+//Consultas - Informe de gestión (mensual o por rango de fechas), con los proyectos que se elijan
 //La pantalla solo elige el periodo: el PDF lo arma el servidor (Vista/InformeMensualPdfVista.php)
 
 var hoyInf = ''; //"2026-10-06": lo manda el servidor, en la hora de Colombia
@@ -11,6 +11,14 @@ $(function () {
     $('#iPeriodo').on('change', aplicarPeriodo);
     //Si cambian una fecha a mano, el periodo pasa a "Otras fechas"
     $('#iDesde, #iHasta').on('change', function () { $('#iPeriodo').val('otro'); enlacesInforme(); });
+    //Los proyectos: en verde salen; al tocar uno se saca o se vuelve a poner
+    $('#infProyectos').on('click', '.inf-proyecto', function () {
+        var sale = $(this).attr('aria-pressed') !== 'true';
+        $(this).attr({ 'aria-pressed': sale ? 'true' : 'false', title: sale ? 'Sale en el informe. Toca para sacarlo' : 'No sale en el informe. Toca para ponerlo' })
+               .toggleClass('rd-tag-ok', sale).toggleClass('inf-quitado', !sale)
+               .find('i').attr('class', sale ? 'fa fa-check' : 'fa fa-times');
+        enlacesInforme();
+    });
     aplicarPeriodo();                             //arranca en "Este mes"
 });
 
@@ -53,7 +61,11 @@ function enlacesInforme() {
     else if (desde > hoyInf) { error = 'Ese periodo todavía no empieza.'; }
     else if ((rdAFecha(hasta) - rdAFecha(desde)) / 86400000 > 366) { error = 'El periodo no puede pasar de 12 meses.'; }
 
-    var url = 'InformeMensualPdfVista.php?desde=' + desde + '&hasta=' + hasta;
+    //Los proyectos elegidos (los que están en verde). Si están todos, no hace falta decirlo
+    var botones = $('#infProyectos .inf-proyecto'), elegidos = botones.filter('[aria-pressed="true"]');
+    if (!error && botones.length && !elegidos.length) { error = 'Elige al menos un proyecto.'; }
+    var url = 'InformeMensualPdfVista.php?desde=' + desde + '&hasta=' + hasta +
+              (elegidos.length && elegidos.length < botones.length ? '&proyectos=' + elegidos.map(function () { return $(this).data('id'); }).get().join(',') : '');
     $('#btnVerInforme').attr('href', error ? '#' : url + '&ver=1');
     $('#btnBajarInforme').attr('href', error ? '#' : url);
     $('#btnVerInforme, #btnBajarInforme').toggleClass('disabled', !!error).attr('aria-disabled', error ? 'true' : 'false');
@@ -61,7 +73,8 @@ function enlacesInforme() {
     var corte = hasta > hoyInf ? hoyInf : hasta;
     var dias = Math.round((rdAFecha(corte) - rdAFecha(desde)) / 86400000) + 1;
     $('#infNota').text('El informe trae lo registrado del ' + rdFecha(desde) + ' al ' + rdFecha(corte) + ' (' + dias + (dias === 1 ? ' día' : ' días') + ')' +
-                       (hasta > hoyInf ? '. El periodo va en curso: llega hasta hoy.' : '.'));
+                       (hasta > hoyInf ? '. El periodo va en curso: llega hasta hoy.' : '.') +
+                       (elegidos.length < botones.length ? ' Salen ' + elegidos.length + ' de ' + botones.length + ' proyectos.' : ''));
 }
 
 //Un enlace desactivado no debe llevar a ningún lado

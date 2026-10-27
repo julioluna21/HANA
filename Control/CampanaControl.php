@@ -25,6 +25,7 @@ $idColaborador = $_SESSION['Idcolaborador'];
 $idRol         = hanaIdRol();
 $aprueba       = hanaTienePermiso(PERMISO_APROBAR_RQ); //le llegan las RQ pendientes de aprobación
 $campana       = new Campana();
+$campana->enMisCentros = 'hanaSqlMisCentros'; //solo lo de sus peajes asignados
 
 //Convierte un resultado de MySQL en un arreglo de filas
 function hanaFilas($resultado)
@@ -65,11 +66,25 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         break;
 
     //-----------------------------------------------------------------------
+    // La pantalla completa con filtros: fecha, tipo, prioridad, peaje, leídas
+    // o no y texto (Modelo/CampanaModelo.php → listaFiltrada)
+    //-----------------------------------------------------------------------
+    case 'filtrar':
+        $filtros = array();
+        foreach (array('desde', 'hasta', 'tipo', 'prioridad', 'centro', 'estado', 'texto') as $campo) {
+            $filtros[$campo] = isset($_GET[$campo]) ? (string)$_GET[$campo] : '';
+        }
+        $resultado = $campana->listaFiltrada($idUsuario, $idColaborador, $idRol, $aprueba, $filtros);
+        $resultado['limite'] = 500;
+        echo json_encode($resultado, JSON_UNESCAPED_UNICODE);
+        break;
+
+    //-----------------------------------------------------------------------
     // Marcar una como leída (al hacer clic en ella)
     //-----------------------------------------------------------------------
     case 'leer':
-        //El aviso puede ser de una novedad o de una RQ
-        $tipo = (isset($_POST['tipo']) && $_POST['tipo'] === 'rq') ? 'rq' : 'novedad';
+        //El aviso puede ser de una novedad, de una RQ o de la promesa de valor
+        $tipo = (isset($_POST['tipo']) && in_array($_POST['tipo'], array('rq', 'promesa'), true)) ? $_POST['tipo'] : 'novedad';
         $id = isset($_POST['id']) ? intval($_POST['id']) : (isset($_POST['idNovedad']) ? intval($_POST['idNovedad']) : 0);
         if ($id <= 0) {
             http_response_code(400);

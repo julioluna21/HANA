@@ -22,6 +22,7 @@ function cargarPar() {
     $.getJSON(URL_PAR + '?op=listar')
         .done(function (respuesta) {
             datosPar = respuesta;
+            pintarEstadoCorreo(respuesta.correo);
             //Parámetros, por grupo
             var grupos = {}, orden = [];
             respuesta.parametros.forEach(function (parametro) { if (!grupos[parametro.GRUPO]) { grupos[parametro.GRUPO] = []; orden.push(parametro.GRUPO); } grupos[parametro.GRUPO].push(parametro); });
@@ -32,6 +33,8 @@ function cargarPar() {
                     var campo = parametro.TIPO === 'SI_NO'
                         ? '<label class="par-interruptor"><input type="checkbox" class="par-si" data-clave="' + rdEsc(parametro.CLAVE) + '"' + (parametro.VALOR === '1' ? ' checked' : '') + '>' +
                           '<span class="par-riel"></span> <span class="par-si-txt">' + (parametro.VALOR === '1' ? 'Sí' : 'No') + '</span></label>'
+                        : parametro.TIPO === 'CORREOS'
+                        ? '<input type="text" class="form-control par-txt" data-clave="' + rdEsc(parametro.CLAVE) + '" value="' + rdEsc(parametro.VALOR) + '" maxlength="300" placeholder="correo@empresa.com">'
                         : '<input type="number" class="form-control par-num" data-clave="' + rdEsc(parametro.CLAVE) + '" value="' + rdEsc(parametro.VALOR) + '"' +
                           (parametro.MINIMO !== null ? ' min="' + parseInt(parametro.MINIMO, 10) + '"' : '') + (parametro.MAXIMO !== null ? ' max="' + parseInt(parametro.MAXIMO, 10) + '"' : '') + '>';
                     html += '<div class="par-fila"><div class="par-texto"><strong>' + rdEsc(parametro.NOMBRE) + '</strong>' +
@@ -53,7 +56,8 @@ function cargarPar() {
             });
             $('#tbCargos').html(htmlCargos || '<tr><td colspan="5" class="rd-vacio">Sin cargos.</td></tr>');
             var htmlNovedades = '';
-            respuesta.novedades.forEach(function (novedad, i) {
+            //El ausentismo (y sus novedades/motivos) se retiró; respuesta.novedades ya no llega
+            (respuesta.novedades || []).forEach(function (novedad, i) {
                 htmlNovedades += '<tr' + (+novedad.ESTADO ? '' : ' class="rd-anulado"') + '><td class="rd-num-col">' + parseInt(novedad.ORDEN, 10) + '</td><td>' + rdEsc(novedad.NOMBRE) + '</td>' +
                       '<td>' + (+novedad.CUENTA_AUSENCIA ? 'Sí' : 'No') + '</td><td>' + rdEsc(novedad.CARGO || 'Todos') + '</td><td>' + (+novedad.ESTADO ? 'Sí' : 'No') + '</td>' +
                       '<td><button type="button" class="btn btn-default btn-xs btn-editar-cat" data-tipo="novedad" data-i="' + i + '"><i class="fa fa-pencil"></i></button></td></tr>';
@@ -69,6 +73,7 @@ function guardarPar(evento) {
     var datos = {};
     $('.par-si').each(function () { datos['valores[' + $(this).data('clave') + ']'] = this.checked ? '1' : '0'; });
     $('.par-num').each(function () { datos['valores[' + $(this).data('clave') + ']'] = $(this).val(); });
+    $('.par-txt').each(function () { datos['valores[' + $(this).data('clave') + ']'] = $(this).val(); });
     hanaBoton('#btnGuardarPar', true);
     $.post(URL_PAR + '?op=guardar', datos, null, 'json')
         .done(function (respuesta) { rdCambiosGuardados(); rdAviso(respuesta.mensaje); cargarPar(); })
@@ -179,4 +184,18 @@ function deshabilitarDia(id, texto) {
             .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarDias(); })
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo deshabilitar el día.')); });
     });
+}
+
+
+//Arriba de los parámetros: solo se muestra, cuando los correos están saliendo, la cuenta y el
+//último envío. Los avisos de configuración del servidor (cuenta de correo en Conexion/Global.php)
+//no se muestran en pantalla.
+function pintarEstadoCorreo(correo)
+{
+    var html = '';
+    if (correo && correo.lista && !(correo.ultimo && parseInt(correo.ultimo.OK, 10) !== 1)) {
+        html = '<p class="rd-ayuda"><i class="fa fa-envelope-o"></i> Los correos salen con la cuenta ' + rdEsc(correo.cuenta) +
+               (correo.ultimo ? ' · último enviado: ' + rdEsc(correo.ultimo.FECHA) : '') + '.</p>';
+    }
+    $('#parCorreo').html(html);
 }

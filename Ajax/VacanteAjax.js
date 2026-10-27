@@ -1,6 +1,7 @@
 //Reporte diario - Vacantes
 var URL_VAC = '../Control/VacanteControl.php';
 var cfgV = null, filasV = [];
+var cierreV = ''; //la fecha de cierre que ya tiene la vacante abierta en el formulario (se pone sola al guardar)
 
 var RESULTADO_ANS = {
     CUMPLE:    '<span class="rd-tag rd-tag-ok">Cumple</span>',
@@ -25,8 +26,16 @@ $(function () {
             for (var numMotivo = 0; numMotivo < config.motivos.length; numMotivo++) { htmlMotivos += '<option value="' + rdEsc(config.motivos[numMotivo]) + '">'; }
             $('#vEstado').html(htmlEstados); $('#vGh').html(htmlEstadosGh); $('#listaMotivos').html(htmlMotivos);
             rdPeriodo('#fMes', '#fAnio', config.hoy); $('#fMes').val('0'); $('#fAnio').prop('disabled', true);
+            //La fecha comprometida por GH se llena sola con el acuerdo de servicio; solo el administrador la cambia
+            $('#vCompromiso').prop('readonly', !config.editaCompromiso);
+            $('#ayudaCompromiso').text(config.editaCompromiso ? 'Vacía = la del acuerdo de servicio. Tienes permiso para cambiarla.'
+                                                            : 'Automática: es la fecha del acuerdo de servicio. La cambia quien tenga ese permiso.');
+            //Quien solo consulta no registra ni edita
+            $('#btnNueva').toggle(config.puedeLlenar !== false);
             $('#ayudaAns').text('El acuerdo de servicio es de ' + config.diasAns + ' días hábiles desde la vacante, sin contar sábados, domingos ni festivos.');
             listar();
+            //Abrir la pantalla cuenta como revisarla hoy (recordatorio de las 9 a. m.)
+            $.post('../Control/EstadoDiaControl.php?op=visto', { modulo: 'VACANTES' });
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir vacantes.'); });
 
@@ -63,7 +72,7 @@ function listar() {
                      '<td>' + rdEsc(vacante.MOTIVO) + '</td><td>' + rdEsc(cfgV.estados[vacante.ESTADO_VACANTE]) + '</td>' +
                      '<td>' + (RESULTADO_ANS[vacante.RESULTADO_ANS] || '') + '</td><td>' + rdEsc(vacante.NOMBRE_REEMPLAZO || '') + '</td>' +
                      '<td>' + rdEsc(comp) + '</td>' +
-                     '<td><button type="button" class="btn btn-default btn-xs btn-editar-vac" data-i="' + i + '"><i class="fa fa-pencil"></i></button></td></tr>';
+                     '<td>' + (cfgV.puedeLlenar !== false ? '<button type="button" class="btn btn-default btn-xs btn-editar-vac" data-i="' + i + '"><i class="fa fa-pencil"></i></button>' : '') + '</td></tr>';
             }
             $('#filas').html(html || '<tr><td colspan="13" class="rd-vacio">No hay vacantes para mostrar.</td></tr>');
             $('#cAbiertas').text(abiertas); $('#cVencidas').text(vencidas); $('#cCumple').text(cumplen); $('#cNoCumple').text(noCumplen);
@@ -74,14 +83,15 @@ function listar() {
 //Abre el formulario: vacío para una nueva, o con los datos de una existente
 function abrir(vacante) {
     $('#formVac')[0].reset();
+    cierreV = vacante && vacante.ESTADO_VACANTE !== 'ABIERTA' ? (vacante.FECHA_CIERRE || '') : '';
     $('#vId').val(vacante ? vacante.ID_VACANTE : '');
     $('#tituloForm').html('<i class="fa fa-user-plus"></i> ' + (vacante ? 'Vacante · ' + rdEsc(vacante.CARGO) : 'Nueva vacante'));
-    $('#vFecha, #vCierre').attr('max', cfgV.ultimoEditable);
+    $('#vFecha').attr('max', cfgV.ultimoEditable);
     if (vacante) {
         $('#vCentro').val(String(vacante.ID_CENTRO_OP)); $('#vRq').val(vacante.NUMERO_RQ_GH || ''); $('#vCargo').val(vacante.CARGO);
         $('#vFecha').val(vacante.FECHA_VACANTE); $('#vMotivo').val(vacante.MOTIVO); $('#vGh').val(vacante.ESTADO_GH || '');
         $('#vCompromiso').val(vacante.FECHA_COMPROMISO_GH || ''); $('#vNombre').val(vacante.NOMBRE_REEMPLAZO || '');
-        $('#vEstado').val(vacante.ESTADO_VACANTE); $('#vCierre').val(vacante.FECHA_CIERRE || ''); $('#vObs').val(vacante.OBSERVACION || '');
+        $('#vEstado').val(vacante.ESTADO_VACANTE); $('#vObs').val(vacante.OBSERVACION || '');
     } else {
         $('#vFecha').val(cfgV.hoy); $('#vEstado').val('ABIERTA');
     }
@@ -90,11 +100,12 @@ function abrir(vacante) {
     $('#panelLista').hide(); $('#panelForm').show(); window.scrollTo(0, 0);
 }
 
-//Solo una vacante cubierta o cancelada lleva fecha de cierre
+//Solo una vacante cubierta o cancelada tiene fecha de cierre, y se pone sola al guardar:
+//aquí solo se muestra (la que ya tenía, o hoy si se va a cerrar ahora)
 function mostrarCierre() {
     var cerrada = $('#vEstado').val() !== 'ABIERTA';
     $('#grupoCierre').toggle(cerrada);
-    if (cerrada && !$('#vCierre').val()) { $('#vCierre').val(cfgV.hoy); }
+    $('#vCierreTxt').text(cierreV ? rdFecha(cierreV) : rdFecha(cfgV.hoy) + ' (hoy, al guardar)');
 }
 
 //Guarda la vacante y vuelve a la lista

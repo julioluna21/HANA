@@ -1,7 +1,9 @@
 <?php
 //Reporte diario - "Hoy en qué estás"
-//El día de cada persona: situación, dónde estuvo, horario y qué hizo (un solo
-//texto). Reemplaza la hoja "Hoy en qué estás" del Excel
+//El día de cada persona: situación, dónde va a estar, horario y qué va a hacer (un solo
+//texto). Reemplaza la hoja "Hoy en qué estás" del Excel.
+//Lo llena el coordinador. Quien tiene 33M (Reporte diario: consultar), como el
+//director de operaciones, elige un coordinador y ve su día y su mes, sin poder cambiarlos
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -10,11 +12,11 @@ if (isset($_SESSION['IdUsuarios'])) {
     require_once __DIR__ . '/../Control/PaginaControl.php';
     if (!pagModuloActivo('HOY')) { echo "<script>window.location.replace('ReporteDiarioVista.php');</script>"; exit; }
     pagUsarModulo('HOY');
-    //Reporte del coordinador: lo llena quien coordina un proyecto (Configuración → Proyectos)
-    $esCoordinador = pagEsCoordinador();
+    //Llena su día quien tiene la casilla de llenar y peajes asignados; ve el de los demás quien tiene la de ver
+    $esCoordinador = pagPuede('HOY', 'llenar') && pagTieneCentros();
+    $hoyConsulta = pagPuede('HOY', 'ver');
 
-    //Módulo 11M: diligenciar el reporte diario
-    if ($esCoordinador) {
+    if ($esCoordinador || $hoyConsulta) {
         include('head.php');
 ?>
 <link href="../public/css/reporte.css?v=16" rel="stylesheet">
@@ -34,6 +36,14 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="clearfix"></div>
         </div>
         <div class="x_content">
+
+          <!-- De quién es el día (solo con 33M): el propio o el de un coordinador, en solo consulta -->
+          <div class="row" id="hoyPersonaBloque" style="display:none;">
+            <div class="form-group col-md-5 col-sm-8 col-xs-12">
+              <label for="hoyPersona">Coordinador:</label>
+              <select id="hoyPersona" class="form-control"></select>
+            </div>
+          </div>
 
           <!-- Qué día se está viendo -->
           <div class="hoy-dia">
@@ -62,13 +72,13 @@ if (isset($_SESSION['IdUsuarios'])) {
                   <input type="time" id="hoyIngreso" name="ingreso" class="form-control rd-con-ahora">
                 </div>
                 <div class="form-group col-md-3 col-sm-4 col-xs-6">
-                  <label for="hoySalida">Hora de salida:</label>
+                  <label for="hoySalida">Hora de salida prevista:</label>
                   <input type="time" id="hoySalida" name="salida" class="form-control rd-con-ahora">
-                  <small class="rd-ayuda">Déjala vacía si todavía estás en la jornada.</small>
+                  <small class="rd-ayuda">A qué hora piensas terminar. Puedes dejarla vacía.</small>
                 </div>
               </div>
 
-              <h4 class="rd-subtitulo">Dónde estuviste</h4>
+              <h4 class="rd-subtitulo">Dónde vas a estar</h4>
               <div id="hoyCentros" class="hoy-centros"></div>
               <div class="form-group" style="max-width:520px;">
                 <label for="hoyLugarOtro">Otro lugar:</label>
@@ -77,10 +87,10 @@ if (isset($_SESSION['IdUsuarios'])) {
               </div>
 
               <!-- Un solo texto para todo el día -->
-              <h4 class="rd-subtitulo">Qué hiciste hoy <span class="rd-req">*</span></h4>
+              <h4 class="rd-subtitulo">Qué vas a hacer hoy <span class="rd-req">*</span></h4>
               <div class="form-group">
                 <textarea id="hoyActividad" name="actividad" class="form-control" rows="5" maxlength="3000"
-                          placeholder="Cuenta lo que hiciste en el día: visitas, reuniones, arqueos, pendientes que atendiste..."></textarea>
+                          placeholder="Cuenta lo que vas a hacer en el día: visitas, reuniones, arqueos, pendientes por atender..."></textarea>
               </div>
             </div>
 
@@ -101,7 +111,7 @@ if (isset($_SESSION['IdUsuarios'])) {
       <!-- ====================== MI MES ====================== -->
       <div class="x_panel">
         <div class="x_title">
-          <h2><i class="fa fa-calendar"></i> Mi mes</h2>
+          <h2><i class="fa fa-calendar"></i> <span id="mesTitulo">Mi mes</span></h2>
           <div class="clearfix"></div>
         </div>
         <div class="x_content">
@@ -125,7 +135,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           </div>
           <div class="table-responsive">
             <table class="table table-bordered hoy-tabla-mes">
-              <thead><tr><th>Día</th><th>Situación</th><th>Dónde</th><th>Horario</th><th>Qué hizo</th></tr></thead>
+              <thead><tr><th>Día</th><th>Situación</th><th>Dónde</th><th>Horario</th><th>Plan del día</th></tr></thead>
               <tbody id="mesFilas"><tr><td colspan="5" class="rd-vacio">Cargando...</td></tr></tbody>
             </table>
           </div>
@@ -137,8 +147,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=9"></script>
-<script type="text/javascript" src="../Ajax/HoyAjax.js?v=4"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/HoyAjax.js?v=6"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

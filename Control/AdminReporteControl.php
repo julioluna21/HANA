@@ -1,5 +1,16 @@
 <?php
 /*
+  Archivo sin uso: la Administración del reporte diario se quitó (lo mismo está en el
+  Reporte general, Control/ControlDiarioControl.php). Responde 410 ("Esta dirección ya no
+  se usa.") y no ejecuta nada; el código de abajo se conserva solo como referencia.
+*/
+http_response_code(410);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode(array('error' => 'Esta dirección ya no se usa.'), JSON_UNESCAPED_UNICODE);
+exit;
+?>
+<?php
+/*
   HANA - Administración del reporte diario (consulta)
   ---------------------------------------------------------------------------
   Para el administrador técnico (permiso 21M): ver TODO lo que llenan los

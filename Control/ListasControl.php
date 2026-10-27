@@ -8,26 +8,38 @@
     días, validaListaIniciada, guardar, editarUnaRespuesta, validarRespuesta, mostrarRespuestas,
     mostrarPreguntas, mostrar, los select, listar, contar y los listados de respuestas.
     ("anular" quedó bloqueado: ver más abajo.)
-  Permiso: 11M para diligenciar y 12M para administrar. Las consultas (ver listas
-  y sus respuestas) también las puede hacer 21M, la administración del reporte,
-  que tiene la pantalla Listas en su menú.
+  Casillas (Permisos de usuario): 11M para diligenciar, 21M para ver las diligenciadas y 12M
+  para editar las listas y sus preguntas. Siempre en los peajes asignados a la persona.
   Las listas no crean novedades: si algo sale mal en una lista, la novedad se
   registra aparte en Novedades.
 */
 session_start();
 require_once __DIR__ . '/Guardia.php'; //revisa la sesión y los permisos
 //Diligenciar listas: 11M; administrarlas: 12M. Solo consultar: 11M, 12M o 21M
-hanaGuardia(array('11M', '12M'),
+hanaGuardia(array('11M', '24M'),
             array('dias', 'validaListaIniciada', 'validarRespuesta', 'mostrarRespuestas', 'mostrarPreguntas',
                   'mostrarPreguntasIniciadas', 'mostrar', 'selectColaborador', 'selectCentro', 'listar',
                   'contar', 'listarRespuestas', 'listarPorCentro'),
-            array(), array('11M', '12M', '21M'));
+            array(), array('11M', '12M', '21M', '24M'));
+require_once __DIR__ . '/AccesoHelper.php'; //los peajes asignados de la persona
 require_once "../Modelo/ListasModelo.php";
 require_once __DIR__ . "/../Modelo/HanaDB.php";     //consultas preparadas
 require_once __DIR__ . "/../Modelo/HanaFechas.php"; //solo hoy, o un día que el administrador habilitó
 $modeloListas = new listas();
 //El ADMIN TEC (24M) puede diligenciar listas en cualquier centro
 function listasVeTodo() { return in_array('24M', explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : ''), true); }
+//Los peajes cuyas listas puede ver la persona: los asignados (el ADMIN TEC, todos)
+function listasMisCentros() { return array_map('intval', array_keys(hanaMisCentrosIds())); }
+//¿Esa lista diligenciada es de uno de sus peajes? Si no, se corta
+function listasRevisarLista($idLista)
+{
+  $fila = HanaDB::fila("SELECT ID_CENTRO_OP FROM lista_chequeo WHERE ID_LISTA_CHEQUEO = ?", 'i', array((int)$idLista));
+  if (!$fila || !in_array((int)$fila['ID_CENTRO_OP'], listasMisCentros(), true)) {
+    http_response_code(403);
+    echo json_encode(array('error' => 'Esa lista no es de tus peajes.'));
+    exit;
+  }
+}
 //Fechas y nombres de meses en español, con la hora de Colombia
 setlocale(LC_ALL,'es-Es');
 date_default_timezone_set("America/Bogota");
@@ -86,10 +98,10 @@ switch ($_GET["op"]) {
         echo 'La fecha de la lista no es válida: solo se diligencian listas de ' . HanaFechas::textoVentana() . '.';
         break;
       }
-      //El peaje tiene que ser de los suyos (de un proyecto que coordina o asignado en Usuarios)
+      //El peaje tiene que ser de los suyos (asignado en Colaboradores)
       if (!$modeloListas->centroAsignado($_SESSION['Idcolaborador'], intval($idCentro), listasVeTodo())) {
         http_response_code(400);
-        echo 'Ese peaje no es de los proyectos que coordinas.';
+        echo 'Ese peaje no está entre tus peajes asignados.';
         break;
       }
 
@@ -258,6 +270,7 @@ switch ($_GET["op"]) {
 
   //Arma la lista con sus preguntas y lo que se respondió en cada una, para verla o corregirla
   case 'mostrarRespuestas':
+    listasRevisarLista($idLista);
     try {
       $lista = '';
       $respuestaMostrar = '';
@@ -418,13 +431,16 @@ switch ($_GET["op"]) {
   case 'listar':
     try {
       $resultado = $modeloListas->listar();
+      //El botón de responder solo lo ve quien llena listas (11M). El director de operaciones y
+      //quien las administra o consulta (12M, 21M) solo ven las respuestas
+      $llenaListas = in_array('11M', explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : ''), true);
       $filasTabla = array();
       while ($fila = $resultado->fetch_object()) {
         $filasTabla[] = array(
           "0" => $fila->ID_GRUPO_LISTA_CHEQUEO,
           "1" => $fila->NOM_GRUPO_LISTA_CHEQUEO,
           "2" => $fila->CANT_PREGUNTAS_GRUPO,
-          "3" => '<SPAN title="Responder"><button class="btn btn-success" onclick="mostrarPreguntas(' . $fila->ID_GRUPO_LISTA_CHEQUEO . ')"><i class="fa fa-pencil"></i></button></SPAN>'.
+          "3" => ($llenaListas ? '<SPAN title="Responder"><button class="btn btn-success" onclick="mostrarPreguntas(' . $fila->ID_GRUPO_LISTA_CHEQUEO . ')"><i class="fa fa-pencil"></i></button></SPAN>' : '').
           '<SPAN title="Mostrar respuestas"><button class="btn btn-success" onclick="listarRespuestas(' . $fila->ID_GRUPO_LISTA_CHEQUEO . ')"><i class="fa fa-eye"></i></button></SPAN>'
           
         );
@@ -460,7 +476,7 @@ switch ($_GET["op"]) {
   case 'listarRespuestas':
     try {
       $avance=0;
-      $resultado = $modeloListas->listarRespuestas($idGrupo);
+      $resultado = $modeloListas->listarRespPorCentro($idGrupo, listasMisCentros()); //solo las de sus peajes
       $filasTabla = array();
       while ($fila = $resultado->fetch_object()) {
         //Las cuentas del avance ya vienen en la misma consulta
@@ -491,17 +507,10 @@ switch ($_GET["op"]) {
     break;
          
         
-    //Listas diligenciadas de un tipo, solo de los peajes asignados a la persona.
+    //Listas diligenciadas de un tipo, de los peajes asignados a la persona (el ADMIN TEC, todos)
     //Es la que pide la tabla de la pantalla al cargar
     case 'listarPorCentro':
-                          
-       $resultado=$modeloListas->centrosAsignados($_SESSION['Idcolaborador']);
-       $centrosOperativos= Array();
-       while ($centroAsignado=$resultado->fetch_object())
-       {
-           $centrosOperativos[]=$centroAsignado->ID_CENTRO_OP;
-           
-       }
+       $centrosOperativos = listasMisCentros();
        
         $avance=0;
         $resultado = $modeloListas->listarRespPorCentro($idGrupo,$centrosOperativos);

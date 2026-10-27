@@ -554,7 +554,12 @@ function mostrarRespuestasForm(data) {
     $("#centro").hide();
     $("#centro1").show();
 
-    var editable = (fechaLista == hoy); //solo se puede corregir lo diligenciado hoy
+    //Solo se corrige lo diligenciado hoy, y solo quien llena listas (11M): su propia lista, o
+    //cualquiera el ADMIN TEC. El director de operaciones y los demás solo la revisan
+    var llena = typeof HANA_LISTAS_LLENA === 'undefined' ? true : HANA_LISTAS_LLENA;
+    var propia = typeof HANA_YO === 'undefined' || String(colaborador) === String(HANA_YO) || (typeof HANA_LISTAS_TODO !== 'undefined' && HANA_LISTAS_TODO);
+    var soloConsulta = !llena || !propia;
+    var editable = (fechaLista == hoy) && !soloConsulta;
 
     var groupHtml = '<div class="row"><div class="form-group col-lg-6 col-md-6 col-sm-6 col-xs-12" style="margin-left: 3%;"><h3>' + data[0].NOM_GRUPO + '</h3></div></div><div class="col-12" style="margin: 1.2%;width: 95%;height: 3px;background-color: #E3E6EA;"></div>';
     formContainer.append(groupHtml);
@@ -570,6 +575,10 @@ function mostrarRespuestasForm(data) {
             '     <i class="fa fa-save"></i> Guardar cambios</button>' +
             '  <button type="button" class="btn btn-default" id="btnCancelarEdicion" style="display:none;">Cancelar</button>' +
             '</div>');
+    } else if (soloConsulta) {
+        formContainer.append(
+            '<div class="hana-borrador">Solo consulta: esta lista se diligenci\u00f3 el ' + fechaLista +
+            ' y la corrige quien la llen\u00f3.</div>');
     } else {
         formContainer.append(
             '<div class="hana-borrador">Esta lista se diligenci\u00f3 el ' + fechaLista +

@@ -10,14 +10,14 @@
       pide. También las fotos y soportes de las RQ, que se suben desde RQControl.php.
     - Borrar deja el registro con ESTADO 0 (se puede recuperar si hace falta).
 
-  Quién puede qué:
-    COMUNICACION  subir, cambiar la descripción y borrar: el coordinador del
-                  proyecto. Ver: además 20M, 21M y 22M.
+  Quién puede qué (siempre en los peajes asignados a la persona):
+    COMUNICACION  subir, cambiar la descripción y borrar: quien registra (32M) o resuelve
+                  (51M) comunicaciones. Ver: quien entra a Comunicaciones.
     LISTA         subir, cambiar y borrar: solo quien llenó esa lista,
-                  y solo el día de la lista (hoy o un día habilitado). Ver: además 12M,
-                  20M, 21M y quien ve ese peaje en el tablero (19M).
+                  y solo el día de la lista (hoy o un día habilitado). Ver: quien entra a
+                  las listas o al reporte general (19M).
     RQ            solo ver: quien puede abrir esa RQ en Requisiciones, quien ve su
-                  peaje en el reporte general (19M), 20M, 21M, 22M y el ADMIN TEC.
+                  peaje en el reporte general (19M) y el ADMIN TEC.
   Y el administrador puede apagar los adjuntos de cada módulo en Parámetros.
 
   Operaciones: listar, subir, describir, borrar, ver (entrega el archivo).
@@ -59,35 +59,31 @@ $idColaborador = (int)$_SESSION['Idcolaborador'];
 //---------------------------------------------------------------------------
 function adjAcceso($modulo, $idRegistro, $idUsuario, $idColaborador)
 {
-    $coordina = array();
-    foreach (hanaProyectosCoordinados($idColaborador) as $proyecto) { $coordina[(int)$proyecto['ID_PROYECTO']] = true; }
-    $verTodos = hanaTienePermiso('20M') || hanaTienePermiso('21M') || hanaTienePermiso('22M');
+    //Todo con la misma regla del sistema: las casillas del módulo y los peajes asignados a la persona
+    $misCentros = hanaMisCentrosIds();
+    $misProyectos = hanaMisProyectos();
 
     if ($modulo === 'COMUNICACION') {
-        //Oficios como las RQ: los ve y les adjunta quien tenga el proyecto asignado (lo coordina,
-        //es jefe de uno de sus peajes o tiene un peaje asignado en Usuarios); ADMIN TEC y 32M, todos
+        //Los ve quien entra a Comunicaciones en ese proyecto; les adjunta quien las registra (32M) o las resuelve (51M)
         $idProyecto = (new Adjunto())->proyectoDeComunicacion($idRegistro);
         if (!$idProyecto) { return null; }
-        $asignado = isset($coordina[$idProyecto]) || hanaTienePermiso('24M') || hanaTienePermiso('32M')
-            || Organizacion::tienePeajes($idColaborador, $idUsuario, $idProyecto);
-        $editar = HanaConfig::si('ADJUNTOS_COMUNICACIONES') && $asignado;
-        return array('ver' => $asignado || $verTodos, 'editar' => $editar);
+        $enSusProyectos = isset($misProyectos[(int)$idProyecto]);
+        $ver = $enSusProyectos && hanaEntra('COMUNICACIONES');
+        $editar = HanaConfig::si('ADJUNTOS_COMUNICACIONES') && $enSusProyectos
+               && (hanaPuede('COMUNICACIONES', 'llenar') || hanaPuede('COMUNICACIONES', 'otros'));
+        return array('ver' => $ver, 'editar' => $editar);
     }
 
     if ($modulo === 'LISTA') {
         $lista = (new Adjunto())->datosLista($idRegistro);
         if (!$lista) { return null; }
-        //Quién diligencia listas en ese centro: quien tenga 11M y el centro asignado (o el ADMIN TEC)
-        $asignado = Organizacion::centroAsignado($idUsuario, (int)$lista['CENTRO']);
-        $diligencia = hanaTienePermiso('11M') && ($asignado || isset($coordina[(int)$lista['PROYECTO']]) || hanaTienePermiso('24M'));
+        $enSusPeajes = isset($misCentros[(int)$lista['CENTRO']]);
         //Los archivos de una lista los cambia quien la llenó (o el ADMIN TEC), y solo si la lista es de hoy o de un día habilitado
+        $diligencia = hanaPuede('LISTAS', 'llenar') && $enSusPeajes;
         $editar = HanaConfig::si('ADJUNTOS_LISTAS') && $diligencia && ((int)$lista['DUENO'] === (int)$idColaborador || hanaTienePermiso('24M'))
                && HanaFechas::enVentana($lista['FECHA'], $idColaborador);
-        $ver = $diligencia || $asignado || $verTodos || hanaTienePermiso('12M');
-        //El tablero (19M): el gerente de operaciones ve todo; el coordinador su proyecto; el jefe su peaje
-        if (!$ver && hanaTienePermiso('19M')) {
-            $ver = Organizacion::esJefeDeCentro((int)$lista['CENTRO'], $idColaborador);
-        }
+        //Los ve quien entra a las listas o al reporte general, en sus peajes
+        $ver = $enSusPeajes && (hanaEntra('LISTAS') || hanaPuede('REPORTE', 'ver'));
         return array('ver' => $ver, 'editar' => $editar);
     }
 
@@ -95,12 +91,11 @@ function adjAcceso($modulo, $idRegistro, $idUsuario, $idColaborador)
         //Las fotos y soportes de una RQ: los ve quien puede abrir esa RQ (la misma regla de Requisiciones)
         $misCasillas = explode(',', isset($_SESSION['Modulos']) ? $_SESSION['Modulos'] : '');
         $conRq = (bool)array_intersect(array('15M', '17M', '18M', '41M'), $misCasillas);
-        $ver = ($conRq && (new Rq())->mostrar(hanaCondRQ('todas'), $idRegistro)) || $verTodos || hanaTienePermiso('24M');
+        $ver = ($conRq && (new Rq())->mostrar(hanaCondRQ('todas'), $idRegistro)) || hanaTienePermiso('24M');
         //También quien ve el peaje de la RQ en el reporte general, donde salen las fotos de las RQ por aprobar
-        if (!$ver && hanaTienePermiso('19M')) {
+        if (!$ver && hanaPuede('REPORTE', 'ver')) {
             $centro = (new Adjunto())->centroDeRq($idRegistro);
-            $alcance = (new Tablero())->alcance($idColaborador, false);
-            $ver = $centro > 0 && isset($alcance['centros'][$centro]);
+            $ver = $centro > 0 && isset($misCentros[$centro]);
         }
         return array('ver' => (bool)$ver, 'editar' => false);
     }

@@ -91,7 +91,18 @@ class HanaDB
         return $filas ? $filas : array();
     }
 
-    //Los centros asignados a la persona en Usuarios (peajes, básculas, bases, oficinas).
+    //Todos los centros activos de proyectos activos (para el ADMIN TEC), con la forma de centrosUsuario
+    public static function centrosTodos()
+    {
+        $filas = self::q("SELECT c.ID_CENTRO_OP, c.NOM_CENTRO_OP, c.TIPO_CENTRO, p.ID_PROYECTO, p.NOM_PROYECTO
+                        FROM centros_operacion c
+                        INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
+                       WHERE c.ESTADO = '1' AND p.ESTADO = '1'
+                       ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP");
+        return $filas ? $filas : array();
+    }
+
+    //Los centros asignados a la persona en Colaboradores (peajes, básculas, bases, oficinas).
     //Son los que usa para RQ y listas de chequeo
     public static function centrosUsuario($idUsuario)
     {
@@ -101,7 +112,7 @@ class HanaDB
                         INNER JOIN asoc_usuarios_sistemas_x_cop a
                                 ON a.ID_CENTRO_OP = c.ID_CENTRO_OP
                        WHERE a.ID_COLABORADOR = ?
-                         AND c.ESTADO = '1'
+                         AND c.ESTADO = '1' AND p.ESTADO = '1'
                        ORDER BY p.NOM_PROYECTO, c.NOM_CENTRO_OP", 'i', array((int)$idUsuario));
         return $filas ? $filas : array();
     }

@@ -1,8 +1,8 @@
 <?php
 /*
   HANA - Reporte general del día (control del reporte diario)
-  Permiso 19M (el del tablero). Con 20M se ve todo; sin él, cada quien ve lo
-  que tiene a cargo: el coordinador su proyecto y el jefe de peaje lo suyo.
+  Permiso 19M (el del tablero). Cada quien ve lo de sus peajes asignados
+  (Configuración → Usuarios); el ADMIN TEC, todo.
 */
 session_start();
 require_once __DIR__ . "/../Modelo/ControlDiarioModelo.php";
@@ -22,10 +22,10 @@ function cdError($codigo, $mensaje)
 }
 
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { cdError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
-if (!hanaTienePermiso(PERMISO_TABLERO)) { cdError(403, 'No tienes permiso para el reporte general.'); }
+if (!hanaPuede('REPORTE', 'ver')) { cdError(403, 'No tienes permiso para el reporte general.'); }
 
 $idColaborador = (int)$_SESSION['Idcolaborador'];
-$verTodos = hanaTienePermiso(PERMISO_TABLERO_TODOS);
+$verTodos = hanaVeTodo(); //el ADMIN TEC ve todo; los demás, lo de sus peajes asignados
 $hoy = date('Y-m-d');
 $fecha = HanaVal::fecha(isset($_GET['fecha']) ? $_GET['fecha'] : $hoy);
 if ($fecha === '') { $fecha = $hoy; }
@@ -34,7 +34,7 @@ if ($fecha > $ultimo) { $fecha = $ultimo; }
 
 $tablero  = new Tablero();
 $controlDiario = new ControlDiario();
-$alcance = $tablero->alcance($idColaborador, $verTodos);
+$alcance = $tablero->alcance($idColaborador, $verTodos, array_keys(hanaMisCentrosIds()));
 
 //Filtro opcional por proyecto, siempre dentro del alcance
 $filtro = isset($_GET['proyecto']) ? (int)$_GET['proyecto'] : 0;
@@ -50,12 +50,10 @@ foreach ($proyectos as $proyecto) { $nombreProyecto[(int)$proyecto['ID_PROYECTO'
 foreach ($centros as $i => $centro) { $centros[$i]['NOM_PROYECTO'] = isset($nombreProyecto[(int)$centro['ID_PROYECTO']]) ? $nombreProyecto[(int)$centro['ID_PROYECTO']] : ''; }
 $idsCentros = array_map(function ($centro) { return (int)$centro['ID_CENTRO_OP']; }, $centros);
 
-//La jerarquía hacia abajo: 20M ve a todos; el coordinador, a los de su
-//proyecto; cada quien se ve a sí mismo
+//Se abre el reporte de quien trabaja en sus proyectos (los de sus peajes asignados)
 $coordino = array();
-foreach ($proyectos as $proyecto) { if ((int)$proyecto['ID_COLABORADOR_COORDINADOR'] === $idColaborador) { $coordino[(int)$proyecto['ID_PROYECTO']] = true; } }
-$puedeVer = function ($idPersona, $idProyecto) use ($verTodos, $idColaborador, $coordino) {
-    return $idPersona > 0 && ($verTodos || $idPersona === $idColaborador || isset($coordino[(int)$idProyecto]));
+$puedeVer = function ($idPersona, $idProyecto) use ($verTodos, $idColaborador, $alcance) {
+    return $idPersona > 0 && ($verTodos || $idPersona === $idColaborador || isset($alcance['proyectos'][(int)$idProyecto]));
 };
 
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
@@ -84,6 +82,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'hoy'        => $hoy,
             'ultimo'     => $ultimo,
             'verTodos'   => $verTodos,
+            //Los nombres de las listas que edita el administrador (Parámetros del sistema → Listas)
+            'etiquetas'  => array('transportes' => (object)Cronograma::$TRANSPORTES, 'pendiente' => (object)Comunicacion::$PENDIENTE,
+                                  'estadosGh' => (object)Vacante::$ESTADOS_GH),
             'proyectos'  => $filtroLista,
             'hoyEnQue'   => $hoyFilas,
             'listas'     => $controlDiario->listas($idsCentros, $fecha),
@@ -94,25 +95,21 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'vehiculos'  => $controlDiario->vehiculos(array_keys($personas), $idsProyectos, $fecha),
             'vacantes'   => $vacantes,
             'comunicaciones' => $comunicaciones,
-            'rq'         => $controlDiario->rqPendientes($idsCentros),
-            //Quien tiene 18M aprueba o rechaza las RQ desde aquí mismo
-            'puedeAprobar' => hanaTienePermiso('18M'),
-            //Ausencias del día por proyecto (para la pestaña de vacantes)
-            'ausentismoDia' => (object)$controlDiario->ausentismoDia($idsCentros, $fecha),
-            //Pestaña Ausentismo: cada ausencia del día con su motivo (quién cubrió a quién)
-            'ausentismo' => HanaConfig::modulo('AUSENTISMO') ? $controlDiario->ausenciasDetalle($idsCentros, $fecha) : array(),
-            'modAusentismo' => HanaConfig::modulo('AUSENTISMO'),
+            //El ausentismo (matriz de cubrimiento) se retiró del sistema: la pestaña queda apagada
+            'ausentismoDia' => (object)array(),
+            'ausentismo' => array(),
+            'modAusentismo' => false,
             //Cada centro con su jefe y si hizo la lista de chequeo ese día
             'centros'    => array_map(function ($centro) {
                 return array('ID_CENTRO_OP' => (int)$centro['ID_CENTRO_OP'], 'ID_PROYECTO' => (int)$centro['ID_PROYECTO'],
                              'NOM_CENTRO_OP' => $centro['NOM_CENTRO_OP'], 'NOM_PROYECTO' => $centro['NOM_PROYECTO'], 'TIPO_CENTRO' => $centro['TIPO_CENTRO'],
-                             'JEFE' => $centro['JEFE'], 'LISTAS' => (int)$centro['LISTAS'], 'RQ_PENDIENTES' => (int)$centro['RQ_PENDIENTES']);
+                             'JEFE' => $centro['JEFE'], 'LISTAS' => (int)$centro['LISTAS']);
             }, $centros)
         ), JSON_UNESCAPED_UNICODE);
         break;
 
     //Las respuestas de una lista de chequeo. Solo de un centro que esta
-    //persona ve (su alcance); con 20M, de cualquiera
+    //persona ve (su alcance: sus peajes asignados)
     case 'lista':
         $lista = $controlDiario->listaRespuestas(isset($_GET['id']) ? (int)$_GET['id'] : 0);
         if (!$lista || (!$verTodos && !isset($alcance['centros'][(int)$lista['ID_CENTRO']]))) {

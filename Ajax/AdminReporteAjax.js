@@ -1,4 +1,4 @@
-//Administración del reporte diario - consulta de todo lo que llenan los coordinadores
+//Reporte general - consulta de todo lo que llenan los coordinadores (Hoy en qué estás, Arqueos y Vacantes)
 //Una sola lógica para las cinco pantallas: cada una trae <div id="admPagina" data-pagina="...">
 //y los filtros que usa. Todo lo que viene de la base se escapa con rdEsc
 
@@ -45,7 +45,7 @@ $(function () {
             llenarCentrosA();
             cargarA();
         })
-        .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir la administración del reporte.'); });
+        .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir la consulta.'); });
 
     $('#aProyecto').on('change', function () { llenarCentrosA(); cargarA(); });
     $('#aCentro, #aPersona, #aTipo, #aAnio').on('change', cargarA);

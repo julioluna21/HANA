@@ -16,7 +16,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         include('head.php');
 ?>
 <!-- Estilos del módulo -->
-<link href="../public/css/rq.css?v=4" rel="stylesheet">
+<link href="../public/css/rq.css?v=5" rel="stylesheet">
 
 <!-- page content -->
 <div class="right_col" role="main">
@@ -27,7 +27,7 @@ if (isset($_SESSION['IdUsuarios'])) {
       <div class="x_panel" id="panelListado">
         <div class="x_title">
           <h2><i class="fa fa-wrench"></i> Requisiciones (RQ)</h2>
-          <button type="button" class="btn btn-success pull-right" id="btnNuevaRQ" data-puede="<?php echo $puedePedirRq ? '1' : '0'; ?>" style="<?php echo $puedePedirRq ? '' : 'display:none;'; ?>margin-top:4px;">
+          <button type="button" class="btn btn-success pull-right rd-btn-flotante" id="btnNuevaRQ" data-puede="<?php echo $puedePedirRq ? '1' : '0'; ?>" style="<?php echo $puedePedirRq ? '' : 'display:none;'; ?>margin-top:4px;">
             <i class="fa fa-plus-square"></i> Nueva RQ
           </button>
           <div class="clearfix"></div>
@@ -207,7 +207,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/RQAjax.js?v=10"></script>
+<script type="text/javascript" src="../Ajax/RQAjax.js?v=13"></script>
 
 <?php
     } else {

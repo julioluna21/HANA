@@ -50,9 +50,12 @@ if (isset($_SESSION['IdUsuarios'])) {
         array("10M", "novedadesVista.php", "fa-comment", "Novedades", "Registra y consulta novedades y hallazgos"),
         array("RQ", "RQVista.php", "fa-wrench", "Requisiciones (RQ)", "REQUISICIONES"),
         array("REPORTE", "ReporteDiarioVista.php", "fa-calendar-check-o", "Reporte diario", "Hoy en qué estás, listas de chequeo y más"),
+        array("19M", "ControlDiarioVista.php", "fa-list-alt", "Reporte general", "Todo lo que enviaron coordinadores y jefes, por día, módulo y proyecto"),
+        array("37M", "InformeMensualVista.php", "fa-file-pdf-o", "Informe mensual", "Un PDF de un mes, una quincena o las fechas que elijas"),
         array("12M", "GruposListasVista.php", "fa-list-ul", "Editar listas", "Crea y edita las preguntas de cada lista"),
-        array("12M", "NotificacionesVista.php", "fa-envelope-o", "Correos de listas", "Configura los reportes automáticos por correo"),
-        array("AUSENTISMO", "AusentismoVista.php", "fa-user-times", "Registrar ausentismo", "El reporte de ausentismo de cada peaje")
+        array("12M", "NotificacionesVista.php", "fa-envelope-o", "Correos automáticos", "Recordatorios, resúmenes y avisos por correo"),
+        array("AUSENTISMO", "AusentismoVista.php", "fa-user-times", "Registrar ausentismo", "El reporte de ausentismo de cada peaje"),
+        array("PROMESA", "PromesaValorVista.php", "fa-clock-o", "Promesa de valor", "Horas prometidas y ejecutadas de cada peaje, y por qué no se cumplió")
     );
 ?>
         <!-- Contenido de la página -->
@@ -98,10 +101,10 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (array_intersect(array('15M', '17M', '18M', '41M'), $modulosAcceso)) { $permitidos[] = 'RQ'; } //ver, ver todas, aprobar o pedir
     if (array_intersect(array('3M', '24M'), $modulosAcceso)) { $permitidos[] = 'COLABORADORES'; } //registrar a las personas (3M)
     if (array_intersect(array('1M', '24M'), $modulosAcceso)) { $permitidos[] = 'USUARIOS'; }      //su acceso (1M)
-    if (in_array('11M', $modulosAcceso) || in_array('12M', $modulosAcceso) || in_array('5M', $modulosAcceso)
-        || in_array('19M', $modulosAcceso) || in_array('21M', $modulosAcceso) || in_array('37M', $modulosAcceso) || $esCoordMenu) { $permitidos[] = 'REPORTE'; }
-    if ((!isset($menuModuloActivo) || $menuModuloActivo('AUSENTISMO')) && ($esCoordMenu || !empty($menuJefe) || in_array('20M', $modulosAcceso)
-        || in_array('21M', $modulosAcceso) || in_array('22M', $modulosAcceso) || in_array('25M', $modulosAcceso))) { $permitidos[] = 'AUSENTISMO'; }
+    //Reporte diario: con alguna pantalla del reporte en el menú (head.php ya lo calculó)
+    if ($esCoordMenu || !empty($menuListas) || !empty($menuEditarListas) || !empty($menuCorreos)) { $permitidos[] = 'REPORTE'; }
+    if (!empty($menuAusReg)) { $permitidos[] = 'AUSENTISMO'; } //head.php ya calculó quién entra al ausentismo
+    if (!empty($menuPromesa)) { $permitidos[] = 'PROMESA'; } //head.php ya calculó quién entra a la promesa de valor
 
     foreach ($accesos as $acceso) {
         if (!in_array($acceso[0], $permitidos)) { continue; } //sin permiso: se salta
@@ -167,10 +170,10 @@ if (isset($_SESSION['IdUsuarios'])) {
             .aviso-sin-modulos{ grid-column: 1 / -1; }
             /* Efecto al pasar el mouse: se levanta y se tiñe del color del sistema */
             .tarjeta-modulo:hover{
-                border-color:#5395a8; box-shadow:0 6px 14px rgba(0,0,0,.15);
+                border-color:#1ABB9C; box-shadow:0 6px 14px rgba(0,0,0,.15);
                 transform: translateY(-4px); color:#6E1A1E;
             }
-            .tarjeta-icono{ font-size:38px; color:#5395a8; margin-bottom:10px; }
+            .tarjeta-icono{ font-size:38px; color:#1ABB9C; margin-bottom:10px; }
             .tarjeta-modulo:hover .tarjeta-icono{ color:#6E1A1E; }
             .tarjeta-titulo{ font-size:16px; font-weight:600; margin-bottom:6px; }
             .tarjeta-texto{ font-size:12px; color:#888; line-height:1.4; }

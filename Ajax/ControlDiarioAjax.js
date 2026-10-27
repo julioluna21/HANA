@@ -8,9 +8,9 @@ var datosCD = null;
 var SIT_CD = { LABORAL: 'Laboral', DESCANSO: 'Descanso', INCAPACIDAD: 'Incapacidad', VACACIONES: 'Vacaciones', PERMISO: 'Permiso' };
 var ARQ_CD = { CAJA_MENOR: 'Caja menor', RECAMBIO: 'Recambio', CASETA: 'Casetas' };
 var VH_CD = { OPERATIVO: 'Operativo', INOPERATIVO: 'Inoperativo' };
-var TR_CD = { BUS: 'Bus', TAXI: 'Taxi', APP: 'Aplicación (Didi, Uber…)', PARTICULAR: 'Vehículo particular', OTRO: 'Otro', NO_VIAJO: 'No se desplazó' };
+var TR_CD = {};   //transportes y «Pendiente de»: los nombres llegan del servidor (Parámetros del sistema → Listas)
 var CRONO_CD = { PROGRAMADA: 'Programada', REALIZADA: 'Realizada', NO_REALIZADA: 'No realizada', CANCELADA: 'Cancelada', AUSENCIA: 'Ausencia' };
-var PEND_CD = { COORDINADOR_OP: 'Coordinador operativo', DIRECCION: 'Dirección', COMUNICACIONES: 'Comunicaciones', GH: 'Gestión Humana', CONTABLE: 'Contable' };
+var PEND_CD = {}, GH_CD = {};
 
 //"1 no cuadra" / "3 no cuadran"
 function cantidadTexto(cantidad, singular, plural) { return cantidad + ' ' + (cantidad === 1 ? singular : plural); }
@@ -68,11 +68,11 @@ $(document).on('click', '.cd-proy', function () {
 function vacio(columnas, texto) { return '<tr><td colspan="' + columnas + '" class="rd-vacio">' + texto + '</td></tr>'; }
 
 //Qué pestaña abre cada valor de ?ver=
-var VER_TAB = { hoy: 'tabHoy', listas: 'tabListas', arqueos: 'tabArqueos', cronograma: 'tabCrono', vehiculos: 'tabVh', vacantes: 'tabVac', comunicaciones: 'tabCom', rq: 'tabRq',
+var VER_TAB = { hoy: 'tabHoy', listas: 'tabListas', arqueos: 'tabArqueos', cronograma: 'tabCrono', vehiculos: 'tabVh', vacantes: 'tabVac', comunicaciones: 'tabCom',
                 ausentismo: 'tabAus' };
 
 $(function () {
-    //Se puede llegar con ?fecha=AAAA-MM-DD&proyecto=ID&ver=rq (desde el tablero): abre ese día, ese proyecto y esa pestaña
+    //Se puede llegar con ?fecha=AAAA-MM-DD&proyecto=ID&ver=arqueos (desde el tablero): abre ese día, ese proyecto y esa pestaña
     var parametrosUrl = new URLSearchParams(window.location.search);
     var fechaUrl = /^\d{4}-\d{2}-\d{2}$/.test(parametrosUrl.get('fecha') || '') ? parametrosUrl.get('fecha') : '';
     var proyUrl = parseInt(parametrosUrl.get('proyecto'), 10) || 0;
@@ -96,12 +96,28 @@ $(function () {
     $(document).on('click', '.btn-ver-lista', function () { rdVerLista($(this).data('id')); });
 });
 
+//Desde el tablero por proyectos: escoge el proyecto (0 = todos) y, si se dice cuál, abre la pestaña del tema
+window.cdIrA = function (vista, idProyecto) {
+    var nuevo = String(parseInt(idProyecto, 10) || 0);
+    var abrir = function () {
+        if (VER_TAB[vista]) {
+            $('#cdPestanas a[href="#' + VER_TAB[vista] + '"]').tab('show');
+            $('html, body').animate({ scrollTop: $('#cdPestanas').offset().top - 80 }, 200);
+        } else if ($('#cdTablero').length) {
+            $('html, body').animate({ scrollTop: $('#cdTablero').offset().top - 80 }, 200);
+        }
+    };
+    if ($('#cdProyecto').val() !== nuevo) { $('#cdProyecto').val(nuevo); cargar(datosCD.fecha, nuevo); setTimeout(abrir, 500); }
+    else { abrir(); }
+};
+
 //Trae todo lo del día elegido (y del proyecto, si se filtró) y pinta cada pestaña
 function cargar(fecha, proyecto) {
     var idProyecto = proyecto !== undefined ? proyecto : ($('#cdProyecto').val() || 0);
     $.getJSON(URL_CD + '?op=dia' + (fecha ? '&fecha=' + encodeURIComponent(fecha) : '') + '&proyecto=' + encodeURIComponent(idProyecto))
         .done(function (respuesta) {
             datosCD = respuesta;
+            if (respuesta.etiquetas) { TR_CD = respuesta.etiquetas.transportes || {}; PEND_CD = respuesta.etiquetas.pendiente || {}; GH_CD = respuesta.etiquetas.estadosGh || {}; }
             $('#cdFecha').val(respuesta.fecha).attr('max', respuesta.ultimo);
             $('#btnDiaSig').prop('disabled', respuesta.fecha >= respuesta.ultimo);
             $('#btnHoy').toggle(respuesta.fecha !== respuesta.hoy);
@@ -116,7 +132,9 @@ function cargar(fecha, proyecto) {
             $('#cdTituloImprimir').text('Reporte general · ' + rdFecha(respuesta.fecha) + ($('#cdProyecto').val() !== '0' ? ' · ' + $('#cdProyecto option:selected').text() : ''));
 
             pintarResumen();
-            pintarHoy(); pintarListas(); pintarArqueos(); pintarCrono(); pintarVh(); pintarVac(); pintarCom(); pintarRq(); pintarAus();
+            pintarHoy(); pintarListas(); pintarArqueos(); pintarCrono(); pintarVh(); pintarVac(); pintarCom(); pintarAus();
+            //El tablero por proyectos (director y administrador) va arriba, con el mismo día y proyecto
+            if (window.tableroCargar) { window.tableroCargar(respuesta.fecha, parseInt($('#cdProyecto').val(), 10) || 0); }
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo cargar el reporte general.'); });
 }
@@ -136,7 +154,6 @@ function pintarResumen() {
     var vhMal = datos.vehiculos.filter(function (vehiculo) { return vehiculo.ESTADO_VH && vehiculo.ESTADO_VH !== 'OPERATIVO'; }).length;
     var vacFuera = datos.vacantes.filter(function (vacante) { return vacante.RESULTADO_ANS === 'VENCIDA'; }).length;
     var comFuera = datos.comunicaciones.filter(function (oficio) { return oficio.RESULTADO === 'VENCIDA'; }).length;
-    var rqUrgentes = datos.rq.filter(function (rq) { return rq.TIPO_RQ === 'U'; }).length;
     var sinRevisar = datos.hoyEnQue.filter(function (persona) { return !datos.revisionCrono[persona.ID]; }).length;
     //Las listas las llena el coordinador: quién registró al menos una ese día
     var conListaIds = {};
@@ -158,8 +175,7 @@ function pintarResumen() {
         ['tabVh', 'fa-car', 'Vehículos', datos.vehiculos.length ? vhReg + ' de ' + datos.vehiculos.length : '0', 'con estado del día',
          vhMal ? 'mal' : (datos.vehiculos.length && vhReg === datos.vehiculos.length ? 'ok' : (datos.vehiculos.length ? 'pend' : '')), vhMal ? cantidadTexto(vhMal, 'no operativo', 'no operativos') : ''],
         ['tabVac', 'fa-user-plus', 'Vacantes abiertas', datos.vacantes.length, 'por cubrir', vacFuera ? 'mal' : (datos.vacantes.length ? 'pend' : 'ok'), vacFuera ? cantidadTexto(vacFuera, 'fuera del acuerdo', 'fuera del acuerdo') : ''],
-        ['tabCom', 'fa-inbox', 'Comunicaciones', datos.comunicaciones.length, 'abiertas', comFuera ? 'mal' : (datos.comunicaciones.length ? 'pend' : 'ok'), comFuera ? cantidadTexto(comFuera, 'fuera de tiempo', 'fuera de tiempo') : ''],
-        ['tabRq', 'fa-wrench', 'RQ por aprobar', datos.rq.length, 'esperando', rqUrgentes ? 'mal' : (datos.rq.length ? 'pend' : 'ok'), rqUrgentes ? cantidadTexto(rqUrgentes, 'urgente', 'urgentes') : '']
+        ['tabCom', 'fa-inbox', 'Comunicaciones', datos.comunicaciones.length, 'abiertas', comFuera ? 'mal' : (datos.comunicaciones.length ? 'pend' : 'ok'), comFuera ? cantidadTexto(comFuera, 'fuera de tiempo', 'fuera de tiempo') : '']
     ];
     //Ausentismo, si el módulo está encendido
     if (datos.modAusentismo) {
@@ -282,18 +298,18 @@ function pintarVh() {
 
 //Pestaña de vacantes: las abiertas por proyecto y cuántas van fuera del ANS
 function pintarVac() {
-    var html = '', filas = datosCD.vacantes, totalesProyecto = {}, ausencias = datosCD.ausentismoDia || {};
+    var html = '', filas = datosCD.vacantes, totalesProyecto = {};
     filas.forEach(function (vacanteFila) { var idProyecto = +vacanteFila.ID_PROYECTO; totalesProyecto[idProyecto] = totalesProyecto[idProyecto] || { n: 0, fuera: 0 }; totalesProyecto[idProyecto].n++; if (vacanteFila.RESULTADO_ANS === 'VENCIDA') { totalesProyecto[idProyecto].fuera++; } });
     var datosProyecto = {};
     datosCD.proyectos.forEach(function (proyecto) { var totales = totalesProyecto[proyecto.id] || { n: 0, fuera: 0 };
-        datosProyecto[proyecto.id] = { n: totales.n, lineas: [(totales.fuera ? '<b class="cd-mal">' + cantidadTexto(totales.fuera, 'fuera del acuerdo', 'fuera del acuerdo') + '</b>' : 'todas en tiempo'), 'Ausencias del día: <b>' + (ausencias[proyecto.id] || 0) + '</b>'] }; });
+        datosProyecto[proyecto.id] = { n: totales.n, lineas: [(totales.fuera ? '<b class="cd-mal">' + cantidadTexto(totales.fuera, 'fuera del acuerdo', 'fuera del acuerdo') + '</b>' : 'todas en tiempo')] }; });
     porProyecto('#cdVacProy', '#tbVac', 'vacantes abiertas', datosProyecto);
     for (var i = 0; i < filas.length; i++) {
         var vacante = filas[i];
         html += '<tr data-proy="' + parseInt(vacante.ID_PROYECTO, 10) + '"><td>' + rdEsc(vacante.NOM_CENTRO_OP) + '</td><td>' + rdEsc(vacante.CARGO) + '</td><td>' + rdFecha(vacante.FECHA_VACANTE) + '</td><td>' + rdFecha(vacante.FECHA_ANS) + '</td>' +
              '<td class="rd-num-col">' + vacante.DIAS_A_HOY + '</td>' +
              '<td>' + (vacante.RESULTADO_ANS === 'VENCIDA' ? tag('Fuera del acuerdo', 'rd-tag-mal') : tag('En tiempo', 'rd-tag-pend')) + '</td>' +
-             '<td>' + rdEsc((vacante.ESTADO_GH || '') + (vacante.FECHA_COMPROMISO_GH ? ' ' + rdFecha(vacante.FECHA_COMPROMISO_GH) : '')) + '</td></tr>';
+             '<td>' + rdEsc((vacante.ESTADO_GH ? (GH_CD[vacante.ESTADO_GH] || vacante.ESTADO_GH) : '') + (vacante.FECHA_COMPROMISO_GH ? ' ' + rdFecha(vacante.FECHA_COMPROMISO_GH) : '')) + '</td></tr>';
     }
     $('#tbVac').html(html || vacio(7, 'No hay vacantes abiertas.'));
     aplicarFiltroProy('#tbVac');
@@ -371,64 +387,6 @@ function pintarAus() {
     aplicarFiltroProy('#tbAus');
 }
 
-//Pestaña de requisiciones: las pendientes por proyecto y cuántas son urgentes
-function pintarRq() {
-    var html = '', filas = datosCD.rq, totalesProyecto = {}, decide = !!datosCD.puedeAprobar;
-    filas.forEach(function (rqFila) { var idProyecto = +rqFila.ID_PROYECTO; totalesProyecto[idProyecto] = totalesProyecto[idProyecto] || { n: 0, u: 0, max: 0 }; totalesProyecto[idProyecto].n++; if (rqFila.TIPO_RQ === 'U') { totalesProyecto[idProyecto].u++; } totalesProyecto[idProyecto].max = Math.max(totalesProyecto[idProyecto].max, +rqFila.DIAS); });
-    var datosProyecto = {};
-    datosCD.proyectos.forEach(function (proyecto) { var totales = totalesProyecto[proyecto.id] || { n: 0, u: 0, max: 0 };
-        datosProyecto[proyecto.id] = { n: totales.n, lineas: [(totales.u ? '<b class="cd-mal">' + cantidadTexto(totales.u, 'urgente', 'urgentes') + '</b>' : 'ninguna urgente'), (totales.n ? 'la más antigua: ' + cantidadTexto(totales.max, 'día', 'días') : '—')] }; });
-    porProyecto('#cdRqProy', '#tbRq', 'por aprobar', datosProyecto);
-    $('.cd-col-decidir').toggle(decide);
-    for (var i = 0; i < filas.length; i++) {
-        var rq = filas[i], esUrgente = rq.TIPO_RQ === 'U', id = parseInt(rq.ID_RQ, 10);
-        html += '<tr data-proy="' + parseInt(rq.ID_PROYECTO, 10) + '" data-rq="' + id + '"><td><a href="RQVista.php?abrir=' + id + '" title="Abrir esta RQ en Requisiciones"><span class="cd-rq ' + (esUrgente ? 'cd-rq-u' : '') + '">' + (esUrgente ? 'RQ U-' : 'RQ-') + rdEsc(rq.NUMERO_RQ) + '</span></a></td>' +
-             '<td>' + rdEsc(rq.NOM_CENTRO_OP) + '<br><small>' + rdEsc(rq.NOM_PROYECTO) + '</small></td><td>' + rdEsc(rq.SOLICITA || '') + '</td><td>' + rdEsc(rq.ITEMS || '') + rdRqMinisFila(id, rq.ARCHIVOS) +
-             '<a href="#" class="btn-ver-rq cd-rq-ver rd-no-imprimir" data-id="' + id + '"><i class="fa fa-eye"></i> Ver detalle y fotos</a></td>' +
-             '<td class="rd-num-col">' + parseInt(rq.DIAS, 10) + '</td>' +
-             (decide ? '<td class="rd-no-imprimir cd-decidir"><button type="button" class="btn btn-success btn-xs cd-aprobar" data-id="' + id + '"><i class="fa fa-check"></i> Aprobar</button> ' +
-                       '<button type="button" class="btn btn-default btn-xs cd-rechazar" data-id="' + id + '"><i class="fa fa-times"></i> Rechazar</button>' +
-                       '<div class="cd-motivo" hidden><textarea class="form-control input-sm" rows="2" maxlength="500" placeholder="¿Por qué se rechaza? (lo verá quien la pidió)"></textarea>' +
-                       '<button type="button" class="btn btn-danger btn-xs cd-confirmar-rechazo" data-id="' + id + '">Confirmar rechazo</button></div></td>' : '') + '</tr>';
-    }
-    $('#tbRq').html(html || vacio(decide ? 6 : 5, 'No hay RQ esperando aprobación.'));
-    aplicarFiltroProy('#tbRq');
-}
-
-//Aprobar o rechazar desde el reporte: usa la misma operación de la pantalla de RQ (mismas reglas, 18M)
-function decidirRq(id, estado, observacion, boton) {
-    hanaBoton(boton, true);
-    $.post('../Control/RQControl.php?op=cambiarEstado', { id: id, estado: estado, observacion: observacion || '' }, null, 'json')
-        .done(function (respuesta) { rdAviso(respuesta.mensaje || (estado === 3 ? 'RQ aprobada.' : 'RQ rechazada.')); cargar(datosCD.fecha); })
-        .fail(function (xhr) { hanaBoton(boton, false); alert(rdError(xhr, 'No se pudo cambiar el estado de la RQ.')); });
-}
-//El detalle de una RQ para la ventana de confirmación: número, peaje, quién la pidió,
-//los ítems con su cantidad y justificación, la observación y los soportes. Todo escapado
-function detalleRqHtml(detalle, fila) {
-    return rdRqDetalleHtml(detalle, fila); //el mismo detalle con fotos que usa el tablero (ReporteComun.js)
-}
-$(document).on('click', '.cd-aprobar', function () {
-    var boton = this, id = $(boton).data('id');
-    var fila = (datosCD.rq || []).filter(function (rq) { return +rq.ID_RQ === +id; })[0] || {};
-    hanaBoton(boton, true);
-    //Se trae la RQ completa (ítems, justificación, soportes) para saber exactamente qué se aprueba
-    $.getJSON('../Control/RQControl.php?op=mostrar&id=' + encodeURIComponent(id))
-        .done(function (respuesta) {
-            hanaBoton(boton, false);
-            hanaConfirmar('¿Aprobar esta RQ? A quien la pidió le llega el aviso.', function () { decidirRq(id, 3, 'Aprobada desde el reporte general.', boton); },
-                          { aceptar: 'Sí, aprobar', cancelar: 'No', titulo: 'Aprobar RQ', detalleHtml: detalleRqHtml(respuesta, fila) });
-        })
-        .fail(function (xhr) { hanaBoton(boton, false); alert(rdError(xhr, 'No se pudo abrir la RQ.')); });
-});
-$(document).on('click', '.cd-rechazar', function () {
-    var caja = $(this).siblings('.cd-motivo'); caja.prop('hidden', !caja.prop('hidden')); caja.find('textarea').focus();
-});
-$(document).on('click', '.cd-confirmar-rechazo', function () {
-    var texto = $.trim($(this).siblings('textarea').val());
-    if (!texto) { $(this).siblings('textarea').focus(); return; }
-    decidirRq($(this).data('id'), 7, texto, this);
-});
-
 //---------------------------------------------------------------------------
 // El reporte de una persona (usa el mismo servicio del tablero, con su regla)
 //---------------------------------------------------------------------------
@@ -445,7 +403,7 @@ function verPersona(id) {
                      (registroHoy.HORA_INGRESO ? ' ' + rdHora(registroHoy.HORA_INGRESO) + ' – ' + (registroHoy.HORA_SALIDA ? rdHora(registroHoy.HORA_SALIDA) : '…') : '') + '</p>';
                 var donde = (registroHoy.LUGARES || []).concat(registroHoy.LUGAR_OTRO ? [registroHoy.LUGAR_OTRO] : []);
                 if (donde.length) { html += '<p><strong>Dónde:</strong> ' + rdEsc(donde.join(' · ')) + '</p>'; }
-                if (registroHoy.ACTIVIDAD) { html += '<p><strong>Qué hizo:</strong><br>' + rdParrafo(registroHoy.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
+                if (registroHoy.ACTIVIDAD) { html += '<p><strong>Plan del día:</strong><br>' + rdParrafo(registroHoy.ACTIVIDAD) + '</p>'; } //un solo texto para todo el día
                 if (registroHoy.OBSERVACION) { html += '<p><strong>Observación:</strong> ' + rdEsc(registroHoy.OBSERVACION) + '</p>'; }
             }
             $('#modalPersonaCuerpo').html(html);
