@@ -5,7 +5,7 @@
   Atiende las peticiones de Ajax/UsuariosAjax.js, Ajax/LoginAjax.js y
   Ajax/RestablecerAjax.js, y responde con lo que trae el modelo
   (Modelo/UsuarioModelo.php).
-  La persona y su usuario van en tablas distintas (script 40) y se manejan en dos pantallas:
+  La persona y su usuario van en tablas distintas y se manejan en dos pantallas:
     - Colaboradores (Control/ColaboradoresControl.php): la persona (documento, nombre,
       correo) y sus peajes asignados. Al registrarla se pregunta si se le crea el usuario.
       Permiso 3M.

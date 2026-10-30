@@ -15,7 +15,7 @@ class Adjunto
     //El proyecto de una comunicación activa (0 si no existe)
     public function proyectoDeComunicacion($idComunicacion)
     {
-        $fila = HanaDB::fila("SELECT ID_PROYECTO FROM comunicacion WHERE ID_COMUNICACION = ? AND ESTADO = 1", 'i', array((int)$idComunicacion));
+        $fila = HanaDB::fila("SELECT ID_PROYECTO FROM comunicacion WHERE ID_COMUNICACION = ? AND ESTADO = 1 AND TIPO <> 'TEMA_CLIENTE'", 'i', array((int)$idComunicacion));
         return $fila ? (int)$fila['ID_PROYECTO'] : 0;
     }
 

@@ -240,7 +240,7 @@ class InformeMensual
                     SUM(FECHA_ATENCION IS NULL AND FECHA_RECEPCION < ?) AS PENDIENTES,
                     SUM(FECHA_ATENCION IS NULL AND FECHA_RECEPCION < ? AND DATEDIFF(?, FECHA_RECEPCION) > ?) AS VENCIDOS
                FROM comunicacion
-              WHERE ESTADO = 1 AND ID_PROYECTO IN ($idsProyectos)
+              WHERE ESTADO = 1 AND TIPO <> 'TEMA_CLIENTE' AND ID_PROYECTO IN ($idsProyectos)
               GROUP BY ID_PROYECTO", 'sssssssi', array($desde, $hasta, $desde, $hasta, $hasta, $hasta, $per['hoy'], $plazo));
         foreach ((array)$oficios as $fila) {
             $cuentasProyecto = &$porProyecto[(int)$fila['ID_PROYECTO']]['kpi'];
@@ -333,7 +333,7 @@ class InformeMensual
                            ORDER BY v.FECHA_VACANTE LIMIT 40", 'ssis', array($hoy, $hoy, $numProyecto, $hasta));
         $oficios = HanaDB::q("SELECT m.ASUNTO, m.RADICADO, m.FECHA_RECEPCION, DATEDIFF(?, m.FECHA_RECEPCION) AS DIAS
                            FROM comunicacion m
-                          WHERE m.ID_PROYECTO = ? AND m.ESTADO = 1 AND m.FECHA_ATENCION IS NULL AND m.FECHA_RECEPCION < ?
+                          WHERE m.ID_PROYECTO = ? AND m.ESTADO = 1 AND m.TIPO <> 'TEMA_CLIENTE' AND m.FECHA_ATENCION IS NULL AND m.FECHA_RECEPCION < ?
                           ORDER BY m.FECHA_RECEPCION LIMIT 40", 'sis', array($hoy, $numProyecto, $hasta));
         return array('rq' => $rqPendientes ? $rqPendientes : array(), 'vacantes' => $vacantes ? $vacantes : array(), 'oficios' => $oficios ? $oficios : array(),
                      'plazoRq' => (int)$plazoRq, 'plazoOficio' => (int)$plazoOficio);

@@ -202,7 +202,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'puedeAprobar' => $puedeAprobar,
             'puedePedir'   => $puedePedir,
             'anios'        => $anios,
-            //Si la base ya guarda el peaje de cada ítem (script 45)
+            //Si la base guarda el peaje de cada ítem (columna rq_detalle.ID_CENTRO_OP)
             'peajePorItem' => Rq::hayPeajePorItem(),
             //Las unidades de medida de los ítems, en el orden de Parámetros → Listas
             'unidades'     => array_map(function ($codigo, $nombre) { return array($codigo, $nombre); },

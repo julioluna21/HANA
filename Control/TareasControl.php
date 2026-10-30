@@ -118,7 +118,7 @@ switch ($op) {
             if (mb_strlen($nota, 'UTF-8') > 500) { tarError(400, 'La nota pasa de 500 caracteres.'); }
             $config['nota'] = $nota;
         }
-        if (!Tareas::guardar($clave, $config, $idColaborador, date('Y-m-d H:i:s'))) { tarError(500, 'No se pudo guardar. ¿Ya se corrió el script 42?'); }
+        if (!Tareas::guardar($clave, $config, $idColaborador, date('Y-m-d H:i:s'))) { tarError(500, 'No se pudo guardar. Intenta de nuevo.'); }
         echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Guardado.'), JSON_UNESCAPED_UNICODE);
         break;
 

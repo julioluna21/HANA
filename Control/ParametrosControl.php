@@ -182,7 +182,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         foreach ($nueva as $codigo => $nombre) { $pares[] = array((string)$codigo, $nombre); }
         $valor = json_encode($pares, JSON_UNESCAPED_UNICODE);
         if (strlen($valor) > 2000) { parError(400, 'La lista es demasiado larga. Acorta algunos nombres o quita opciones.'); }
-        if (!HanaConfig::guardar($clave, $valor, $idColaborador, $ahora)) { parError(500, 'No se pudo guardar la lista. ¿Ya se corrió el script 42?'); }
+        //La lista se guarda en configuracion.VALOR. Si no cabe en esa columna (en algunas bases es de 255
+        //caracteres), en algunos servidores se cortaría sin avisar y quedaría dañada: se avisa antes de guardar
+        $capacidad = HanaDB::fila("SELECT CHARACTER_MAXIMUM_LENGTH AS N FROM information_schema.COLUMNS
+                                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configuracion' AND COLUMN_NAME = 'VALOR'");
+        if ($capacidad && mb_strlen($valor, 'UTF-8') > (int)$capacidad['N']) {
+            parError(400, 'La lista no cabe: la base guarda hasta ' . (int)$capacidad['N'] . ' caracteres y esta lista ocupa ' . mb_strlen($valor, 'UTF-8') .
+                          '. Acorta algunos nombres o quita opciones.');
+        }
+        if (!HanaConfig::guardar($clave, $valor, $idColaborador, $ahora)) { parError(500, 'No se pudo guardar la lista. Intenta de nuevo.'); }
         echo json_encode(array('ok' => true, 'mensaje' => 'Lista guardada.'), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -202,7 +210,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         //Los días: arriba los que siguen abiertos; debajo los ya cerrados, para que quede el rastro
         $dias = $modeloParametros->diasHabilitados();
         if ($dias === false) {
-            error_log('HANA - no se pudo leer la tabla dia_habilitado (script 15)'); //el detalle queda para el administrador
+            error_log('HANA - no se pudo leer la tabla dia_habilitado'); //el detalle queda para el administrador
             parError(500, 'Los días habilitados no están disponibles en este momento. Avísale al administrador del sistema.');
         }
         echo json_encode(array('hoy' => HanaFechas::hoy(), 'personas' => $personas ? $personas : array(), 'dias' => $dias),

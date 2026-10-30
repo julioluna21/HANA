@@ -258,7 +258,7 @@ class ArqueoPdf extends FPDF
         $this->escribir(95, 190, 'SUBTOTAL', 7.3, true); $this->pesos(176, 283, 190, $arqueo['TOTAL_EFECTIVO'], 7.3);
         $this->rayaHorizontal(172, 287, 178); $this->rayaHorizontal(172, 287, 199);
 
-        //Documentos y totales (derecha). El reintegro de fondo ya no se usa (script 45):
+        //Documentos y totales (derecha). El reintegro de fondo ya no se usa:
         //solo sale en los arqueos viejos que lo tienen, como en el formato de antes
         $conReintegro = $subtotales['REINTEGRO'] != 0;
         $conceptos = array(array('FACTURAS', $subtotales['FACTURA']));
@@ -349,7 +349,7 @@ class ArqueoPdf extends FPDF
         $this->AddPage();
         if ((int)$arqueo['ESTADO'] !== 1) { $this->sello($arqueo['MOTIVO_ANULACION']); }
 
-        //Cada concepto del recambio por su código (en los de antes del script 43, billetes y monedas juntos vienen como EFECTIVO)
+        //Cada concepto del recambio por su código (en los recambios viejos, billetes y monedas juntos vienen como EFECTIVO)
         $lineaPorCodigo = array();
         foreach ($arqueo['LINEAS'] as $linea) { $lineaPorCodigo[$linea['CODIGO']] = $linea; }
 
@@ -385,7 +385,7 @@ class ArqueoPdf extends FPDF
         foreach (array(174, 185, 201, 218, 235, 252, 269, 286, 293, 310, 327, 344) as $alturaRaya) { $this->rayaHorizontal(93, 515, $alturaRaya); }
         $this->rayaVertical(285, 174, 286); $this->rayaVertical(375, 174, 286); $this->rayaVertical(285, 293, 344); $this->rayaVertical(375, 293, 344);
 
-        //Cinco conceptos: billetes y monedas por separado. Un recambio de antes del script 43 los
+        //Cinco conceptos: billetes y monedas por separado. Un recambio viejo los
         //tiene juntos (EFECTIVO): van en la fila de los billetes, con su nombre de entonces
         $antiguo = isset($lineaPorCodigo['EFECTIVO']);
         $conceptos = array(

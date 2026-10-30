@@ -49,8 +49,8 @@ class Rq
     public function confirmar() { global $conexion; $conexion->commit(); }
     public function deshacer()  { global $conexion; $conexion->rollback(); }
 
-    //¿La base ya tiene el peaje de cada ítem (rq_detalle.ID_CENTRO_OP, script 45)?
-    //Si todavía no se corrió el script, las RQ siguen funcionando con un solo peaje
+    //¿La base tiene el peaje de cada ítem (columna rq_detalle.ID_CENTRO_OP)?
+    //Si no la tiene, las RQ funcionan igual, con un solo peaje para todos sus ítems
     private static $conPeajeItem = null;
     public static function hayPeajePorItem()
     {
@@ -60,7 +60,7 @@ class Rq
                                             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rq_detalle' AND COLUMN_NAME = 'ID_CENTRO_OP'");
             $fila = $resultado ? $resultado->fetch_assoc() : null;
             self::$conPeajeItem = $fila && (int)$fila['n'] > 0;
-            if (!self::$conPeajeItem) { error_log('HANA - RQ: falta la columna rq_detalle.ID_CENTRO_OP (script 45). Las RQ quedan con un solo peaje.'); }
+            if (!self::$conPeajeItem) { error_log('HANA - RQ: la base no tiene la columna rq_detalle.ID_CENTRO_OP. Las RQ quedan con un solo peaje.'); }
         }
         return self::$conPeajeItem;
     }

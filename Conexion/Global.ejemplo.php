@@ -16,7 +16,7 @@
   Los valores de abajo son los de XAMPP en un equipo de desarrollo.
 */
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'bd_hana_app');   //la base donde se importó BD_completa/bd_hana_app_AAAA-MM-DD.sql.
+define('DB_NAME', 'bd_hana_app');   //el nombre de la base de datos de HANA.
                                     //En un servidor Linux las mayúsculas cuentan: el nombre se escribe
                                     //exactamente como está en phpMyAdmin
 define('DB_USERNAME', 'root');

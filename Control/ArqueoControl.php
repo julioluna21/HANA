@@ -208,7 +208,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $fijos = $modeloArqueo->conceptosFijos($tipo);
         $linea = function ($codigo, $fecha, $valor, $obs) use ($fijos) {
             if (!isset($fijos[$codigo])) {
-                error_log('HANA - arqueo: falta el concepto ' . $codigo . ' en arqueo_concepto (script 30)'); //el detalle queda para el administrador
+                error_log('HANA - arqueo: falta el concepto ' . $codigo . ' en arqueo_concepto'); //el detalle queda para el administrador
                 arqError(500, 'No se guardó el arqueo: falta un concepto en la configuración. Avísale al administrador del sistema.');
             }
             return array('idConcepto' => (int)$fijos[$codigo]['ID_CONCEPTO'], 'nombre' => $fijos[$codigo]['NOMBRE'], 'rol' => $fijos[$codigo]['ROL'],

@@ -52,6 +52,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         array("REPORTE", "ReporteDiarioVista.php", "fa-calendar-check-o", "Reporte diario", "Hoy en qué estás, listas de chequeo y más"),
         array("19M", "ControlDiarioVista.php", "fa-list-alt", "Reporte general", "Todo lo que enviaron coordinadores y jefes, por día, módulo y proyecto"),
         array("37M", "InformeMensualVista.php", "fa-file-pdf-o", "Informe mensual", "Un PDF de un mes, una quincena o las fechas que elijas"),
+        array("GERENCIA", "ReporteGerenciaVista.php", "fa-briefcase", "Reporte a la Gerencia", "El reporte del día por proyecto: flota, promesa de valor, oficios y novedades"),
         array("12M", "GruposListasVista.php", "fa-list-ul", "Editar listas", "Crea y edita las preguntas de cada lista"),
         array("12M", "NotificacionesVista.php", "fa-envelope-o", "Correos automáticos", "Recordatorios, resúmenes y avisos por correo"),
         array("AUSENTISMO", "AusentismoVista.php", "fa-user-times", "Registrar ausentismo", "El reporte de ausentismo de cada peaje"),
@@ -104,6 +105,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     //Reporte diario: con alguna pantalla del reporte en el menú (head.php ya lo calculó)
     if ($esCoordMenu || !empty($menuListas) || !empty($menuEditarListas) || !empty($menuCorreos)) { $permitidos[] = 'REPORTE'; }
     if (!empty($menuAusReg)) { $permitidos[] = 'AUSENTISMO'; } //head.php ya calculó quién entra al ausentismo
+    if (!empty($menuGerencia)) { $permitidos[] = 'GERENCIA'; } //head.php ya calculó quién arma el reporte a la Gerencia
     if (!empty($menuPromesa)) { $permitidos[] = 'PROMESA'; } //head.php ya calculó quién entra a la promesa de valor
 
     foreach ($accesos as $acceso) {

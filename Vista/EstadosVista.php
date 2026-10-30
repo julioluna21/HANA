@@ -1,6 +1,6 @@
 <?php
 /*
-  Pantalla sin uso: los estados de relevancia se quitaron (script 35). Las
+  Pantalla sin uso: los estados de relevancia se quitaron. Las
   prioridades son ALTO, MEDIO y BAJO y sus días se cambian en Parámetros del
   sistema. Si alguien entra por la dirección, va al inicio. El código de abajo se
   conserva solo como referencia.

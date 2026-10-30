@@ -81,7 +81,7 @@ class Tablero
                                (SELECT COUNT(*) FROM bitacora_sistema b WHERE b.TIPO = 'REVISION' AND b.MODULO = 'CRONOGRAMA'
                                         AND b.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR
                                         AND b.FECHA >= ? AND b.FECHA < ?) AS COORD_REVISO,
-                               (SELECT COUNT(*) FROM comunicacion m WHERE m.ID_PROYECTO = p.ID_PROYECTO AND m.ESTADO = 1
+                               (SELECT COUNT(*) FROM comunicacion m WHERE m.ID_PROYECTO = p.ID_PROYECTO AND m.ESTADO = 1 AND m.TIPO <> 'TEMA_CLIENTE'
                                         AND m.FECHA_ATENCION IS NULL) AS COMUNICACIONES
                           FROM proyectos p
                           LEFT JOIN colaboradores co ON co.ID_COLABORADOR = p.ID_COLABORADOR_COORDINADOR

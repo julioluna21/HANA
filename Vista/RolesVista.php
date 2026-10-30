@@ -85,8 +85,10 @@ $gruposRoles = array(
         array('49M', 'Cambiar la fecha comprometida por Gestión Humana (con Llenar)')),
     'Comunicaciones y oficios' => array(array('32M', 'Llenar: registrar y responder'), array('50M', 'Ver: las de sus proyectos'),
         array('51M', 'Resolver, reabrir y corregir o anular las de otros')),
+    'Temas con el cliente' => array(array('59M', 'Llenar: registrar temas, escribir en qué van, cerrarlos y reabrirlos'),
+        array('60M', 'Ver: los temas de sus proyectos')),
     'Consultas' => array(array('19M', 'Reporte general (de sus peajes)'), array('43M', 'Tablero por proyectos, dentro del reporte general'),
-        array('37M', 'Informe mensual de gestión (PDF)')),
+        array('37M', 'Informe mensual de gestión (PDF)'), array('61M', 'Reporte diario a la Gerencia: armarlo, corregirlo y guardarlo')),
     //El grupo «Ausentismo» (casillas 52M, 53M, 58M, 25M, 23M) se retiró junto con el módulo de ausentismo.
     //Esos códigos quedan reservados y no se reutilizan. También quedan reservados y sin pantalla: 40M (consolidado
     //de promesa, retirado), 4M, 8M, 9M, 13M y 27M (funciones retiradas: cargos, estados, observadores, Power BI).

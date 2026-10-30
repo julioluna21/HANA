@@ -17,14 +17,14 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (pagPuede('LISTAS', 'editar')) { $modulosAcceso[] = 'EDITAR_LISTAS'; }
     if (pagPuede('LISTAS', 'correos') || pagPuede('TAREAS', 'editar')) { $modulosAcceso[] = 'CORREOS'; }
     $consultaHoy = pagPuede('HOY', 'ver') && !pagPuede('HOY', 'llenar');
-    foreach (array('HOY', 'ARQUEOS', 'CRONOGRAMA', 'VACANTES', 'COMUNICACIONES') as $moduloRD) { if (pagEntra($moduloRD)) { $modulosAcceso[] = 'P_' . $moduloRD; } }
+    foreach (array('HOY', 'ARQUEOS', 'CRONOGRAMA', 'VACANTES', 'COMUNICACIONES', 'TEMAS') as $moduloRD) { if (pagEntra($moduloRD)) { $modulosAcceso[] = 'P_' . $moduloRD; } }
     //Módulos que el administrador apagó en Parámetros del sistema: su mosaico no sale
     //OJO: head.php vuelve a leer $modulosAcceso de la sesión y borra las marcas de
     //arriba (COORD, LISTAS, P_...). Por eso los mosaicos usan su propia copia
     $accesoMosaicos = $modulosAcceso;
     $apagados = array('HoyVista.php' => 'HOY', 'ListasVista.php' => 'LISTAS', 'ArqueosVista.php' => 'ARQUEOS',
                       'CronogramaVista.php' => 'CRONOGRAMA', 'VacantesVista.php' => 'VACANTES',
-                      'ComunicacionesVista.php' => 'COMUNICACIONES');
+                      'ComunicacionesVista.php' => 'COMUNICACIONES', 'TemasClienteVista.php' => 'TEMAS');
     //El ausentismo se retiró del sistema. La promesa de valor va en su propio enlace del menú, no como mosaico aquí.
 
     //Entra quien tenga algún mosaico (el Reporte general, 19M, va aparte)
@@ -73,6 +73,8 @@ if (isset($_SESSION['IdUsuarios'])) {
                   'Cargos por cubrir y su acuerdo de servicio', true, ''),
             array(array('P_COMUNICACIONES'), 'ComunicacionesVista.php', 'fa-inbox', 'Comunicaciones y oficios',
                   'Lo que hay por atender y por enviar', true, ''),
+            array(array('P_TEMAS'), 'TemasClienteVista.php', 'fa-commenting-o', 'Temas con el cliente',
+                  'Lo que se está tratando con el cliente: apertura, en qué va y cierre', true, ''),
             //El Reporte general y el informe mensual o por fechas van aparte (menú lateral e Inicio), no aquí
         );
 

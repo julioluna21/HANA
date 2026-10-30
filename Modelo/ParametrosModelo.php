@@ -102,9 +102,18 @@ class Parametros
     //de HanaConfig::LISTAS (fija en el código, nunca viene de la pantalla)
     public function usosLista($columna)
     {
-        list($tabla, $campo) = explode('.', $columna);
+        //Una lista que no se guarda en ninguna columna (por ejemplo, los puntos del reporte a la Gerencia)
+        if ($columna === '' || strpos($columna, '.') === false) { return array(); }
+        $partes = explode('.', $columna);
+        $tabla = $partes[0]; $campo = $partes[1];
         if (!preg_match('/^[a-z_]+$/', $tabla) || !preg_match('/^[A-Z_]+$/', $campo)) { return array(); }
-        $filas = HanaDB::q("SELECT `$campo` AS CODIGO, COUNT(*) AS N FROM `$tabla` WHERE `$campo` IS NOT NULL GROUP BY `$campo`");
+        //En comunicacion viven también los temas con el cliente (TIPO = 'TEMA_CLIENTE'), y en su
+        //columna MEDIO se guarda de qué se trata el tema. Cada lista cuenta solo sus registros
+        $filtro = '';
+        if ($tabla === 'comunicacion' && $campo === 'MEDIO') {
+            $filtro = (isset($partes[2]) && $partes[2] === 'TEMAS') ? " AND TIPO = 'TEMA_CLIENTE'" : " AND TIPO <> 'TEMA_CLIENTE'";
+        }
+        $filas = HanaDB::q("SELECT `$campo` AS CODIGO, COUNT(*) AS N FROM `$tabla` WHERE `$campo` IS NOT NULL$filtro GROUP BY `$campo`");
         $usos = array();
         foreach (is_array($filas) ? $filas : array() as $fila) { $usos[(string)$fila['CODIGO']] = (int)$fila['N']; }
         return $usos;

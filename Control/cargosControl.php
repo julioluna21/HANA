@@ -1,6 +1,6 @@
 <?php
 /*
-  Archivo sin uso: la pantalla de Cargos se quitó (script 35; cada colaborador tiene
+  Archivo sin uso: la pantalla de Cargos se quitó (cada colaborador tiene
   su rol). Responde 410 ("Esta dirección ya no se usa.") y no ejecuta nada; el
   código de abajo se conserva solo como referencia.
 */

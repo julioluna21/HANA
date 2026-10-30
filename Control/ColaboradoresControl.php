@@ -5,7 +5,7 @@
   Atiende las peticiones de Ajax/ColaboradoresAjax.js (pantalla Vista/ColaboradoresVista.php):
   las personas que trabajan en los proyectos, con su documento, nombre y correo, y los
   peajes que tiene asignados cada una.
-  La persona y su usuario van en tablas distintas (script 40) y se manejan en dos pantallas:
+  La persona y su usuario van en tablas distintas y se manejan en dos pantallas:
     - Colaboradores (esta): la persona (tabla colaboradores) y sus peajes asignados
       (asoc_usuarios_sistemas_x_cop). Permiso 3M.
     - Usuarios (Control/UsuariosControl.php): su usuario (tabla usuarios_sistema): nombre

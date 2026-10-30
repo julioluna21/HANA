@@ -134,7 +134,7 @@ class Comunicacion
                   INNER JOIN proyectos p ON p.ID_PROYECTO = m.ID_PROYECTO
                   LEFT JOIN centros_operacion c ON c.ID_CENTRO_OP = m.ID_CENTRO_OP
                   LEFT JOIN colaboradores reg ON reg.ID_COLABORADOR = m.ID_COLABORADOR_REGISTRA
-                 WHERE m.ID_PROYECTO IN ($marcas) AND m.ESTADO = 1";
+                 WHERE m.ID_PROYECTO IN ($marcas) AND m.ESTADO = 1 AND m.TIPO <> 'TEMA_CLIENTE'";
         $tipos = str_repeat('i', count($idsProyectos));
         $params = array_map('intval', $idsProyectos);
         if ($soloAbiertas) { $sql .= " AND m.FECHA_ATENCION IS NULL"; }
@@ -169,7 +169,7 @@ class Comunicacion
                          WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.TIPO IN ('RESPUESTA', 'RESUELTA')
                            AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
                          ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS RESPUESTA
-                               FROM comunicacion m WHERE m.ID_COMUNICACION = ?", 'i', array((int)$id));
+                               FROM comunicacion m WHERE m.ID_COMUNICACION = ? AND m.TIPO <> 'TEMA_CLIENTE'", 'i', array((int)$id));
     }
 
     //Crea o edita una comunicación

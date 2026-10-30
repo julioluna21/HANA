@@ -108,10 +108,12 @@ function hanaCasillas()
         'CRONOGRAMA'     => array('llenar' => '30M', 'ver' => '34M', 'vehiculos' => '47M'),
         'VACANTES'       => array('llenar' => '31M', 'ver' => '48M', 'compromiso' => '49M'),
         'COMUNICACIONES' => array('llenar' => '32M', 'ver' => '50M', 'otros' => '51M'),
+        'TEMAS'          => array('llenar' => '59M', 'ver' => '60M'),
         'AUSENTISMO'     => array('llenar' => '52M', 'ver' => '53M', 'cerrar' => '58M', 'cerrado' => '25M', 'reabrir' => '23M'),
         'PROMESA'        => array('llenar' => '54M', 'ver' => '55M', 'pasados' => '56M'),
         'REPORTE'        => array('ver' => '19M', 'tablero' => '43M', 'informe' => '37M'),
-        'TAREAS'         => array('editar' => '57M')
+        'TAREAS'         => array('editar' => '57M'),
+        'GERENCIA'       => array('armar' => '61M')
     );
 }
 

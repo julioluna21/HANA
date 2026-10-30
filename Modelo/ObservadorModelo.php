@@ -3,7 +3,7 @@
   HANA - Observadores (modelo, sin uso)
   ---------------------------------------------------------------------------
   Consultas de la tabla observador_novedades_hallazgos, que ya no existe en la
-  base (la quitó el script 32: quien reporta la novedad es quien la vio).
+  base (quien reporta la novedad es quien la vio).
   Ningún archivo lo carga; se conserva solo como referencia.
 */
 require "../Conexion/ConexionDB.php";

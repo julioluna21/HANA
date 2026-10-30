@@ -3,7 +3,7 @@
   HANA - Cargos (modelo, sin uso)
   ---------------------------------------------------------------------------
   Consultas de la tabla cargos_colaboradores, que ya no existe en la base (la
-  quitó el script 35: la función de cada persona es su rol). Ningún archivo lo
+  función de cada persona es su rol). Ningún archivo lo
   carga; se conserva solo como referencia.
 */
 require "../Conexion/ConexionDB.php";

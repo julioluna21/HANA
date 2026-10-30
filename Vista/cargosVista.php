@@ -1,6 +1,6 @@
 <?php
 /*
-  Pantalla sin uso: los cargos se quitaron (script 35). Cada colaborador tiene su
+  Pantalla sin uso: los cargos se quitaron. Cada colaborador tiene su
   rol, que es lo que hace en HANA, y se escoge en Usuarios. Si alguien entra
   por la dirección, va al inicio. El código de abajo se conserva solo como referencia.
 */

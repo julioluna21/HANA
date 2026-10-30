@@ -122,11 +122,13 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
       $menuModuloActivo = function ($modulo) { return pagModuloActivo($modulo); };
       $menuVe = function ($modulo, $activo = null) use ($menuModuloActivo) { return pagEntra($modulo) && $menuModuloActivo($activo === null ? $modulo : $activo); };
       $menuHoy = $menuVe('HOY'); $menuArq = $menuVe('ARQUEOS'); $menuCrono = $menuVe('CRONOGRAMA');
-      $menuVac = $menuVe('VACANTES'); $menuOficios = $menuVe('COMUNICACIONES');
+      $menuVac = $menuVe('VACANTES'); $menuOficios = $menuVe('COMUNICACIONES'); $menuTemas = $menuVe('TEMAS');
       $menuListas = (pagPuede('LISTAS', 'llenar') || pagPuede('LISTAS', 'ver')) && pagTieneCentros() && $menuModuloActivo('LISTAS');
       $menuEditarListas = pagPuede('LISTAS', 'editar');
       $menuCorreos = pagPuede('LISTAS', 'correos') || pagPuede('TAREAS', 'editar');
-      $menuCoord = $menuHoy || $menuArq || $menuCrono || $menuVac || $menuOficios;
+      $menuCoord = $menuHoy || $menuArq || $menuCrono || $menuVac || $menuOficios || $menuTemas;
+      //Reporte diario a la Gerencia (Consultas): casilla 61M y el módulo encendido
+      $menuGerencia = pagPuede('GERENCIA', 'armar') && $menuModuloActivo('GERENCIA');
     ?>
     <?php if($menuCoord or $menuListas or $menuEditarListas or $menuCorreos){ ?>
     <!-- Reporte diario: las listas de chequeo y las demás secciones del día -->
@@ -138,13 +140,14 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
         <?php if($menuCrono){ ?><li><a href="CronogramaVista.php">Cronograma y vehículo</a></li><?php } ?>
         <?php if($menuVac){ ?><li><a href="VacantesVista.php">Vacantes</a></li><?php } ?>
         <?php if($menuOficios){ ?><li><a href="ComunicacionesVista.php">Comunicaciones y oficios</a></li><?php } ?>
+        <?php if($menuTemas){ ?><li><a href="TemasClienteVista.php">Temas con el cliente</a></li><?php } ?>
         <?php if($menuListas){ ?><li><a href="ListasVista.php">Listas de chequeo</a></li><?php } ?>
         <?php if($menuEditarListas){ ?><li><a href="GruposListasVista.php">Editar listas</a></li><?php } ?>
         <?php if($menuCorreos){ ?><li><a href="NotificacionesVista.php">Correos automáticos</a></li><?php } ?>
       </ul>
     </li><?php } ?>
 
-    <?php if(in_array("19M",$modulosAcceso) or in_array("37M",$modulosAcceso)){ ?>
+    <?php if(in_array("19M",$modulosAcceso) or in_array("37M",$modulosAcceso) or $menuGerencia){ ?>
     <!-- Consultas: donde se revisa lo que se llena en el Reporte diario. Es la misma información,
          vista de otra manera: el coordinador la llena en Reporte diario y el director de operaciones
          la revisa aquí (Reporte general: por día, módulo y proyecto, con el tablero por proyectos;
@@ -153,6 +156,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
       <ul class="nav child_menu">
         <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="ControlDiarioVista.php">Reporte general</a></li><?php } ?>
         <?php if(in_array("37M",$modulosAcceso)){ ?><li><a href="InformeMensualVista.php">Informe mensual</a></li><?php } ?>
+        <?php if($menuGerencia){ ?><li><a href="ReporteGerenciaVista.php">Reporte a la Gerencia</a></li><?php } ?>
       </ul>
     </li><?php } ?>
 

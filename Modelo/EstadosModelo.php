@@ -3,7 +3,7 @@
   HANA - Estados de prioridad (modelo, sin uso)
   ---------------------------------------------------------------------------
   Consultas de la tabla estados_relevancia (la prioridad de una novedad y los
-  días para atenderla), que ya no existe en la base: la quitó el script 35. Las
+  días para atenderla), que ya no existe en la base. Las
   prioridades están en Modelo/NovedadPrioridad.php. Solo lo carga
   Control/EstadoControl.php, que tampoco se usa; se conserva como referencia.
 */

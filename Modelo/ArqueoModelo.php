@@ -4,8 +4,8 @@
   ---------------------------------------------------------------------------
   Caja menor, recambio y casetas, con la misma forma de los formatos en PDF.
   Se guarda lo que se contó y nada que se pueda sacar de ahí:
-    - arqueo.BILLETES_MONEDAS: los billetes y monedas de la caja menor (y de los recambios registrados
-      antes del script 43; desde entonces el recambio los guarda por separado, como líneas);
+    - arqueo.BILLETES_MONEDAS: los billetes y monedas de la caja menor (y de los recambios viejos,
+      que los guardaban juntos; hoy el recambio los guarda por separado, como líneas);
     - arqueo_linea: cada documento, cada concepto del recambio y cada campo de la caseta;
     - arqueo.FONDO_AUTORIZADO: el fondo de ese día (caja menor y recambio). En casetas
       va vacío, porque el valor esperado es una de sus líneas (ROL ESPERADO).
@@ -31,7 +31,7 @@ class Arqueo
     //guarda como línea: queda en arqueo.BILLETES_MONEDAS (ver mostrar())
     public static $EFECTIVO = array(
         'CAJA_MENOR' => array('EFECTIVO' => 'Efectivo (billetes y monedas)'),
-        //En el recambio los billetes y las monedas van por separado, cada uno como línea (script 43).
+        //En el recambio los billetes y las monedas van por separado, cada uno como línea.
         //Los recambios registrados antes los tienen juntos en arqueo.BILLETES_MONEDAS (ver conEfectivo())
         'RECAMBIO'   => array('BASES_CASETAS'    => 'Dinero para bases en casetas',
                               'BASE_SUPERVISORA' => 'Dinero base supervisora',
@@ -42,7 +42,7 @@ class Arqueo
     public static $DOCUMENTOS = array('FACTURA' => 'Factura', 'REINTEGRO' => 'Reintegro de fondo',
                                       'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltantes');
     //Los conceptos de documentos que se pueden usar en un arqueo nuevo. Un concepto apagado en
-    //arqueo_concepto (ESTADO = 0, como el reintegro de fondo desde el script 45) ya no se ofrece,
+    //arqueo_concepto (ESTADO = 0, como el reintegro de fondo) ya no se ofrece,
     //pero los arqueos viejos que lo tienen lo siguen mostrando con su nombre
     public static $DOCUMENTOS_ACTIVOS = array('FACTURA' => 'Factura', 'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltantes');
 
@@ -216,7 +216,7 @@ class Arqueo
         }
         $lineas = array();
         foreach (self::$EFECTIVO[$arqueo['TIPO']] as $codigo => $nombre) {
-            //Un recambio de antes del script 43: billetes y monedas juntos, en el lugar de los billetes
+            //Un recambio viejo: billetes y monedas juntos, en el lugar de los billetes
             if ($codigo === 'BILLETES' && (float)$arqueo['BILLETES_MONEDAS'] != 0 && !isset($porConcepto['BILLETES'])) {
                 $lineas[] = array('ID_CONCEPTO' => null, 'CODIGO' => 'EFECTIVO', 'NOMBRE' => 'Dinero en efectivo (billetes y monedas)', 'ROL' => 'SUMA',
                                   'FECHA' => null, 'VALOR' => round((float)$arqueo['BILLETES_MONEDAS'], 2), 'OBSERVACION' => null);

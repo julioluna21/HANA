@@ -2,7 +2,7 @@
 /*
   HANA - Prioridades de las novedades (controlador)
   ---------------------------------------------------------------------------
-  Las prioridades ya no tienen tabla ni pantalla (script 35): son ALTO, MEDIO y
+  Las prioridades ya no tienen tabla ni pantalla: son ALTO, MEDIO y
   BAJO (Modelo/NovedadPrioridad.php) y sus días se cambian en Parámetros del sistema.
   Solo queda "select", que arma el desplegable del formulario de Novedades; pide
   haber iniciado sesión. Cualquier otra operación responde 410 ("Este archivo ya

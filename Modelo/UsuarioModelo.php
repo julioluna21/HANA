@@ -2,7 +2,7 @@
 /*
   HANA - Usuarios (modelo)
   ---------------------------------------------------------------------------
-  La persona y su usuario van en tablas distintas (script 40):
+  La persona y su usuario van en tablas distintas:
     - colaboradores: la persona (documento, nombre, correo y si está activa). Se maneja
       en la pantalla Colaboradores, junto con sus peajes asignados (asoc_usuarios_sistemas_x_cop).
     - usuarios_sistema: su usuario para entrar a HANA (nombre de usuario, clave cifrada,
