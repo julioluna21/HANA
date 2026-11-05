@@ -397,9 +397,7 @@ class ReporteGerencia
             $lineas[] = '• Novedad en ' . $n['peaje'] . ($n['titulo'] !== '' ? ' — ' . $n['titulo'] : '') .
                         (isset($prioridades[$n['prioridad']]) ? ' (' . $prioridades[$n['prioridad']] . ')' : '') . ': ' . rtrim(self::recortar($n['descripcion'], 200), '.') . '.';
         }
-        $texto = count($lineas) ? implode("\n", $lineas) : 'Sin novedades relevantes en la jornada.';
-        //Cuántos temas con el cliente siguen abiertos: va escrito para que también se pueda corregir (el PDF lo lee de aquí)
-        return $texto . "\n" . 'Temas con el cliente abiertos: ' . ($temas['abiertos'] ? $temas['abiertos'] : 'ninguno') . '.';
+        return count($lineas) ? implode("\n", $lineas) : 'Sin novedades relevantes en la jornada.';
     }
 
     //-----------------------------------------------------------------------

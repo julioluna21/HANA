@@ -8,7 +8,7 @@
       - un párrafo de presentación;
       - cuatro tarjetas con las cifras de todos los proyectos: disponibilidad de
         flota, cumplimiento de la promesa de valor de la semana, oficios en
-        gestión y temas con el cliente (el color dice si va bien, regular o mal);
+        gestión y novedades del día (el color dice si va bien, regular o mal);
       - tres gráficas por proyecto: flota disponible (%), promesa de valor (%) y
         oficios en gestión (dentro y fuera de plazo);
       - una tabla de resumen por proyecto.
@@ -355,7 +355,7 @@ class ReporteGerenciaPdf extends FPDF
             $partes = array();
             //Las horas de todos solo si cada texto las dice (si no, la suma quedaría incompleta)
             if ($t['prometidas'] > 0 && $t['horasCompletas']) { $partes[] = self::horas($t['ejecutadas']) . ' de ' . self::horas($t['prometidas']) . ' horas ejecutadas'; }
-            if ($t['debajo'] !== null) { $partes[] = self::plural($t['debajo'], 'caso', 'casos') . ' por debajo'; }
+            if ($t['debajo'] !== null) { $partes[] = self::plural($t['debajo'], 'cargo ausente', 'cargos ausentes'); }
             //Sin porcentaje, pero todos los textos dicen qué peajes cumplen: «2 de 3» peajes
             if ($pPromesa === null && $t['peajesCompletos'] && $t['peajes']) {
                 array_unshift($partes, 'peajes que cumplen la promesa');
@@ -372,17 +372,14 @@ class ReporteGerenciaPdf extends FPDF
             if ($t['porEnviar'] !== null) { $partes[] = $t['porEnviar'] . ' por enviar'; }
             $oficiosDetalle = count($partes) ? implode(' · ', $partes) : 'en gestión';
         }
-        $partes = array();
-        if ($t['temas'] !== null) { $partes[] = $t['temas'] === 1 ? 'abierto' : 'abiertos'; }
-        if ($t['temasHoy'] !== null) { $partes[] = $t['temasHoy'] . ' con movimiento en la fecha'; }
-        if ($t['novedades'] !== null) { $partes[] = self::plural($t['novedades'], 'novedad', 'novedades') . ' del día'; }
         $tarjetas = array(
             array('Disponibilidad de flota', $flotaValor, $flotaDetalle, $flotaColor),
             array('Promesa de valor (semana)', isset($promesaValor) ? $promesaValor : self::pctTexto($pPromesa), $promesaDetalle,
                   isset($promesaColor) ? $promesaColor : (!$t['hayPromesa'] ? self::GRIS : ($pPromesa === null && $t['debajo'] ? self::VINO : self::colorPromesa($pPromesa)))),
             array('Oficios en gestión', self::num($t['oficios']), $oficiosDetalle, self::colorOficios($t['oficios'], $t['fueraPlazo'])),
-            array('Temas con el cliente', self::num($t['temas']), count($partes) ? implode(' · ', $partes) : 'Sin dato en el reporte',
-                  $t['temas'] === null ? self::GRIS : ($t['temas'] ? self::AMBAR : self::MENTA)),
+            array('Novedades', self::num($t['novedades']),
+                  $t['novedades'] === null ? 'Sin dato en el reporte' : ($t['novedades'] ? ($t['novedades'] === 1 ? 'reportada en la fecha' : 'reportadas en la fecha') : 'Sin novedades en la fecha'),
+                  $t['novedades'] === null ? self::GRIS : ($t['novedades'] ? self::AMBAR : self::MENTA)),
         );
         $sep = 9; $anchoT = (self::ANCHO - 3 * $sep) / 4;
         $altoT = 0;
@@ -565,9 +562,9 @@ class ReporteGerenciaPdf extends FPDF
     //Tabla de resumen por proyecto
     private function tablaResumen()
     {
-        $columnas = array(array('Proyecto', 112, 'L'), array('Flota operativa', 70, 'C'), array('Promesa de valor', 70, 'C'),
-                          array('Casos por debajo', 62, 'C'), array('Oficios en gestión', 70, 'C'), array('Fuera de plazo', 54, 'C'),
-                          array('Temas abiertos', 47, 'C'), array('Novedades del día', 47, 'C'));
+        $columnas = array(array('Proyecto', 130, 'L'), array('Flota operativa', 70, 'C'), array('Promesa de valor', 80, 'C'),
+                          array('Cargos ausentes', 66, 'C'), array('Oficios en gestión', 70, 'C'), array('Fuera de plazo', 54, 'C'),
+                          array('Novedades del día', 62, 'C'));
         $altoCab = 24;
         $this->espacio($altoCab + 20 * count($this->r['proyectos'])); //la tabla no se parte: va completa
         $x = self::M; $y = $this->cy;
@@ -595,7 +592,6 @@ class ReporteGerenciaPdf extends FPDF
                 array($texto($c['promesa']['debajo']), $c['promesa']['debajo'] ? self::VINO : null, ''),
                 array($texto($c['oficios']['total']), null, ''),
                 array($texto($c['oficios']['fueraPlazo']), $c['oficios']['fueraPlazo'] ? self::VINO : null, ''),
-                array($texto($c['temas']['abiertos']), null, ''),
                 array($texto($c['novedades']), $c['novedades'] ? self::AMBAR : null, ''),
             );
             $alto = 20;
@@ -680,7 +676,7 @@ class ReporteGerenciaPdf extends FPDF
             array('Flota', $c['flota']['total'] ? $c['flota']['operativos'] . ' de ' . $c['flota']['total'] : '—', $c['flota']['total'] ? self::colorFlota($pF) : self::GRIS),
             array(strpos($vista[0], ' de ') !== false ? 'Peajes que cumplen' : 'Promesa', $vista[0], $vista[2]),
             array('Oficios', self::num($c['oficios']['total']), self::colorOficios($c['oficios']['total'], $c['oficios']['fueraPlazo'])),
-            array('Temas', self::num($c['temas']['abiertos']), $c['temas']['abiertos'] === null ? self::GRIS : ($c['temas']['abiertos'] ? self::AMBAR : self::MENTA)),
+            array('Novedades', self::num($c['novedades']), $c['novedades'] === null ? self::GRIS : ($c['novedades'] ? self::AMBAR : self::MENTA)),
         );
         $x = self::M + self::ANCHO - 12;
         foreach (array_reverse($chips) as $chip) {
