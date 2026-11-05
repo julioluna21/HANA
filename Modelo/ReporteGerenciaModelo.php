@@ -408,7 +408,9 @@ class ReporteGerencia
     // dice «5 de 6» vehículos operativos o «Hay 4 en gestión», el PDF muestra
     // eso, aunque el sistema haya calculado otra cosa. Lo que no se pueda leer
     // del texto queda en null y el PDF lo muestra como «—» (sin dato).
-    //   $textos [idProyecto => [CODIGO => texto]]
+    //   $textos     [idProyecto => [CODIGO => texto]]
+    //   $propuestos lo que propone el sistema (textos()) y $base los datos de la base (calcular()): solo se usan
+    //               en la promesa de valor, para saber qué renglón corrigió la persona (ver leerPromesa)
     // Devuelve [idProyecto => [
     //   'flota'     => total, operativos, fuera, sinRegistro, vehiculos [placa, estado]
     //   'promesa'   => prometidas, ejecutadas, pct, debajo, encima, sinJustificar, hay (false = sin promesa)
@@ -417,19 +419,46 @@ class ReporteGerencia
     //   'novedades' => cuántas
     // ]]
     //-----------------------------------------------------------------------
-    public static function cifrasDeTextos($textos)
+    public static function cifrasDeTextos($textos, $propuestos = array(), $base = array())
     {
         $cifras = array();
         foreach ($textos as $id => $t) {
             $nov = self::leerNovedades(isset($t['NOVEDADES']) ? $t['NOVEDADES'] : '');
             $cifras[$id] = array(
-                'flota'     => self::leerFlota(isset($t['FLOTA']) ? $t['FLOTA'] : ''),
-                'promesa'   => self::leerPromesa(isset($t['PROMESA']) ? $t['PROMESA'] : ''),
-                'oficios'   => self::leerOficios(isset($t['OFICIOS']) ? $t['OFICIOS'] : ''),
+                'flota'     => self::segunVinetas('leerFlota', isset($t['FLOTA']) ? $t['FLOTA'] : '', isset($propuestos[$id]['FLOTA']) ? $propuestos[$id]['FLOTA'] : null,
+                                                  array('total', 'operativos'), array('total', 'operativos', 'fuera', 'sinRegistro')),
+                'promesa'   => self::leerPromesa(isset($t['PROMESA']) ? $t['PROMESA'] : '',
+                                                 isset($propuestos[$id]['PROMESA']) ? $propuestos[$id]['PROMESA'] : null,
+                                                 isset($base[$id]['promesa']) ? $base[$id]['promesa'] : null),
+                'oficios'   => self::segunVinetas('leerOficios', isset($t['OFICIOS']) ? $t['OFICIOS'] : '', isset($propuestos[$id]['OFICIOS']) ? $propuestos[$id]['OFICIOS'] : null,
+                                                  array('total', 'fueraPlazo'), array('total', 'fueraPlazo', 'porEnviar')),
                 'temas'     => array('abiertos' => $nov['temasAbiertos'], 'hoy' => $nov['temasHoy']),
                 'novedades' => $nov['novedades']);
         }
         return $cifras;
+    }
+
+    //Flota y oficios tienen un renglón de arriba con las cifras («Vehículos operativos: 3 de 4», «Hay 3 en gestión») y una
+    //viñeta por vehículo u oficio. Si la persona cambió el renglón de arriba, vale ese; si lo dejó como lo propuso el
+    //sistema pero cambió las viñetas (puso un vehículo inoperativo, quitó o agregó un oficio), valen las viñetas
+    //$arriba: las cifras que dice el renglón de arriba; $campos: todas las que se toman de las viñetas si cambiaron
+    private static function segunVinetas($leer, $texto, $propuesto, $arriba, $campos)
+    {
+        $u = self::$leer($texto);
+        if ($propuesto === null || trim($propuesto) === '' || trim($texto) === '') { return $u; }
+        $s = self::$leer($propuesto);
+        foreach ($arriba as $c) { if ($u[$c] !== $s[$c]) { return $u; } }            //se cambió el renglón de arriba
+        $soloVinetas = function ($t) { return implode("\n", array_filter(preg_split('/\r?\n/u', (string)$t), function ($l) { return preg_match('/^\s*[•\-\*–—]/u', $l); })); };
+        $vu = $soloVinetas($texto); $vs = $soloVinetas($propuesto);
+        if ($vu === '' || $vs === '') { return $u; }
+        $cu = self::$leer($vu); $cs = self::$leer($vs);
+        foreach ($campos as $c) {
+            if ($cu[$c] !== $cs[$c]) {                                               //se cambiaron las viñetas
+                foreach ($campos as $k) { $u[$k] = $cu[$k]; }
+                return $u;
+            }
+        }
+        return $u;
     }
 
     //Un número escrito en el texto: «5», «1.040», «7,5» o en letras («cinco», «una», «ninguno»). Si no es número, null
@@ -505,40 +534,182 @@ class ReporteGerencia
         return $f;
     }
 
-    //Promesa: «…: se ejecutaron 518 de 527 horas prometidas (98,3 %).» y una viñeta por peaje con sus casos («– Lunes…: faltaron 8…»)
-    private static function leerPromesa($texto)
+    //Promesa: «…: se ejecutaron 518 de 527 horas prometidas (98,3 %).», una viñeta por peaje («• ANDES: no cumple (97,8 %).»)
+    //y debajo de cada peaje sus casos («– Martes 27 de octubre, Recaudador: se ejecutaron 16 de 24 horas (faltaron 8)…»).
+    //Para saber qué corrigió la persona se compara con lo que propone el sistema ($propuesto) y con las horas de
+    //cada peaje en la base ($base): manda lo que se haya cambiado, del nivel que sea.
+    //  - si se cambió el renglón de la semana: valen sus horas y su porcentaje (si solo se cambiaron las horas,
+    //    el porcentaje se recalcula con ellas);
+    //  - si no, pero se cambió el porcentaje de un peaje o las horas de un caso: se recalcula la semana con eso;
+    //  - si no se cambió nada: lo que dice el texto.
+    private static function leerPromesa($texto, $propuesto = null, $base = null)
     {
-        $p = array('prometidas' => null, 'ejecutadas' => null, 'pct' => null, 'debajo' => null, 'encima' => null, 'sinJustificar' => null, 'hay' => true);
+        $p = array('prometidas' => null, 'ejecutadas' => null, 'pct' => null, 'debajo' => null, 'encima' => null, 'sinJustificar' => null, 'hay' => true,
+                   'peajes' => 0, 'peajesCumplen' => 0, 'peajesSinEstado' => 0);
         if (trim($texto) === '') { return $p; }
         if (preg_match('/no hay promesa|sin promesa/iu', $texto)) { $p['hay'] = false; $p['debajo'] = 0; $p['encima'] = 0; $p['sinJustificar'] = 0; return $p; }
+        $u = self::partesPromesa($texto);
+        $p['prometidas'] = $u['prometidas']; $p['ejecutadas'] = $u['ejecutadas'];
+        $p['debajo'] = $u['debajo']; $p['encima'] = $u['encima']; $p['sinJustificar'] = $u['sinJustificar'];
+        $s = ($propuesto !== null && trim($propuesto) !== '' && !preg_match('/no hay promesa/iu', $propuesto)) ? self::partesPromesa($propuesto) : null;
+
+        if ($s === null) {
+            //Sin con qué comparar: el porcentaje escrito; si no hay, con las horas; si tampoco, con los peajes
+            $p['pct'] = $u['pct'] !== null ? $u['pct'] : self::pctDeHoras($u['ejecutadas'], $u['prometidas']);
+            if ($p['pct'] === null) { $p['pct'] = self::pctDePeajes($u['peajes'], $base); }
+            return self::conPeajes($p, $u);
+        }
+
+        $cambiaHoras = !self::igual($u['ejecutadas'], $s['ejecutadas']) || !self::igual($u['prometidas'], $s['prometidas']);
+        $cambiaPct = !self::igual($u['pct'], $s['pct']);
+        if ($cambiaHoras || $cambiaPct) {
+            //Se corrigió el renglón de la semana
+            if ($cambiaHoras && !$cambiaPct) { $p['pct'] = self::pctDeHoras($u['ejecutadas'], $u['prometidas']); }
+            else { $p['pct'] = $u['pct'] !== null ? $u['pct'] : self::pctDeHoras($u['ejecutadas'], $u['prometidas']); }
+            if ($p['pct'] === null) { $p['pct'] = self::pctDePeajes($u['peajes'], $base); }
+            //Si el porcentaje escrito no cuadra con las horas escritas, las horas no se muestran (vale el porcentaje)
+            $deHoras = self::pctDeHoras($u['ejecutadas'], $u['prometidas']);
+            if ($deHoras !== null && $p['pct'] !== null && abs($deHoras - $p['pct']) > 0.15) { $p['ejecutadas'] = null; }
+            return self::conPeajes($p, $u);
+        }
+
+        //El renglón de la semana sigue igual: se mira si cambió algún peaje o algún caso
+        $horasBase = array();
+        foreach (isset($base['peajes']) ? $base['peajes'] : array() as $peaje) {
+            $horasBase[self::clave($peaje['nombre'])] = array((float)$peaje['prometidas'], (float)$peaje['ejecutadas']);
+        }
+        $peajesS = array();
+        foreach ($s['peajes'] as $peaje) { $peajesS[self::clave($peaje['nombre'])] = $peaje; }
+        $prometidas = 0; $ejecutadas = 0; $cambio = false;
+        $vistos = array();
+        foreach ($u['peajes'] as $peaje) {
+            $k = self::clave($peaje['nombre']); $vistos[$k] = true;
+            $antes = isset($peajesS[$k]) ? $peajesS[$k] : null;
+            if (!isset($horasBase[$k])) {
+                continue;   //un peaje que no está en la base (escrito a mano): no tiene horas con qué contarlo
+            }
+            list($pp, $ee) = $horasBase[$k];
+            if ($antes !== null && !self::igual($peaje['pct'], $antes['pct']) && $peaje['pct'] !== null) {
+                //Se corrigió el porcentaje del peaje
+                $ee = $pp * $peaje['pct'] / 100; $cambio = true;
+            } elseif ($antes !== null) {
+                //Se corrigieron las horas de algún caso (o se agregó o quitó uno): se suma la diferencia
+                $dp = 0; $de = 0;
+                $casosS = array();
+                foreach ($antes['casos'] as $c) { $casosS[$c['clave']][] = $c; }
+                foreach ($peaje['casos'] as $c) {
+                    if (isset($casosS[$c['clave']]) && count($casosS[$c['clave']])) {
+                        $a = array_shift($casosS[$c['clave']]);
+                        if ($c['prometidas'] !== null && $a['prometidas'] !== null) { $dp += $c['prometidas'] - $a['prometidas']; }
+                        $de += ($c['desvio'] - $a['desvio']) + (($c['prometidas'] !== null && $a['prometidas'] !== null) ? $c['prometidas'] - $a['prometidas'] : 0);
+                    } else {
+                        $de += $c['desvio'];                       //un caso nuevo
+                    }
+                }
+                foreach ($casosS as $quedan) { foreach ($quedan as $a) { $de -= $a['desvio']; } }   //casos que se quitaron
+                if (abs($dp) > 0.001 || abs($de) > 0.001) { $cambio = true; }
+                $pp += $dp; $ee += $de;
+            }
+            $prometidas += $pp; $ejecutadas += $ee;
+        }
+        //Los peajes que se borraron del texto siguen contando con lo de la base
+        foreach ($horasBase as $k => $h) { if (!isset($vistos[$k])) { $prometidas += $h[0]; $ejecutadas += $h[1]; } }
+        if ($cambio && $prometidas > 0) {
+            $p['prometidas'] = round($prometidas, 2); $p['ejecutadas'] = round(max(0, $ejecutadas), 2);
+            $p['pct'] = 100 * $p['ejecutadas'] / $p['prometidas'];
+        } else {
+            $p['pct'] = $u['pct'] !== null ? $u['pct'] : self::pctDeHoras($u['ejecutadas'], $u['prometidas']);
+            if ($p['pct'] === null) { $p['pct'] = self::pctDePeajes($u['peajes'], $base); }
+        }
+        return self::conPeajes($p, $u);
+    }
+
+    //Lee las partes del texto de la promesa: el renglón de la semana, cada peaje y sus casos
+    private static function partesPromesa($texto)
+    {
         $n = self::NUM;
-        $encabezado = ''; $debajo = 0; $encima = 0; $sinJust = 0; $noCumple = 0; $peajes = 0; $cumplen = 0;
-        foreach (self::renglonesDe($texto) as $r) {
-            if (!$r['vineta']) { $encabezado .= ' ' . $r['texto']; continue; }
-            if ($r['nivel'] === 1) {
-                $peajes++;
-                if (preg_match('/no cumple|incumpl/iu', $r['texto'])) { $noCumple++; }
-                elseif (preg_match('/\bcumple/iu', $r['texto'])) { $cumplen++; }
+        $r = array('ejecutadas' => null, 'prometidas' => null, 'pct' => null, 'peajes' => array(), 'debajo' => null, 'encima' => null, 'sinJustificar' => null);
+        $encabezado = ''; $debajo = 0; $encima = 0; $sinJust = 0; $noCumple = 0;
+        foreach (self::renglonesDe($texto) as $renglon) {
+            $t = $renglon['texto'];
+            if (!$renglon['vineta']) { $encabezado .= ' ' . $t; continue; }
+            if ($renglon['nivel'] === 1) {
+                $nombre = preg_match('/^([^:]{1,60}):/u', $t, $m) ? trim($m[1]) : $t;
+                $estado = preg_match('/no cumple|incumpl/iu', $t) ? 'NO' : (preg_match('/\bcumple/iu', $t) ? 'SI' : (preg_match('/pendiente/iu', $t) ? 'PENDIENTE' : ''));
+                if ($estado === 'NO') { $noCumple++; }
+                //Si el renglón del peaje dice cuántas horas faltaron o sobraron («faltaron 10 h»), también se lee
+                $desvio = null;
+                if (preg_match('/(?:falt[oó]|faltaron)\s+' . $n . '\s*(?:h\b|horas?)/iu', $t, $m) && self::numero($m[1]) !== null) { $desvio = -self::numero($m[1]); }
+                elseif (preg_match('/' . $n . '\s*(?:h\b|horas?)\s+(?:adicional|de m[aá]s)/iu', $t, $m) && self::numero($m[1]) !== null) { $desvio = self::numero($m[1]); }
+                $r['peajes'][] = array('nombre' => $nombre, 'estado' => $estado, 'desvio' => $desvio,
+                                       'pct' => preg_match('/(\d+(?:[.,]\d+)?)\s*%/u', $t, $m) ? (float)str_replace(',', '.', $m[1]) : null, 'casos' => array());
                 continue;
             }
-            if (preg_match('/falt[oóa]|faltaron|por debajo|menos/iu', $r['texto'])) { $debajo++; }
-            elseif (preg_match('/adicional|por encima|de m[aá]s/iu', $r['texto'])) { $encima++; }
-            else { continue; }
-            if (preg_match('/sin justificaci/iu', $r['texto'])) { $sinJust++; }
+            //Un caso de un peaje (día y cargo)
+            $tipo = preg_match('/falt[oóa]|faltaron|por debajo|menos/iu', $t) ? 'DEBAJO' : (preg_match('/adicional|por encima|de m[aá]s/iu', $t) ? 'ENCIMA' : '');
+            if ($tipo === '') { continue; }
+            if ($tipo === 'DEBAJO') { $debajo++; } else { $encima++; }
+            if (preg_match('/sin justificaci/iu', $t)) { $sinJust++; }
+            $caso = array('clave' => self::clave(preg_match('/^([^:]{1,80}):/u', $t, $m) ? $m[1] : $t), 'prometidas' => null, 'desvio' => 0.0);
+            if (preg_match('/' . $n . '\s+de\s+' . $n . '\s+horas?/iu', $t, $m)) {
+                $e = self::numero($m[1]); $pr = self::numero($m[2]);
+                if ($e !== null && $pr !== null) { $caso['prometidas'] = $pr; $caso['desvio'] = $e - $pr; }
+            } elseif (preg_match('/(?:falt[oó]|faltaron)\s+' . $n . '/iu', $t, $m) && self::numero($m[1]) !== null) {
+                $caso['desvio'] = -self::numero($m[1]);
+            } elseif (preg_match('/' . $n . '\s+horas?\s+adicional/iu', $t, $m) && self::numero($m[1]) !== null) {
+                $caso['desvio'] = self::numero($m[1]);
+            }
+            if (count($r['peajes'])) { $r['peajes'][count($r['peajes']) - 1]['casos'][] = $caso; }
         }
-        if (preg_match('/' . $n . '\s+de\s+' . $n . '\s+horas/iu', $encabezado, $m)) {
-            $p['ejecutadas'] = self::numero($m[1]); $p['prometidas'] = self::numero($m[2]);
-        }
-        //El porcentaje: el que esté escrito; si no está, se calcula con las horas
-        if (preg_match('/(\d+(?:[.,]\d+)?)\s*%/u', $encabezado, $m)) { $p['pct'] = (float)str_replace(',', '.', $m[1]); }
-        elseif ($p['prometidas']) { $p['pct'] = 100 * $p['ejecutadas'] / $p['prometidas']; }
-        elseif ($peajes && $cumplen === $peajes) { $p['pct'] = 100.0; }   //sin cifras escritas, pero todos los peajes «cumple»
+        if (preg_match('/' . $n . '\s+de\s+' . $n . '\s+horas/iu', $encabezado, $m)) { $r['ejecutadas'] = self::numero($m[1]); $r['prometidas'] = self::numero($m[2]); }
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*%/u', $encabezado, $m)) { $r['pct'] = (float)str_replace(',', '.', $m[1]); }
+        $peajes = count($r['peajes']);
         //Los casos por debajo: si el texto dice cuántos («3 casos por debajo»), vale eso; si no, se cuentan
-        $p['debajo'] = preg_match('/' . $n . '\s+(?:casos?|d[ií]as?)\s+por\s+debajo/iu', $encabezado, $m) ? self::entero($m[1]) : ($debajo ? $debajo : ($peajes ? $noCumple : null));
-        $p['encima'] = $peajes || $encima ? $encima : null;
-        $p['sinJustificar'] = $peajes || $debajo || $encima ? $sinJust : null;
+        $r['debajo'] = preg_match('/' . $n . '\s+(?:casos?|d[ií]as?)\s+por\s+debajo/iu', $encabezado, $m) ? self::entero($m[1]) : ($debajo ? $debajo : ($peajes ? $noCumple : null));
+        $r['encima'] = $peajes || $encima ? $encima : null;
+        $r['sinJustificar'] = $peajes || $debajo || $encima ? $sinJust : null;
+        return $r;
+    }
+
+    private static function pctDeHoras($e, $p) { return ($e !== null && $p) ? 100 * $e / $p : null; }
+
+    //El porcentaje de la semana sacado de los peajes, cuando el renglón de la semana no lo dice. Para cada peaje:
+    //el porcentaje que tenga escrito; si dice «cumple», 100 %; si dice cuántas horas faltaron («faltaron 10 h», en su
+    //renglón o en sus casos) y se tienen sus horas prometidas en la base, se calcula. Se pesa por las horas prometidas
+    //de cada peaje (si no se tienen, todos pesan igual). Si de algún peaje no se puede saber, null
+    private static function pctDePeajes($peajes, $base)
+    {
+        if (!count($peajes)) { return null; }
+        $horas = array();
+        foreach (isset($base['peajes']) ? $base['peajes'] : array() as $b) { $horas[self::clave($b['nombre'])] = (float)$b['prometidas']; }
+        $suma = 0; $peso = 0;
+        foreach ($peajes as $peaje) {
+            $prom = isset($horas[self::clave($peaje['nombre'])]) ? $horas[self::clave($peaje['nombre'])] : 0;
+            $desvio = $peaje['desvio'];
+            if ($desvio === null && count($peaje['casos'])) { $desvio = 0; foreach ($peaje['casos'] as $c) { $desvio += $c['desvio']; } }
+            if ($peaje['pct'] !== null) { $pct = $peaje['pct']; }
+            elseif ($peaje['estado'] === 'SI' && !$desvio) { $pct = 100.0; }
+            elseif ($desvio !== null && $prom > 0) { $pct = 100 * max(0, $prom + $desvio) / $prom; }
+            else { return null; }
+            $w = $prom > 0 ? $prom : 1;
+            $suma += $pct * $w; $peso += $w;
+        }
+        return $peso ? $suma / $peso : null;
+    }
+
+    //Cuántos peajes cumplen según el texto: el PDF lo muestra («2 de 3 peajes») cuando no hay porcentaje
+    private static function conPeajes($p, $u)
+    {
+        $p['peajes'] = count($u['peajes']); $p['peajesCumplen'] = 0; $p['peajesSinEstado'] = 0;
+        foreach ($u['peajes'] as $peaje) {
+            if ($peaje['estado'] === 'SI') { $p['peajesCumplen']++; }
+            elseif ($peaje['estado'] !== 'NO') { $p['peajesSinEstado']++; }
+        }
         return $p;
     }
+
+    private static function igual($a, $b) { return ($a === null && $b === null) || ($a !== null && $b !== null && abs((float)$a - (float)$b) < 0.05); }
+    private static function clave($texto) { return mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string)$texto)), 'UTF-8'); }
 
     //Oficios: «Hay 3 en gestión; 1 fuera del plazo de respuesta.» y una viñeta por oficio («• [Por enviar] …»)
     private static function leerOficios($texto)

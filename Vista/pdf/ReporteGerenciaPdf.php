@@ -185,6 +185,19 @@ class ReporteGerenciaPdf extends FPDF
     }
     private static function mayus($t) { return mb_strtoupper((string)$t, 'UTF-8'); }
 
+    //Lo que se muestra de la promesa de un proyecto: [texto, valor para la barra (0-100), color].
+    //El porcentaje; si el texto no lo da pero dice qué peajes cumplen y cuáles no, «2 de 3 peajes»
+    private static function promesaVista($pr, $corto = false)
+    {
+        if (!$pr['hay']) { return array('—', null, self::GRIS); }
+        if ($pr['pct'] !== null) { return array(self::pctTexto($pr['pct']), $pr['pct'], self::colorPromesa($pr['pct'])); }
+        if (!empty($pr['peajes']) && empty($pr['peajesSinEstado'])) {
+            $todos = $pr['peajesCumplen'] === $pr['peajes'];
+            return array($pr['peajesCumplen'] . ' de ' . $pr['peajes'] . ($corto ? '' : ' peajes'), 100 * $pr['peajesCumplen'] / $pr['peajes'], $todos ? self::MENTA : self::VINO);
+        }
+        return array('—', null, !empty($pr['debajo']) ? self::VINO : self::GRIS);
+    }
+
     //Colores de cada indicador: bien (menta), regular (ámbar) o mal (vino). Sin dato, gris
     //Flota: todos operativos (verde), algunos (ámbar) o ninguno (vino). Recibe el porcentaje de operativos
     private static function colorFlota($pct)   { return $pct === null ? self::GRIS : ($pct >= 100 ? self::MENTA : ($pct > 0 ? self::AMBAR : self::VINO)); }
@@ -260,7 +273,7 @@ class ReporteGerenciaPdf extends FPDF
         //Cada cifra suma lo que digan los textos de los proyectos; si ningún texto la dice, queda en null
         $t = array('vehiculos' => null, 'operativos' => null, 'fuera' => null, 'sinRegistro' => null, 'prometidas' => null, 'ejecutadas' => null,
                    'debajo' => null, 'oficios' => null, 'fueraPlazo' => null, 'porEnviar' => null, 'temas' => null, 'temasHoy' => null, 'novedades' => null,
-                   'pctPromesa' => null, 'hayPromesa' => false, 'horasCompletas' => true);
+                   'pctPromesa' => null, 'hayPromesa' => false, 'horasCompletas' => true, 'peajes' => 0, 'peajesCumplen' => 0, 'peajesCompletos' => true);
         $suma = function (&$total, $valor) { if ($valor !== null) { $total = ($total === null ? 0 : $total) + $valor; } };
         $pcts = array(); $peso = 0; $ponderado = 0; $conHoras = true; $faltaPct = false;
         foreach ($this->r['proyectos'] as $p) {
@@ -271,6 +284,8 @@ class ReporteGerenciaPdf extends FPDF
                 $t['hayPromesa'] = true;
                 $suma($t['prometidas'], $c['promesa']['prometidas']); $suma($t['ejecutadas'], $c['promesa']['ejecutadas']);
                 if ($c['promesa']['prometidas'] === null || $c['promesa']['ejecutadas'] === null) { $t['horasCompletas'] = false; }
+                $t['peajes'] += $c['promesa']['peajes']; $t['peajesCumplen'] += $c['promesa']['peajesCumplen'];
+                if (!$c['promesa']['peajes'] || $c['promesa']['peajesSinEstado']) { $t['peajesCompletos'] = false; }
                 if ($c['promesa']['pct'] === null) { $faltaPct = true; }
                 else {
                     $pcts[] = $c['promesa']['pct'];
@@ -341,6 +356,12 @@ class ReporteGerenciaPdf extends FPDF
             //Las horas de todos solo si cada texto las dice (si no, la suma quedaría incompleta)
             if ($t['prometidas'] > 0 && $t['horasCompletas']) { $partes[] = self::horas($t['ejecutadas']) . ' de ' . self::horas($t['prometidas']) . ' horas ejecutadas'; }
             if ($t['debajo'] !== null) { $partes[] = self::plural($t['debajo'], 'caso', 'casos') . ' por debajo'; }
+            //Sin porcentaje, pero todos los textos dicen qué peajes cumplen: «2 de 3» peajes
+            if ($pPromesa === null && $t['peajesCompletos'] && $t['peajes']) {
+                array_unshift($partes, 'peajes que cumplen la promesa');
+                $promesaValor = $t['peajesCumplen'] . ' de ' . $t['peajes'];
+                $promesaColor = $t['peajesCumplen'] === $t['peajes'] ? self::MENTA : self::VINO;
+            }
             $promesaDetalle = count($partes) ? implode(' · ', $partes) : ($pPromesa === null ? 'Sin dato en el reporte' : 'cumplimiento reportado');
         }
         if ($t['oficios'] === null) { $oficiosDetalle = 'Sin dato en el reporte'; }
@@ -357,7 +378,8 @@ class ReporteGerenciaPdf extends FPDF
         if ($t['novedades'] !== null) { $partes[] = self::plural($t['novedades'], 'novedad', 'novedades') . ' del día'; }
         $tarjetas = array(
             array('Disponibilidad de flota', $flotaValor, $flotaDetalle, $flotaColor),
-            array('Promesa de valor (semana)', self::pctTexto($pPromesa), $promesaDetalle, !$t['hayPromesa'] ? self::GRIS : ($pPromesa === null && $t['debajo'] ? self::VINO : self::colorPromesa($pPromesa))),
+            array('Promesa de valor (semana)', isset($promesaValor) ? $promesaValor : self::pctTexto($pPromesa), $promesaDetalle,
+                  isset($promesaColor) ? $promesaColor : (!$t['hayPromesa'] ? self::GRIS : ($pPromesa === null && $t['debajo'] ? self::VINO : self::colorPromesa($pPromesa)))),
             array('Oficios en gestión', self::num($t['oficios']), $oficiosDetalle, self::colorOficios($t['oficios'], $t['fueraPlazo'])),
             array('Temas con el cliente', self::num($t['temas']), count($partes) ? implode(' · ', $partes) : 'Sin dato en el reporte',
                   $t['temas'] === null ? self::GRIS : ($t['temas'] ? self::AMBAR : self::MENTA)),
@@ -375,7 +397,8 @@ class ReporteGerenciaPdf extends FPDF
         foreach ($this->r['proyectos'] as $p) {
             $c = $p['cifras'];
             $flota[] = array($p['nombre'], $c['flota']);
-            $promesa[] = array($p['nombre'], $c['promesa']['pct'], $c['promesa']['hay'] ? '' : 'sin promesa');
+            $vista = self::promesaVista($c['promesa']);
+            $promesa[] = array($p['nombre'], $vista[1], $c['promesa']['hay'] ? '' : 'sin promesa', $vista[0]);
             //Si el texto dice cuántos oficios hay pero no cuántos van fuera de plazo, todos cuentan como dentro del plazo
             $total = $c['oficios']['total']; $fuera = $c['oficios']['fueraPlazo'];
             $oficios[] = array($p['nombre'], $total === null ? null : $total - (int)$fuera, $total === null ? null : (int)$fuera);
@@ -418,10 +441,14 @@ class ReporteGerenciaPdf extends FPDF
         $this->relleno(self::FONDO);
         $this->caja($x, $y, $ancho, $altoCaja !== null ? $altoCaja : 34 + 17 * count($items) - 6, 6);
         $this->escribir($x + 10, $y + 9, $titulo, 8.2, 'B', self::AZUL);
-        $anchoNombre = 86; $xBarra = $x + 10 + $anchoNombre; $anchoBarra = $ancho - $anchoNombre - 66;
+        //Si algún rótulo es largo («2 de 3 peajes»), la barra se acorta para que quepa
+        $anchoRotulo = 56;
+        foreach ($items as $item) { $anchoRotulo = max($anchoRotulo, $this->anchoTexto(isset($item[3]) ? $item[3] : self::pctTexto($item[1]), 7.4, 'B') + 10); }
+        $anchoNombre = 86; $xBarra = $x + 10 + $anchoNombre; $anchoBarra = $ancho - $anchoNombre - 10 - $anchoRotulo;
         $yy = $y + 28;
         foreach ($items as $item) {
             list($nombre, $pct, $nota) = $item;
+            $rotulo = isset($item[3]) ? $item[3] : self::pctTexto($pct);
             $nombreCorto = $nombre;
             while ($this->anchoTexto($nombreCorto, 7.2) > $anchoNombre - 6 && mb_strlen($nombreCorto, 'UTF-8') > 3) { $nombreCorto = mb_substr($nombreCorto, 0, -1, 'UTF-8'); }
             $this->escribir($x + 10, $yy + 1, $nombreCorto, 7.2, '', self::NEGRO);
@@ -431,7 +458,7 @@ class ReporteGerenciaPdf extends FPDF
                 $this->relleno(call_user_func(array(__CLASS__, $colorDe), $pct));
                 $this->caja($xBarra, $yy, max(6, $anchoBarra * min(100, $pct) / 100), 10, 3);
             }
-            $this->escribir($xBarra + $anchoBarra + 5, $yy + 1, self::pctTexto($pct), 7.4, 'B', $pct === null ? self::GRIS : self::NEGRO);
+            $this->escribir($xBarra + $anchoBarra + 5, $yy + 1, $rotulo, 7.4, 'B', $pct === null ? self::GRIS : self::NEGRO);
             if ($nota !== '') { $this->escribir($x + $ancho - 8, $yy + 1.5, $nota, 6.2, '', self::GRIS, 'R'); }
             $yy += 17;
         }
@@ -559,12 +586,12 @@ class ReporteGerenciaPdf extends FPDF
         foreach ($this->r['proyectos'] as $i => $p) {
             $c = $p['cifras'];
             $pF = self::pct($c['flota']['operativos'], $c['flota']['total']);
-            $pP = $c['promesa']['pct'];
+            $vista = self::promesaVista($c['promesa']);
             $texto = function ($v) { return $v === null ? '—' : (string)$v; };
             $celdas = array(
                 array($p['nombre'], null, 'B'),
                 array($c['flota']['total'] ? $c['flota']['operativos'] . ' de ' . $c['flota']['total'] : '—', $c['flota']['total'] ? self::colorFlota($pF) : null, 'B'),
-                array(self::pctTexto($pP), $pP === null ? null : self::colorPromesa($pP), 'B'),
+                array($vista[0], $vista[1] === null ? null : $vista[2], 'B'),
                 array($texto($c['promesa']['debajo']), $c['promesa']['debajo'] ? self::VINO : null, ''),
                 array($texto($c['oficios']['total']), null, ''),
                 array($texto($c['oficios']['fueraPlazo']), $c['oficios']['fueraPlazo'] ? self::VINO : null, ''),
@@ -629,8 +656,8 @@ class ReporteGerenciaPdf extends FPDF
         if ($codigo === 'FLOTA')   { return $c['flota']['total'] ? self::colorFlota(self::pct($c['flota']['operativos'], $c['flota']['total'])) : self::GRIS; }
         if ($codigo === 'PROMESA') {
             if (!$c['promesa']['hay']) { return self::GRIS; }
-            if ($c['promesa']['pct'] === null && $c['promesa']['debajo']) { return self::VINO; }  //dice que no cumple, sin porcentaje
-            return self::colorPromesa($c['promesa']['pct']);
+            $vista = self::promesaVista($c['promesa']);
+            return $vista[2];
         }
         if ($codigo === 'OFICIOS') { return self::colorOficios($c['oficios']['total'], $c['oficios']['fueraPlazo']); }
         if ($codigo === 'NOVEDADES') { return ($c['novedades'] || $c['temas']['hoy']) ? self::AMBAR : ($c['novedades'] === null ? self::GRIS : self::MENTA); }
@@ -648,10 +675,10 @@ class ReporteGerenciaPdf extends FPDF
         $this->escribir(self::M + 16, $this->cy + 21, $p['nombre'], 17, 'B', self::BLANCO);
         //Pastillas a la derecha
         $pF = self::pct($c['flota']['operativos'], $c['flota']['total']);
-        $pP = $c['promesa']['pct'];
+        $vista = self::promesaVista($c['promesa'], true);
         $chips = array(
             array('Flota', $c['flota']['total'] ? $c['flota']['operativos'] . ' de ' . $c['flota']['total'] : '—', $c['flota']['total'] ? self::colorFlota($pF) : self::GRIS),
-            array('Promesa', self::pctTexto($pP), $c['promesa']['hay'] ? self::colorPromesa($pP) : self::GRIS),
+            array(strpos($vista[0], ' de ') !== false ? 'Peajes que cumplen' : 'Promesa', $vista[0], $vista[2]),
             array('Oficios', self::num($c['oficios']['total']), self::colorOficios($c['oficios']['total'], $c['oficios']['fueraPlazo'])),
             array('Temas', self::num($c['temas']['abiertos']), $c['temas']['abiertos'] === null ? self::GRIS : ($c['temas']['abiertos'] ? self::AMBAR : self::MENTA)),
         );

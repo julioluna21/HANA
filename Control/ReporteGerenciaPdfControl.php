@@ -10,7 +10,8 @@
       (vehículos operativos, porcentaje de la promesa, oficios, temas, novedades)
       se LEEN DE LOS TEXTOS tal como quedaron (ReporteGerencia::cifrasDeTextos):
       si la dirección corrigió un número, el PDF muestra el número corregido.
-      La base solo se consulta para proponer el texto cuando no hay nada guardado;
+      La base se consulta para proponer el texto cuando no hay nada guardado y,
+      en la promesa de valor, para saber qué renglón se corrigió;
     - cómo quedó el texto: 'guardado' (quién y cuándo), 'pantalla' (lo que se
       estaba editando, sin guardar) o 'sistema' (lo que propone el sistema).
 
@@ -69,14 +70,10 @@ if ($guardado && isset($guardado['datos']['puntos']) && is_array($guardado['dato
     foreach ($guardado['datos']['puntos'] as $codigo => $titulo) { if (!isset($puntos[$codigo])) { $puntos[$codigo] = (string)$titulo; } }
 }
 
-//Lo que propone el sistema solo hace falta para los proyectos que no tengan texto guardado (si no llegó el de la pantalla)
-$hacePropuesta = false;
-if ($enviado === null) {
-    foreach (array_keys($proyectos) as $idProyecto) {
-        if (!$guardado || !isset($guardado['datos']['proyectos'][$idProyecto]['textos'])) { $hacePropuesta = true; break; }
-    }
-}
-$sistema = $hacePropuesta ? ReporteGerencia::prellenar($proyectos, $centros, $fecha, $conNovedades) : array();
+//Lo que propone el sistema con los datos de la base: llena los proyectos que no tengan texto guardado (si no llegó
+//el de la pantalla) y sirve para saber qué corrigió la persona en la promesa de valor (ver ReporteGerencia::leerPromesa)
+$base = ReporteGerencia::calcular($proyectos, $centros, $fecha, $conNovedades);
+$sistema = ReporteGerencia::textos($base, $fecha);
 $lista = array();
 foreach ($proyectos as $idProyecto => $nombre) {
     $textosGuardados = $guardado && isset($guardado['datos']['proyectos'][$idProyecto]['textos']) ? $guardado['datos']['proyectos'][$idProyecto]['textos'] : null;
@@ -96,7 +93,7 @@ foreach ($proyectos as $idProyecto => $nombre) {
     $lista[] = array('id' => $idProyecto, 'nombre' => $nombre, 'textos' => $textos);
 }
 //Las cifras del PDF salen de los textos de arriba, no de la base
-$cifras = ReporteGerencia::cifrasDeTextos(array_column($lista, 'textos', 'id'));
+$cifras = ReporteGerencia::cifrasDeTextos(array_column($lista, 'textos', 'id'), $sistema, $base);
 foreach ($lista as $i => $p) { $lista[$i]['cifras'] = $cifras[$p['id']]; }
 
 //Quién lo genera: la persona que lo descarga, con su rol (salen en el pie de cada hoja)
