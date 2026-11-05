@@ -65,7 +65,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             <div class="ger-botones">
               <button type="button" class="btn btn-default" id="btnTraerTodo" title="Vuelve a llenar todos los puntos con lo que hay hoy en el sistema"><i class="fa fa-refresh"></i> Traer todo otra vez</button>
               <button type="button" class="btn btn-default" id="btnCopiar" title="Copia el reporte como texto, para pegarlo en un correo o en WhatsApp"><i class="fa fa-clipboard"></i> Copiar texto</button>
-              <button type="button" class="btn btn-primary" id="btnPdf" title="El reporte en PDF, con colores, porcentajes y gráficas, listo para enviar a la Gerencia"><i class="fa fa-file-pdf-o"></i> PDF para la Gerencia</button>
+              <button type="button" class="btn btn-primary" id="btnPdf" title="El reporte en PDF, con colores, porcentajes y gráficas, listo para enviar a la Gerencia. Las cifras salen de lo que está escrito en cada punto."><i class="fa fa-file-pdf-o"></i> PDF para la Gerencia</button>
               <button type="button" class="btn btn-success" id="btnGuardar"><i class="fa fa-save"></i> Guardar</button>
             </div>
           </div>

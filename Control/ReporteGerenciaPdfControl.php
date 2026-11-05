@@ -6,8 +6,11 @@
   (o 24M) y que el módulo esté encendido, y deja en $reporte todo lo que el PDF
   necesita:
     - fecha, fechaLarga y los puntos del reporte (títulos en su orden);
-    - por proyecto: su nombre, el texto de cada punto y las cifras del día
-      (ReporteGerencia::calcular), que el PDF usa para porcentajes y gráficas;
+    - por proyecto: su nombre, el texto de cada punto y sus cifras. Las cifras
+      (vehículos operativos, porcentaje de la promesa, oficios, temas, novedades)
+      se LEEN DE LOS TEXTOS tal como quedaron (ReporteGerencia::cifrasDeTextos):
+      si la dirección corrigió un número, el PDF muestra el número corregido.
+      La base solo se consulta para proponer el texto cuando no hay nada guardado;
     - cómo quedó el texto: 'guardado' (quién y cuándo), 'pantalla' (lo que se
       estaba editando, sin guardar) o 'sistema' (lo que propone el sistema).
 
@@ -66,8 +69,14 @@ if ($guardado && isset($guardado['datos']['puntos']) && is_array($guardado['dato
     foreach ($guardado['datos']['puntos'] as $codigo => $titulo) { if (!isset($puntos[$codigo])) { $puntos[$codigo] = (string)$titulo; } }
 }
 
-$cifras = ReporteGerencia::calcular($proyectos, $centros, $fecha, $conNovedades);
-$sistema = ReporteGerencia::textos($cifras, $fecha);
+//Lo que propone el sistema solo hace falta para los proyectos que no tengan texto guardado (si no llegó el de la pantalla)
+$hacePropuesta = false;
+if ($enviado === null) {
+    foreach (array_keys($proyectos) as $idProyecto) {
+        if (!$guardado || !isset($guardado['datos']['proyectos'][$idProyecto]['textos'])) { $hacePropuesta = true; break; }
+    }
+}
+$sistema = $hacePropuesta ? ReporteGerencia::prellenar($proyectos, $centros, $fecha, $conNovedades) : array();
 $lista = array();
 foreach ($proyectos as $idProyecto => $nombre) {
     $textosGuardados = $guardado && isset($guardado['datos']['proyectos'][$idProyecto]['textos']) ? $guardado['datos']['proyectos'][$idProyecto]['textos'] : null;
@@ -84,8 +93,11 @@ foreach ($proyectos as $idProyecto => $nombre) {
         if (mb_strlen($valor, 'UTF-8') > ReporteGerencia::LARGO_PUNTO) { $valor = mb_substr($valor, 0, ReporteGerencia::LARGO_PUNTO, 'UTF-8'); }
         $textos[$codigo] = $valor;
     }
-    $lista[] = array('id' => $idProyecto, 'nombre' => $nombre, 'textos' => $textos, 'cifras' => $cifras[$idProyecto]);
+    $lista[] = array('id' => $idProyecto, 'nombre' => $nombre, 'textos' => $textos);
 }
+//Las cifras del PDF salen de los textos de arriba, no de la base
+$cifras = ReporteGerencia::cifrasDeTextos(array_column($lista, 'textos', 'id'));
+foreach ($lista as $i => $p) { $lista[$i]['cifras'] = $cifras[$p['id']]; }
 
 //Quién lo genera: la persona que lo descarga, con su rol (salen en el pie de cada hoja)
 $quien = isset($_SESSION['Nombre']) ? html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8') : '';

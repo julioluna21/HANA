@@ -15,10 +15,10 @@
                día y las novedades reportadas ese día en sus peajes. Si no hay,
                «Sin novedades relevantes en la jornada».
 
-  Los textos se escriben en tono formal, porque van para la Gerencia. Las
-  cifras de cada punto (vehículos operativos, horas ejecutadas contra las
-  prometidas, oficios fuera de plazo...) también las usa el PDF del reporte
-  (Vista/pdf/ReporteGerenciaPdf.php) para los porcentajes y las gráficas.
+  Los textos se escriben en tono formal, porque van para la Gerencia. El PDF
+  del reporte (Vista/pdf/ReporteGerenciaPdf.php) NO usa los datos de la base:
+  lee las cifras de los textos tal como quedaron (cifrasDeTextos), así que si
+  la dirección corrige un número en un punto, el PDF muestra el corregido.
 
   Los nombres y el orden de los puntos se cambian en Parámetros del sistema →
   Listas (LISTA_PUNTOS_GERENCIA). Los que se agreguen allí salen en blanco.
@@ -397,7 +397,211 @@ class ReporteGerencia
             $lineas[] = '• Novedad en ' . $n['peaje'] . ($n['titulo'] !== '' ? ' — ' . $n['titulo'] : '') .
                         (isset($prioridades[$n['prioridad']]) ? ' (' . $prioridades[$n['prioridad']] . ')' : '') . ': ' . rtrim(self::recortar($n['descripcion'], 200), '.') . '.';
         }
-        return count($lineas) ? implode("\n", $lineas) : 'Sin novedades relevantes en la jornada.';
+        $texto = count($lineas) ? implode("\n", $lineas) : 'Sin novedades relevantes en la jornada.';
+        //Cuántos temas con el cliente siguen abiertos: va escrito para que también se pueda corregir (el PDF lo lee de aquí)
+        return $texto . "\n" . 'Temas con el cliente abiertos: ' . ($temas['abiertos'] ? $temas['abiertos'] : 'ninguno') . '.';
+    }
+
+    //-----------------------------------------------------------------------
+    // Las cifras del PDF, leídas de los textos tal como quedaron
+    // (lo que propuso el sistema o lo que la dirección corrigió). Si en el texto
+    // dice «5 de 6» vehículos operativos o «Hay 4 en gestión», el PDF muestra
+    // eso, aunque el sistema haya calculado otra cosa. Lo que no se pueda leer
+    // del texto queda en null y el PDF lo muestra como «—» (sin dato).
+    //   $textos [idProyecto => [CODIGO => texto]]
+    // Devuelve [idProyecto => [
+    //   'flota'     => total, operativos, fuera, sinRegistro, vehiculos [placa, estado]
+    //   'promesa'   => prometidas, ejecutadas, pct, debajo, encima, sinJustificar, hay (false = sin promesa)
+    //   'oficios'   => total, fueraPlazo, porEnviar
+    //   'temas'     => abiertos, hoy
+    //   'novedades' => cuántas
+    // ]]
+    //-----------------------------------------------------------------------
+    public static function cifrasDeTextos($textos)
+    {
+        $cifras = array();
+        foreach ($textos as $id => $t) {
+            $nov = self::leerNovedades(isset($t['NOVEDADES']) ? $t['NOVEDADES'] : '');
+            $cifras[$id] = array(
+                'flota'     => self::leerFlota(isset($t['FLOTA']) ? $t['FLOTA'] : ''),
+                'promesa'   => self::leerPromesa(isset($t['PROMESA']) ? $t['PROMESA'] : ''),
+                'oficios'   => self::leerOficios(isset($t['OFICIOS']) ? $t['OFICIOS'] : ''),
+                'temas'     => array('abiertos' => $nov['temasAbiertos'], 'hoy' => $nov['temasHoy']),
+                'novedades' => $nov['novedades']);
+        }
+        return $cifras;
+    }
+
+    //Un número escrito en el texto: «5», «1.040», «7,5» o en letras («cinco», «una», «ninguno»). Si no es número, null
+    const NUM = '(?<![\p{L}\d.,])(\d[\d.]*(?:,\d+)?|cero|ning[uú]n[oa]?|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|dieciocho|diecinueve|veinte)';
+    private static function numero($texto)
+    {
+        $texto = mb_strtolower(trim((string)$texto), 'UTF-8');
+        if (preg_match('/^\d[\d.]*(,\d+)?$/u', $texto)) {
+            //El punto separa miles y la coma los decimales (como se escriben en los textos): 1.040 -> 1040, 7,5 -> 7.5
+            return (float)str_replace(array('.', ','), array('', '.'), $texto);
+        }
+        $letras = array('cero' => 0, 'ninguno' => 0, 'ninguna' => 0, 'ningun' => 0, 'ningún' => 0, 'un' => 1, 'uno' => 1, 'una' => 1, 'dos' => 2, 'tres' => 3,
+                        'cuatro' => 4, 'cinco' => 5, 'seis' => 6, 'siete' => 7, 'ocho' => 8, 'nueve' => 9, 'diez' => 10, 'once' => 11, 'doce' => 12,
+                        'trece' => 13, 'catorce' => 14, 'quince' => 15, 'dieciseis' => 16, 'dieciséis' => 16, 'diecisiete' => 17, 'dieciocho' => 18,
+                        'diecinueve' => 19, 'veinte' => 20);
+        return isset($letras[$texto]) ? (float)$letras[$texto] : null;
+    }
+    private static function entero($texto) { $n = self::numero($texto); return $n === null ? null : (int)round($n); }
+
+    //Separa un texto en renglones: [['vineta' => bool, 'nivel' => 1|2, 'texto' => sin la viñeta]]
+    private static function renglonesDe($texto)
+    {
+        $lista = array();
+        foreach (preg_split('/\r?\n/u', (string)$texto) as $linea) {
+            if (trim($linea) === '') { continue; }
+            if (preg_match('/^\s*[–—]\s*(.*)$/u', $linea, $m) || preg_match('/^\s{2,}[•\-\*]\s*(.*)$/u', $linea, $m)) { $lista[] = array('vineta' => true, 'nivel' => 2, 'texto' => trim($m[1])); }
+            elseif (preg_match('/^\s*[•\-\*]\s*(.*)$/u', $linea, $m)) { $lista[] = array('vineta' => true, 'nivel' => 1, 'texto' => trim($m[1])); }
+            else { $lista[] = array('vineta' => false, 'nivel' => 0, 'texto' => trim($linea)); }
+        }
+        return $lista;
+    }
+
+    //Flota: «Vehículos operativos: 3 de 4.» y una viñeta por vehículo («• ABC123: operativo.»)
+    private static function leerFlota($texto)
+    {
+        $f = array('total' => null, 'operativos' => null, 'fuera' => null, 'sinRegistro' => null, 'vehiculos' => array());
+        if (trim($texto) === '') { return $f; }
+        if (preg_match('/no tiene veh[ií]culos|sin veh[ií]culos asignados/iu', $texto)) {
+            return array('total' => 0, 'operativos' => 0, 'fuera' => 0, 'sinRegistro' => 0, 'vehiculos' => array());
+        }
+        $cuenta = array('OPERATIVO' => 0, 'FUERA' => 0, 'SIN_REGISTRO' => 0);
+        $encabezado = '';
+        foreach (self::renglonesDe($texto) as $r) {
+            if (!$r['vineta']) { $encabezado .= ' ' . $r['texto']; continue; }
+            if ($r['nivel'] !== 1 || !preg_match('/^([^:]{1,40}):\s*(.*)$/u', $r['texto'], $m)) { continue; }
+            $estado = $m[2];
+            if (preg_match('/inoperativ|no operativ|fuera de servicio|varad|da[ñn]ad|taller|mantenimiento/iu', $estado)) { $e = 'FUERA'; }
+            elseif (preg_match('/sin reporte|sin registro|no report|sin estado/iu', $estado)) { $e = 'SIN_REGISTRO'; }
+            elseif (preg_match('/operativ|disponible|funcionando|en servicio/iu', $estado)) { $e = 'OPERATIVO'; }
+            else { $e = 'SIN_REGISTRO'; }
+            $cuenta[$e]++;
+            $f['vehiculos'][] = array('placa' => trim(preg_replace('/\s*\(.*$/u', '', $m[1])), 'estado' => $e);
+        }
+        $n = self::NUM;
+        //«operativos: 3 de 4» o «3 de 4 vehículos operativos»
+        if (preg_match('/operativos?\s*:?\s*' . $n . '\s+de\s+' . $n . '/iu', $encabezado, $m) || preg_match('/' . $n . '\s+de\s+' . $n . '\s+veh[ií]culos?\s+(?:est[aá]n\s+)?operativ/iu', $encabezado, $m)) {
+            $f['operativos'] = self::entero($m[1]); $f['total'] = self::entero($m[2]);
+        }
+        if ($f['total'] !== null && $f['operativos'] !== null) {
+            $f['operativos'] = min($f['operativos'], $f['total']);
+            $resto = $f['total'] - $f['operativos'];
+            //Si el encabezado dice cuántos están inoperativos o sin reporte, vale eso; si no, se toma de las viñetas
+            $fuera = preg_match('/' . $n . '\s+(?:veh[ií]culos?\s+)?(?:inoperativos?|fuera de servicio)/iu', $encabezado, $m) ? self::entero($m[1]) : null;
+            $sin = preg_match('/' . $n . '\s+(?:veh[ií]culos?\s+)?sin reporte/iu', $encabezado, $m) ? self::entero($m[1]) : null;
+            if ($fuera === null && $sin === null) { $sin = min($resto, $cuenta['SIN_REGISTRO']); $fuera = $resto - $sin; }
+            elseif ($fuera === null) { $sin = min($resto, $sin); $fuera = $resto - $sin; }
+            else { $fuera = min($resto, $fuera); $sin = $resto - $fuera; }
+            $f['fuera'] = $fuera; $f['sinRegistro'] = $sin;
+        } elseif (count($f['vehiculos'])) {
+            $f['total'] = count($f['vehiculos']); $f['operativos'] = $cuenta['OPERATIVO'];
+            $f['fuera'] = $cuenta['FUERA']; $f['sinRegistro'] = $cuenta['SIN_REGISTRO'];
+        }
+        return $f;
+    }
+
+    //Promesa: «…: se ejecutaron 518 de 527 horas prometidas (98,3 %).» y una viñeta por peaje con sus casos («– Lunes…: faltaron 8…»)
+    private static function leerPromesa($texto)
+    {
+        $p = array('prometidas' => null, 'ejecutadas' => null, 'pct' => null, 'debajo' => null, 'encima' => null, 'sinJustificar' => null, 'hay' => true);
+        if (trim($texto) === '') { return $p; }
+        if (preg_match('/no hay promesa|sin promesa/iu', $texto)) { $p['hay'] = false; $p['debajo'] = 0; $p['encima'] = 0; $p['sinJustificar'] = 0; return $p; }
+        $n = self::NUM;
+        $encabezado = ''; $debajo = 0; $encima = 0; $sinJust = 0; $noCumple = 0; $peajes = 0; $cumplen = 0;
+        foreach (self::renglonesDe($texto) as $r) {
+            if (!$r['vineta']) { $encabezado .= ' ' . $r['texto']; continue; }
+            if ($r['nivel'] === 1) {
+                $peajes++;
+                if (preg_match('/no cumple|incumpl/iu', $r['texto'])) { $noCumple++; }
+                elseif (preg_match('/\bcumple/iu', $r['texto'])) { $cumplen++; }
+                continue;
+            }
+            if (preg_match('/falt[oóa]|faltaron|por debajo|menos/iu', $r['texto'])) { $debajo++; }
+            elseif (preg_match('/adicional|por encima|de m[aá]s/iu', $r['texto'])) { $encima++; }
+            else { continue; }
+            if (preg_match('/sin justificaci/iu', $r['texto'])) { $sinJust++; }
+        }
+        if (preg_match('/' . $n . '\s+de\s+' . $n . '\s+horas/iu', $encabezado, $m)) {
+            $p['ejecutadas'] = self::numero($m[1]); $p['prometidas'] = self::numero($m[2]);
+        }
+        //El porcentaje: el que esté escrito; si no está, se calcula con las horas
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*%/u', $encabezado, $m)) { $p['pct'] = (float)str_replace(',', '.', $m[1]); }
+        elseif ($p['prometidas']) { $p['pct'] = 100 * $p['ejecutadas'] / $p['prometidas']; }
+        elseif ($peajes && $cumplen === $peajes) { $p['pct'] = 100.0; }   //sin cifras escritas, pero todos los peajes «cumple»
+        //Los casos por debajo: si el texto dice cuántos («3 casos por debajo»), vale eso; si no, se cuentan
+        $p['debajo'] = preg_match('/' . $n . '\s+(?:casos?|d[ií]as?)\s+por\s+debajo/iu', $encabezado, $m) ? self::entero($m[1]) : ($debajo ? $debajo : ($peajes ? $noCumple : null));
+        $p['encima'] = $peajes || $encima ? $encima : null;
+        $p['sinJustificar'] = $peajes || $debajo || $encima ? $sinJust : null;
+        return $p;
+    }
+
+    //Oficios: «Hay 3 en gestión; 1 fuera del plazo de respuesta.» y una viñeta por oficio («• [Por enviar] …»)
+    private static function leerOficios($texto)
+    {
+        $o = array('total' => null, 'fueraPlazo' => null, 'porEnviar' => null);
+        if (trim($texto) === '') { return $o; }
+        $n = self::NUM;
+        $encabezado = ''; $vinetas = 0; $fueraV = 0; $enviarV = 0;
+        $plazo = max(0, HanaConfig::num('COMUNICACION_DIAS_RESPUESTA', 2));
+        foreach (self::renglonesDe($texto) as $r) {
+            if (!$r['vineta']) { $encabezado .= ' ' . $r['texto']; continue; }
+            if ($r['nivel'] !== 1) { continue; }
+            $vinetas++;
+            if (preg_match('/fuera de(l)? plazo/iu', $r['texto'])) { $fueraV++; }
+            elseif (!preg_match('/dentro de(l)? plazo/iu', $r['texto']) && preg_match('/(\d+)\s+d[ií]as?(?:\s+en\s+gesti[oó]n)?\s*[.;,)]/u', $r['texto'], $m) && (int)$m[1] > $plazo) { $fueraV++; }
+            if (preg_match('/por enviar/iu', $r['texto'])) { $enviarV++; }
+        }
+        if (preg_match('/no hay (oficios|comunicaciones)|sin (oficios|comunicaciones)|ning[uú]n (oficio|comunicaci)/iu', $encabezado)) {
+            $o['total'] = 0;
+        } elseif (preg_match('/hay\s+' . $n . '\b/iu', $encabezado, $m) || preg_match('/' . $n . '\s+(?:oficios?|comunicaciones?)?\s*(?:y\s+comunicaciones?\s+)?en gesti[oó]n/iu', $encabezado, $m)) {
+            $o['total'] = self::entero($m[1]);
+        } elseif ($vinetas) {
+            $o['total'] = $vinetas;
+        }
+        if ($o['total'] === 0) { return array('total' => 0, 'fueraPlazo' => 0, 'porEnviar' => 0); }
+        if (preg_match('/' . $n . '\s+(?:de ellos\s+)?fuera de(l)? plazo/iu', $encabezado, $m)) { $o['fueraPlazo'] = self::entero($m[1]); }
+        elseif (preg_match('/todos?\s+fuera de(l)? plazo/iu', $encabezado)) { $o['fueraPlazo'] = $o['total']; }
+        elseif (preg_match('/fuera de(l)? plazo/iu', $encabezado) && $o['total'] === 1) { $o['fueraPlazo'] = 1; }
+        elseif (preg_match('/dentro de(l)? plazo/iu', $encabezado)) { $o['fueraPlazo'] = 0; }
+        elseif ($vinetas) { $o['fueraPlazo'] = $fueraV; }
+        $o['porEnviar'] = preg_match('/' . $n . '\s+por enviar/iu', $encabezado, $m) ? self::entero($m[1]) : ($vinetas ? $enviarV : null);
+        if ($o['total'] !== null) {
+            if ($o['fueraPlazo'] !== null) { $o['fueraPlazo'] = min($o['fueraPlazo'], $o['total']); }
+            if ($o['porEnviar'] !== null) { $o['porEnviar'] = min($o['porEnviar'], $o['total']); }
+        }
+        return $o;
+    }
+
+    //Novedades: una viñeta por tema con el cliente o novedad, «Sin novedades relevantes…» y «Temas con el cliente abiertos: 2.»
+    private static function leerNovedades($texto)
+    {
+        $r = array('novedades' => null, 'temasHoy' => null, 'temasAbiertos' => null);
+        if (trim($texto) === '') { return $r; }
+        $n = self::NUM;
+        $temas = 0; $novedades = 0; $parrafos = 0; $sin = false; $libre = '';
+        foreach (self::renglonesDe($texto) as $renglon) {
+            $t = $renglon['texto'];
+            //Los temas abiertos: «Temas con el cliente abiertos: 2» o «2 temas con el cliente abiertos» (en un renglón sin viñeta)
+            if (!$renglon['vineta'] && (preg_match('/temas?\s+(?:con\s+el\s+cliente\s+)?abiertos?\s*:\s*' . $n . '/iu', $t, $m) || preg_match('/' . $n . '\s+temas?\s+(?:con\s+el\s+cliente\s+)?abiertos?/iu', $t, $m))) {
+                $r['temasAbiertos'] = self::entero($m[1]); continue;
+            }
+            if (preg_match('/sin novedad|no (hay|hubo|se presentaron|se reportaron) novedad|ninguna novedad/iu', $t)) { $sin = true; continue; }
+            if ($renglon['nivel'] === 2) { continue; }
+            if (!$renglon['vineta']) { $parrafos++; $libre .= ' ' . $t; continue; }
+            if (preg_match('/^tema/iu', $t) || preg_match('/\(con [^;)]+;\s*(seguimiento|tema nuevo|tema cerrado|se cerr[oó]|se abri[oó])/iu', $t)) { $temas++; } else { $novedades++; }
+        }
+        $r['temasHoy'] = $temas;
+        //Si un renglón sin viñeta dice cuántas («Se reportaron 5 novedades»), vale eso; si no, se cuentan las viñetas
+        if (preg_match('/' . $n . '\s+novedad(es)?/iu', $libre, $m) && self::entero($m[1]) !== null) { $r['novedades'] = self::entero($m[1]); }
+        elseif ($novedades || $temas) { $r['novedades'] = $novedades; }
+        elseif ($sin) { $r['novedades'] = 0; }
+        elseif ($parrafos) { $r['novedades'] = $parrafos; }
+        return $r;
     }
 
     //-----------------------------------------------------------------------
