@@ -35,6 +35,11 @@ if (isset($_SESSION['IdUsuarios'])) {
   .ger-dias-mes .vacio { color: #999; font-style: italic; }
   .ger-proyecto { border: 1px solid #e3e6ea; border-radius: 6px; padding: 12px 14px 4px; margin-top: 16px; background: #fff; }
   .ger-proyecto h3 { font-size: 17px; margin: 0 0 10px; color: #6E1A1E; font-weight: 600; }
+  /* Notas adicionales: al final, para todo el reporte (no son de un proyecto) */
+  .ger-otros { border: 1px dashed #D99C2B; border-radius: 6px; padding: 12px 14px 10px; margin-top: 16px; background: #fffaf0; }
+  .ger-otros h3 { font-size: 17px; margin: 0 0 4px; color: #6E1A1E; font-weight: 600; }
+  .ger-otros .rd-ayuda { margin: 0 0 8px; }
+  .ger-otros textarea { resize: vertical; min-height: 70px; line-height: 1.45; }
   .ger-punto { margin-bottom: 12px; }
   .ger-punto-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .ger-punto-cab label { margin-bottom: 3px; }
@@ -96,7 +101,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=3"></script>
+<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=5"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

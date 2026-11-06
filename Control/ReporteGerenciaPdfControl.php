@@ -17,7 +17,7 @@
 
   Dos formas de pedirlo:
     GET  ?fecha=AAAA-MM-DD           lo guardado ese día, o lo que propone el sistema
-    POST reporte={fecha, textos}     lo que está en la pantalla en ese momento (el mismo
+    POST reporte={fecha, textos, otros}  lo que está en la pantalla en ese momento (el mismo
                                      formato de «Guardar»): sale tal cual, sin guardarlo
   Solo salen los proyectos de los peajes asignados a la persona.
 */
@@ -96,7 +96,13 @@ foreach ($proyectos as $idProyecto => $nombre) {
 $cifras = ReporteGerencia::cifrasDeTextos(array_column($lista, 'textos', 'id'), $sistema, $base);
 foreach ($lista as $i => $p) { $lista[$i]['cifras'] = $cifras[$p['id']]; }
 
-//Quién lo genera: la persona que lo descarga, con su rol (salen en el pie de cada hoja)
+//Notas adicionales (sección final, de texto libre): lo de la pantalla, o lo guardado ese día
+if ($enviado !== null) { $otros = isset($enviado['otros']) ? (string)$enviado['otros'] : ''; }
+else { $otros = $guardado && isset($guardado['datos']['otros']) ? (string)$guardado['datos']['otros'] : ''; }
+$otros = trim(str_replace("\r\n", "\n", $otros));
+if (mb_strlen($otros, 'UTF-8') > ReporteGerencia::LARGO_PUNTO) { $otros = mb_substr($otros, 0, ReporteGerencia::LARGO_PUNTO, 'UTF-8'); }
+
+//Quién lo genera: la persona que lo descarga
 $quien = isset($_SESSION['Nombre']) ? html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8') : '';
 $filaRol = HanaDB::fila("SELECT NOM_ROL_USUARIO_SISTEMA AS ROL FROM rol_usuarios_sistemas WHERE ID_ROL_USUARIO_SISTEMA = ?", 'i', array(hanaIdRol()));
 $rol = $filaRol ? html_entity_decode((string)$filaRol['ROL'], ENT_QUOTES, 'UTF-8') : '';
@@ -105,6 +111,8 @@ $reporte = array(
     'fechaLarga' => ReporteGerencia::fechaLarga($fecha),
     'puntos'     => $puntos,
     'proyectos'  => $lista,
+    'otros'      => $otros,
+    'tituloOtros' => ReporteGerencia::TITULO_OTROS,
     'origen'     => $enviado !== null ? 'pantalla' : ($guardado ? 'guardado' : 'sistema'),
     'guardado'   => $guardado ? array('quien' => (string)$guardado['quien'], 'fecha' => $guardado['fecha']) : null,
     'plazoOficios' => max(0, HanaConfig::num('COMUNICACION_DIAS_RESPUESTA', 2)),

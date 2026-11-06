@@ -42,7 +42,12 @@ class ReporteGerencia
 {
     const MODULO = 'GERENCIA';
     const TIPO   = 'REPORTE';
-    const LARGO_PUNTO = 4000;     //caracteres de cada punto de cada proyecto
+    const LARGO_PUNTO = 4000;     //caracteres de cada punto de cada proyecto (y de las notas adicionales)
+    //Sección final del reporte, de texto libre y para todo el reporte (no de un proyecto): cualquier cosa que
+    //se quiera agregar a lo reportado arriba. Puede ser un proyecto que se está cerrando o que apenas se abre
+    //(y por eso no tiene sección), un tema general de la operación, un aviso o un pendiente. Se guarda en el
+    //JSON del día como «otros». Es opcional: si queda en blanco, no sale en el PDF
+    const TITULO_OTROS = 'Notas adicionales';
     const LARGO_TOTAL = 60000;    //bytes del reporte completo (historial.TEXTO es TEXT: 65.535 bytes)
 
     private static $DIAS  = array('dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb');

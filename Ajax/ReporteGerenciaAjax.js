@@ -61,7 +61,14 @@ function abrirDia(dia) {
                 });
                 html += '</div>';
             });
-            $('#gProyectos').html(html || '<p class="rd-vacio">No tienes proyectos asignados.</p>');
+            //Al final, las notas adicionales: texto libre de todo el reporte (no son de un proyecto)
+            html = (html || '<p class="rd-vacio">No tienes proyectos asignados.</p>') +
+                '<div class="ger-otros"><h3>' + rdEsc(reporte.tituloOtros) + '</h3>' +
+                '<p class="rd-ayuda">Lo que quieras agregar a lo reportado arriba: un proyecto que se está cerrando o que apenas empieza, un tema general, un aviso o un pendiente. Sale al final del PDF; si queda en blanco, no sale.</p>' +
+                '<textarea class="form-control" id="gOtros" rows="3" maxlength="4000" placeholder="• Tema: lo que se quiere informar."></textarea></div>';
+            $('#gProyectos').html(html);
+            $('#gOtros').val(reporte.otros || '');
+            ajustarAlto($('#gOtros')[0]);
             //Los textos se ponen con .val() (no van dentro del HTML)
             reporte.proyectos.forEach(function (proyecto) {
                 $.each(proyecto.textos, function (codigo, texto) {
@@ -150,11 +157,14 @@ function leerTextos() {
     return textos;
 }
 
+//Lo escrito en las notas adicionales
+function leerOtros() { return $('#gOtros').length ? $('#gOtros').val() : ''; }
+
 //Guarda el reporte del día
 function guardar() {
     if (!repG) { return; }
     hanaBoton('#btnGuardar', true); hanaBoton('#btnGuardar2', true);
-    $.post(URL_GER + '?op=guardar', { reporte: JSON.stringify({ fecha: repG.fecha, textos: leerTextos() }) }, null, 'json')
+    $.post(URL_GER + '?op=guardar', { reporte: JSON.stringify({ fecha: repG.fecha, textos: leerTextos(), otros: leerOtros() }) }, null, 'json')
         .done(function (respuesta) {
             rdHayCambios = false; rdAviso(respuesta.mensaje);
             repG.guardado = { quien: 'ti', fecha: respuesta.fecha };
@@ -182,6 +192,8 @@ function comoTexto() {
         });
         lineas.push('');
     });
+    var otros = $.trim(leerOtros());
+    if (otros) { lineas.push('*' + repG.tituloOtros.toUpperCase() + '*', otros, ''); }
     return lineas.join('\n');
 }
 
@@ -216,6 +228,8 @@ function armarImpresion() {
             html += '<h4>' + numero + '. ' + rdEsc(titulo) + '</h4><p>' + rdEsc($.trim((textos[proyecto.id] || {})[codigo] || '') || '—') + '</p>';
         });
     });
+    var otros = $.trim(leerOtros());
+    if (otros) { html += '<h2>' + rdEsc(repG.tituloOtros) + '</h2><p>' + rdEsc(otros) + '</p>'; }
     $('#gerImpresion').html(html);
 }
 
@@ -224,7 +238,7 @@ function armarImpresion() {
 function abrirPdf() {
     if (!repG) { return; }
     var form = $('<form method="post" target="_blank" action="ReporteGerenciaPdfVista.php" style="display:none;"></form>');
-    $('<input type="hidden" name="reporte">').val(JSON.stringify({ fecha: repG.fecha, textos: leerTextos() })).appendTo(form);
+    $('<input type="hidden" name="reporte">').val(JSON.stringify({ fecha: repG.fecha, textos: leerTextos(), otros: leerOtros() })).appendTo(form);
     form.appendTo('body').trigger('submit');
     setTimeout(function () { form.remove(); }, 1000);
 }

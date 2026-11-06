@@ -353,6 +353,9 @@ class ReporteGerenciaPdf extends FPDF
         //Todo el reporte es del día elegido: la promesa de valor también (antes era de la semana)
         $intro = 'Se presenta el estado de la operación con fecha de entrega el ' . $this->r['fechaLarga'] . ', para ' . ($n === 1 ? 'el proyecto a cargo' : 'los ' . $n . ' proyectos a cargo') .
                  ' de la Dirección de Operaciones: disponibilidad de la flota, cumplimiento de la promesa de valor del día, oficios y comunicaciones en gestión, y novedades relevantes de la jornada. Las cifras corresponden a lo reportado en cada punto del reporte.';
+        if ($this->otros() !== '') {
+            $intro .= ' Al final se incluyen notas adicionales.';
+        }
         //El texto va justificado (parejo a los dos lados), dentro del recuadro: de M + 16 a M + ANCHO - 12
         $anchoIntro = self::ANCHO - 28;
         $lineas = $this->renglones($intro, $anchoIntro, 8.6);
@@ -601,6 +604,15 @@ class ReporteGerenciaPdf extends FPDF
             }
             $this->continua = '';
         }
+        //Notas adicionales: lo que se quiera agregar a lo reportado (un proyecto que se cierra o que se abre,
+        //un tema general, un aviso). En hoja nueva, como los proyectos
+        if ($this->otros() !== '') {
+            $this->AddPage(); $this->cy = self::INICIO;
+            $this->franjaOtros();
+            $this->continua = $this->r['tituloOtros'];
+            $this->punto(null, '', $this->otros(), self::AMBAR);
+            $this->continua = '';
+        }
         //Cierre
         $this->espacio(40);
         $this->cy += 6;
@@ -609,6 +621,20 @@ class ReporteGerenciaPdf extends FPDF
             $this->escribir(self::M, $this->cy, 'Elaborado por: ' . $quien, 8.4, 'B', self::NEGRO);
             $this->escribir(self::M, $this->cy + 12, 'Dirección de Operaciones · Grupo Regency', 7.8, '', self::GRIS);
         }
+    }
+
+    //El texto de las notas adicionales ('' si no se escribió nada)
+    private function otros() { return isset($this->r['otros']) ? trim((string)$this->r['otros']) : ''; }
+
+    //Franja de las notas adicionales: como la de un proyecto, pero sin cifras (es texto libre)
+    private function franjaOtros()
+    {
+        $alto = 58;
+        $this->relleno(self::VINO);
+        $this->caja(self::M, $this->cy, self::ANCHO, $alto, 8);
+        $this->escribir(self::M + 16, $this->cy + 10, 'ADEMÁS DE LO REPORTADO', 6.8, 'B', array(235, 200, 202));
+        $this->escribir(self::M + 16, $this->cy + 21, $this->r['tituloOtros'], 17, 'B', self::BLANCO);
+        $this->cy += $alto + 14;
     }
 
     //El color de cada punto según cómo van sus cifras
@@ -658,7 +684,8 @@ class ReporteGerenciaPdf extends FPDF
         $this->cy += $alto + 14;
     }
 
-    //Un punto del reporte: número, título y su texto en un recuadro de color suave
+    //Un punto del reporte: número, título y su texto en un recuadro de color suave.
+    //Con $numero = null va solo el texto, sin el encabezado (lo usan las notas adicionales, que ya tienen su franja)
     private function punto($numero, $titulo, $texto, $color)
     {
         $x = self::M; $ancho = self::ANCHO;
@@ -682,17 +709,19 @@ class ReporteGerenciaPdf extends FPDF
         }
         //Un punto no se parte entre dos hojas: si no cabe en lo que queda, pasa completo a la siguiente.
         //Solo se parte si por sí solo es más largo que una hoja entera
-        $altoPunto = 28 + 12;
+        $altoPunto = ($numero === null ? 0 : 28) + 12;
         foreach ($piezas as $pieza) { $altoPunto += $pieza[0] === 'espacio' ? 4 : $alto; }
         if ($altoPunto <= self::TOPE - self::INICIO - 20) { $this->espacio($altoPunto); } else { $this->espacio(30 + 2 * $alto); }
         //Encabezado del punto
-        $y = $this->cy;
-        $this->relleno(self::suave($color));
-        $this->caja($x, $y, $ancho, 24, 5);
-        $this->circulo($x + 15, $y + 12, 8, $color);
-        $this->escribir($x + 7, $y + 7.6, (string)$numero, 8.4, 'B', self::BLANCO, 'C', $x + 23);
-        $this->escribir($x + 30, $y + 7.2, $titulo, 9.6, 'B', $color === self::AMBAR ? array(140, 95, 15) : ($color === self::MENTA ? array(15, 120, 100) : ($color === self::GRIS ? self::NEGRO : $color)));
-        $this->cy = $y + 28;
+        if ($numero !== null) {
+            $y = $this->cy;
+            $this->relleno(self::suave($color));
+            $this->caja($x, $y, $ancho, 24, 5);
+            $this->circulo($x + 15, $y + 12, 8, $color);
+            $this->escribir($x + 7, $y + 7.6, (string)$numero, 8.4, 'B', self::BLANCO, 'C', $x + 23);
+            $this->escribir($x + 30, $y + 7.2, $titulo, 9.6, 'B', $color === self::AMBAR ? array(140, 95, 15) : ($color === self::MENTA ? array(15, 120, 100) : ($color === self::GRIS ? self::NEGRO : $color)));
+            $this->cy = $y + 28;
+        }
         //Cuerpo
         foreach ($piezas as $pieza) {
             if ($pieza[0] === 'espacio') { $this->cy += 4; continue; }

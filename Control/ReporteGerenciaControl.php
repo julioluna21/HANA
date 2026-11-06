@@ -94,13 +94,17 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         }
         //De lo guardado solo va quién y cuándo (no cuántas veces se ha guardado: no le sirve a nadie)
         $mes = substr($fecha, 0, 7);
+        //Notas adicionales: lo que se haya escrito ese día (no lo propone el sistema: es texto libre)
+        $otros = $guardado && isset($guardado['datos']['otros']) ? (string)$guardado['datos']['otros'] : '';
         echo hanaJsonTexto(array('fecha' => $fecha, 'diaCorto' => ReporteGerencia::diaCorto($fecha), 'puntos' => $puntos, 'proyectos' => $lista,
+                                 'otros' => $otros, 'tituloOtros' => ReporteGerencia::TITULO_OTROS,
                                  'guardado' => $guardado ? array('quien' => $guardado['quien'], 'fecha' => $guardado['fecha']) : null,
                                  'mes' => $mes, 'guardadosMes' => ReporteGerencia::diasGuardadosMes($mes)),
                            JSON_UNESCAPED_UNICODE);
         break;
 
-    //Guarda el reporte del día (reemplaza lo que había de ese día). Llega como JSON: {fecha, textos: {idProyecto: {CODIGO: texto}}}
+    //Guarda el reporte del día (reemplaza lo que había de ese día). Llega como JSON:
+    //{fecha, textos: {idProyecto: {CODIGO: texto}}, otros: texto}
     case 'guardar':
         $entrada = json_decode(isset($_POST['reporte']) ? (string)$_POST['reporte'] : '', true);
         if (!is_array($entrada) || !isset($entrada['textos']) || !is_array($entrada['textos'])) { gerError(400, 'No llegó el reporte. Recarga la página e intenta de nuevo.'); }
@@ -131,7 +135,12 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             }
             $guardarProyectos[$idProyecto] = array('nombre' => $nombre, 'textos' => $textos);
         }
-        $datos = array('version' => 1, 'fecha' => $fecha, 'puntos' => $puntos, 'proyectos' => $guardarProyectos);
+        //Notas adicionales: texto libre de todo el reporte (cualquier cosa que se quiera agregar)
+        $otros = trim(str_replace("\r\n", "\n", isset($entrada['otros']) ? (string)$entrada['otros'] : ''));
+        if (mb_strlen($otros, 'UTF-8') > ReporteGerencia::LARGO_PUNTO) {
+            gerError(400, '«' . ReporteGerencia::TITULO_OTROS . '» pasa de ' . ReporteGerencia::LARGO_PUNTO . ' caracteres. Acórtalo un poco.');
+        }
+        $datos = array('version' => 1, 'fecha' => $fecha, 'puntos' => $puntos, 'proyectos' => $guardarProyectos, 'otros' => $otros);
         $ahora = date('Y-m-d H:i:s');
         if (!ReporteGerencia::cabe($datos)) {
             gerError(400, 'El reporte quedó demasiado largo para guardarlo. Acorta algunos puntos e intenta de nuevo.');
