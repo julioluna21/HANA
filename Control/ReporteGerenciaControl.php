@@ -7,9 +7,11 @@
   ADMIN TEC (24M) también, con todos los proyectos.
 
   Operaciones:
-    config    los puntos del reporte, los proyectos y los días ya guardados
-    abrir     el reporte de un día: lo guardado (si hay) y lo que propone el sistema
-    guardar   guarda una versión nueva del día (historial, MODULO = 'GERENCIA')
+    config    los puntos del reporte y los meses que tienen días guardados
+    abrir     el reporte de un día: lo guardado (si hay), lo que propone el sistema
+              y los días guardados del mes de ese día
+    guardados los días guardados de un mes (mes=AAAA-MM), para la lista de la pantalla
+    guardar   guarda el reporte del día en su fila de historial (MODULO = 'GERENCIA')
 */
 session_start();
 require_once __DIR__ . "/../Modelo/ReporteGerenciaModelo.php";
@@ -55,13 +57,22 @@ function gerFecha($valor, $hoy)
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     case 'config':
+        //Los días guardados no van todos aquí (con el tiempo serían cientos): van los meses, y la
+        //pantalla pide los días del mes que se esté viendo
         echo hanaJsonTexto(array('hoy' => $hoy, 'puntos' => ReporteGerencia::puntos(), 'automaticos' => array('FLOTA', 'PROMESA', 'OFICIOS', 'NOVEDADES'),
-                                 'diasGuardados' => ReporteGerencia::diasGuardados(date('Y-m-d', strtotime("$hoy -60 days")), $hoy)),
+                                 'meses' => ReporteGerencia::mesesGuardados()),
                            JSON_UNESCAPED_UNICODE);
         break;
 
+    //Los días guardados de un mes: {mes: "2026-11", dias: ["2026-11-02", ...]}
+    case 'guardados':
+        $mes = isset($_GET['mes']) ? (string)$_GET['mes'] : '';
+        if (!preg_match('/^(20[2-9]\d)-(0[1-9]|1[0-2])$/', $mes)) { gerError(400, 'Elige un mes válido.'); }
+        echo hanaJsonTexto(array('mes' => $mes, 'dias' => ReporteGerencia::diasGuardadosMes($mes)), JSON_UNESCAPED_UNICODE);
+        break;
+
     //El reporte de un día. Si ya se guardó, va lo guardado; «sistema» trae siempre lo que propone el
-    //sistema con los datos de hoy, para volver a traer un punto o todo el reporte
+    //sistema con los datos de ESE día (el elegido, no el de hoy), para volver a traer un punto o todo el reporte
     case 'abrir':
         $fecha = gerFecha(isset($_GET['fecha']) ? $_GET['fecha'] : '', $hoy);
         $puntos = ReporteGerencia::puntos();
@@ -81,12 +92,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $lista[] = array('id' => $idProyecto, 'nombre' => $nombre, 'textos' => $textos, 'sistema' => $propuestos,
                              'enGuardado' => is_array($textosGuardados));
         }
+        //De lo guardado solo va quién y cuándo (no cuántas veces se ha guardado: no le sirve a nadie)
+        $mes = substr($fecha, 0, 7);
         echo hanaJsonTexto(array('fecha' => $fecha, 'diaCorto' => ReporteGerencia::diaCorto($fecha), 'puntos' => $puntos, 'proyectos' => $lista,
-                                 'guardado' => $guardado ? array('quien' => $guardado['quien'], 'fecha' => $guardado['fecha'], 'versiones' => $guardado['versiones']) : null),
+                                 'guardado' => $guardado ? array('quien' => $guardado['quien'], 'fecha' => $guardado['fecha']) : null,
+                                 'mes' => $mes, 'guardadosMes' => ReporteGerencia::diasGuardadosMes($mes)),
                            JSON_UNESCAPED_UNICODE);
         break;
 
-    //Guarda el reporte del día. Llega como JSON: {fecha, textos: {idProyecto: {CODIGO: texto}}}
+    //Guarda el reporte del día (reemplaza lo que había de ese día). Llega como JSON: {fecha, textos: {idProyecto: {CODIGO: texto}}}
     case 'guardar':
         $entrada = json_decode(isset($_POST['reporte']) ? (string)$_POST['reporte'] : '', true);
         if (!is_array($entrada) || !isset($entrada['textos']) || !is_array($entrada['textos'])) { gerError(400, 'No llegó el reporte. Recarga la página e intenta de nuevo.'); }
@@ -119,8 +133,11 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         }
         $datos = array('version' => 1, 'fecha' => $fecha, 'puntos' => $puntos, 'proyectos' => $guardarProyectos);
         $ahora = date('Y-m-d H:i:s');
-        if (!ReporteGerencia::guardar($fecha, $datos, $idColaborador, $ahora)) {
+        if (!ReporteGerencia::cabe($datos)) {
             gerError(400, 'El reporte quedó demasiado largo para guardarlo. Acorta algunos puntos e intenta de nuevo.');
+        }
+        if (!ReporteGerencia::guardar($fecha, $datos, $idColaborador, $ahora)) {
+            gerError(500, 'No se pudo guardar el reporte. Intenta de nuevo en un momento.');
         }
         echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Reporte del ' . ReporteGerencia::diaCorto($fecha) . ' guardado.', 'fecha' => $ahora), JSON_UNESCAPED_UNICODE);
         break;

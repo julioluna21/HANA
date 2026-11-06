@@ -23,11 +23,18 @@ if (isset($_SESSION['IdUsuarios'])) {
   .ger-botones .btn { margin: 0; }
   .ger-estado { margin: 12px 0 4px; padding: 8px 12px; border-radius: 4px; background: #f4f6f8; color: #444; }
   .ger-estado.ok { background: #e8f6ee; color: #1d6b3f; }
-  .ger-guardados { margin: 6px 0 0; font-size: 12px; color: #666; }
-  .ger-guardados a { display: inline-block; margin: 2px 4px 2px 0; padding: 1px 7px; border: 1px solid #cfd8dc; border-radius: 10px; color: #37474f; }
-  .ger-guardados a.actual { background: #2A3F54; color: #fff; border-color: #2A3F54; }
+  /* Días guardados: se elige el mes y salen solo los días de ese mes (máximo 31), así la lista
+     no crece sin fin con el paso de los meses */
+  .ger-guardados { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 0 0; font-size: 12px; color: #666; }
+  .ger-guardados label { margin: 0; font-weight: normal; }
+  .ger-guardados select { width: auto; height: 28px; padding: 2px 6px; font-size: 12px; }
+  .ger-dias-mes { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ger-dias-mes a { display: inline-block; padding: 1px 8px; border: 1px solid #e6dcd8; border-radius: 10px; color: #1A1A1A; background: #fff; }
+  .ger-dias-mes a:hover { border-color: #6E1A1E; text-decoration: none; }
+  .ger-dias-mes a.actual { background: #6E1A1E; color: #fff; border-color: #6E1A1E; }
+  .ger-dias-mes .vacio { color: #999; font-style: italic; }
   .ger-proyecto { border: 1px solid #e3e6ea; border-radius: 6px; padding: 12px 14px 4px; margin-top: 16px; background: #fff; }
-  .ger-proyecto h3 { font-size: 17px; margin: 0 0 10px; color: #2A3F54; font-weight: 600; }
+  .ger-proyecto h3 { font-size: 17px; margin: 0 0 10px; color: #6E1A1E; font-weight: 600; }
   .ger-punto { margin-bottom: 12px; }
   .ger-punto-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .ger-punto-cab label { margin-bottom: 3px; }
@@ -70,7 +77,11 @@ if (isset($_SESSION['IdUsuarios'])) {
             </div>
           </div>
           <div class="ger-estado" id="gEstado">Cargando...</div>
-          <div class="ger-guardados" id="gGuardados"></div>
+          <div class="ger-guardados" id="gGuardados">
+            <label for="gMes">Días guardados en</label>
+            <select id="gMes" class="form-control"></select>
+            <span class="ger-dias-mes" id="gDiasMes"></span>
+          </div>
           <p class="rd-ayuda" style="margin-top:8px;">Los puntos se llenan solos con lo que registran los coordinadores (vehículos, promesa de valor, comunicaciones y temas con el cliente). Corrige lo que haga falta y guarda: queda guardado para ese día. «Traer del sistema» vuelve a llenar solo ese punto.</p>
           <div id="gProyectos"></div>
           <div class="ln_solid"></div>
@@ -85,7 +96,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=2"></script>
+<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=3"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

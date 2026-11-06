@@ -1,6 +1,10 @@
 //Consultas - Reporte diario a la Gerencia
 var URL_GER = '../Control/ReporteGerenciaControl.php';
 var cfgG = null, repG = null;
+//Días guardados: se muestran por mes. mesG es el mes que se está viendo en la lista y diasMesG sus días
+var mesG = '', diasMesG = [];
+var MESES_G = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+var DIAS_G = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
 $(function () {
     $.getJSON(URL_GER + '?op=config')
@@ -24,7 +28,8 @@ $(function () {
     $('#btnPdf').on('click', abrirPdf);
     window.addEventListener('beforeprint', armarImpresion);
     $(document).on('click', '.ger-traer', function () { traerPunto($(this).closest('.ger-punto').find('textarea')); });
-    $(document).on('click', '.ger-guardados a', function (evento) { evento.preventDefault(); cambiarDia($(this).data('dia')); });
+    $(document).on('click', '.ger-dias-mes a', function (evento) { evento.preventDefault(); cambiarDia($(this).data('dia')); });
+    $('#gMes').on('change', function () { verMes(this.value); });
     $(document).on('input', '#gProyectos textarea', function () { rdHayCambios = true; ajustarAlto(this); marcarCambio($(this)); });
     window.addEventListener('beforeunload', function (evento) { if (rdHayCambios) { evento.preventDefault(); evento.returnValue = ''; } });
 });
@@ -66,6 +71,9 @@ function abrirDia(dia) {
                 });
             });
             pintarEstado();
+            //La lista de días guardados se pone en el mes del día abierto
+            mesG = reporte.mes; diasMesG = reporte.guardadosMes || [];
+            pintarGuardados();
         })
         .fail(function (xhr) { $('#gEstado').text(rdError(xhr, 'No se pudo cargar el reporte.')); });
 }
@@ -74,14 +82,39 @@ function abrirDia(dia) {
 function pintarEstado() {
     var g = repG.guardado;
     if (g) {
+        //Solo quién lo guardó por última vez, el día y la hora
         $('#gEstado').addClass('ok').html('<i class="fa fa-check-circle"></i> Reporte del <strong>' + rdEsc(repG.diaCorto) + '</strong> guardado por ' + rdEsc(g.quien || '') +
-            ' el ' + rdFecha(g.fecha) + ' a las ' + rdHora(String(g.fecha).substring(11)) + (g.versiones > 1 ? ' (se ha guardado ' + g.versiones + ' veces)' : '') + '.');
+            ' el ' + rdFecha(g.fecha) + ' a las ' + rdHora(String(g.fecha).substring(11)) + '.');
     } else {
         $('#gEstado').removeClass('ok').html('<i class="fa fa-info-circle"></i> El reporte del <strong>' + rdEsc(repG.diaCorto) + '</strong> todavía no se ha guardado: lo que ves lo propone el sistema.');
     }
-    var dias = (cfgG.diasGuardados || []).slice(0, 14), html = '';
-    dias.forEach(function (dia) { html += '<a href="#" data-dia="' + rdEsc(dia) + '"' + (dia === repG.fecha ? ' class="actual"' : '') + '>' + rdFecha(dia).substring(0, 5) + '</a>'; });
-    $('#gGuardados').html(html ? 'Días guardados: ' + html : '');
+}
+
+//"2026-11" -> "noviembre 2026"
+function nombreMes(mes) { return MESES_G[parseInt(mes.substring(5, 7), 10) - 1] + ' ' + mes.substring(0, 4); }
+
+//La lista de meses (los que tienen días guardados, más el de hoy y el que se está viendo) y,
+//al lado, los días guardados del mes elegido, como botoncitos "mié 4"
+function pintarGuardados() {
+    var meses = (cfgG.meses || []).slice();
+    [cfgG.hoy.substring(0, 7), mesG].forEach(function (mes) { if (mes && meses.indexOf(mes) < 0) { meses.push(mes); } });
+    meses.sort().reverse();
+    $('#gMes').html(meses.map(function (mes) {
+        return '<option value="' + rdEsc(mes) + '"' + (mes === mesG ? ' selected' : '') + '>' + rdEsc(nombreMes(mes)) + '</option>';
+    }).join(''));
+    var html = diasMesG.map(function (dia) {
+        var fecha = rdAFecha(dia);
+        return '<a href="#" data-dia="' + rdEsc(dia) + '"' + (repG && dia === repG.fecha ? ' class="actual"' : '') + ' title="' + rdEsc(rdFecha(dia)) + '">' +
+               DIAS_G[fecha.getDay()] + ' ' + fecha.getDate() + '</a>';
+    }).join('');
+    $('#gDiasMes').html(html || '<span class="vacio">Ningún día guardado en este mes.</span>');
+}
+
+//Trae los días guardados de otro mes (el día abierto no cambia hasta que se elija uno)
+function verMes(mes) {
+    $.getJSON(URL_GER + '?op=guardados&mes=' + encodeURIComponent(mes))
+        .done(function (respuesta) { mesG = respuesta.mes; diasMesG = respuesta.dias || []; pintarGuardados(); })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron traer los días guardados de ese mes.')); });
 }
 
 //Vuelve a poner en un punto lo que propone el sistema
@@ -124,9 +157,11 @@ function guardar() {
     $.post(URL_GER + '?op=guardar', { reporte: JSON.stringify({ fecha: repG.fecha, textos: leerTextos() }) }, null, 'json')
         .done(function (respuesta) {
             rdHayCambios = false; rdAviso(respuesta.mensaje);
-            repG.guardado = { quien: 'ti', fecha: respuesta.fecha, versiones: repG.guardado ? repG.guardado.versiones + 1 : 1 };
-            if ((cfgG.diasGuardados || []).indexOf(repG.fecha) < 0) { cfgG.diasGuardados.push(repG.fecha); cfgG.diasGuardados.sort().reverse(); }
-            pintarEstado();
+            repG.guardado = { quien: 'ti', fecha: respuesta.fecha };
+            //El día recién guardado entra a la lista de su mes (y el mes, a la lista de meses)
+            if ((cfgG.meses || []).indexOf(repG.mes) < 0) { cfgG.meses = (cfgG.meses || []).concat([repG.mes]); }
+            if (mesG === repG.mes && diasMesG.indexOf(repG.fecha) < 0) { diasMesG.push(repG.fecha); diasMesG.sort(); }
+            pintarEstado(); pintarGuardados();
         })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el reporte.')); })
         .always(function () { hanaBoton('#btnGuardar', false); hanaBoton('#btnGuardar2', false); });

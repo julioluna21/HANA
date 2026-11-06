@@ -7,7 +7,7 @@
     Primera parte · Resumen del día
       - un párrafo de presentación;
       - cuatro tarjetas con las cifras de todos los proyectos: disponibilidad de
-        flota, cumplimiento de la promesa de valor de la semana, oficios en
+        flota, cumplimiento de la promesa de valor del día, oficios en
         gestión y novedades del día (el color dice si va bien, regular o mal);
       - tres gráficas por proyecto: flota disponible (%), promesa de valor (%) y
         oficios en gestión (dentro y fuera de plazo);
@@ -38,7 +38,6 @@ class ReporteGerenciaPdf extends FPDF
     const MENTA = array(26, 187, 156);
     const AMBAR = array(217, 156, 43);
     const NEGRO = array(26, 26, 26);
-    const AZUL  = array(42, 63, 84);
     const GRIS  = array(107, 112, 118);
     const BLANCO = array(255, 255, 255);
     const FONDO = array(251, 248, 246);
@@ -104,6 +103,28 @@ class ReporteGerenciaPdf extends FPDF
         if ($alin === 'R')     { $x -= $ancho; }
         elseif ($alin === 'C') { $x += (($x2 - $x) - $ancho) / 2; }
         $this->Text($x, $top + 0.905 * $tam, $t);
+    }
+
+    //Escribe un renglón JUSTIFICADO: reparte entre las palabras el espacio que sobra, para que el
+    //renglón llegue exacto al borde derecho ($x + $ancho), como un párrafo justificado de Word.
+    //El último renglón de cada párrafo ($ultimo = true) va normal, alineado a la izquierda, porque
+    //estirarlo dejaría huecos grandes. Si el renglón tiene muy pocas palabras y los huecos quedarían
+    //exagerados (más de 4 veces un espacio normal), también se deja normal.
+    private function escribirJustificado($x, $top, $renglon, $ancho, $tam, $estilo = '', $color = null, $ultimo = false)
+    {
+        $palabras = preg_split('/\s+/u', trim((string)$renglon), -1, PREG_SPLIT_NO_EMPTY);
+        if ($ultimo || count($palabras) < 2) { $this->escribir($x, $top, $renglon, $tam, $estilo, $color); return; }
+        $this->SetFont('Helvetica', $estilo, $tam);
+        $this->tinta($color === null ? self::NEGRO : $color);
+        $anchos = array();
+        foreach ($palabras as $palabra) { $anchos[] = $this->GetStringWidth($this->textoPdf($palabra)); }
+        $hueco = ($ancho - array_sum($anchos)) / (count($palabras) - 1);
+        if ($hueco > 4 * $this->GetStringWidth(' ')) { $this->escribir($x, $top, $renglon, $tam, $estilo, $color); return; }
+        $cx = $x;
+        foreach ($palabras as $i => $palabra) {
+            $this->Text($cx, $top + 0.905 * $tam, $this->textoPdf($palabra));
+            $cx += $anchos[$i] + $hueco;
+        }
     }
 
     private function anchoTexto($texto, $tam, $estilo = '')
@@ -233,10 +254,12 @@ class ReporteGerenciaPdf extends FPDF
     {
         $this->relleno(self::LINEA);
         $this->Rect(self::M, 752, self::ANCHO, 0.8, 'F');
+        //Sin nombres: quién lo elaboró sale una sola vez, en «Elaborado por» al final del reporte
+        //(antes el pie repetía el nombre en cada hoja, y dos veces si la versión estaba guardada)
         $origen = $this->r['origen'] === 'guardado' && $this->r['guardado']
-            ? 'Versión guardada por ' . $this->r['guardado']['quien'] . ' el ' . date('d/m/Y H:i', strtotime($this->r['guardado']['fecha']))
+            ? 'Versión guardada el ' . date('d/m/Y H:i', strtotime($this->r['guardado']['fecha']))
             : ($this->r['origen'] === 'pantalla' ? 'Versión en edición (sin guardar)' : 'Propuesta del sistema (sin guardar)');
-        $this->escribir(self::M, 758, 'Generado en HANA el ' . $this->cuando . ($this->quien !== '' ? ' por ' . $this->quien . ($this->rol !== '' ? ' (' . $this->rol . ')' : '') : '') . '  ·  ' . $origen, 6.8, '', self::GRIS);
+        $this->escribir(self::M, 758, 'Generado en HANA el ' . $this->cuando . '  ·  ' . $origen, 6.8, '', self::GRIS);
         $this->escribir(self::M + self::ANCHO, 758, 'Página ' . $this->PageNo() . ' de {total}', 6.8, '', self::GRIS, 'R');
     }
 
@@ -259,7 +282,7 @@ class ReporteGerenciaPdf extends FPDF
         $this->espacio(26 + 10 * count($lineasNota) + $siguiente);
         $this->relleno(self::MENTA);
         $this->caja(self::M, $this->cy + 1, 4, 13, 2);
-        $this->escribir(self::M + 11, $this->cy, $texto, 12, 'B', self::AZUL);
+        $this->escribir(self::M + 11, $this->cy, $texto, 12, 'B', self::NEGRO);
         $this->cy += 18;
         foreach ($lineasNota as $renglon) { $this->escribir(self::M + 11, $this->cy, $renglon, 7.8, '', self::GRIS); $this->cy += 10; }
         $this->cy += 6;
@@ -327,17 +350,20 @@ class ReporteGerenciaPdf extends FPDF
         $t = $this->totales();
         $n = count($this->r['proyectos']);
         //Presentación
-        $semana = $this->r['lunes'] === $this->r['fecha'] ? 'la semana que inicia en la fecha' : 'la semana en curso (desde el lunes)';
-        $intro = 'Se presenta el estado de la operación con corte al ' . $this->r['fechaLarga'] . ', para ' . ($n === 1 ? 'el proyecto a cargo' : 'los ' . $n . ' proyectos a cargo') .
-                 ' de la Dirección de Operaciones: disponibilidad de la flota, cumplimiento de la promesa de valor durante ' . $semana .
-                 ', oficios y comunicaciones en gestión, y novedades relevantes de la jornada. Las cifras corresponden a lo reportado en cada punto del reporte.';
-        $lineas = $this->renglones($intro, self::ANCHO - 28, 8.6);
+        //Todo el reporte es del día elegido: la promesa de valor también (antes era de la semana)
+        $intro = 'Se presenta el estado de la operación con fecha de entrega el ' . $this->r['fechaLarga'] . ', para ' . ($n === 1 ? 'el proyecto a cargo' : 'los ' . $n . ' proyectos a cargo') .
+                 ' de la Dirección de Operaciones: disponibilidad de la flota, cumplimiento de la promesa de valor del día, oficios y comunicaciones en gestión, y novedades relevantes de la jornada. Las cifras corresponden a lo reportado en cada punto del reporte.';
+        //El texto va justificado (parejo a los dos lados), dentro del recuadro: de M + 16 a M + ANCHO - 12
+        $anchoIntro = self::ANCHO - 28;
+        $lineas = $this->renglones($intro, $anchoIntro, 8.6);
         $alto = 18 + 11.2 * count($lineas);
         $this->relleno(self::FONDO);
         $this->caja(self::M, $this->cy, self::ANCHO, $alto, 6);
         $this->relleno(self::VINO);
         $this->caja(self::M, $this->cy, 4, $alto, 2);
-        foreach ($lineas as $i => $renglon) { $this->escribir(self::M + 16, $this->cy + 9 + 11.2 * $i, $renglon, 8.6, '', self::NEGRO); }
+        foreach ($lineas as $i => $renglon) {
+            $this->escribirJustificado(self::M + 16, $this->cy + 9 + 11.2 * $i, $renglon, $anchoIntro, 8.6, '', self::NEGRO, $i === count($lineas) - 1);
+        }
         $this->cy += $alto + 14;
 
         //Tarjetas con las cifras del día (todas salen de los textos)
@@ -374,7 +400,7 @@ class ReporteGerenciaPdf extends FPDF
         }
         $tarjetas = array(
             array('Disponibilidad de flota', $flotaValor, $flotaDetalle, $flotaColor),
-            array('Promesa de valor (semana)', isset($promesaValor) ? $promesaValor : self::pctTexto($pPromesa), $promesaDetalle,
+            array('Promesa de valor del día', isset($promesaValor) ? $promesaValor : self::pctTexto($pPromesa), $promesaDetalle,
                   isset($promesaColor) ? $promesaColor : (!$t['hayPromesa'] ? self::GRIS : ($pPromesa === null && $t['debajo'] ? self::VINO : self::colorPromesa($pPromesa)))),
             array('Oficios en gestión', self::num($t['oficios']), $oficiosDetalle, self::colorOficios($t['oficios'], $t['fueraPlazo'])),
             array('Novedades', self::num($t['novedades']),
@@ -388,8 +414,9 @@ class ReporteGerenciaPdf extends FPDF
         foreach ($tarjetas as $i => $tarjeta) { $this->tarjeta(self::M + $i * ($anchoT + $sep), $this->cy, $anchoT, $altoT, $tarjeta); }
         $this->cy += $altoT + 14;
 
-        //Gráficas por proyecto
-        $this->titulo('Indicadores por proyecto', 'Verde: cumple · Ámbar: requiere atención · Vino: crítico. La promesa de valor compara las horas ejecutadas con las prometidas en la semana.');
+        //Resumen por proyecto, en gráficas. Antes había además una tabla «Resumen por proyecto» debajo
+        //con estas mismas cifras (flota, promesa, oficios): se quitó porque repetía lo de las gráficas
+        $this->titulo('Resumen por proyecto', 'Verde: cumple · Ámbar: requiere atención · Vino: crítico. La promesa de valor compara las horas ejecutadas con las prometidas en el día.');
         $flota = array(); $promesa = array(); $oficios = array();
         foreach ($this->r['proyectos'] as $p) {
             $c = $p['cifras'];
@@ -411,10 +438,6 @@ class ReporteGerenciaPdf extends FPDF
         $this->espacio($altoO);
         $this->graficaOficios(self::M, $this->cy, self::ANCHO, $oficios);
         $this->cy += $altoO + 10;
-
-        //Tabla de resumen
-        $this->titulo('Resumen por proyecto', '', 24 + 20 * count($this->r['proyectos']));
-        $this->tablaResumen();
     }
 
     //Tarjeta con una cifra grande y su detalle
@@ -437,7 +460,7 @@ class ReporteGerenciaPdf extends FPDF
     {
         $this->relleno(self::FONDO);
         $this->caja($x, $y, $ancho, $altoCaja !== null ? $altoCaja : 34 + 17 * count($items) - 6, 6);
-        $this->escribir($x + 10, $y + 9, $titulo, 8.2, 'B', self::AZUL);
+        $this->escribir($x + 10, $y + 9, $titulo, 8.2, 'B', self::NEGRO);
         //Si algún rótulo es largo («2 de 3 peajes»), la barra se acorta para que quepa
         $anchoRotulo = 56;
         foreach ($items as $item) { $anchoRotulo = max($anchoRotulo, $this->anchoTexto(isset($item[3]) ? $item[3] : self::pctTexto($item[1]), 7.4, 'B') + 10); }
@@ -484,7 +507,7 @@ class ReporteGerenciaPdf extends FPDF
         if ($medir) { return $alto; }
         $this->relleno(self::FONDO);
         $this->caja($x, $y, $ancho, $altoCaja !== null ? $altoCaja : $alto, 6);
-        $this->escribir($x + 10, $y + 9, 'Estado de la flota', 8.2, 'B', self::AZUL);
+        $this->escribir($x + 10, $y + 9, 'Estado de la flota', 8.2, 'B', self::NEGRO);
         $yy = $y + 28;
         foreach ($filas as $fila) {
             list($nombre, $f, $renglonesP, $altoFila) = $fila;
@@ -525,7 +548,7 @@ class ReporteGerenciaPdf extends FPDF
         $alto = 46 + 17 * count($items) - 6;
         $this->relleno(self::FONDO);
         $this->caja($x, $y, $ancho, $alto, 6);
-        $this->escribir($x + 10, $y + 9, 'Oficios y comunicaciones en gestión', 8.2, 'B', self::AZUL);
+        $this->escribir($x + 10, $y + 9, 'Oficios y comunicaciones en gestión', 8.2, 'B', self::NEGRO);
         //Leyenda
         $xl = $x + $ancho - 10;
         $this->escribir($xl, $y + 10, 'Fuera de plazo (más de ' . $this->r['plazoOficios'] . ' días)', 6.8, '', self::GRIS, 'R');
@@ -557,64 +580,6 @@ class ReporteGerenciaPdf extends FPDF
             $this->escribir($xBarra + $anchoBarra + 6, $yy + 1, $total ? $total . ($fuera ? '  (' . $fuera . ' fuera)' : '') : 'Ninguno', 7.2, $total ? 'B' : '', $total ? self::NEGRO : self::GRIS);
             $yy += 17;
         }
-    }
-
-    //Tabla de resumen por proyecto
-    private function tablaResumen()
-    {
-        $columnas = array(array('Proyecto', 130, 'L'), array('Flota operativa', 70, 'C'), array('Promesa de valor', 80, 'C'),
-                          array('Cargos ausentes', 66, 'C'), array('Oficios en gestión', 70, 'C'), array('Fuera de plazo', 54, 'C'),
-                          array('Novedades del día', 62, 'C'));
-        $altoCab = 24;
-        $this->espacio($altoCab + 20 * count($this->r['proyectos'])); //la tabla no se parte: va completa
-        $x = self::M; $y = $this->cy;
-        $this->relleno(self::VINO);
-        $this->caja($x, $y, self::ANCHO, $altoCab, 4);
-        foreach ($columnas as $col) {
-            $lineas = $this->renglones($col[0], $col[1] - 6, 6.6, 'B');
-            $top = $y + ($altoCab - 7.8 * count($lineas)) / 2;
-            foreach ($lineas as $i => $l) {
-                if ($col[2] === 'L') { $this->escribir($x + 6, $top + 7.8 * $i, $l, 6.6, 'B', self::BLANCO); }
-                else { $this->escribir($x, $top + 7.8 * $i, $l, 6.6, 'B', self::BLANCO, 'C', $x + $col[1]); }
-            }
-            $x += $col[1];
-        }
-        $this->cy = $y + $altoCab;
-        foreach ($this->r['proyectos'] as $i => $p) {
-            $c = $p['cifras'];
-            $pF = self::pct($c['flota']['operativos'], $c['flota']['total']);
-            $vista = self::promesaVista($c['promesa']);
-            $texto = function ($v) { return $v === null ? '—' : (string)$v; };
-            $celdas = array(
-                array($p['nombre'], null, 'B'),
-                array($c['flota']['total'] ? $c['flota']['operativos'] . ' de ' . $c['flota']['total'] : '—', $c['flota']['total'] ? self::colorFlota($pF) : null, 'B'),
-                array($vista[0], $vista[1] === null ? null : $vista[2], 'B'),
-                array($texto($c['promesa']['debajo']), $c['promesa']['debajo'] ? self::VINO : null, ''),
-                array($texto($c['oficios']['total']), null, ''),
-                array($texto($c['oficios']['fueraPlazo']), $c['oficios']['fueraPlazo'] ? self::VINO : null, ''),
-                array($texto($c['novedades']), $c['novedades'] ? self::AMBAR : null, ''),
-            );
-            $alto = 20;
-            $this->espacio($alto);
-            $y = $this->cy; $x = self::M;
-            if ($i % 2 === 1) { $this->relleno(self::FONDO); $this->Rect($x, $y, self::ANCHO, $alto, 'F'); }
-            foreach ($columnas as $j => $col) {
-                list($texto, $color, $estilo) = $celdas[$j];
-                if ($color !== null && $j > 0) {
-                    //Una pastilla de color suave detrás de la cifra
-                    $w = min($col[1] - 8, $this->anchoTexto($texto, 7.4, 'B') + 14);
-                    $this->relleno(self::suave($color));
-                    $this->caja($x + ($col[1] - $w) / 2, $y + 4, $w, 12, 6);
-                }
-                $tinta = $color === null ? (($texto === '0' || $texto === '—') ? array(175, 170, 166) : self::NEGRO) : ($color === self::AMBAR ? array(176, 120, 20) : $color);
-                if ($col[2] === 'L') { $this->escribir($x + 6, $y + 6, $texto, 7.4, $estilo, $tinta); }
-                else { $this->escribir($x, $y + 6, $texto, 7.4, $estilo === '' && $color !== null ? 'B' : $estilo, $tinta, 'C', $x + $col[1]); }
-                $x += $col[1];
-            }
-            $this->cy = $y + $alto;
-            $this->relleno(self::LINEA); $this->Rect(self::M, $this->cy - 0.5, self::ANCHO, 0.5, 'F');
-        }
-        $this->cy += 10;
     }
 
     //-----------------------------------------------------------------------
@@ -657,7 +622,7 @@ class ReporteGerenciaPdf extends FPDF
         }
         if ($codigo === 'OFICIOS') { return self::colorOficios($c['oficios']['total'], $c['oficios']['fueraPlazo']); }
         if ($codigo === 'NOVEDADES') { return ($c['novedades'] || $c['temas']['hoy']) ? self::AMBAR : ($c['novedades'] === null ? self::GRIS : self::MENTA); }
-        return self::AZUL;
+        return self::NEGRO;
     }
 
     //Franja con el nombre del proyecto y sus cifras principales
@@ -709,8 +674,10 @@ class ReporteGerenciaPdf extends FPDF
             else { $nivel = 0; $contenido = trim($parrafo); }
             $sangria = $nivel === 0 ? 0 : ($nivel === 1 ? 12 : 26);
             $negrita = $nivel === 0 && count($piezas) === 0 && $texto !== '' && count($parrafos) > 1; //el primer renglón suele ser el resumen del punto
-            foreach ($this->renglones($contenido, $ancho - 40 - $sangria, $tam, $negrita ? 'B' : '') as $k => $renglon) {
-                $piezas[] = array($k === 0 ? 'inicio' : 'sigue', $renglon, $nivel, $sangria, $negrita);
+            $renglonesParrafo = $this->renglones($contenido, $ancho - 40 - $sangria, $tam, $negrita ? 'B' : '');
+            foreach ($renglonesParrafo as $k => $renglon) {
+                //El último renglón de cada párrafo no se justifica (ver escribirJustificado)
+                $piezas[] = array($k === 0 ? 'inicio' : 'sigue', $renglon, $nivel, $sangria, $negrita, $k === count($renglonesParrafo) - 1);
             }
         }
         //Un punto no se parte entre dos hojas: si no cabe en lo que queda, pasa completo a la siguiente.
@@ -729,14 +696,15 @@ class ReporteGerenciaPdf extends FPDF
         //Cuerpo
         foreach ($piezas as $pieza) {
             if ($pieza[0] === 'espacio') { $this->cy += 4; continue; }
-            list($tipo, $renglon, $nivel, $sangria, $negrita) = $pieza;
+            list($tipo, $renglon, $nivel, $sangria, $negrita, $ultimo) = $pieza;
             if ($this->cy + $alto > self::TOPE) { $this->espacio($alto + 10); }
             $yy = $this->cy;
             $this->relleno($color);
             $this->Rect($x + 4, $yy - 1, 2.2, $alto + 1, 'F'); //raya de color a la izquierda, a lo largo de todo el punto
             if ($tipo === 'inicio' && $nivel === 1) { $this->circulo($x + 20 + 3, $yy + 4.6, 1.8, $color); }
             if ($tipo === 'inicio' && $nivel === 2) { $this->relleno(self::GRIS); $this->Rect($x + 20 + 15, $yy + 4.2, 4, 0.9, 'F'); }
-            $this->escribir($x + 20 + $sangria, $yy, $renglon, $tam, $negrita ? 'B' : '', $nivel === 2 ? array(60, 60, 64) : self::NEGRO);
+            //Los párrafos largos (las novedades, los casos de la promesa) van justificados
+            $this->escribirJustificado($x + 20 + $sangria, $yy, $renglon, $ancho - 40 - $sangria, $tam, $negrita ? 'B' : '', $nivel === 2 ? array(60, 60, 64) : self::NEGRO, $ultimo);
             $this->cy += $alto;
         }
         $this->cy += 12;

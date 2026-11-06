@@ -6,7 +6,8 @@
   empieza en una hoja nueva con una franja de título (número, nombre y de qué
   trata) y su nombre queda en el encabezado de todas sus hojas:
     1 Resumen general   2 Requisiciones y novedades   3 Arqueos
-    4 Reporte diario de los coordinadores   5 Vacantes y oficios   6 Ausentismo
+    4 Reporte diario de los coordinadores   5 Vacantes y oficios
+  (el 6, Ausentismo, se retiró del sistema)
   Dentro de cada tema va primero el total por proyecto y después cada
   proyecto (una franja con su nombre) con sus peajes.
   Todo va en flujo: si algo no cabe en la hoja, sigue en la siguiente (las
@@ -479,7 +480,7 @@ class InformeMensualPdf extends FPDF
     private $seccionActual = ''; //el tema de la hoja, para el encabezado
     private $continua = '';      //el proyecto del que va la tabla, por si sigue en la hoja siguiente
     private $numSeccion = 0;
-    const SECCIONES = 6;
+    const SECCIONES = 5; //el ausentismo (antes el 6) se retiró: el encabezado decía «de 6» con solo 5 temas
 
     //Arma el informe en orden: resumen, requisiciones, arqueos, reporte diario, vacantes y oficios, y ausentismo
     public function armar()
@@ -573,7 +574,8 @@ class InformeMensualPdf extends FPDF
         ), 4, 70);
         $this->cy += 8;
 
-        //Lo más relevante: frases armadas con las cifras (cada una en los renglones que necesite)
+        //Lo más relevante: frases con lo que las tarjetas NO dicen (urgentes, plata de los arqueos, lo vencido,
+        //el coordinador más bajo). Antes repetía en frases las mismas cifras de las tarjetas
         $frases = array(); $alto = 12;
         foreach ($this->relevante($datos) as $fraseRelevante) { $renglonesFrase = $this->renglones($fraseRelevante[1], self::ANCHO - 34, 8); $frases[] = array($fraseRelevante[0], $renglonesFrase); $alto += 11 * count($renglonesFrase) + 2; }
         $this->seccion('Lo más relevante', '', min($alto, 200));
@@ -589,7 +591,8 @@ class InformeMensualPdf extends FPDF
         }
         $this->cy += $alto + 12;
 
-        //Comparativo por proyecto: una mirada rápida a todo
+        //Comparativo por proyecto: una mirada rápida a todo. No lleva fila de total: los totales son
+        //las tarjetas de arriba, en la misma hoja (antes salían dos veces)
         $this->seccion('Comparativo por proyecto', 'Lo registrado en el periodo. Vacantes y oficios: los que siguen abiertos hoy.');
         $columnas = array(array('Proyecto', 112, 'L'), array('RQ', 36, 'R'), array('Por aprobar', 46, 'R'), array('Novedades', 44, 'R'), array('Listas', 34, 'R'),
                       array('Arqueos', 38, 'R'), array('Con dif.', 36, 'R'), array('Vacantes', 40, 'R'), array('Oficios pend.', 50, 'R'),
@@ -602,9 +605,7 @@ class InformeMensualPdf extends FPDF
                              self::num($kpi['vacAb']), self::num($kpi['ofPend']),
                              array('texto' => $cumpleProyecto . ' %', 'color' => self::semaforo($cumpleProyecto), 'negrita' => true));
         }
-        $total = $numProyectos > 1 ? array('Total', self::num($totales['rq']), self::num($totales['rqPend']), self::num($totales['nov']), self::num($totales['listas']), self::num($totales['arq']),
-                                 self::num($totales['arqDif']), self::num($totales['vacAb']), self::num($totales['ofPend']), $cumple . ' %') : null;
-        $this->tabla($columnas, $filas, $total, 16);
+        $this->tabla($columnas, $filas, null, 16);
     }
 
     //-----------------------------------------------------------------------
@@ -627,7 +628,7 @@ class InformeMensualPdf extends FPDF
 
         $columnas[0][0] = 'Peaje o báscula';
         foreach ($proyectos as $proyecto) {
-            $this->bandaProyecto($proyecto, self::plural($proyecto['kpi']['rq'], 'RQ', 'RQ') . ' · ' . self::plural($proyecto['kpi']['nov'], 'novedad', 'novedades'));
+            $this->bandaProyecto($proyecto); //sus cifras ya están en la tabla del total por proyecto, arriba
             $filas = array();
             foreach ($proyecto['centros'] as $centro) { $filas[] = $fila(self::nomCentro($centro), isset($centro['kpi']) ? $centro['kpi'] : $this->datos['ceros']); }
             if (!count($filas)) { $this->cy = $this->vacio('Este proyecto no tiene peajes activos.') + 6; continue; }
@@ -674,7 +675,7 @@ class InformeMensualPdf extends FPDF
         $tipos = array('CAJA_MENOR' => 'Caja menor', 'RECAMBIO' => 'Recambio', 'CASETA' => 'Caseta');
         foreach ($proyectos as $proyecto) {
             $kpi = $proyecto['kpi'];
-            $this->bandaProyecto($proyecto, self::plural($kpi['arq'], 'arqueo', 'arqueos') . ($kpi['arqDif'] > 0 ? ', ' . self::num($kpi['arqDif']) . ' con diferencia' : ''));
+            $this->bandaProyecto($proyecto); //sus cifras ya están en la tabla del total por proyecto, arriba
             $filas = array();
             foreach ($proyecto['centros'] as $centro) { $filas[] = $fila(self::nomCentro($centro), isset($centro['kpi']) ? $centro['kpi'] : $this->datos['ceros']); }
             if (!count($filas)) { $this->cy = $this->vacio('Este proyecto no tiene peajes activos.') + 6; continue; }
@@ -708,29 +709,28 @@ class InformeMensualPdf extends FPDF
     {
         $periodo = $datos['periodo']; $proyectos = $datos['proyectos'];
         $this->nuevaSeccion('Reporte diario de los coordinadores', 'Hoy en qué estás, visitas del cronograma, listas de chequeo y vehículo, de los ' . self::dias($periodo['dias'])
-                            . ' del periodo. Primero la comparación entre coordinadores; después el detalle de cada uno.');
-        $columnas = array(array('Proyecto', 92, 'L'), array('Coordinador', 128, 'L'), array('Hoy en qué estás', 70, 'R'), array('Cumple', 44, 'R'),
-                      array('Visitas hechas', 62, 'R'), array('Listas', 38, 'R'), array('Arqueos', 42, 'R'), array('Sin vehículo', 56, 'R'));
+                            . ' del periodo. Primero la comparación entre coordinadores; después, de cada uno, los días que no registró y su vehículo.');
+        //Sin columna de arqueos: los arqueos tienen su propio tema (3), con su tabla por proyecto
+        $columnas = array(array('Proyecto', 104, 'L'), array('Coordinador', 158, 'L'), array('Hoy en qué estás', 72, 'R'), array('Cumple', 46, 'R'),
+                      array('Visitas hechas', 62, 'R'), array('Listas', 34, 'R'), array('Sin vehículo', 56, 'R'));
         $filas = array();
         foreach ($proyectos as $proyecto) {
             $reporte = $proyecto['reporte'];
             $filas[] = array($proyecto['NOM_PROYECTO'], $proyecto['COORDINADOR'] ? $proyecto['COORDINADOR'] : array('texto' => 'Sin asignar', 'color' => self::VINO),
                              $reporte['hoyDias'] . ' de ' . $reporte['dias'], array('texto' => $reporte['cumple'] . ' %', 'color' => self::semaforo($reporte['cumple']), 'negrita' => true),
                              $reporte['visProg'] > 0 ? $reporte['visReal'] . ' de ' . $reporte['visProg'] : '-',
-                             self::num($proyecto['kpi']['listas']), self::num($proyecto['kpi']['arq']),
+                             self::num($proyecto['kpi']['listas']),
                              $reporte['vehNo'] > 0 ? array('texto' => self::dias($reporte['vehNo']), 'color' => self::AMBAR, 'negrita' => true) : '0');
         }
         $this->tabla($columnas, $filas, null, 16);
         $this->cy += 16;
 
+        //El detalle de cada coordinador: solo lo que no está en la tabla de arriba (antes repetía ahí
+        //mismo sus días de «Hoy en qué estás», el %, las visitas, las listas y los arqueos)
         foreach ($proyectos as $proyecto) {
-            $kpi = $proyecto['kpi']; $reporte = $proyecto['reporte'];
-            $this->bandaProyecto($proyecto, $reporte['cumple'] . ' % de cumplimiento', 125); //el bloque del coordinador va entero en una hoja
+            $reporte = $proyecto['reporte'];
+            $this->bandaProyecto($proyecto, '', 60); //el bloque del coordinador va entero en una hoja
             $filas = array(
-                array('Hoy en qué estás', array('texto' => $reporte['hoyDias'] . ' de ' . self::dias($reporte['dias']) . ' (' . $reporte['cumple'] . ' %)', 'color' => self::semaforo($reporte['cumple']), 'negrita' => true)),
-                array('Visitas del cronograma', $reporte['visProg'] > 0 ? $reporte['visReal'] . ' hechas de ' . $reporte['visProg'] . ' planeadas' : 'Sin visitas planeadas'),
-                array('Listas de chequeo', self::plural($kpi['listas'], 'diligenciada', 'diligenciadas')),
-                array('Arqueos', self::plural($kpi['arq'], 'arqueo', 'arqueos') . ($kpi['arqDif'] > 0 ? ', ' . self::num($kpi['arqDif']) . ' con diferencia' : '')),
                 array('Vehículo', ($reporte['vehOk'] + $reporte['vehNo']) > 0 ? array('texto' => self::dias($reporte['vehOk']) . ' operativo, ' . self::dias($reporte['vehNo']) . ' sin operar', 'color' => $reporte['vehNo'] > 0 ? self::AMBAR : self::NEGRO, 'negrita' => $reporte['vehNo'] > 0) : 'Sin reporte del vehículo'),
                 array('Días sin "Hoy en qué estás"', count($reporte['sinHoy']) ? array('texto' => implode(', ', $reporte['sinHoy']), 'color' => self::VINO) : 'Ninguno: registró todos los días'),
             );
@@ -759,7 +759,7 @@ class InformeMensualPdf extends FPDF
 
         foreach ($proyectos as $proyecto) {
             $pendientes = $proyecto['pendientes'];
-            $this->bandaProyecto($proyecto, self::plural(count($pendientes['vacantes']), 'vacante abierta', 'vacantes abiertas') . ' · ' . self::plural(count($pendientes['oficios']), 'oficio sin atender', 'oficios sin atender'));
+            $this->bandaProyecto($proyecto); //cuántas vacantes y oficios siguen abiertos ya está en la tabla de arriba
             $filas = array();
             foreach ($pendientes['vacantes'] as $vacante) {
                 $fuera = (int)$vacante['FUERA'] === 1;
@@ -800,31 +800,27 @@ class InformeMensualPdf extends FPDF
         return (int)round($suma / $numProyectos);
     }
 
-    //Las frases de "Lo más relevante": array(color, texto)
+    //Las frases de "Lo más relevante": array(color, texto). Solo lo que no está en las tarjetas del resumen
+    //(las tarjetas ya dicen cuántas RQ, novedades, arqueos, vacantes y oficios hubo y cómo van)
     private function relevante($datos)
     {
         $totales = $datos['total']; $frases = array();
-        //Requisiciones
-        if ($totales['rq'] > 0) {
-            $frases[] = array(self::VINO, ($totales['rq'] === 1 ? 'Se pidió ' : 'Se pidieron ') . self::plural($totales['rq'], 'requisición', 'requisiciones')
-                         . ($totales['rqUrg'] > 0 ? ' (' . self::plural($totales['rqUrg'], 'urgente', 'urgentes') . ')' : '')
-                         . ': ' . self::plural($totales['rqAprob'], 'aprobada', 'aprobadas') . ', ' . self::plural($totales['rqRech'], 'rechazada', 'rechazadas') . ' y ' . self::num($totales['rqPend']) . ' por aprobar.');
-        } else { $frases[] = array(self::VINO, 'No se pidieron requisiciones en el periodo.'); }
-        //Arqueos
-        if ($totales['arq'] > 0) {
-            $frases[] = array(self::MENTA, $totales['arqDif'] > 0
-                ? 'De ' . self::plural($totales['arq'], 'arqueo', 'arqueos') . ', ' . ($totales['arqDif'] === 1 ? '1 no cuadró' : self::num($totales['arqDif']) . ' no cuadraron')
-                  . ': faltantes por ' . self::pesos($totales['arqFalt']) . ' y sobrantes por ' . self::pesos($totales['arqSobr']) . '.'
-                : ($totales['arq'] === 1 ? 'Se hizo 1 arqueo y cuadró.' : 'Se hicieron ' . self::num($totales['arq']) . ' arqueos y todos cuadraron.'));
-        } else { $frases[] = array(self::MENTA, 'No se registraron arqueos en el periodo.'); }
-        //Vacantes
-        $frases[] = array(self::AMBAR, $totales['vacAb'] > 0
-            ? 'Hay ' . self::plural($totales['vacAb'], 'vacante abierta', 'vacantes abiertas') . '; ' . ($totales['vacFuera'] === 1 ? '1 ya pasó' : self::num($totales['vacFuera']) . ' ya pasaron') . ' la fecha del acuerdo de servicio.'
-            : 'No hay vacantes abiertas.');
-        //Oficios
-        $frases[] = array(self::AMBAR, $totales['ofPend'] > 0
-            ? 'Hay ' . self::plural($totales['ofPend'], 'oficio sin atender', 'oficios sin atender') . '; ' . ($totales['ofVenc'] === 1 ? '1 lleva' : self::num($totales['ofVenc']) . ' llevan') . ' más de ' . self::dias($datos['plazoOficio']) . '.'
-            : 'Todos los oficios y comunicaciones están atendidos.');
+        //Requisiciones urgentes (la tarjeta no las separa)
+        if ($totales['rqUrg'] > 0) {
+            $frases[] = array(self::VINO, $totales['rqUrg'] === 1 ? '1 de las requisiciones fue urgente (RQ U).' : self::num($totales['rqUrg']) . ' de las requisiciones fueron urgentes (RQ U).');
+        }
+        //Arqueos que no cuadraron: cuánta plata (la tarjeta solo dice cuántos)
+        if ($totales['arqDif'] > 0) {
+            $frases[] = array(self::MENTA, 'Los arqueos que no cuadraron suman faltantes por ' . self::pesos($totales['arqFalt']) . ' y sobrantes por ' . self::pesos($totales['arqSobr']) . '.');
+        }
+        //Vacantes que ya pasaron el acuerdo de servicio
+        if ($totales['vacFuera'] > 0) {
+            $frases[] = array(self::AMBAR, ($totales['vacFuera'] === 1 ? '1 vacante abierta ya pasó' : self::num($totales['vacFuera']) . ' vacantes abiertas ya pasaron') . ' la fecha del acuerdo de servicio.');
+        }
+        //Oficios vencidos
+        if ($totales['ofVenc'] > 0) {
+            $frases[] = array(self::AMBAR, ($totales['ofVenc'] === 1 ? '1 oficio sin atender lleva' : self::num($totales['ofVenc']) . ' oficios sin atender llevan') . ' más de ' . self::dias($datos['plazoOficio']) . '.');
+        }
         //El ausentismo se retiró: ya no hay frase de ausencias en el resumen.
         //Reporte diario: el coordinador que menos reportó
         if (count($datos['proyectos']) > 1) {
@@ -833,6 +829,7 @@ class InformeMensualPdf extends FPDF
             $frases[] = array(self::semaforo($menor['reporte']['cumple']), 'Reporte diario: el cumplimiento más bajo de "Hoy en qué estás" fue el de ' . $menor['NOM_PROYECTO']
                          . ' (' . $menor['reporte']['cumple'] . ' %, ' . $menor['reporte']['hoyDias'] . ' de ' . self::dias($menor['reporte']['dias']) . ').');
         }
+        if (!count($frases)) { $frases[] = array(self::MENTA, 'Sin alertas: no hubo RQ urgentes, todos los arqueos cuadraron y no hay vacantes ni oficios fuera de plazo.'); }
         return $frases;
     }
 

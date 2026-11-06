@@ -103,7 +103,6 @@ $rol = $filaRol ? html_entity_decode((string)$filaRol['ROL'], ENT_QUOTES, 'UTF-8
 $reporte = array(
     'fecha'      => $fecha,
     'fechaLarga' => ReporteGerencia::fechaLarga($fecha),
-    'lunes'      => ReporteGerencia::lunesDe($fecha),
     'puntos'     => $puntos,
     'proyectos'  => $lista,
     'origen'     => $enviado !== null ? 'pantalla' : ($guardado ? 'guardado' : 'sistema'),

@@ -91,11 +91,10 @@ if (isset($_SESSION['IdUsuarios'])) {
           <h4 class="rd-subtitulo">Qué trae</h4>
           <div class="inf-contenido">
             <div><strong><i class="fa fa-globe"></i> Resumen general</strong>
-              <span>Las cifras del periodo, lo más relevante, el comparativo por proyecto, el ausentismo, requisiciones y novedades,
-                arqueos, vacantes y oficios, el reporte diario de los coordinadores y lo que sigue pendiente.</span></div>
-            <div><strong><i class="fa fa-road"></i> Una hoja por proyecto</strong>
-              <span>Sus cifras, el detalle peaje por peaje, el ausentismo por motivo, cómo le fue al coordinador con su reporte diario,
-                lo pendiente por atender y los arqueos que no cuadraron.</span></div>
+              <span>Las cifras del periodo, las alertas (RQ urgentes, arqueos que no cuadraron, lo vencido) y el comparativo por proyecto.</span></div>
+            <div><strong><i class="fa fa-road"></i> Un tema por hoja</strong>
+              <span>Requisiciones y novedades, arqueos, reporte diario de los coordinadores, y vacantes y oficios: primero el total
+                por proyecto y después cada proyecto, peaje por peaje, con lo que sigue pendiente.</span></div>
           </div>
 <?php } ?>
         </div>
