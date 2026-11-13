@@ -236,6 +236,36 @@ class Arqueo
     //así cada línea que se guarda apunta a su concepto y lleva el nombre que tiene hoy
     public function conceptosFijos($tipo)
     {
+        $conceptos = $this->leerConceptosFijos($tipo);
+
+        //Si falta alguno de los conceptos que el arqueo necesita, se crea aquí con su nombre de fábrica
+        //(el administrador después lo puede renombrar en Parámetros del sistema → Listas). Así una base
+        //nueva, o a la que le falten filas, no impide guardar. INSERT IGNORE: el par (TIPO_ARQUEO, CODIGO)
+        //es único, y si dos personas guardan a la vez, uno solo se crea
+        $necesarios = array();
+        foreach ((array)(isset(self::$EFECTIVO[$tipo]) ? self::$EFECTIVO[$tipo] : array()) as $codigo => $nombre) {
+            if ($codigo !== 'EFECTIVO') { $necesarios[$codigo] = $nombre; } //EFECTIVO no es línea: va en BILLETES_MONEDAS
+        }
+        if ($tipo === 'CAJA_MENOR') {
+            foreach (self::$DOCUMENTOS_ACTIVOS as $codigo => $nombre) { $necesarios[$codigo] = $nombre; }
+        }
+        $orden = array('FACTURA' => 1, 'REINTEGRO' => 2, 'RECIBO_CAJA' => 3, 'FALTANTE' => 4);
+        $posicion = 0;
+        $creado = false;
+        foreach ($necesarios as $codigo => $nombre) {
+            $posicion++;
+            if (isset($conceptos[$codigo])) { continue; }
+            $lugar = ($tipo === 'CAJA_MENOR' && isset($orden[$codigo])) ? $orden[$codigo] : $posicion;
+            HanaDB::q("INSERT IGNORE INTO arqueo_concepto (TIPO_ARQUEO, CODIGO, ID_CENTRO_OP, NOMBRE, ROL, ORDEN, ESTADO)
+                       VALUES (?, ?, NULL, ?, 'SUMA', ?, 1)", 'sssi', array($tipo, $codigo, $nombre, $lugar));
+            error_log('HANA - arqueo: se creó el concepto ' . $tipo . '/' . $codigo . ' que faltaba en arqueo_concepto');
+            $creado = true;
+        }
+        return $creado ? $this->leerConceptosFijos($tipo) : $conceptos;
+    }
+
+    private function leerConceptosFijos($tipo)
+    {
         $conceptos = array();
         foreach ((array)HanaDB::q("SELECT ID_CONCEPTO, CODIGO, NOMBRE, ROL FROM arqueo_concepto
                                     WHERE TIPO_ARQUEO = ? AND CODIGO IS NOT NULL", 's', array($tipo)) as $concepto) {
