@@ -5,19 +5,18 @@
   Lo usa Vista/ReporteGerenciaPdfVista.php. Revisa la sesión, la casilla 61M
   (o 24M) y que el módulo esté encendido, y deja en $reporte todo lo que el PDF
   necesita:
-    - fecha, fechaLarga y los puntos del reporte (títulos en su orden);
-    - por proyecto: su nombre, el texto de cada punto y sus cifras. Las cifras
-      (vehículos operativos, porcentaje de la promesa, oficios, temas, novedades)
-      se LEEN DE LOS TEXTOS tal como quedaron (ReporteGerencia::cifrasDeTextos):
-      si la dirección corrigió un número, el PDF muestra el número corregido.
-      La base se consulta para proponer el texto cuando no hay nada guardado y,
-      en la promesa de valor, para saber qué renglón se corrigió;
+    - fecha, desde, la fecha y el título del informe;
+    - el reporte con su estructura (encabezado, resultados, prioritarias,
+      proyectos, transversal y compromisos), los nombres de los proyectos;
+    - las cifras de la promesa de valor: el porcentaje y los peajes que cumplen se
+      LEEN DEL TEXTO de los resultados tal como quedó (si la dirección lo corrigió,
+      el PDF muestra lo corregido); la gráfica por proyecto sale de la base;
     - cómo quedó el texto: 'guardado' (quién y cuándo), 'pantalla' (lo que se
       estaba editando, sin guardar) o 'sistema' (lo que propone el sistema).
 
   Dos formas de pedirlo:
     GET  ?fecha=AAAA-MM-DD[&desde=AAAA-MM-DD]  lo guardado de ese día o periodo, o lo que propone el sistema
-    POST reporte={fecha, desde, textos, otros}  lo que está en la pantalla en ese momento (el mismo
+    POST reporte={fecha, desde, encabezado, ...}  lo que está en la pantalla en ese momento (el mismo
                                      formato de «Guardar»): sale tal cual, sin guardarlo
   Solo salen los proyectos de los peajes asignados a la persona.
 */
@@ -56,7 +55,7 @@ $conNovedades = hanaTienePermiso('16M') || hanaTienePermiso('24M');
 $enviado = null;
 if (isset($_POST['reporte'])) {
     $enviado = json_decode((string)$_POST['reporte'], true);
-    if (!is_array($enviado) || !isset($enviado['textos']) || !is_array($enviado['textos'])) { gerPdfError(400, 'No llegó el reporte. Recarga la página e intenta de nuevo.'); }
+    if (!is_array($enviado) || !isset($enviado['resultados'])) { gerPdfError(400, 'No llegó el reporte. Recarga la página e intenta de nuevo.'); }
     $fecha = HanaVal::fecha(isset($enviado['fecha']) ? $enviado['fecha'] : '');
     $desde = HanaVal::fecha(isset($enviado['desde']) ? (string)$enviado['desde'] : '');
 } else {
@@ -68,60 +67,43 @@ if ($fecha === '' || $fecha > $hoy || $fecha < '2020-01-01') { gerPdfError(400, 
 if ($desde === '' || $desde >= $fecha) { $desde = $fecha; }
 if ((strtotime($fecha) - strtotime($desde)) / 86400 + 1 > 31) { gerPdfError(400, 'El reporte puede cubrir hasta 31 días. Acorta el rango.'); }
 
-//Los puntos: los de la lista de hoy, más los que traiga lo guardado ese día y ya no estén en la lista
-$puntos = ReporteGerencia::puntos();
 $guardado = ReporteGerencia::guardado($fecha, $desde);
-if ($guardado && isset($guardado['datos']['puntos']) && is_array($guardado['datos']['puntos'])) {
-    foreach ($guardado['datos']['puntos'] as $codigo => $titulo) { if (!isset($puntos[$codigo])) { $puntos[$codigo] = (string)$titulo; } }
-}
-
-//Lo que propone el sistema con los datos de la base: llena los proyectos que no tengan texto guardado (si no llegó
-//el de la pantalla) y sirve para saber qué corrigió la persona en la promesa de valor (ver ReporteGerencia::leerPromesa)
+//Lo que propone el sistema con los datos de la base: es el reporte cuando no hay nada guardado (ni llegó
+//el de la pantalla), y de ahí salen las cifras que el texto no diga y la gráfica de la promesa por proyecto
 $base = ReporteGerencia::calcular($proyectos, $centros, $fecha, $conNovedades, $desde);
-$sistema = ReporteGerencia::textos($base, $fecha, $desde);
-$lista = array();
-foreach ($proyectos as $idProyecto => $nombre) {
-    $textosGuardados = $guardado && isset($guardado['datos']['proyectos'][$idProyecto]['textos']) ? $guardado['datos']['proyectos'][$idProyecto]['textos'] : null;
-    $textos = array();
-    foreach ($puntos as $codigo => $titulo) {
-        if ($enviado !== null) {
-            $valor = isset($enviado['textos'][$idProyecto][$codigo]) ? (string)$enviado['textos'][$idProyecto][$codigo] : '';
-        } elseif (is_array($textosGuardados)) {
-            $valor = isset($textosGuardados[$codigo]) ? (string)$textosGuardados[$codigo] : '';
-        } else {
-            $valor = isset($sistema[$idProyecto][$codigo]) ? $sistema[$idProyecto][$codigo] : '';
-        }
-        $valor = trim(str_replace("\r\n", "\n", $valor));
-        if (mb_strlen($valor, 'UTF-8') > ReporteGerencia::LARGO_PUNTO) { $valor = mb_substr($valor, 0, ReporteGerencia::LARGO_PUNTO, 'UTF-8'); }
-        $textos[$codigo] = $valor;
-    }
-    $lista[] = array('id' => $idProyecto, 'nombre' => $nombre, 'textos' => $textos);
-}
-//Las cifras del PDF salen de los textos de arriba, no de la base
-$cifras = ReporteGerencia::cifrasDeTextos(array_column($lista, 'textos', 'id'), $sistema, $base);
-foreach ($lista as $i => $p) { $lista[$i]['cifras'] = $cifras[$p['id']]; }
+if ($enviado !== null) { $contenido = ReporteGerencia::normalizar($enviado, $proyectos); }
+elseif ($guardado) { $contenido = ReporteGerencia::deGuardado($guardado['datos'], $proyectos); }
+else { $contenido = ReporteGerencia::normalizar(ReporteGerencia::propuesta($proyectos, $centros, $fecha, $conNovedades, $desde) + array('encabezado' => ReporteGerencia::ultimoEncabezado()), $proyectos); }
 
-//Notas adicionales (sección final, de texto libre): lo de la pantalla, o lo guardado ese día
-if ($enviado !== null) { $otros = isset($enviado['otros']) ? (string)$enviado['otros'] : ''; }
-else { $otros = $guardado && isset($guardado['datos']['otros']) ? (string)$guardado['datos']['otros'] : ''; }
-$otros = trim(str_replace("\r\n", "\n", $otros));
-if (mb_strlen($otros, 'UTF-8') > ReporteGerencia::LARGO_PUNTO) { $otros = mb_substr($otros, 0, ReporteGerencia::LARGO_PUNTO, 'UTF-8'); }
+//Las cifras de la promesa: las del texto de los resultados (o de la base, si el texto no las dice)
+$promesa = ReporteGerencia::cifrasResultados($contenido['resultados'], ReporteGerencia::totalesPromesa($base));
+//La promesa de cada proyecto para la gráfica: [nombre, porcentaje o null, nota, rótulo («87,5 % · 1 de 2 peajes»)]
+$porProyecto = array();
+foreach ($proyectos as $idProyecto => $nombre) {
+    $totales = ReporteGerencia::totalesPromesa(array($base[$idProyecto]));
+    if (!$totales['hay']) { $rotulo = 'Sin promesa'; }
+    elseif (!$totales['peajes']) { $rotulo = 'Pendiente'; }
+    else { $rotulo = ReporteGerencia::porcentaje($totales['ejecutadas'], $totales['prometidas']) . ' · ' . $totales['cumplen'] . ' de ' . $totales['peajes'] . ($totales['peajes'] === 1 ? ' peaje' : ' peajes'); }
+    $porProyecto[] = array($nombre, $totales['pct'], '', $rotulo);
+}
 
 //Quién lo genera: la persona que lo descarga
 $quien = isset($_SESSION['Nombre']) ? html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8') : '';
 $filaRol = HanaDB::fila("SELECT NOM_ROL_USUARIO_SISTEMA AS ROL FROM rol_usuarios_sistemas WHERE ID_ROL_USUARIO_SISTEMA = ?", 'i', array(hanaIdRol()));
 $rol = $filaRol ? html_entity_decode((string)$filaRol['ROL'], ENT_QUOTES, 'UTF-8') : '';
 $reporte = array(
-    'fecha'      => $fecha,
-    'desde'      => $desde,          //igual a fecha cuando es un solo día
-    'esRango'    => $desde < $fecha,
-    'fechaLarga' => ReporteGerencia::periodoLargo($desde, $fecha), //"jueves, 29 de octubre de 2026" o "del lunes 26 al jueves 29 de octubre de 2026"
-    'puntos'     => $puntos,
-    'proyectos'  => $lista,
-    'otros'      => $otros,
-    'tituloOtros' => ReporteGerencia::TITULO_OTROS,
-    'origen'     => $enviado !== null ? 'pantalla' : ($guardado ? 'guardado' : 'sistema'),
-    'guardado'   => $guardado ? array('quien' => (string)$guardado['quien'], 'fecha' => $guardado['fecha']) : null,
-    'plazoOficios' => max(0, HanaConfig::num('COMUNICACION_DIAS_RESPUESTA', 2)),
-    'conNovedades' => $conNovedades,
+    'fecha'        => $fecha,
+    'desde'        => $desde,          //igual a fecha cuando es un solo día
+    'esRango'      => $desde < $fecha,
+    'fechaLarga'   => ReporteGerencia::periodoLargo($desde, $fecha), //"jueves, 29 de octubre de 2026" o "del lunes 26 al jueves 29 de octubre de 2026"
+    'fechaInforme' => ReporteGerencia::fechaInforme($desde, $fecha),
+    'titulo'       => ReporteGerencia::tituloInforme($desde, $fecha),
+    'tituloPromesa' => ReporteGerencia::tituloPromesa($desde, $fecha),
+    'secciones'    => ReporteGerencia::SECCIONES,
+    'nombres'      => $proyectos,
+    'contenido'    => $contenido,
+    'promesa'      => $promesa,
+    'promesaProyectos' => $porProyecto,
+    'origen'       => $enviado !== null ? 'pantalla' : ($guardado ? 'guardado' : 'sistema'),
+    'guardado'     => $guardado ? array('quien' => (string)$guardado['quien'], 'fecha' => $guardado['fecha']) : null,
 );

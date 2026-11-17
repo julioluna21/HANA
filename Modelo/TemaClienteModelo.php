@@ -176,7 +176,7 @@ class TemaCliente
         $desde = ($desde !== null && $desde < $fecha) ? $desde : $fecha;
         $marcas = implode(',', array_fill(0, count($idsProyectos), '?'));
         $manana = date('Y-m-d', strtotime("$fecha +1 day"));
-        $filas = HanaDB::q("SELECT m.ID_COMUNICACION, m.ID_PROYECTO, m.ASUNTO, m.REMITENTE, m.FECHA_RECEPCION, m.FECHA_ATENCION, c.NOM_CENTRO_OP,
+        $filas = HanaDB::q("SELECT m.ID_COMUNICACION, m.ID_PROYECTO, m.ASUNTO, m.REMITENTE, m.FECHA_RECEPCION, m.FECHA_ATENCION, c.NOM_CENTRO_OP, m.MEDIO AS CLASE,
                                    IF(m.RADICADO = 'REGENCY', 'REGENCY', 'CLIENTE') AS CON,
                                    (SELECT h.TEXTO FROM historial h
                                      WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.FECHA >= ? AND h.FECHA < ?

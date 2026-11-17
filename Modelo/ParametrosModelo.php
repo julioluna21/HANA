@@ -102,7 +102,7 @@ class Parametros
     //de HanaConfig::LISTAS (fija en el código, nunca viene de la pantalla)
     public function usosLista($columna)
     {
-        //Una lista que no se guarda en ninguna columna (por ejemplo, los puntos del reporte a la Gerencia)
+        //Una lista que no se guarda en ninguna columna
         if ($columna === '' || strpos($columna, '.') === false) { return array(); }
         $partes = explode('.', $columna);
         $tabla = $partes[0]; $campo = $partes[1];

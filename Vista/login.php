@@ -56,6 +56,15 @@ if (!isset($_SESSION["IdUsuarios"])){
     @media (max-width: 767px){
       .login_content .form-control{ font-size: 16px; height: 42px; }
     }
+    /* El ojito para ver la contraseña: va dentro del campo, a la derecha */
+    .login-clave{ position: relative; }
+    .login-clave .form-control{ padding-right: 42px; }
+    .login-ojo{
+      position: absolute; top: 0; right: 0; width: 40px; height: 34px;
+      border: 0; background: transparent; color: #777; cursor: pointer; padding: 0;
+    }
+    .login-ojo:hover, .login-ojo:focus{ color: #6E1A1E; outline: none; }
+    @media (max-width: 767px){ .login-ojo{ height: 42px; } }
   </style>
 </head>
 <style>
@@ -82,8 +91,11 @@ if (!isset($_SESSION["IdUsuarios"])){
               <div>
                 <input type="text" id="LoginUsuarios" name="LoginUsuarios" autofocus="autofocus" class="form-control" placeholder="Usuario" required="" />
               </div>
-              <div>
+              <div class="login-clave">
                 <input type="password" id="ClaveUsuarios" name="ClaveUsuarios" class="form-control" placeholder="Contraseña" required="" />
+                <button type="button" class="login-ojo" id="verClave" title="Ver contraseña" aria-label="Ver contraseña" aria-pressed="false">
+                  <i class="fa fa-eye" aria-hidden="true"></i>
+                </button>
               </div>
               <div>
                 <button class="btn btn-dark submit" type="submit" >Iniciar Sesión</button>
@@ -157,6 +169,16 @@ if (!isset($_SESSION["IdUsuarios"])){
     <!-- librería alertas con estilo-->
      <!-- Bootbox -->
     <script src="../public/js/bootbox.min.js"></script>
+  <script>
+    //El ojito: muestra u oculta lo que se escribió en la contraseña, sin perder el cursor
+    $('#verClave').on('click', function () {
+      var campo = $('#ClaveUsuarios'), mostrar = campo.attr('type') === 'password';
+      campo.attr('type', mostrar ? 'text' : 'password');
+      $(this).attr({ title: mostrar ? 'Ocultar contraseña' : 'Ver contraseña', 'aria-label': mostrar ? 'Ocultar contraseña' : 'Ver contraseña', 'aria-pressed': mostrar })
+             .find('i').toggleClass('fa-eye', !mostrar).toggleClass('fa-eye-slash', mostrar);
+      campo.focus();
+    });
+  </script>
 </html>
 <?php }else{
     echo "<script> 

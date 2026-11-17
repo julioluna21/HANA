@@ -1,8 +1,9 @@
 <?php
-//Consultas - Reporte a la Gerencia
-//La dirección lo arma por proyecto, con lo que llenan los coordinadores: disponibilidad de
-//flota, promesa de valor, oficios en gestión y novedades. Es de un día o de un rango de días
-//(desde - hasta, máximo 31). Lo propone el sistema; se corrige a mano y se guarda por periodo
+//Consultas - Reporte a la Gerencia (Informe de gestión de la Dirección Operativa P&B)
+//Con la estructura del informe: encabezado, 1. Resultados de la operación, 2. Gestiones prioritarias
+//y compromisos con clientes, 3. Avances por proyecto, 4. Talento humano y SST, 5. Compromisos y firma.
+//Es de un día o de un rango de días (desde - hasta, máximo 31). Lo propone el sistema con lo que
+//registran los coordinadores; se corrige, se agrega o se quita a mano y se guarda por periodo
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -36,19 +37,33 @@ if (isset($_SESSION['IdUsuarios'])) {
   .ger-dias-mes a:hover { border-color: #6E1A1E; text-decoration: none; }
   .ger-dias-mes a.actual { background: #6E1A1E; color: #fff; border-color: #6E1A1E; }
   .ger-dias-mes .vacio { color: #999; font-style: italic; }
-  .ger-proyecto { border: 1px solid #e3e6ea; border-radius: 6px; padding: 12px 14px 4px; margin-top: 16px; background: #fff; }
-  .ger-proyecto h3 { font-size: 17px; margin: 0 0 10px; color: #6E1A1E; font-weight: 600; }
-  /* Notas adicionales: al final, para todo el reporte (no son de un proyecto) */
-  .ger-otros { border: 1px dashed #D99C2B; border-radius: 6px; padding: 12px 14px 10px; margin-top: 16px; background: #fffaf0; }
-  .ger-otros h3 { font-size: 17px; margin: 0 0 4px; color: #6E1A1E; font-weight: 600; }
-  .ger-otros .rd-ayuda { margin: 0 0 8px; }
-  .ger-otros textarea { resize: vertical; min-height: 70px; line-height: 1.45; }
-  .ger-punto { margin-bottom: 12px; }
-  .ger-punto-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-  .ger-punto-cab label { margin-bottom: 3px; }
+  /* Cada sección del informe, en un recuadro con su número */
+  .ger-seccion { border: 1px solid #e3e6ea; border-radius: 6px; padding: 12px 14px 8px; margin-top: 16px; background: #fff; }
+  .ger-seccion .ger-sec-cab h3 { font-size: 15px; margin: 0 0 4px; color: #6E1A1E; font-weight: 700; letter-spacing: .2px; }
+  .ger-seccion .rd-ayuda { margin: 0 0 8px; }
+  .ger-sec-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .ger-subtitulo { font-weight: 600; margin: 4px 0 6px; color: #1A1A1A; }
   .ger-traer { font-size: 12px; white-space: nowrap; cursor: pointer; }
-  .ger-punto textarea { resize: vertical; min-height: 54px; line-height: 1.45; }
-  .ger-punto textarea.cambiado { border-left: 3px solid #f0ad4e; }
+  .ger-seccion textarea { resize: vertical; min-height: 54px; line-height: 1.45; }
+  /* Encabezado: destinatario, presentación y firma */
+  .ger-encabezado .row > div { margin-bottom: 8px; }
+  .ger-encabezado label { margin-bottom: 2px; font-weight: 600; font-size: 12px; }
+  .ger-fecha-informe { font-weight: 700; color: #1A1A1A; }
+  .ger-titulo-informe { font-weight: 700; color: #6E1A1E; margin-bottom: 8px; }
+  /* Un apartado: proyecto, título, texto y botones para moverlo o quitarlo */
+  .ger-apartado { border-left: 3px solid #e6dcd8; padding: 6px 0 6px 10px; margin-bottom: 10px; }
+  .ger-apartado-cab { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+  .ger-apartado-cab select { width: auto; max-width: 170px; }
+  .ger-apartado-cab input { flex: 1; font-weight: 600; }
+  .ger-mover .btn { padding: 4px 7px; }
+  .ger-proyecto { border: 1px solid #efe7e4; border-radius: 6px; padding: 8px 10px 4px; margin: 8px 0 10px; background: #fdfbfa; }
+  .ger-proyecto h4 { font-size: 13px; margin: 0 0 8px; padding: 4px 10px; border-radius: 4px; background: #6E1A1E; color: #fff; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+  .ger-proyecto h4 .ger-traer { color: #f3dede; }
+  .ger-vacio { color: #888; font-style: italic; margin: 2px 0 8px; }
+  .ger-agregar { margin: 2px 0 6px; }
+  .ger-compromisos td { vertical-align: middle !important; }
+  .ger-compromisos td:last-child { width: 1%; white-space: nowrap; }
+  .ger-compromisos .ger-fecha-col { width: 200px; }
   #gerImpresion { display: none; }
   @media print {
     #gerImpresion { display: block; font-size: 12px; color: #000; }
@@ -57,6 +72,8 @@ if (isset($_SESSION['IdUsuarios'])) {
     #gerImpresion h2 { font-weight: bold; font-size: 15px; margin: 14px 0 6px; border-bottom: 1px solid #999; padding-bottom: 2px; break-after: avoid; page-break-after: avoid; }
     #gerImpresion h4 { font-weight: bold; font-size: 13px; margin: 8px 0 2px; break-after: avoid; page-break-after: avoid; }
     #gerImpresion p { margin: 0 0 4px; white-space: pre-wrap; }
+    #gerImpresion table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    #gerImpresion th, #gerImpresion td { border: 1px solid #999; padding: 3px 6px; text-align: left; }
   }
 </style>
 
@@ -86,9 +103,9 @@ if (isset($_SESSION['IdUsuarios'])) {
               </div>
             </div>
             <div class="ger-botones">
-              <button type="button" class="btn btn-default" id="btnTraerTodo" title="Vuelve a llenar todos los puntos con lo que hay hoy en el sistema"><i class="fa fa-refresh"></i> Traer todo otra vez</button>
+              <button type="button" class="btn btn-default" id="btnTraerTodo" title="Vuelve a llenar todas las secciones con lo que hay en el sistema"><i class="fa fa-refresh"></i> Traer todo otra vez</button>
               <button type="button" class="btn btn-default" id="btnCopiar" title="Copia el reporte como texto, para pegarlo en un correo o en WhatsApp"><i class="fa fa-clipboard"></i> Copiar texto</button>
-              <button type="button" class="btn btn-primary" id="btnPdf" title="El reporte en PDF, con colores, porcentajes y gráficas, listo para enviar a la Gerencia. Las cifras salen de lo que está escrito en cada punto."><i class="fa fa-file-pdf-o"></i> PDF para la Gerencia</button>
+              <button type="button" class="btn btn-primary" id="btnPdf" title="El informe en PDF, listo para enviar a la Gerencia. La cifra de la promesa sale de lo que dice el texto de los resultados."><i class="fa fa-file-pdf-o"></i> PDF para la Gerencia</button>
               <button type="button" class="btn btn-success" id="btnGuardar"><i class="fa fa-save"></i> Guardar</button>
             </div>
           </div>
@@ -98,8 +115,8 @@ if (isset($_SESSION['IdUsuarios'])) {
             <select id="gMes" class="form-control"></select>
             <span class="ger-dias-mes" id="gDiasMes"></span>
           </div>
-          <p class="rd-ayuda" style="margin-top:8px;">Los puntos se llenan solos con lo que registran los coordinadores (vehículos, promesa de valor, comunicaciones y temas con el cliente). Corrige lo que haga falta y guarda: queda guardado para ese día o ese periodo. «Traer del sistema» vuelve a llenar solo ese punto.</p>
-          <div id="gProyectos"></div>
+          <p class="rd-ayuda" style="margin-top:8px;">Cada sección se llena sola con lo que registran los coordinadores (promesa de valor, temas con el cliente y con Regency, oficios, novedades, vacantes y cronograma). Corrige, agrega o quita lo que haga falta y guarda: queda guardado para ese día o ese periodo. «Traer del sistema» vuelve a llenar solo esa sección.</p>
+          <div id="gInforme"></div>
           <div class="ln_solid"></div>
           <div class="rd-acciones"><button type="button" class="btn btn-success" id="btnGuardar2"><i class="fa fa-save"></i> Guardar</button></div>
         </div>
@@ -112,7 +129,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=6"></script>
+<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=7"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

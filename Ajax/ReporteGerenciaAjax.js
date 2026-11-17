@@ -1,4 +1,7 @@
 //Consultas - Reporte a la Gerencia (de un día o de un rango de días, hasta 31)
+//Con la estructura del informe: encabezado, 1. Resultados, 2. Gestiones prioritarias y compromisos
+//con clientes, 3. Avances por proyecto, 4. Talento humano y SST, 5. Compromisos y la firma.
+//Cada sección la propone el sistema (repG.sistema) y se corrige, se agrega o se quita a mano
 var URL_GER = '../Control/ReporteGerenciaControl.php';
 var cfgG = null, repG = null;
 var GER_MAX_DIAS = 31;
@@ -41,17 +44,25 @@ $(function () {
     });
     $('#btnGuardar, #btnGuardar2').on('click', guardar);
     $('#btnTraerTodo').on('click', function () {
-        hanaConfirmar('¿Volver a llenar todos los puntos con lo que hay en el sistema? Se reemplaza lo que escribiste (lo guardado no cambia hasta que guardes).', function () {
-            $('#gProyectos textarea').each(function () { traerPunto($(this)); });
+        hanaConfirmar('¿Volver a llenar todas las secciones con lo que hay en el sistema? Se reemplaza lo que escribiste (lo guardado no cambia hasta que guardes). El encabezado y la firma no cambian.', function () {
+            pintarInforme($.extend({}, repG.sistema, { encabezado: leerReporte().encabezado }));
+            rdHayCambios = true;
         }, { aceptar: 'Sí, traer todo', cancelar: 'No' });
     });
     $('#btnCopiar').on('click', copiar);
     $('#btnPdf').on('click', abrirPdf);
     window.addEventListener('beforeprint', armarImpresion);
-    $(document).on('click', '.ger-traer', function () { traerPunto($(this).closest('.ger-punto').find('textarea')); });
+    $(document).on('click', '.ger-traer', function () { traerSeccion($(this).data('seccion'), $(this).data('proyecto')); });
+    $(document).on('click', '.ger-agregar', function () { agregarApartado($(this)); });
+    $(document).on('click', '.ger-quitar', function () { $(this).closest('.ger-apartado, tr').remove(); rdHayCambios = true; });
+    $(document).on('click', '.ger-subir, .ger-bajar', function () {
+        var fila = $(this).closest('.ger-apartado, tr');
+        if ($(this).hasClass('ger-subir')) { fila.prev('.ger-apartado, tr').before(fila); } else { fila.next('.ger-apartado, tr').after(fila); }
+        rdHayCambios = true;
+    });
     $(document).on('click', '.ger-dias-mes a', function (evento) { evento.preventDefault(); cambiarDia($(this).data('dia'), $(this).data('desde')); });
     $('#gMes').on('change', function () { verMes(this.value); });
-    $(document).on('input', '#gProyectos textarea', function () { rdHayCambios = true; ajustarAlto(this); marcarCambio($(this)); });
+    $(document).on('input change', '#gInforme input, #gInforme textarea, #gInforme select', function () { rdHayCambios = true; if (this.tagName === 'TEXTAREA') { ajustarAlto(this); } });
     window.addEventListener('beforeunload', function (evento) { if (rdHayCambios) { evento.preventDefault(); evento.returnValue = ''; } });
 });
 
@@ -76,35 +87,7 @@ function abrirDia(dia, desde) {
             repG = reporte; rdHayCambios = false;
             $('#gDesde').val(reporte.desde); $('#gFecha').val(reporte.fecha);
             $('#btnDespues').prop('disabled', reporte.fecha >= cfgG.hoy);
-            var html = '';
-            reporte.proyectos.forEach(function (proyecto) {
-                html += '<div class="ger-proyecto" data-proyecto="' + parseInt(proyecto.id, 10) + '"><h3>' + rdEsc(proyecto.nombre) + '</h3>';
-                var numero = 0;
-                $.each(reporte.puntos, function (codigo, titulo) {
-                    numero++;
-                    var automatico = cfgG.automaticos.indexOf(codigo) >= 0, id = 'p' + proyecto.id + '_' + codigo;
-                    html += '<div class="ger-punto"><div class="ger-punto-cab"><label for="' + rdEsc(id) + '">' + numero + '. ' + rdEsc(titulo) + '</label>' +
-                            (automatico ? '<a class="ger-traer" title="Vuelve a llenar este punto con lo que hay en el sistema"><i class="fa fa-refresh"></i> Traer del sistema</a>' : '') + '</div>' +
-                            '<textarea class="form-control" id="' + rdEsc(id) + '" data-codigo="' + rdEsc(codigo) + '" rows="2" maxlength="4000"></textarea></div>';
-                });
-                html += '</div>';
-            });
-            //Al final, las notas adicionales: texto libre de todo el reporte (no son de un proyecto)
-            html = (html || '<p class="rd-vacio">No tienes proyectos asignados.</p>') +
-                '<div class="ger-otros"><h3>' + rdEsc(reporte.tituloOtros) + '</h3>' +
-                '<p class="rd-ayuda">Lo que quieras agregar a lo reportado arriba: un proyecto que se está cerrando o que apenas empieza, un tema general, un aviso o un pendiente. Sale al final del PDF; si queda en blanco, no sale.</p>' +
-                '<textarea class="form-control" id="gOtros" rows="3" maxlength="4000" placeholder="• Tema: lo que se quiere informar."></textarea></div>';
-            $('#gProyectos').html(html);
-            $('#gOtros').val(reporte.otros || '');
-            ajustarAlto($('#gOtros')[0]);
-            //Los textos se ponen con .val() (no van dentro del HTML)
-            reporte.proyectos.forEach(function (proyecto) {
-                $.each(proyecto.textos, function (codigo, texto) {
-                    var campo = $('#p' + proyecto.id + '_' + codigo);
-                    campo.val(texto).data('sistema', proyecto.sistema[codigo] || '');
-                    ajustarAlto(campo[0]); marcarCambio(campo);
-                });
-            });
+            pintarInforme(reporte.reporte);
             pintarEstado();
             //La lista de días guardados se pone en el mes del día abierto
             mesG = reporte.mes; diasMesG = reporte.guardadosMes || [];
@@ -155,19 +138,178 @@ function verMes(mes) {
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron traer los reportes guardados de ese mes.')); });
 }
 
-//Vuelve a poner en un punto lo que propone el sistema
-function traerPunto(campo) {
-    var sistema = campo.data('sistema');
-    if (sistema === undefined) { return; }
-    if (campo.val() !== sistema) { campo.val(sistema); rdHayCambios = true; }
-    ajustarAlto(campo[0]); marcarCambio(campo);
+//-----------------------------------------------------------------------
+// El informe en la pantalla, por secciones
+//-----------------------------------------------------------------------
+
+//Las opciones del proyecto de un apartado: «General» (de todo el informe) o uno de los proyectos
+function opcionesProyecto(elegido) {
+    return '<option value="0">General</option>' + repG.proyectos.map(function (p) {
+        return '<option value="' + parseInt(p.id, 10) + '"' + (+elegido === +p.id ? ' selected' : '') + '>' + rdEsc(p.nombre) + '</option>';
+    }).join('');
 }
 
-//Resalta los puntos que ya no dicen lo mismo que propone el sistema (se corrigieron a mano)
-function marcarCambio(campo) {
-    var sistema = campo.data('sistema');
-    campo.toggleClass('cambiado', sistema !== undefined && sistema !== '' && $.trim(campo.val()) !== $.trim(sistema))
-         .attr('title', campo.hasClass('cambiado') ? 'Corregido a mano: no es lo mismo que propone el sistema' : '');
+//Un apartado: [proyecto] título y texto, con botones para subirlo, bajarlo o quitarlo
+function htmlApartado(a, conProyecto) {
+    return '<div class="ger-apartado">' +
+        '<div class="ger-apartado-cab">' +
+            (conProyecto ? '<select class="form-control input-sm ger-a-proyecto" aria-label="Proyecto">' + opcionesProyecto(a.proyecto || 0) + '</select>' : '') +
+            '<input type="text" class="form-control input-sm ger-a-titulo" maxlength="200" placeholder="Título del apartado" aria-label="Título">' +
+            '<span class="ger-mover"><button type="button" class="btn btn-default btn-sm ger-subir" title="Subir"><i class="fa fa-arrow-up"></i></button>' +
+            '<button type="button" class="btn btn-default btn-sm ger-bajar" title="Bajar"><i class="fa fa-arrow-down"></i></button>' +
+            '<button type="button" class="btn btn-default btn-sm ger-quitar" title="Quitar este apartado"><i class="fa fa-trash-o"></i></button></span>' +
+        '</div>' +
+        '<textarea class="form-control ger-a-texto" rows="2" maxlength="4000" placeholder="Lo que se informa. Los renglones que empiezan con • salen como viñetas."></textarea>' +
+    '</div>';
+}
+
+//Un renglón de la tabla de compromisos
+function htmlCompromiso() {
+    return '<tr><td><input type="text" class="form-control input-sm ger-c-gestion" maxlength="300" placeholder="Gestión" aria-label="Gestión"></td>' +
+        '<td class="ger-fecha-col"><input type="text" class="form-control input-sm ger-c-fecha" maxlength="60" placeholder="20 de noviembre" aria-label="Fecha objetivo"></td>' +
+        '<td><span class="ger-mover"><button type="button" class="btn btn-default btn-sm ger-subir" title="Subir"><i class="fa fa-arrow-up"></i></button>' +
+        '<button type="button" class="btn btn-default btn-sm ger-bajar" title="Bajar"><i class="fa fa-arrow-down"></i></button>' +
+        '<button type="button" class="btn btn-default btn-sm ger-quitar" title="Quitar"><i class="fa fa-trash-o"></i></button></span></td></tr>';
+}
+
+//Pone los apartados en un contenedor (los textos van con .val(), nunca dentro del HTML)
+function pintarApartados(contenedor, lista, conProyecto) {
+    contenedor.empty();
+    (lista || []).forEach(function (a) {
+        var bloque = $(htmlApartado(a, conProyecto)).appendTo(contenedor);
+        bloque.find('.ger-a-titulo').val(a.titulo || '');
+        bloque.find('.ger-a-texto').val(a.texto || '');
+    });
+    contenedor.find('textarea').each(function () { ajustarAlto(this); });
+}
+
+function pintarCompromisos(lista) {
+    var cuerpo = $('#gCompromisos tbody').empty();
+    (lista || []).forEach(function (c) {
+        var fila = $(htmlCompromiso()).appendTo(cuerpo);
+        fila.find('.ger-c-gestion').val(c.gestion || '');
+        fila.find('.ger-c-fecha').val(c.fecha || '');
+    });
+}
+
+//El botón «Traer del sistema» de una sección
+function botonTraer(seccion, proyecto) {
+    return '<a class="ger-traer" data-seccion="' + seccion + '"' + (proyecto ? ' data-proyecto="' + parseInt(proyecto, 10) + '"' : '') +
+           ' title="Vuelve a llenar esta sección con lo que hay en el sistema"><i class="fa fa-refresh"></i> Traer del sistema</a>';
+}
+
+//Arma todo el informe en la pantalla con un reporte {encabezado, resultados, prioritarias, proyectos, transversal, compromisos}
+function pintarInforme(r) {
+    var s = cfgG.secciones, n = 0;
+    var html =
+        '<div class="ger-seccion ger-encabezado"><div class="ger-sec-cab"><h3>Encabezado del informe</h3></div>' +
+        '<div class="ger-fecha-informe">' + rdEsc(repG.fechaInforme) + '</div><div class="ger-titulo-informe">' + rdEsc(repG.titulo) + '</div>' +
+        '<p class="rd-ayuda">El destinatario, la presentación y la firma se toman del último informe guardado: cámbialos solo si hace falta.</p>' +
+        '<div class="row">' +
+            '<div class="col-sm-2"><label for="eTrato">Trato</label><input type="text" id="eTrato" class="form-control input-sm" maxlength="40" placeholder="Doctora"></div>' +
+            '<div class="col-sm-5"><label for="eDestinatario">Destinatario</label><input type="text" id="eDestinatario" class="form-control input-sm" maxlength="120"></div>' +
+            '<div class="col-sm-5"><label for="eCargo">Cargo del destinatario</label><input type="text" id="eCargo" class="form-control input-sm" maxlength="150"></div>' +
+            '<div class="col-sm-12"><label for="ePresentacion">Presentación (va después de «Cordial saludo:»)</label><textarea id="ePresentacion" class="form-control" rows="2" maxlength="1500"></textarea></div>' +
+            '<div class="col-sm-6"><label for="eFirma">Firma (nombre)</label><input type="text" id="eFirma" class="form-control input-sm" maxlength="120"></div>' +
+            '<div class="col-sm-6"><label for="eFirmaCargo">Cargo de quien firma</label><input type="text" id="eFirmaCargo" class="form-control input-sm" maxlength="150"></div>' +
+        '</div></div>' +
+
+        '<div class="ger-seccion"><div class="ger-sec-cab"><h3>' + (++n) + '. ' + rdEsc(s.resultados) + '</h3>' + botonTraer('resultados') + '</div>' +
+        '<div class="ger-subtitulo">' + rdEsc(repG.tituloPromesa) + '</div>' +
+        '<textarea id="gResultados" class="form-control" rows="3" maxlength="4000"></textarea>' +
+        '<p class="rd-ayuda" style="margin-top:4px;">La cifra grande del PDF sale de este texto («cumplimiento del 98,5 %, con 18 de 19 peajes…»): si la corriges aquí, el PDF muestra la corregida.</p></div>' +
+
+        '<div class="ger-seccion"><div class="ger-sec-cab"><h3>' + (++n) + '. ' + rdEsc(s.prioritarias) + '</h3>' + botonTraer('prioritarias') + '</div>' +
+        '<p class="rd-ayuda">Los temas con el cliente que se movieron y los oficios en gestión. Cada uno sale como «PROYECTO | Asunto».</p>' +
+        '<div class="ger-lista" id="gPrioritarias"></div>' +
+        '<button type="button" class="btn btn-default btn-sm ger-agregar" data-destino="#gPrioritarias" data-con-proyecto="1"><i class="fa fa-plus"></i> Agregar gestión</button></div>' +
+
+        '<div class="ger-seccion"><div class="ger-sec-cab"><h3>' + (++n) + '. ' + rdEsc(s.proyectos) + '</h3></div>' +
+        '<p class="rd-ayuda">Por proyecto: los temas internos con Regency y las novedades reportadas. Los proyectos sin apartados no salen en el PDF.</p>' +
+        repG.proyectos.map(function (p) {
+            return '<div class="ger-proyecto"><h4><span>' + rdEsc(p.nombre) + '</span>' + botonTraer('proyectos', p.id) + '</h4>' +
+                   '<div class="ger-lista" id="gProyecto' + parseInt(p.id, 10) + '"></div>' +
+                   '<button type="button" class="btn btn-default btn-sm ger-agregar" data-destino="#gProyecto' + parseInt(p.id, 10) + '"><i class="fa fa-plus"></i> Agregar apartado</button></div>';
+        }).join('') + '</div>' +
+
+        '<div class="ger-seccion"><div class="ger-sec-cab"><h3>' + (++n) + '. ' + rdEsc(s.transversal) + '</h3>' + botonTraer('transversal') + '</div>' +
+        '<p class="rd-ayuda">Los temas de personal y las vacantes en proceso.</p>' +
+        '<div class="ger-lista" id="gTransversal"></div>' +
+        '<button type="button" class="btn btn-default btn-sm ger-agregar" data-destino="#gTransversal" data-con-proyecto="1"><i class="fa fa-plus"></i> Agregar apartado</button></div>' +
+
+        '<div class="ger-seccion"><div class="ger-sec-cab"><h3>' + (++n) + '. ' + rdEsc(s.compromisos) + '</h3>' + botonTraer('compromisos') + '</div>' +
+        '<p class="rd-ayuda">Lo programado en el cronograma para los próximos días y las fechas comprometidas por Gestión Humana.</p>' +
+        '<table class="table table-bordered rd-tabla rd-tabla-compacta ger-compromisos" id="gCompromisos"><thead><tr><th>Gestión</th><th class="ger-fecha-col">Fecha objetivo</th><th></th></tr></thead><tbody></tbody></table>' +
+        '<button type="button" class="btn btn-default btn-sm ger-agregar" data-destino="#gCompromisos"><i class="fa fa-plus"></i> Agregar compromiso</button></div>';
+    $('#gInforme').html(html);
+
+    var e = r.encabezado || {};
+    $('#eTrato').val(e.trato || ''); $('#eDestinatario').val(e.destinatario || ''); $('#eCargo').val(e.cargo || '');
+    $('#ePresentacion').val(e.presentacion || ''); $('#eFirma').val(e.firma || ''); $('#eFirmaCargo').val(e.firmaCargo || '');
+    $('#gResultados').val(r.resultados || '');
+    pintarApartados($('#gPrioritarias'), r.prioritarias, true);
+    repG.proyectos.forEach(function (p) { pintarApartados($('#gProyecto' + p.id), ((r.proyectos || {})[p.id] || {}).apartados, false); });
+    pintarApartados($('#gTransversal'), r.transversal, true);
+    pintarCompromisos(r.compromisos);
+    $('#gInforme textarea').each(function () { ajustarAlto(this); });
+}
+
+//«Agregar»: un apartado o un compromiso en blanco al final de su lista
+function agregarApartado(boton) {
+    var destino = $(boton.data('destino'));
+    if (destino.is('table')) { $(htmlCompromiso()).appendTo(destino.find('tbody')).find('input').first().focus(); }
+    else { $(htmlApartado({ proyecto: 0 }, !!boton.data('con-proyecto'))).appendTo(destino).find('.ger-a-titulo').focus(); }
+    rdHayCambios = true;
+}
+
+//«Traer del sistema» de una sección (o de un proyecto en los avances)
+function traerSeccion(seccion, proyecto) {
+    var s = repG.sistema;
+    if (seccion === 'resultados') { $('#gResultados').val(s.resultados || ''); ajustarAlto($('#gResultados')[0]); }
+    else if (seccion === 'prioritarias') { pintarApartados($('#gPrioritarias'), s.prioritarias, true); }
+    else if (seccion === 'transversal') { pintarApartados($('#gTransversal'), s.transversal, true); }
+    else if (seccion === 'compromisos') { pintarCompromisos(s.compromisos); }
+    else if (seccion === 'proyectos') { pintarApartados($('#gProyecto' + proyecto), ((s.proyectos || {})[proyecto] || {}).apartados, false); }
+    rdHayCambios = true;
+}
+
+//Lo que hay escrito en la pantalla, con la estructura del informe
+function leerApartados(contenedor, conProyecto) {
+    var lista = [];
+    contenedor.children('.ger-apartado').each(function () {
+        var a = { titulo: $.trim($(this).find('.ger-a-titulo').val()), texto: $.trim($(this).find('.ger-a-texto').val()) };
+        if (conProyecto) { a = $.extend({ proyecto: parseInt($(this).find('.ger-a-proyecto').val(), 10) || 0 }, a); }
+        if (a.titulo || a.texto) { lista.push(a); }
+    });
+    return lista;
+}
+
+function leerReporte() {
+    var proyectos = {};
+    repG.proyectos.forEach(function (p) { proyectos[p.id] = { apartados: leerApartados($('#gProyecto' + p.id), false) }; });
+    var compromisos = [];
+    $('#gCompromisos tbody tr').each(function () {
+        var c = { gestion: $.trim($(this).find('.ger-c-gestion').val()), fecha: $.trim($(this).find('.ger-c-fecha').val()) };
+        if (c.gestion || c.fecha) { compromisos.push(c); }
+    });
+    return {
+        encabezado: { trato: $.trim($('#eTrato').val()), destinatario: $.trim($('#eDestinatario').val()), cargo: $.trim($('#eCargo').val()),
+                      presentacion: $.trim($('#ePresentacion').val()), firma: $.trim($('#eFirma').val()), firmaCargo: $.trim($('#eFirmaCargo').val()) },
+        resultados: $.trim($('#gResultados').val()),
+        prioritarias: leerApartados($('#gPrioritarias'), true),
+        proyectos: proyectos,
+        transversal: leerApartados($('#gTransversal'), true),
+        compromisos: compromisos
+    };
+}
+
+//Lo que se envía al guardar o al pedir el PDF
+function paraEnviar() { return $.extend({ fecha: repG.fecha, desde: repG.desde }, leerReporte()); }
+
+//El nombre de un proyecto por su ID ('' si es general)
+function nombreProyecto(id) {
+    var p = repG.proyectos.filter(function (x) { return +x.id === +id; })[0];
+    return p ? p.nombre : '';
 }
 
 //El alto del cuadro se ajusta al texto
@@ -177,25 +319,11 @@ function ajustarAlto(campo) {
     campo.style.height = Math.min(Math.max(campo.scrollHeight + 2, 54), 600) + 'px';
 }
 
-//Lo escrito, por proyecto y punto
-function leerTextos() {
-    var textos = {};
-    $('#gProyectos .ger-proyecto').each(function () {
-        var id = $(this).data('proyecto'), puntos = {};
-        $(this).find('textarea').each(function () { puntos[$(this).data('codigo')] = $(this).val(); });
-        textos[id] = puntos;
-    });
-    return textos;
-}
-
-//Lo escrito en las notas adicionales
-function leerOtros() { return $('#gOtros').length ? $('#gOtros').val() : ''; }
-
 //Guarda el reporte del día
 function guardar() {
     if (!repG) { return; }
     hanaBoton('#btnGuardar', true); hanaBoton('#btnGuardar2', true);
-    $.post(URL_GER + '?op=guardar', { reporte: JSON.stringify({ fecha: repG.fecha, desde: repG.desde, textos: leerTextos(), otros: leerOtros() }) }, null, 'json')
+    $.post(URL_GER + '?op=guardar', { reporte: JSON.stringify(paraEnviar()) }, null, 'json')
         .done(function (respuesta) {
             rdHayCambios = false; rdAviso(respuesta.mensaje);
             repG.guardado = { quien: 'ti', fecha: respuesta.fecha };
@@ -212,25 +340,41 @@ function guardar() {
         .always(function () { hanaBoton('#btnGuardar', false); hanaBoton('#btnGuardar2', false); });
 }
 
-//El reporte como texto plano (para un correo o WhatsApp)
+//El informe como texto plano (para un correo o WhatsApp), con la misma estructura
 function comoTexto() {
-    var lineas = [esRango() ? 'REPORTE A LA GERENCIA' : 'REPORTE DIARIO A LA GERENCIA',
-                  esRango() ? 'Del ' + rdFecha(repG.desde) + ' al ' + rdFecha(repG.fecha) : rdFecha(repG.fecha) + ' (' + repG.diaCorto.split(' ')[0] + ')', ''];
-    var textos = leerTextos();
-    repG.proyectos.forEach(function (proyecto) {
-        lineas.push('*' + proyecto.nombre.toUpperCase() + '*');
-        var numero = 0;
-        $.each(repG.puntos, function (codigo, titulo) {
-            numero++;
-            var texto = $.trim((textos[proyecto.id] || {})[codigo] || '');
-            lineas.push(numero + '. ' + titulo + ':');
-            lineas.push(texto || '—');
+    var r = leerReporte(), e = r.encabezado, s = cfgG.secciones, n = 0, lineas = [];
+    var apartados = function (lista) {
+        if (!lista.length) { lista = [{ titulo: '', texto: 'Sin información.' }]; }
+        lista.forEach(function (a) {
+            var titulo = (a.proyecto ? nombreProyecto(a.proyecto) + ' | ' : '') + a.titulo;
+            if (titulo) { lineas.push('*' + titulo + '*'); }
+            if (a.texto) { lineas.push(a.texto); }
+            lineas.push('');
         });
-        lineas.push('');
+    };
+    lineas.push(repG.fechaInforme, '', '*' + repG.titulo + '*', '');
+    if (e.trato) { lineas.push(e.trato); }
+    if (e.destinatario) { lineas.push('*' + e.destinatario + '*'); }
+    if (e.cargo) { lineas.push(e.cargo); }
+    lineas.push('', 'Cordial saludo:', '');
+    if (e.presentacion) { lineas.push(e.presentacion, ''); }
+    lineas.push('*' + (++n) + '. ' + s.resultados + '*', '*' + repG.tituloPromesa + '*', r.resultados || 'Sin información.', '');
+    lineas.push('*' + (++n) + '. ' + s.prioritarias + '*'); apartados(r.prioritarias);
+    lineas.push('*' + (++n) + '. ' + s.proyectos + '*');
+    var hay = false;
+    repG.proyectos.forEach(function (p) {
+        var lista = r.proyectos[p.id].apartados;
+        if (!lista.length) { return; }
+        hay = true;
+        lineas.push('*' + p.nombre.toUpperCase() + '*'); apartados(lista);
     });
-    var otros = $.trim(leerOtros());
-    if (otros) { lineas.push('*' + repG.tituloOtros.toUpperCase() + '*', otros, ''); }
-    return lineas.join('\n');
+    if (!hay) { lineas.push('Sin avances registrados.', ''); }
+    lineas.push('*' + (++n) + '. ' + s.transversal + '*'); apartados(r.transversal);
+    lineas.push('*' + (++n) + '. ' + s.compromisos + '*');
+    if (r.compromisos.length) { r.compromisos.forEach(function (c) { lineas.push('• ' + c.gestion + ' — ' + c.fecha); }); }
+    else { lineas.push('Sin compromisos registrados.'); }
+    lineas.push('', 'Atentamente,', '', e.firma ? '*' + e.firma + '*' : '', e.firmaCargo || '');
+    return lineas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function copiar() {
@@ -251,31 +395,42 @@ function copiarViejo(texto, hecho) {
     caja.remove();
 }
 
-//Lo que sale en el papel: el reporte limpio, sin cuadros ni botones
+//Lo que sale en el papel: el informe limpio, sin cuadros ni botones
 function armarImpresion() {
-    if (!repG) { return; }
-    var textos = leerTextos();
-    var html = '<h1>' + (esRango() ? 'Reporte a la Gerencia' : 'Reporte diario a la Gerencia') + '</h1><div class="sub">' +
-               (esRango() ? 'Del ' + rdFecha(repG.desde) + ' al ' + rdFecha(repG.fecha) : rdEsc(repG.diaCorto.split(' ')[0]) + ' ' + rdFecha(repG.fecha)) + '</div>';
-    repG.proyectos.forEach(function (proyecto) {
-        html += '<h2>' + rdEsc(proyecto.nombre) + '</h2>';
-        var numero = 0;
-        $.each(repG.puntos, function (codigo, titulo) {
-            numero++;
-            html += '<h4>' + numero + '. ' + rdEsc(titulo) + '</h4><p>' + rdEsc($.trim((textos[proyecto.id] || {})[codigo] || '') || '—') + '</p>';
-        });
+    if (!repG || !$('#gResultados').length) { return; }
+    var r = leerReporte(), e = r.encabezado, s = cfgG.secciones, n = 0;
+    var parrafo = function (texto) { return '<p>' + rdEsc(texto || '') + '</p>'; };
+    var apartados = function (lista) {
+        if (!lista.length) { return parrafo('Sin información.'); }
+        return lista.map(function (a) {
+            return '<h4>' + rdEsc((a.proyecto ? nombreProyecto(a.proyecto) + ' | ' : '') + a.titulo) + '</h4>' + parrafo(a.texto);
+        }).join('');
+    };
+    var html = '<p><strong>' + rdEsc(repG.fechaInforme) + '</strong></p><h1>' + rdEsc(repG.titulo) + '</h1>' +
+               parrafo(e.trato) + '<p><strong>' + rdEsc(e.destinatario) + '</strong></p>' + parrafo(e.cargo) +
+               parrafo('Cordial saludo:') + parrafo(e.presentacion) +
+               '<h2>' + (++n) + '. ' + rdEsc(s.resultados) + '</h2><h4>' + rdEsc(repG.tituloPromesa) + '</h4>' + parrafo(r.resultados) +
+               '<h2>' + (++n) + '. ' + rdEsc(s.prioritarias) + '</h2>' + apartados(r.prioritarias) +
+               '<h2>' + (++n) + '. ' + rdEsc(s.proyectos) + '</h2>';
+    repG.proyectos.forEach(function (p) {
+        var lista = r.proyectos[p.id].apartados;
+        if (lista.length) { html += '<h4>' + rdEsc(p.nombre.toUpperCase()) + '</h4>' + apartados(lista); }
     });
-    var otros = $.trim(leerOtros());
-    if (otros) { html += '<h2>' + rdEsc(repG.tituloOtros) + '</h2><p>' + rdEsc(otros) + '</p>'; }
+    html += '<h2>' + (++n) + '. ' + rdEsc(s.transversal) + '</h2>' + apartados(r.transversal) +
+            '<h2>' + (++n) + '. ' + rdEsc(s.compromisos) + '</h2>' +
+            (r.compromisos.length ? '<table><thead><tr><th>Gestión</th><th>Fecha objetivo</th></tr></thead><tbody>' +
+                r.compromisos.map(function (c) { return '<tr><td>' + rdEsc(c.gestion) + '</td><td>' + rdEsc(c.fecha) + '</td></tr>'; }).join('') + '</tbody></table>'
+                                  : parrafo('Sin compromisos registrados.')) +
+            '<p style="margin-top:18px;">Atentamente,</p><p style="margin-top:24px;"><strong>' + rdEsc(e.firma) + '</strong></p>' + parrafo(e.firmaCargo);
     $('#gerImpresion').html(html);
 }
 
-//El PDF para la Gerencia (con colores, porcentajes y gráficas). Lleva lo que está en la pantalla en
-//este momento, aunque no se haya guardado; se abre en otra pestaña, desde donde se descarga o se imprime
+//El PDF para la Gerencia. Lleva lo que está en la pantalla en este momento, aunque no se haya
+//guardado; se abre en otra pestaña, desde donde se descarga o se imprime
 function abrirPdf() {
     if (!repG) { return; }
     var form = $('<form method="post" target="_blank" action="ReporteGerenciaPdfVista.php" style="display:none;"></form>');
-    $('<input type="hidden" name="reporte">').val(JSON.stringify({ fecha: repG.fecha, desde: repG.desde, textos: leerTextos(), otros: leerOtros() })).appendTo(form);
+    $('<input type="hidden" name="reporte">').val(JSON.stringify(paraEnviar())).appendTo(form);
     form.appendTo('body').trigger('submit');
     setTimeout(function () { form.remove(); }, 1000);
 }

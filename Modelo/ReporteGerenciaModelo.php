@@ -1,39 +1,43 @@
 <?php
 /*
-  HANA - Reporte diario a la Gerencia
+  HANA - Reporte a la Gerencia (Informe de gestión diaria de la Dirección de Operaciones)
   ---------------------------------------------------------------------------
-  Lo arma la dirección cada día (también sábados, domingos y festivos), por
-  proyecto, con lo que llenan los coordinadores en el Reporte diario. Por
-  defecto tiene cuatro puntos, que se llenan solos y luego se corrigen a mano:
+  Lo arma la dirección cada día (también sábados, domingos y festivos), o para
+  un rango de días, con lo que registran los coordinadores en el Reporte diario.
+  Sigue la estructura del informe que se envía a la Gerencia:
 
-    FLOTA      Disponibilidad de flota: cada vehículo del proyecto, operativo o no
-               (Cronograma y vehículo, tabla vehiculo_dia).
-    PROMESA    Cumplimiento de la promesa de valor SOLO del día del reporte, por
-               peaje: cumple o no cumple y qué cargos quedaron por debajo o por
-               encima ese día (pv_dia). Antes sumaba la semana (lunes al día del
-               reporte); se cambió porque el reporte es diario.
-    OFICIOS    Oficios y comunicaciones en gestión ese día (comunicacion).
-    NOVEDADES  Novedades relevantes: los temas con el cliente que se movieron ese
-               día y las novedades reportadas ese día en sus peajes. Si no hay,
-               «Sin novedades relevantes en la jornada».
+    Encabezado   fecha, título, destinatario (trato, nombre y cargo), «Cordial
+                 saludo:» y un párrafo de presentación
+    1. RESULTADOS DE LA OPERACIÓN
+                 Cumplimiento de la promesa de valor del día (o del periodo) de
+                 todos los peajes, y el detalle de los que no cumplieron (pv_dia)
+    2. GESTIONES PRIORITARIAS Y COMPROMISOS CON CLIENTES
+                 Un apartado «PROYECTO | Asunto» por cada tema con el cliente que
+                 se movió en el periodo y por cada oficio o comunicación en gestión
+    3. AVANCES DE GESTIÓN POR PROYECTO
+                 Por proyecto: los temas internos (con Regency) que se movieron y
+                 las novedades reportadas en sus peajes
+    4. GESTIÓN TRANSVERSAL | TALENTO HUMANO Y SST
+                 Los temas de personal (clase PERSONAL) y las vacantes en proceso
+    5. COMPROMISOS Y SEGUIMIENTO
+                 Tabla de gestión y fecha objetivo: lo programado en el cronograma
+                 para los próximos días y las fechas comprometidas por Gestión Humana
+    Cierre       «Atentamente,», nombre y cargo de quien firma
 
-  Los textos se escriben en tono formal, porque van para la Gerencia. El PDF
-  del reporte (Vista/pdf/ReporteGerenciaPdf.php) NO usa los datos de la base:
-  lee las cifras de los textos tal como quedaron (cifrasDeTextos), así que si
-  la dirección corrige un número en un punto, el PDF muestra el corregido.
+  Todo lo propone el sistema (propuesta) y la dirección lo corrige, agrega o
+  quita antes de guardar. El destinatario, la presentación y la firma se toman
+  del último reporte guardado, para no escribirlos cada día.
 
-  Los nombres y el orden de los puntos se cambian en Parámetros del sistema →
-  Listas (LISTA_PUNTOS_GERENCIA). Los que se agreguen allí salen en blanco.
-
-  No tiene tabla propia. Se guarda en historial, una fila por cada versión del día:
-    MODULO = 'GERENCIA', ID_REGISTRO = el día como número AAAAMMDD (20261101),
+  No tiene tabla propia. Se guarda en historial, una fila por cada versión:
+    MODULO = 'GERENCIA', ID_REGISTRO = el último día como número AAAAMMDD (20261101),
     TIPO = 'REPORTE', TEXTO = el reporte en JSON, ID_COLABORADOR y FECHA.
+  El JSON empieza con version, fecha y desde (así se reconoce el periodo sin abrir
+  todo el texto) y sigue con encabezado, resultados, prioritarias, proyectos,
+  transversal, compromisos y nombres (el nombre de cada proyecto que aparece).
+  Los reportes guardados con la estructura de puntos por proyecto (version 2)
+  se leen convertidos a esta (deVersion2): no se pierde nada de lo escrito.
   Cada guardado que cambia algo agrega una fila NUEVA: el historial nunca se
-  modifica ni se borra (es la trazabilidad del reporte). La pantalla y el PDF
-  usan siempre la fila más reciente del día (quién la guardó y cuándo); las
-  anteriores quedan como versiones viejas, y se ven en Trazabilidad.
-  Para no llenar la base de copias iguales, si el reporte no cambió desde la
-  última vez que se guardó, no se agrega nada.
+  modifica ni se borra. La pantalla y el PDF usan la versión más reciente.
 */
 require_once __DIR__ . "/HanaDB.php";
 require_once __DIR__ . "/HanaConfig.php";
@@ -41,23 +45,44 @@ require_once __DIR__ . "/TemaClienteModelo.php";
 
 class ReporteGerencia
 {
-    const MODULO = 'GERENCIA';
-    const TIPO   = 'REPORTE';
-    const LARGO_PUNTO = 4000;     //caracteres de cada punto de cada proyecto (y de las notas adicionales)
-    //Sección final del reporte, de texto libre y para todo el reporte (no de un proyecto): cualquier cosa que
-    //se quiera agregar a lo reportado arriba. Puede ser un proyecto que se está cerrando o que apenas se abre
-    //(y por eso no tiene sección), un tema general de la operación, un aviso o un pendiente. Se guarda en el
-    //JSON del día como «otros». Es opcional: si queda en blanco, no sale en el PDF
-    const TITULO_OTROS = 'Notas adicionales';
-    const LARGO_TOTAL = 60000;    //bytes del reporte completo (historial.TEXTO es TEXT: 65.535 bytes)
+    const MODULO  = 'GERENCIA';
+    const TIPO    = 'REPORTE';
+    const VERSION = 3;
+    const LARGO_TEXTO  = 4000;   //caracteres del texto de cada apartado (y de los resultados)
+    const LARGO_TITULO = 200;    //caracteres del título de cada apartado
+    const MAX_APARTADOS = 80;    //apartados por sección (y renglones de compromisos)
+    const LARGO_TOTAL = 60000;   //bytes del reporte completo (historial.TEXTO es TEXT: 65.535 bytes)
+    const DIAS_COMPROMISOS = 30; //cuántos días hacia adelante se buscan compromisos en el cronograma
+
+    //Los títulos de las secciones, como van en el informe
+    const SECCIONES = array(
+        'resultados'   => 'RESULTADOS DE LA OPERACIÓN',
+        'prioritarias' => 'GESTIONES PRIORITARIAS Y COMPROMISOS CON CLIENTES',
+        'proyectos'    => 'AVANCES DE GESTIÓN POR PROYECTO',
+        'transversal'  => 'GESTIÓN TRANSVERSAL | TALENTO HUMANO Y SST',
+        'compromisos'  => 'COMPROMISOS Y SEGUIMIENTO'
+    );
+
+    //El encabezado y la firma la primera vez (después se toman del último reporte guardado)
+    const ENCABEZADO = array(
+        'trato'        => 'Doctora',
+        'destinatario' => 'JOHANNA VERA MARTÍNEZ',
+        'cargo'        => 'Gerente de Unidad de Infraestructura',
+        'presentacion' => 'Se presenta el balance de gestión de la Dirección de Operaciones, con los principales resultados, avances por proyecto, compromisos con los clientes y asuntos que requieren seguimiento.',
+        'firma'        => 'LILLEY KARINA SALGUERO GÓMEZ',
+        'firmaCargo'   => 'Directora de Operaciones'
+    );
+    //Cuántos caracteres admite cada dato del encabezado
+    const LARGO_ENCABEZADO = array('trato' => 40, 'destinatario' => 120, 'cargo' => 150, 'presentacion' => 1500, 'firma' => 120, 'firmaCargo' => 150);
 
     private static $DIAS  = array('dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb');
     private static $DIAS_LARGOS = array('domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado');
     private static $MESES = array(1 => 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
                                   'septiembre', 'octubre', 'noviembre', 'diciembre');
 
-    //Los puntos del reporte, en su orden: [CODIGO => Nombre]
-    public static function puntos() { return HanaConfig::opciones('LISTA_PUNTOS_GERENCIA'); }
+    //-----------------------------------------------------------------------
+    // Fechas para leer
+    //-----------------------------------------------------------------------
 
     //El día como número para historial.ID_REGISTRO: 2026-11-01 -> 20261101
     public static function numeroDia($fecha) { return (int)str_replace('-', '', $fecha); }
@@ -74,6 +99,13 @@ class ReporteGerencia
     {
         $t = strtotime($fecha);
         return self::$DIAS_LARGOS[(int)date('w', $t)] . ' ' . (int)date('j', $t) . ' de ' . self::$MESES[(int)date('n', $t)];
+    }
+
+    //"2026-11-11" -> "11 de noviembre"
+    public static function diaMes($fecha)
+    {
+        $t = strtotime($fecha);
+        return (int)date('j', $t) . ' de ' . self::$MESES[(int)date('n', $t)];
     }
 
     //"2026-10-29" -> "jueves, 29 de octubre de 2026"
@@ -102,6 +134,35 @@ class ReporteGerencia
         return self::diaCorto($desde) . ' – ' . self::diaCorto($hasta);
     }
 
+    //La fecha de arriba del informe: "12 DE NOVIEMBRE DE 2026" o "DEL 10 AL 12 DE NOVIEMBRE DE 2026"
+    public static function fechaInforme($desde, $hasta)
+    {
+        $h = strtotime($hasta);
+        $fin = (int)date('j', $h) . ' de ' . self::$MESES[(int)date('n', $h)] . ' de ' . date('Y', $h);
+        if ($desde === null || $desde === '' || $desde >= $hasta) { return mb_strtoupper($fin, 'UTF-8'); }
+        $d = strtotime($desde);
+        $inicio = (int)date('j', $d);
+        if (date('n', $d) !== date('n', $h) || date('Y', $d) !== date('Y', $h)) { $inicio .= ' de ' . self::$MESES[(int)date('n', $d)]; }
+        if (date('Y', $d) !== date('Y', $h)) { $inicio .= ' de ' . date('Y', $d); }
+        return mb_strtoupper('del ' . $inicio . ' al ' . $fin, 'UTF-8');
+    }
+
+    //El título del informe
+    public static function tituloInforme($desde, $hasta)
+    {
+        return ($desde !== null && $desde !== '' && $desde < $hasta) ? 'INFORME DE GESTIÓN DE LA DIRECCIÓN OPERATIVA P&B'
+                                                                     : 'INFORME DE GESTIÓN DIARIA DE LA DIRECCIÓN OPERATIVA P&B';
+    }
+
+    //El subtítulo de los resultados: "Cumplimiento de la Promesa de Valor – 11 de noviembre" (o "– 10 al 12 de noviembre")
+    public static function tituloPromesa($desde, $hasta)
+    {
+        if ($desde === null || $desde === '' || $desde >= $hasta) { return 'Cumplimiento de la Promesa de Valor – ' . self::diaMes($hasta); }
+        $d = strtotime($desde); $h = strtotime($hasta);
+        $inicio = date('n', $d) === date('n', $h) ? (string)(int)date('j', $d) : self::diaMes($desde);
+        return 'Cumplimiento de la Promesa de Valor – ' . $inicio . ' al ' . self::diaMes($hasta);
+    }
+
     //Porcentaje para leer: (518, 527) -> "98,3 %". Sin base, null
     public static function porcentaje($parte, $total)
     {
@@ -113,6 +174,13 @@ class ReporteGerencia
     {
         $texto = trim(preg_replace('/\s+/u', ' ', (string)$texto));
         return mb_strlen($texto, 'UTF-8') > $max ? rtrim(mb_substr($texto, 0, $max - 1, 'UTF-8')) . '…' : $texto;
+    }
+
+    //Un texto que termina en punto (sin duplicarlo)
+    private static function conPunto($texto)
+    {
+        $texto = rtrim(trim((string)$texto), " \t");
+        return $texto === '' ? '' : (preg_match('/[.!?…:]$/u', $texto) ? $texto : $texto . '.');
     }
 
     //Horas para leer: 8 -> "8", 7.5 -> "7,5", 1040 -> "1.040"
@@ -132,110 +200,120 @@ class ReporteGerencia
     }
 
     //-----------------------------------------------------------------------
-    // Los datos del día, por proyecto. De aquí salen los textos que propone
-    // el sistema (prellenar) y las cifras, porcentajes y gráficas del PDF.
+    // Los datos del periodo, por proyecto. De aquí salen los textos que propone
+    // el sistema y la gráfica de la promesa de valor del PDF.
     //   $proyectos     [idProyecto => nombre]
     //   $centros       [idCentro => fila de hanaMisCentros()] (los peajes de la persona)
-    //   $conNovedades  si se incluyen las novedades del día (quien puede verlas)
+    //   $conNovedades  si se incluyen las novedades (quien puede verlas)
+    //   $desde         primer día del periodo. Sin él, el reporte es solo de $fecha.
+    //                  La promesa, los temas que se movieron y las novedades se cuentan en todo el
+    //                  periodo; los oficios en gestión y las vacantes, como estaban el último día
     // Devuelve [idProyecto => [
-    //   'flota'     => total, operativos, fuera, sinRegistro, vehiculos [placa, descripcion, estado, transporte, observacion]
-    //   'promesa'   => prometidas, ejecutadas, diasDebajo, diasEncima, sinJustificar, pendientes,
-    //                  peajes [nombre, prometidas, ejecutadas, debajo[], encima[], sinRegistro[dia => cargos]]
-    //   'oficios'   => total, fueraPlazo, porEnviar, lista [...]
-    //   'temas'     => abiertos, movimientos [...]
-    //   'novedades' => lista [...]
+    //   'promesa'   => prometidas, ejecutadas, peajes [nombre, prometidas, ejecutadas, debajo[], encima[], sinRegistro[dia => cargos]]
+    //   'oficios'   => lista [tipo, radicado, asunto, remitente, peaje, recepcion, dias, fueraPlazo, pendiente, vaEn]
+    //   'temas'     => los temas (con el cliente y con Regency) que se movieron en el periodo
+    //   'novedades' => lista [peaje, prioridad, titulo, descripcion]
+    //   'vacantes'  => abiertas y cubiertas en el periodo
+    //   'agenda'    => lo programado en el cronograma para los próximos días
     // ]]
     //-----------------------------------------------------------------------
-    //   $desde         primer día del periodo (rango de días). Sin él, el reporte es solo de $fecha.
-    //                  La promesa de valor, los temas que se movieron y las novedades se cuentan en todo el
-    //                  periodo; la flota, los oficios en gestión y los temas abiertos, como quedaron el último día
     public static function calcular($proyectos, $centros, $fecha, $conNovedades, $desde = null)
     {
         $desde = ($desde !== null && $desde !== '' && $desde < $fecha) ? $desde : $fecha;
         $ids = array_map('intval', array_keys($proyectos));
         $datos = array();
         foreach ($ids as $id) {
-            $datos[$id] = array(
-                'flota'     => array('total' => 0, 'operativos' => 0, 'fuera' => 0, 'sinRegistro' => 0, 'vehiculos' => array()),
-                'promesa'   => array('prometidas' => 0, 'ejecutadas' => 0, 'diasDebajo' => 0, 'diasEncima' => 0, 'sinJustificar' => 0, 'pendientes' => 0, 'peajes' => array()),
-                'oficios'   => array('total' => 0, 'fueraPlazo' => 0, 'porEnviar' => 0, 'lista' => array()),
-                'temas'     => array('abiertos' => 0, 'movimientos' => array()),
-                'novedades' => array());
+            $datos[$id] = array('promesa' => array('prometidas' => 0, 'ejecutadas' => 0, 'peajes' => array()),
+                                'oficios' => array(), 'temas' => array(), 'novedades' => array(), 'vacantes' => array(), 'agenda' => array());
         }
         if (!count($ids)) { return $datos; }
         $centrosPorProyecto = array();
         foreach ($centros as $centro) { $centrosPorProyecto[(int)$centro['ID_PROYECTO']][(int)$centro['ID_CENTRO_OP']] = $centro['NOM_CENTRO_OP']; }
 
-        self::datosFlota($datos, $ids, $fecha);
         self::datosPromesa($datos, $centrosPorProyecto, $fecha, $desde);
         self::datosOficios($datos, $ids, $fecha);
-        foreach (TemaCliente::movimientosDelDia($ids, $fecha, $desde) as $id => $movimientos) { if (isset($datos[$id])) { $datos[$id]['temas']['movimientos'] = $movimientos; } }
-        self::temasAbiertos($datos, $ids, $fecha);
+        foreach (TemaCliente::movimientosDelDia($ids, $fecha, $desde) as $id => $movimientos) { if (isset($datos[$id])) { $datos[$id]['temas'] = $movimientos; } }
         if ($conNovedades) { self::datosNovedades($datos, $centros, $fecha, $desde); }
+        self::datosVacantes($datos, $centros, $fecha, $desde);
+        self::datosAgenda($datos, $centros, $fecha);
         return $datos;
     }
 
-    //Lo que el sistema propone escribir en cada punto: [idProyecto => [CODIGO => texto]]
-    public static function prellenar($proyectos, $centros, $fecha, $conNovedades, $desde = null)
-    {
-        return self::textos(self::calcular($proyectos, $centros, $fecha, $conNovedades, $desde), $fecha, $desde);
-    }
-
-    //Los textos de cada punto a partir de los datos del periodo, en tono formal
-    public static function textos($datos, $fecha, $desde = null)
+    //-----------------------------------------------------------------------
+    // Lo que propone el sistema, con la estructura del informe:
+    //   resultados (texto), prioritarias, proyectos, transversal y compromisos.
+    // Cada apartado: [proyecto, titulo, texto]; cada compromiso: [proyecto, gestion, fecha]
+    //-----------------------------------------------------------------------
+    public static function propuesta($proyectos, $centros, $fecha, $conNovedades, $desde = null)
     {
         $desde = ($desde !== null && $desde !== '' && $desde < $fecha) ? $desde : $fecha;
-        $textos = array();
+        $datos = self::calcular($proyectos, $centros, $fecha, $conNovedades, $desde);
+        $rango = $desde < $fecha;
+        $prioritarias = array(); $porProyecto = array(); $transversal = array(); $compromisos = array();
+        $vacantes = array();
+
         foreach ($datos as $id => $d) {
-            $textos[$id] = array('FLOTA' => self::textoFlota($d['flota']), 'PROMESA' => self::textoPromesa($d['promesa'], $fecha, $desde),
-                                 'OFICIOS' => self::textoOficios($d['oficios']), 'NOVEDADES' => self::textoNovedades($d['temas'], $d['novedades'], $fecha, $desde));
+            $porProyecto[$id] = array('apartados' => array());
+            //Temas: con el cliente => gestiones prioritarias; con Regency => avances del proyecto;
+            //los de personal (de cualquiera de los dos) => talento humano y SST
+            foreach ($d['temas'] as $tema) {
+                $apartado = array('proyecto' => $id, 'titulo' => self::tituloConPeaje($tema['ASUNTO'], $tema['NOM_CENTRO_OP']),
+                                  'texto' => self::textoTema($tema, $fecha, $desde));
+                if (isset($tema['CLASE']) && $tema['CLASE'] === 'PERSONAL') { $transversal[] = $apartado; }
+                elseif (isset($tema['CON']) && $tema['CON'] === 'REGENCY') { $porProyecto[$id]['apartados'][] = array('titulo' => $apartado['titulo'], 'texto' => $apartado['texto']); }
+                else { $prioritarias[] = $apartado; }
+            }
+            //Oficios y comunicaciones en gestión: son compromisos con el cliente
+            foreach ($d['oficios'] as $oficio) {
+                $prioritarias[] = array('proyecto' => $id, 'titulo' => self::tituloConPeaje($oficio['asunto'], $oficio['peaje']), 'texto' => self::textoOficio($oficio));
+            }
+            //Novedades reportadas en los peajes del proyecto
+            if (count($d['novedades'])) {
+                $porProyecto[$id]['apartados'][] = array('titulo' => $rango ? 'Novedades reportadas en el periodo' : 'Novedades reportadas en la jornada',
+                                                         'texto' => self::textoNovedades($d['novedades']));
+            }
+            foreach ($d['vacantes'] as $vacante) { $vacantes[] = $vacante + array('proyecto' => $proyectos[$id]); }
+            foreach ($d['agenda'] as $actividad) {
+                $compromisos[] = array('proyecto' => $id, 'gestion' => $actividad['gestion'] . ' (' . $proyectos[$id] . ')',
+                                       'fecha' => self::diaMes($actividad['fecha']), 'orden' => $actividad['fecha']);
+            }
         }
-        return $textos;
+
+        //Vacantes: un apartado de talento humano con todas, y las fechas comprometidas por Gestión Humana como compromisos
+        if (count($vacantes)) {
+            $transversal[] = array('proyecto' => 0, 'titulo' => 'Vacantes en proceso de cobertura', 'texto' => self::textoVacantes($vacantes, $fecha, $desde));
+            foreach ($vacantes as $v) {
+                if ($v['estado'] === 'ABIERTA' && $v['compromiso'] !== null && $v['compromiso'] >= $desde) {
+                    $compromisos[] = array('proyecto' => (int)$v['idProyecto'], 'gestion' => 'Ingreso de ' . self::minusInicial($v['cargo']) . ' – ' . $v['peaje'] . ' (' . $v['proyecto'] . ')',
+                                           'fecha' => self::diaMes($v['compromiso']), 'orden' => $v['compromiso']);
+                }
+            }
+        }
+        usort($compromisos, function ($a, $b) { return strcmp($a['orden'] . $a['gestion'], $b['orden'] . $b['gestion']); });
+        foreach ($compromisos as $i => $c) { unset($compromisos[$i]['orden']); }
+
+        return array('resultados' => self::textoResultados($datos, $proyectos, $fecha, $desde),
+                     'prioritarias' => $prioritarias, 'proyectos' => $porProyecto,
+                     'transversal' => $transversal, 'compromisos' => array_values($compromisos));
     }
 
-    //-----------------------------------------------------------------------
-    // Flota: cada vehículo activo del proyecto y su estado ese día
-    //-----------------------------------------------------------------------
-    private static function datosFlota(&$datos, $ids, $fecha)
+    //"Tarifarios y facturación" + "LA BALSA" -> "Tarifarios y facturación – Peaje La Balsa"
+    private static function tituloConPeaje($asunto, $peaje)
     {
-        $marcas = implode(',', array_fill(0, count($ids), '?'));
-        $filas = HanaDB::q("SELECT v.ID_PROYECTO, v.PLACA, v.DESCRIPCION, d.ESTADO_VH, d.TRANSPORTE, d.OBSERVACION
-                              FROM vehiculo v LEFT JOIN vehiculo_dia d ON d.ID_VEHICULO = v.ID_VEHICULO AND d.FECHA = ?
-                             WHERE v.ESTADO = 1 AND v.ID_PROYECTO IN ($marcas)
-                             ORDER BY v.PLACA", 's' . str_repeat('i', count($ids)), array_merge(array($fecha), $ids));
-        $transportes = HanaConfig::opciones('LISTA_TRANSPORTES');
-        foreach (is_array($filas) ? $filas : array() as $fila) {
-            $f = &$datos[(int)$fila['ID_PROYECTO']]['flota'];
-            $f['total']++;
-            if ($fila['ESTADO_VH'] === 'OPERATIVO') { $f['operativos']++; $estado = 'OPERATIVO'; }
-            elseif ($fila['ESTADO_VH'] === 'INOPERATIVO') { $f['fuera']++; $estado = 'FUERA'; }
-            else { $f['sinRegistro']++; $estado = 'SIN_REGISTRO'; }
-            $f['vehiculos'][] = array('placa' => $fila['PLACA'], 'descripcion' => (string)$fila['DESCRIPCION'], 'estado' => $estado,
-                                      'transporte' => $fila['TRANSPORTE'] ? (isset($transportes[$fila['TRANSPORTE']]) ? $transportes[$fila['TRANSPORTE']] : $fila['TRANSPORTE']) : '',
-                                      'observacion' => (string)$fila['OBSERVACION']);
-            unset($f);
-        }
+        $titulo = self::recortar($asunto, 150);
+        $peaje = trim((string)$peaje);
+        if ($peaje === '') { return $titulo; }
+        $nombre = mb_convert_case(mb_strtolower($peaje, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
+        return $titulo . ' – ' . (preg_match('/^(peaje|b[aá]scula)\b/iu', $nombre) ? $nombre : 'Peaje ' . $nombre);
     }
 
-    //Flota: cuántos vehículos están operativos y el estado de cada uno (operativo o inoperativo).
-    //Si está inoperativo y el coordinador escribió el motivo, va como dato adicional
-    private static function textoFlota($f)
+    private static function minusInicial($texto)
     {
-        if (!$f['total']) { return 'El proyecto no tiene vehículos asignados.'; }
-        $lineas = array('Vehículos operativos: ' . $f['operativos'] . ' de ' . $f['total'] . '.');
-        foreach ($f['vehiculos'] as $v) {
-            if ($v['estado'] === 'OPERATIVO') { $linea = '• ' . $v['placa'] . ': operativo.'; }
-            elseif ($v['estado'] === 'FUERA') {
-                $linea = '• ' . $v['placa'] . ': inoperativo.';
-                if ($v['observacion'] !== '') { $linea .= ' Motivo: ' . rtrim(self::recortar($v['observacion'], 160), '.') . '.'; }
-            } else { $linea = '• ' . $v['placa'] . ': sin reporte de estado para la fecha.'; }
-            $lineas[] = $linea;
-        }
-        return implode("\n", $lineas);
+        return mb_strtolower(mb_substr($texto, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($texto, 1, null, 'UTF-8');
     }
 
     //-----------------------------------------------------------------------
-    // Promesa de valor del periodo del reporte, por peaje y cargo.
+    // 1. Resultados: la promesa de valor del periodo, por peaje y cargo.
     // Solo se leen las casillas de pv_dia del periodo (desde - hasta; si es un
     // solo día, solo ese día): nada de antes ni de después entra en las cuentas.
     //-----------------------------------------------------------------------
@@ -258,9 +336,8 @@ class ReporteGerencia
             $p = &$datos[(int)$idProyecto]['promesa'];
             foreach ($lista as $idCentro => $nombreCentro) {
                 if (!isset($porCentro[$idCentro])) { continue; }
-                $peaje = array('nombre' => $nombreCentro, 'prometidas' => 0, 'ejecutadas' => 0, 'debajo' => array(), 'encima' => array(), 'sinRegistro' => array(), 'cargosDia' => array());
+                $peaje = array('nombre' => $nombreCentro, 'prometidas' => 0, 'ejecutadas' => 0, 'debajo' => array(), 'encima' => array(), 'sinRegistro' => array());
                 foreach ($porCentro[$idCentro] as $casilla) {
-                    $peaje['cargosDia'][$casilla['FECHA']] = isset($peaje['cargosDia'][$casilla['FECHA']]) ? $peaje['cargosDia'][$casilla['FECHA']] + 1 : 1;
                     if ($casilla['EJECUTADO_HORAS'] === null) { $peaje['sinRegistro'][$casilla['FECHA']][] = self::nombreCargo($casilla['CARGO']); continue; }
                     $promesa = (float)$casilla['PROMESA_HORAS']; $ejecutado = (float)$casilla['EJECUTADO_HORAS'];
                     $peaje['prometidas'] += $promesa; $peaje['ejecutadas'] += $ejecutado;
@@ -268,82 +345,78 @@ class ReporteGerencia
                     if ($diferencia == 0) { continue; }
                     $caso = array('fecha' => $casilla['FECHA'], 'cargo' => self::nombreCargo($casilla['CARGO']), 'promesa' => $promesa, 'ejecutado' => $ejecutado,
                                   'diferencia' => abs($diferencia), 'justificacion' => trim((string)$casilla['JUSTIFICACION']));
-                    if ($caso['justificacion'] === '') { $p['sinJustificar']++; }
-                    if ($diferencia > 0) { $peaje['debajo'][] = $caso; $p['diasDebajo']++; } else { $peaje['encima'][] = $caso; $p['diasEncima']++; }
+                    if ($diferencia > 0) { $peaje['debajo'][] = $caso; } else { $peaje['encima'][] = $caso; }
                 }
                 $p['prometidas'] += $peaje['prometidas']; $p['ejecutadas'] += $peaje['ejecutadas'];
-                $p['pendientes'] += count($peaje['sinRegistro']);
                 $p['peajes'][] = $peaje;
             }
             unset($p);
         }
     }
 
-    //Texto de la promesa del día. Un renglón con el total del día («Jornada del martes 27 de octubre: se ejecutaron
-    //518 de 527 horas prometidas (98,3 %).»), una viñeta por peaje y, debajo, cada cargo que quedó por debajo o por
-    //encima. Como todo es del mismo día, los casos ya no llevan la fecha delante, solo el cargo.
-    //OJO: cifrasDeTextos() lee estos textos para el PDF; si se cambia la redacción, revisar partesPromesa()
-    //Con un rango de días, el primer renglón dice «Periodo del ... al ...» y cada caso lleva su día delante («12/11 · Recaudadores: ...»)
-    private static function textoPromesa($p, $fecha, $desde = null)
+    //Las cifras de la promesa de todos los proyectos: horas, porcentaje y peajes que cumplen.
+    //Un peaje cumple si tiene lo ejecutado registrado y ningún cargo quedó por debajo de lo prometido.
+    //Los peajes sin lo ejecutado registrado no entran en la cuenta: se nombran aparte como pendientes
+    public static function totalesPromesa($datos)
     {
-        $rango = $desde !== null && $desde < $fecha;
-        $diaDe = function ($c) use ($rango) { return $rango ? date('d/m', strtotime($c['fecha'])) . ' · ' : ''; };
-        if (!count($p['peajes'])) { return $rango ? 'No hay promesa de valor registrada para el periodo.' : 'No hay promesa de valor registrada para la fecha.'; }
-        $lineas = array(($rango ? 'Periodo ' . self::periodoLargo($desde, $fecha) : 'Jornada del ' . self::diaLargo($fecha)) . ': ' . ($p['prometidas'] > 0
-            ? 'se ejecutaron ' . self::horas($p['ejecutadas']) . ' de ' . self::horas($p['prometidas']) . ' horas prometidas (' . self::porcentaje($p['ejecutadas'], $p['prometidas']) . ').'
-            : 'todavía no se ha registrado lo ejecutado.'));
-        foreach ($p['peajes'] as $peaje) {
-            if ($peaje['prometidas'] == 0) { $estado = 'pendiente de registrar lo ejecutado'; }
-            elseif (count($peaje['debajo'])) { $estado = 'no cumple'; }
-            elseif (count($peaje['encima'])) { $estado = 'cumple, con horas adicionales'; }
-            else { $estado = 'cumple'; }
-            if (count($peaje['sinRegistro']) && $peaje['prometidas'] > 0 && !count($peaje['debajo'])) { $estado .= ' en lo registrado'; }
-            $linea = '• ' . $peaje['nombre'] . ': ' . $estado . ($peaje['prometidas'] > 0 ? ' (' . self::porcentaje($peaje['ejecutadas'], $peaje['prometidas']) . ').' : '.');
-            foreach ($peaje['debajo'] as $c) {
-                $linea .= "\n   – " . $diaDe($c) . $c['cargo'] . ': se ejecutaron ' . self::horas($c['ejecutado']) . ' de ' . self::enHoras($c['promesa']) .
-                          ' (' . ($c['diferencia'] == 1 ? 'faltó 1' : 'faltaron ' . self::horas($c['diferencia'])) . '). ' . ($c['justificacion'] !== '' ? 'Justificación: ' . rtrim(self::recortar($c['justificacion'], 160), '.') . '.' : 'Sin justificación registrada.');
+        $t = array('prometidas' => 0, 'ejecutadas' => 0, 'peajes' => 0, 'cumplen' => 0, 'pendientes' => 0, 'hay' => false);
+        foreach ($datos as $d) {
+            foreach ($d['promesa']['peajes'] as $peaje) {
+                $t['hay'] = true;
+                if ($peaje['prometidas'] <= 0) { $t['pendientes']++; continue; }
+                $t['prometidas'] += $peaje['prometidas']; $t['ejecutadas'] += $peaje['ejecutadas'];
+                $t['peajes']++;
+                if (!count($peaje['debajo'])) { $t['cumplen']++; }
             }
-            foreach ($peaje['encima'] as $c) {
-                $linea .= "\n   – " . $diaDe($c) . $c['cargo'] . ': se ejecutaron ' . self::horas($c['ejecutado']) . ' de ' . self::enHoras($c['promesa']) .
-                          ' (' . self::enHoras($c['diferencia']) . ' adicional' . ($c['diferencia'] == 1 ? '' : 'es') . '). ' .
-                          ($c['justificacion'] !== '' ? 'Justificación: ' . rtrim(self::recortar($c['justificacion'], 160), '.') . '.' : 'Sin justificación registrada.');
-            }
-            //Cargos del día sin lo ejecutado. Si no se registró ninguno, el estado del peaje ya lo dice
-            //(«pendiente de registrar lo ejecutado»); si faltan solo algunos, se nombran
-            foreach ($peaje['sinRegistro'] as $dia => $cargos) {
-                if (count($cargos) < $peaje['cargosDia'][$dia]) {
-                    $linea .= "\n   – " . ($rango ? date('d/m', strtotime($dia)) . ' · ' : '') . "Pendiente registrar lo ejecutado de: " . implode(', ', $cargos) . '.';
-                }
-            }
-            $lineas[] = $linea;
         }
+        $t['pct'] = $t['prometidas'] > 0 ? 100 * $t['ejecutadas'] / $t['prometidas'] : null;
+        return $t;
+    }
+
+    //El texto de los resultados, como en el informe: «Se registró un cumplimiento del 100 %, con 19 de 19
+    //peajes cumpliendo el indicador de horas en punto de cobro.» y, debajo, los peajes que no cumplieron
+    //con lo que les faltó, y los que tienen pendiente registrar lo ejecutado
+    private static function textoResultados($datos, $proyectos, $fecha, $desde)
+    {
+        $rango = $desde < $fecha;
+        $t = self::totalesPromesa($datos);
+        if (!$t['hay']) { return $rango ? 'No se registró promesa de valor para el periodo.' : 'No se registró promesa de valor para la fecha.'; }
+        if (!$t['peajes']) { return 'Está pendiente el registro de lo ejecutado frente a la promesa de valor en todos los peajes.'; }
+        $lineas = array(($rango ? 'En el periodo se' : 'Se') . ' registró un cumplimiento del ' . self::porcentaje($t['ejecutadas'], $t['prometidas']) .
+                        ', con ' . $t['cumplen'] . ' de ' . $t['peajes'] . ($t['peajes'] === 1 ? ' peaje' : ' peajes') . ' cumpliendo el indicador de horas en punto de cobro.');
+        $pendientes = array();
+        foreach ($datos as $id => $d) {
+            foreach ($d['promesa']['peajes'] as $peaje) {
+                $nombre = $peaje['nombre'] . ' (' . $proyectos[$id] . ')';
+                if ($peaje['prometidas'] <= 0) { $pendientes[] = $nombre; continue; }
+                if (!count($peaje['debajo'])) { continue; }
+                $casos = array();
+                foreach ($peaje['debajo'] as $c) {
+                    $casos[] = ($rango ? date('d/m', strtotime($c['fecha'])) . ' · ' : '') . $c['cargo'] . ': se ejecutaron ' . self::horas($c['ejecutado']) . ' de ' . self::enHoras($c['promesa']) .
+                               ' (' . ($c['diferencia'] == 1 ? 'faltó 1' : 'faltaron ' . self::horas($c['diferencia'])) . '). ' .
+                               ($c['justificacion'] !== '' ? 'Justificación: ' . self::conPunto(self::recortar($c['justificacion'], 200)) : 'Sin justificación registrada.');
+                }
+                $lineas[] = '• ' . $nombre . ': ' . self::porcentaje($peaje['ejecutadas'], $peaje['prometidas']) . '. ' . implode(' ', $casos);
+            }
+        }
+        if (count($pendientes)) { $lineas[] = '• Pendiente el registro de lo ejecutado en: ' . implode(', ', $pendientes) . '.'; }
         return implode("\n", $lineas);
     }
 
-    private static function minusInicial($texto)
-    {
-        return mb_strtolower(mb_substr($texto, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($texto, 1, null, 'UTF-8');
-    }
-
-    private static function mayusInicial($texto)
-    {
-        return mb_strtoupper(mb_substr($texto, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($texto, 1, null, 'UTF-8');
-    }
-
     //-----------------------------------------------------------------------
-    // Oficios y comunicaciones en gestión ese día: recibidos hasta ese día y sin cerrar ese día
+    // 2. Oficios y comunicaciones en gestión el último día: recibidos hasta ese día y sin cerrar ese día
     //-----------------------------------------------------------------------
     private static function datosOficios(&$datos, $ids, $fecha)
     {
         $marcas = implode(',', array_fill(0, count($ids), '?'));
         $manana = date('Y-m-d', strtotime("$fecha +1 day"));
-        $filas = HanaDB::q("SELECT m.ID_PROYECTO, m.TIPO, m.RADICADO, m.ASUNTO, m.REMITENTE, m.FECHA_RECEPCION, m.PENDIENTE_DE,
+        $filas = HanaDB::q("SELECT m.ID_PROYECTO, m.TIPO, m.RADICADO, m.ASUNTO, m.REMITENTE, m.FECHA_RECEPCION, m.PENDIENTE_DE, c.NOM_CENTRO_OP,
                                    DATEDIFF(?, m.FECHA_RECEPCION) AS DIAS,
                                    (SELECT h.TEXTO FROM historial h
                                      WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.FECHA < ?
                                        AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
                                      ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS VA_EN
-                              FROM comunicacion m
+                              FROM comunicacion m LEFT JOIN centros_operacion c ON c.ID_CENTRO_OP = m.ID_CENTRO_OP
                              WHERE m.ESTADO = 1 AND m.TIPO <> '" . TemaCliente::TIPO . "' AND m.ID_PROYECTO IN ($marcas)
                                AND m.FECHA_RECEPCION <= ? AND (m.FECHA_ATENCION IS NULL OR m.FECHA_ATENCION > ?)
                              ORDER BY m.FECHA_RECEPCION, m.ID_COMUNICACION",
@@ -351,51 +424,54 @@ class ReporteGerencia
         $pendientes = HanaConfig::opciones('LISTA_PENDIENTE');
         $plazo = max(0, HanaConfig::num('COMUNICACION_DIAS_RESPUESTA', 2));
         foreach (is_array($filas) ? $filas : array() as $fila) {
-            $o = &$datos[(int)$fila['ID_PROYECTO']]['oficios'];
-            $o['total']++;
-            if ((int)$fila['DIAS'] > $plazo) { $o['fueraPlazo']++; }
-            if ($fila['TIPO'] === 'POR_ENVIAR') { $o['porEnviar']++; }
-            $o['lista'][] = array('tipo' => $fila['TIPO'], 'radicado' => (string)$fila['RADICADO'], 'asunto' => $fila['ASUNTO'], 'remitente' => $fila['REMITENTE'],
-                                  'recepcion' => $fila['FECHA_RECEPCION'], 'dias' => (int)$fila['DIAS'], 'fueraPlazo' => (int)$fila['DIAS'] > $plazo,
-                                  'pendiente' => $fila['PENDIENTE_DE'] ? (isset($pendientes[$fila['PENDIENTE_DE']]) ? $pendientes[$fila['PENDIENTE_DE']] : $fila['PENDIENTE_DE']) : '',
-                                  'vaEn' => (string)$fila['VA_EN']);
-            unset($o);
+            $datos[(int)$fila['ID_PROYECTO']]['oficios'][] = array(
+                'tipo' => $fila['TIPO'], 'radicado' => (string)$fila['RADICADO'], 'asunto' => $fila['ASUNTO'], 'remitente' => $fila['REMITENTE'],
+                'peaje' => (string)$fila['NOM_CENTRO_OP'], 'recepcion' => $fila['FECHA_RECEPCION'], 'dias' => (int)$fila['DIAS'], 'fueraPlazo' => (int)$fila['DIAS'] > $plazo,
+                'pendiente' => $fila['PENDIENTE_DE'] ? (isset($pendientes[$fila['PENDIENTE_DE']]) ? $pendientes[$fila['PENDIENTE_DE']] : $fila['PENDIENTE_DE']) : '',
+                'vaEn' => (string)$fila['VA_EN']);
         }
     }
 
-    private static function textoOficios($o)
+    //«Comunicación recibida de Interventoría el 10 de noviembre (radicado RAD-1); lleva 7 días en gestión,
+    //fuera del plazo de respuesta. Último avance: … El siguiente paso corresponde a Dirección.»
+    private static function textoOficio($c)
     {
-        if (!$o['total']) { return 'No hay oficios ni comunicaciones en gestión.'; }
-        $lineas = array('Hay ' . $o['total'] . ' en gestión' . ($o['fueraPlazo'] ? ($o['fueraPlazo'] === $o['total'] ? ($o['total'] === 1 ? ', fuera del plazo de respuesta' : ', todos fuera del plazo de respuesta')
-                                                                                    : '; ' . $o['fueraPlazo'] . ' fuera del plazo de respuesta')
-                                                            : ($o['total'] === 1 ? ', dentro del plazo de respuesta' : ', todos dentro del plazo de respuesta')) . '.');
-        foreach ($o['lista'] as $c) {
-            $linea = '• ' . ($c['tipo'] === 'POR_ENVIAR' ? '[Por enviar] ' : '[Por atender] ') . self::recortar($c['asunto'], 160) . ' — ' . self::recortar($c['remitente'], 60) .
-                     ($c['radicado'] !== '' ? ' (rad. ' . $c['radicado'] . ')' : '') . '. ' .
-                     ($c['dias'] === 0 ? 'Recibido en la fecha.' : 'Recibido el ' . date('d/m', strtotime($c['recepcion'])) . '; ' . $c['dias'] . ($c['dias'] === 1 ? ' día' : ' días') . ' en gestión' . ($c['fueraPlazo'] ? ' (fuera de plazo)' : '') . '.');
-            if ($c['pendiente'] !== '') { $linea .= ' Responsable del siguiente paso: ' . $c['pendiente'] . '.'; }
-            if ($c['vaEn'] !== '') { $linea .= ' Estado: ' . rtrim(self::recortar($c['vaEn'], 200), '.') . '.'; }
-            $lineas[] = $linea;
-        }
-        return implode("\n", $lineas);
+        $porEnviar = $c['tipo'] === 'POR_ENVIAR';
+        $texto = ($porEnviar ? 'Comunicación por enviar a ' : 'Comunicación recibida de ') . self::recortar($c['remitente'], 80) .
+                 ($porEnviar ? ', registrada el ' : ' el ') . self::diaMes($c['recepcion']) .
+                 ($c['radicado'] !== '' ? ' (radicado ' . $c['radicado'] . ')' : '') . '; ' .
+                 ($c['dias'] === 0 ? 'se registró en la fecha' : 'lleva ' . $c['dias'] . ($c['dias'] === 1 ? ' día' : ' días') . ' en gestión') .
+                 ($c['fueraPlazo'] ? ', fuera del plazo de respuesta.' : ', dentro del plazo de respuesta.');
+        if ($c['vaEn'] !== '') { $texto .= ' Último avance: ' . self::conPunto(self::recortar($c['vaEn'], 600)); }
+        if ($c['pendiente'] !== '') { $texto .= ' El siguiente paso corresponde a ' . $c['pendiente'] . '.'; }
+        return $texto;
     }
 
     //-----------------------------------------------------------------------
-    // Temas con el cliente abiertos ese día, y novedades reportadas ese día
+    // Temas (con el cliente y con Regency): lo que se escribió en el periodo y
+    // si se abrió o se cerró en él
     //-----------------------------------------------------------------------
-    private static function temasAbiertos(&$datos, $ids, $fecha)
+    private static function textoTema($tema, $fecha, $desde)
     {
-        $marcas = implode(',', array_fill(0, count($ids), '?'));
-        $filas = HanaDB::q("SELECT ID_PROYECTO, COUNT(*) AS N FROM comunicacion
-                             WHERE TIPO = '" . TemaCliente::TIPO . "' AND ESTADO = 1 AND ID_PROYECTO IN ($marcas)
-                               AND FECHA_RECEPCION <= ? AND (FECHA_ATENCION IS NULL OR FECHA_ATENCION > ?)
-                             GROUP BY ID_PROYECTO", str_repeat('i', count($ids)) . 'ss', array_merge($ids, array($fecha, $fecha)));
-        foreach (is_array($filas) ? $filas : array() as $fila) { $datos[(int)$fila['ID_PROYECTO']]['temas']['abiertos'] = (int)$fila['N']; }
+        $rango = $desde < $fecha;
+        $enPeriodo = function ($dia) use ($desde, $fecha) { return $dia !== null && $dia >= $desde && $dia <= $fecha; };
+        $nuevo = $enPeriodo($tema['FECHA_RECEPCION']); $cerrado = $enPeriodo($tema['FECHA_ATENCION']);
+        $con = self::recortar($tema['REMITENTE'], 80);
+        $nota = trim((string)$tema['TEXTO_DIA']) !== '' ? self::conPunto(self::recortar($tema['TEXTO_DIA'], 1500)) : '';
+        $partes = array();
+        if ($nuevo && $cerrado) { $partes[] = 'Se abrió y se cerró el tema con ' . $con . ($rango ? ' en el periodo.' : ' en la fecha.'); }
+        elseif ($nuevo) { $partes[] = 'Se abrió el tema con ' . $con . '.'; }
+        if ($nota !== '') { $partes[] = $nota; }
+        if ($cerrado && !$nuevo) { $partes[] = 'El tema quedó cerrado el ' . self::diaMes($tema['FECHA_ATENCION']) . '.'; }
+        if (!count($partes)) { $partes[] = 'Se mantiene seguimiento con ' . $con . '.'; }
+        return implode(' ', $partes);
     }
 
-    private static function datosNovedades(&$datos, $centros, $fecha, $desde = null)
+    //-----------------------------------------------------------------------
+    // 3. Novedades reportadas en el periodo, en los peajes de la persona
+    //-----------------------------------------------------------------------
+    private static function datosNovedades(&$datos, $centros, $fecha, $desde)
     {
-        $desde = ($desde !== null && $desde < $fecha) ? $desde : $fecha;
         $proyectoDe = array();
         foreach ($centros as $centro) { $proyectoDe[(int)$centro['ID_CENTRO_OP']] = (int)$centro['ID_PROYECTO']; }
         if (!count($proyectoDe)) { return; }
@@ -419,397 +495,282 @@ class ReporteGerencia
         }
     }
 
-    private static function textoNovedades($temas, $novedades, $fecha, $desde = null)
+    private static function textoNovedades($novedades)
     {
-        $desde = ($desde !== null && $desde < $fecha) ? $desde : $fecha;
-        $enPeriodo = function ($dia) use ($desde, $fecha) { return $dia !== null && $dia >= $desde && $dia <= $fecha; };
-        $lineas = array();
-        foreach ($temas['movimientos'] as $tema) {
-            $nuevo = $enPeriodo($tema['FECHA_RECEPCION']); $cerrado = $enPeriodo($tema['FECHA_ATENCION']);
-            $estado = $nuevo && $cerrado ? ($desde < $fecha ? 'se abrió y se cerró en el periodo' : 'se abrió y se cerró en la fecha') : ($nuevo ? 'tema nuevo' : ($cerrado ? 'tema cerrado' : 'seguimiento'));
-            $lineas[] = '• Tema ' . ((isset($tema['CON']) && $tema['CON'] === 'REGENCY') ? 'con Regency (interno)' : 'con el cliente') . ': ' . self::recortar($tema['ASUNTO'], 160) . ' (con ' . self::recortar($tema['REMITENTE'], 60) . '; ' . $estado . ')' .
-                        ($tema['TEXTO_DIA'] ? '. ' . rtrim(self::recortar($tema['TEXTO_DIA'], 300), '.') . '.' : '.');
-        }
         $prioridades = array('ALTO' => 'prioridad alta', 'MEDIO' => 'prioridad media', 'BAJO' => 'prioridad baja');
+        $lineas = array();
         foreach ($novedades as $n) {
-            $lineas[] = '• Novedad en ' . $n['peaje'] . ($n['titulo'] !== '' ? ' — ' . $n['titulo'] : '') .
-                        (isset($prioridades[$n['prioridad']]) ? ' (' . $prioridades[$n['prioridad']] . ')' : '') . ': ' . rtrim(self::recortar($n['descripcion'], 200), '.') . '.';
+            $lineas[] = '• ' . $n['peaje'] . ($n['titulo'] !== '' ? ' – ' . $n['titulo'] : '') .
+                        (isset($prioridades[$n['prioridad']]) ? ' (' . $prioridades[$n['prioridad']] . ')' : '') . ': ' . self::conPunto(self::recortar($n['descripcion'], 300));
         }
-        return count($lineas) ? implode("\n", $lineas) : ($desde < $fecha ? 'Sin novedades relevantes en el periodo.' : 'Sin novedades relevantes en la jornada.');
+        return implode("\n", $lineas);
     }
 
     //-----------------------------------------------------------------------
-    // Las cifras del PDF, leídas de los textos tal como quedaron
-    // (lo que propuso el sistema o lo que la dirección corrigió). Si en el texto
-    // dice «5 de 6» vehículos operativos o «Hay 4 en gestión», el PDF muestra
-    // eso, aunque el sistema haya calculado otra cosa. Lo que no se pueda leer
-    // del texto queda en null y el PDF lo muestra como «—» (sin dato).
-    //   $textos     [idProyecto => [CODIGO => texto]]
-    //   $propuestos lo que propone el sistema (textos()) y $base los datos de la base (calcular()): solo se usan
-    //               en la promesa de valor, para saber qué renglón corrigió la persona (ver leerPromesa)
-    // Devuelve [idProyecto => [
-    //   'flota'     => total, operativos, fuera, sinRegistro, vehiculos [placa, estado]
-    //   'promesa'   => prometidas, ejecutadas, pct, debajo, encima, sinJustificar, hay (false = sin promesa)
-    //   'oficios'   => total, fueraPlazo, porEnviar
-    //   'temas'     => abiertos, hoy
-    //   'novedades' => cuántas
-    // ]]
+    // 4. Vacantes: las abiertas el último día y las que se cubrieron en el periodo
     //-----------------------------------------------------------------------
-    public static function cifrasDeTextos($textos, $propuestos = array(), $base = array())
+    private static function datosVacantes(&$datos, $centros, $fecha, $desde)
     {
-        $cifras = array();
-        foreach ($textos as $id => $t) {
-            $nov = self::leerNovedades(isset($t['NOVEDADES']) ? $t['NOVEDADES'] : '');
-            $cifras[$id] = array(
-                'flota'     => self::segunVinetas('leerFlota', isset($t['FLOTA']) ? $t['FLOTA'] : '', isset($propuestos[$id]['FLOTA']) ? $propuestos[$id]['FLOTA'] : null,
-                                                  array('total', 'operativos'), array('total', 'operativos', 'fuera', 'sinRegistro')),
-                'promesa'   => self::leerPromesa(isset($t['PROMESA']) ? $t['PROMESA'] : '',
-                                                 isset($propuestos[$id]['PROMESA']) ? $propuestos[$id]['PROMESA'] : null,
-                                                 isset($base[$id]['promesa']) ? $base[$id]['promesa'] : null),
-                'oficios'   => self::segunVinetas('leerOficios', isset($t['OFICIOS']) ? $t['OFICIOS'] : '', isset($propuestos[$id]['OFICIOS']) ? $propuestos[$id]['OFICIOS'] : null,
-                                                  array('total', 'fueraPlazo'), array('total', 'fueraPlazo', 'porEnviar')),
-                'temas'     => array('abiertos' => $nov['temasAbiertos'], 'hoy' => $nov['temasHoy']),
-                'novedades' => $nov['novedades']);
+        $proyectoDe = array();
+        foreach ($centros as $centro) { $proyectoDe[(int)$centro['ID_CENTRO_OP']] = (int)$centro['ID_PROYECTO']; }
+        if (!count($proyectoDe)) { return; }
+        $ids = array_keys($proyectoDe);
+        $marcas = implode(',', array_fill(0, count($ids), '?'));
+        $filas = HanaDB::q("SELECT v.ID_CENTRO_OP, c.NOM_CENTRO_OP, v.CARGO, v.MOTIVO, v.FECHA_VACANTE, v.FECHA_CIERRE, v.ESTADO_VACANTE,
+                                   v.NOMBRE_REEMPLAZO, v.ESTADO_GH, v.FECHA_COMPROMISO_GH,
+                                   (SELECT h.TEXTO FROM historial h WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'SALE_CARGO'
+                                     ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS NOMBRE_SALE
+                              FROM vacante v INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = v.ID_CENTRO_OP
+                             WHERE v.ID_CENTRO_OP IN ($marcas) AND v.FECHA_VACANTE <= ?
+                               AND ((v.ESTADO_VACANTE = 'ABIERTA' AND (v.FECHA_CIERRE IS NULL OR v.FECHA_CIERRE > ?))
+                                    OR (v.ESTADO_VACANTE = 'CUBIERTA' AND v.FECHA_CIERRE BETWEEN ? AND ?))
+                             ORDER BY v.FECHA_VACANTE, c.NOM_CENTRO_OP, v.CARGO",
+                           str_repeat('i', count($ids)) . 'ssss', array_merge($ids, array($fecha, $fecha, $desde, $fecha)));
+        $estadosGh = HanaConfig::opciones('LISTA_ESTADOS_GH');
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            $idProyecto = $proyectoDe[(int)$fila['ID_CENTRO_OP']];
+            if (!isset($datos[$idProyecto])) { continue; }
+            $datos[$idProyecto]['vacantes'][] = array('idProyecto' => $idProyecto, 'peaje' => $fila['NOM_CENTRO_OP'], 'cargo' => self::nombreCargo($fila['CARGO']),
+                'motivo' => (string)$fila['MOTIVO'], 'desde' => $fila['FECHA_VACANTE'], 'estado' => $fila['ESTADO_VACANTE'],
+                'reemplazo' => (string)$fila['NOMBRE_REEMPLAZO'], 'sale' => (string)$fila['NOMBRE_SALE'],
+                'gh' => $fila['ESTADO_GH'] ? (isset($estadosGh[$fila['ESTADO_GH']]) ? $estadosGh[$fila['ESTADO_GH']] : $fila['ESTADO_GH']) : '',
+                'compromiso' => $fila['FECHA_COMPROMISO_GH'] ?: null);
         }
-        return $cifras;
     }
 
-    //Flota y oficios tienen un renglón de arriba con las cifras («Vehículos operativos: 3 de 4», «Hay 3 en gestión») y una
-    //viñeta por vehículo u oficio. Si la persona cambió el renglón de arriba, vale ese; si lo dejó como lo propuso el
-    //sistema pero cambió las viñetas (puso un vehículo inoperativo, quitó o agregó un oficio), valen las viñetas
-    //$arriba: las cifras que dice el renglón de arriba; $campos: todas las que se toman de las viñetas si cambiaron
-    private static function segunVinetas($leer, $texto, $propuesto, $arriba, $campos)
+    private static function textoVacantes($vacantes, $fecha, $desde)
     {
-        $u = self::$leer($texto);
-        if ($propuesto === null || trim($propuesto) === '' || trim($texto) === '') { return $u; }
-        $s = self::$leer($propuesto);
-        foreach ($arriba as $c) { if ($u[$c] !== $s[$c]) { return $u; } }            //se cambió el renglón de arriba
-        $soloVinetas = function ($t) { return implode("\n", array_filter(preg_split('/\r?\n/u', (string)$t), function ($l) { return preg_match('/^\s*[•\-\*–—]/u', $l); })); };
-        $vu = $soloVinetas($texto); $vs = $soloVinetas($propuesto);
-        if ($vu === '' || $vs === '') { return $u; }
-        $cu = self::$leer($vu); $cs = self::$leer($vs);
-        foreach ($campos as $c) {
-            if ($cu[$c] !== $cs[$c]) {                                               //se cambiaron las viñetas
-                foreach ($campos as $k) { $u[$k] = $cu[$k]; }
-                return $u;
+        $abiertas = array_values(array_filter($vacantes, function ($v) { return $v['estado'] === 'ABIERTA'; }));
+        $cubiertas = array_values(array_filter($vacantes, function ($v) { return $v['estado'] === 'CUBIERTA'; }));
+        $lineas = array();
+        if (count($abiertas)) {
+            $lineas[] = count($abiertas) === 1 ? 'Se encuentra una vacante en proceso de cobertura:' : 'Se encuentran ' . count($abiertas) . ' vacantes en proceso de cobertura:';
+            foreach ($abiertas as $v) {
+                $linea = '• ' . $v['cargo'] . ' – ' . $v['peaje'] . ' (' . $v['proyecto'] . '): vacante desde el ' . self::diaMes($v['desde']) .
+                         ($v['motivo'] !== '' ? ' por ' . self::minusInicial(rtrim(self::recortar($v['motivo'], 120), '.')) : '') .
+                         ($v['sale'] !== '' ? ' de ' . self::recortar($v['sale'], 80) : '');
+                if ($v['gh'] !== '') { $linea .= '; en ' . self::minusInicial($v['gh']) . ' con Gestión Humana'; }
+                if ($v['compromiso'] !== null) { $linea .= ', con fecha comprometida para el ' . self::diaMes($v['compromiso']); }
+                $lineas[] = $linea . '.';
             }
         }
-        return $u;
+        foreach ($cubiertas as $v) {
+            $lineas[] = '• Se cubrió la vacante de ' . self::minusInicial($v['cargo']) . ' – ' . $v['peaje'] . ' (' . $v['proyecto'] . ')' .
+                        ($v['reemplazo'] !== '' ? ' con ' . self::recortar($v['reemplazo'], 80) : '') . '.';
+        }
+        return implode("\n", $lineas);
     }
 
-    //Un número escrito en el texto: «5», «1.040», «7,5» o en letras («cinco», «una», «ninguno»). Si no es número, null
-    const NUM = '(?<![\p{L}\d.,])(\d[\d.]*(?:,\d+)?|cero|ning[uú]n[oa]?|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|dieciocho|diecinueve|veinte)';
-    private static function numero($texto)
+    //-----------------------------------------------------------------------
+    // 5. Lo programado en el cronograma para los próximos días (visitas, reuniones y
+    //    demás actividades de trabajo; no los descansos ni las vacaciones)
+    //-----------------------------------------------------------------------
+    private static function datosAgenda(&$datos, $centros, $fecha)
     {
-        $texto = mb_strtolower(trim((string)$texto), 'UTF-8');
-        if (preg_match('/^\d[\d.]*(,\d+)?$/u', $texto)) {
-            //El punto separa miles y la coma los decimales (como se escriben en los textos): 1.040 -> 1040, 7,5 -> 7.5
-            return (float)str_replace(array('.', ','), array('', '.'), $texto);
-        }
-        $letras = array('cero' => 0, 'ninguno' => 0, 'ninguna' => 0, 'ningun' => 0, 'ningún' => 0, 'un' => 1, 'uno' => 1, 'una' => 1, 'dos' => 2, 'tres' => 3,
-                        'cuatro' => 4, 'cinco' => 5, 'seis' => 6, 'siete' => 7, 'ocho' => 8, 'nueve' => 9, 'diez' => 10, 'once' => 11, 'doce' => 12,
-                        'trece' => 13, 'catorce' => 14, 'quince' => 15, 'dieciseis' => 16, 'dieciséis' => 16, 'diecisiete' => 17, 'dieciocho' => 18,
-                        'diecinueve' => 19, 'veinte' => 20);
-        return isset($letras[$texto]) ? (float)$letras[$texto] : null;
-    }
-    private static function entero($texto) { $n = self::numero($texto); return $n === null ? null : (int)round($n); }
-
-    //Separa un texto en renglones: [['vineta' => bool, 'nivel' => 1|2, 'texto' => sin la viñeta]]
-    private static function renglonesDe($texto)
-    {
-        $lista = array();
-        foreach (preg_split('/\r?\n/u', (string)$texto) as $linea) {
-            if (trim($linea) === '') { continue; }
-            if (preg_match('/^\s*[–—]\s*(.*)$/u', $linea, $m) || preg_match('/^\s{2,}[•\-\*]\s*(.*)$/u', $linea, $m)) { $lista[] = array('vineta' => true, 'nivel' => 2, 'texto' => trim($m[1])); }
-            elseif (preg_match('/^\s*[•\-\*]\s*(.*)$/u', $linea, $m)) { $lista[] = array('vineta' => true, 'nivel' => 1, 'texto' => trim($m[1])); }
-            else { $lista[] = array('vineta' => false, 'nivel' => 0, 'texto' => trim($linea)); }
-        }
-        return $lista;
-    }
-
-    //Flota: «Vehículos operativos: 3 de 4.» y una viñeta por vehículo («• ABC123: operativo.»)
-    private static function leerFlota($texto)
-    {
-        $f = array('total' => null, 'operativos' => null, 'fuera' => null, 'sinRegistro' => null, 'vehiculos' => array());
-        if (trim($texto) === '') { return $f; }
-        if (preg_match('/no tiene veh[ií]culos|sin veh[ií]culos asignados/iu', $texto)) {
-            return array('total' => 0, 'operativos' => 0, 'fuera' => 0, 'sinRegistro' => 0, 'vehiculos' => array());
-        }
-        $cuenta = array('OPERATIVO' => 0, 'FUERA' => 0, 'SIN_REGISTRO' => 0);
-        $encabezado = '';
-        foreach (self::renglonesDe($texto) as $r) {
-            if (!$r['vineta']) { $encabezado .= ' ' . $r['texto']; continue; }
-            if ($r['nivel'] !== 1 || !preg_match('/^([^:]{1,40}):\s*(.*)$/u', $r['texto'], $m)) { continue; }
-            $estado = $m[2];
-            if (preg_match('/inoperativ|no operativ|fuera de servicio|varad|da[ñn]ad|taller|mantenimiento/iu', $estado)) { $e = 'FUERA'; }
-            elseif (preg_match('/sin reporte|sin registro|no report|sin estado/iu', $estado)) { $e = 'SIN_REGISTRO'; }
-            elseif (preg_match('/operativ|disponible|funcionando|en servicio/iu', $estado)) { $e = 'OPERATIVO'; }
-            else { $e = 'SIN_REGISTRO'; }
-            $cuenta[$e]++;
-            $f['vehiculos'][] = array('placa' => trim(preg_replace('/\s*\(.*$/u', '', $m[1])), 'estado' => $e);
-        }
-        $n = self::NUM;
-        //«operativos: 3 de 4» o «3 de 4 vehículos operativos»
-        if (preg_match('/operativos?\s*:?\s*' . $n . '\s+de\s+' . $n . '/iu', $encabezado, $m) || preg_match('/' . $n . '\s+de\s+' . $n . '\s+veh[ií]culos?\s+(?:est[aá]n\s+)?operativ/iu', $encabezado, $m)) {
-            $f['operativos'] = self::entero($m[1]); $f['total'] = self::entero($m[2]);
-        }
-        if ($f['total'] !== null && $f['operativos'] !== null) {
-            $f['operativos'] = min($f['operativos'], $f['total']);
-            $resto = $f['total'] - $f['operativos'];
-            //Si el encabezado dice cuántos están inoperativos o sin reporte, vale eso; si no, se toma de las viñetas
-            $fuera = preg_match('/' . $n . '\s+(?:veh[ií]culos?\s+)?(?:inoperativos?|fuera de servicio)/iu', $encabezado, $m) ? self::entero($m[1]) : null;
-            $sin = preg_match('/' . $n . '\s+(?:veh[ií]culos?\s+)?sin reporte/iu', $encabezado, $m) ? self::entero($m[1]) : null;
-            if ($fuera === null && $sin === null) { $sin = min($resto, $cuenta['SIN_REGISTRO']); $fuera = $resto - $sin; }
-            elseif ($fuera === null) { $sin = min($resto, $sin); $fuera = $resto - $sin; }
-            else { $fuera = min($resto, $fuera); $sin = $resto - $fuera; }
-            $f['fuera'] = $fuera; $f['sinRegistro'] = $sin;
-        } elseif (count($f['vehiculos'])) {
-            $f['total'] = count($f['vehiculos']); $f['operativos'] = $cuenta['OPERATIVO'];
-            $f['fuera'] = $cuenta['FUERA']; $f['sinRegistro'] = $cuenta['SIN_REGISTRO'];
-        }
-        return $f;
-    }
-
-    //Promesa: «…: se ejecutaron 518 de 527 horas prometidas (98,3 %).», una viñeta por peaje («• ANDES: no cumple (97,8 %).»)
-    //y debajo de cada peaje sus casos («– Recaudador: se ejecutaron 16 de 24 horas (faltaron 8)…»).
-    //También lee los reportes viejos que se guardaron con la redacción semanal («Semana del…», «– Martes 27…, Recaudador:»)
-    //Para saber qué corrigió la persona se compara con lo que propone el sistema ($propuesto) y con las horas de
-    //cada peaje en la base ($base): manda lo que se haya cambiado, del nivel que sea.
-    //  - si se cambió el renglón del total del día: valen sus horas y su porcentaje (si solo se cambiaron las horas,
-    //    el porcentaje se recalcula con ellas);
-    //  - si no, pero se cambió el porcentaje de un peaje o las horas de un caso: se recalcula el total del día con eso;
-    //  - si no se cambió nada: lo que dice el texto.
-    private static function leerPromesa($texto, $propuesto = null, $base = null)
-    {
-        $p = array('prometidas' => null, 'ejecutadas' => null, 'pct' => null, 'debajo' => null, 'encima' => null, 'sinJustificar' => null, 'hay' => true,
-                   'peajes' => 0, 'peajesCumplen' => 0, 'peajesSinEstado' => 0);
-        if (trim($texto) === '') { return $p; }
-        if (preg_match('/no hay promesa|sin promesa/iu', $texto)) { $p['hay'] = false; $p['debajo'] = 0; $p['encima'] = 0; $p['sinJustificar'] = 0; return $p; }
-        $u = self::partesPromesa($texto);
-        $p['prometidas'] = $u['prometidas']; $p['ejecutadas'] = $u['ejecutadas'];
-        $p['debajo'] = $u['debajo']; $p['encima'] = $u['encima']; $p['sinJustificar'] = $u['sinJustificar'];
-        $s = ($propuesto !== null && trim($propuesto) !== '' && !preg_match('/no hay promesa/iu', $propuesto)) ? self::partesPromesa($propuesto) : null;
-
-        if ($s === null) {
-            //Sin con qué comparar: el porcentaje escrito; si no hay, con las horas; si tampoco, con los peajes
-            $p['pct'] = $u['pct'] !== null ? $u['pct'] : self::pctDeHoras($u['ejecutadas'], $u['prometidas']);
-            if ($p['pct'] === null) { $p['pct'] = self::pctDePeajes($u['peajes'], $base); }
-            return self::conPeajes($p, $u);
-        }
-
-        $cambiaHoras = !self::igual($u['ejecutadas'], $s['ejecutadas']) || !self::igual($u['prometidas'], $s['prometidas']);
-        $cambiaPct = !self::igual($u['pct'], $s['pct']);
-        if ($cambiaHoras || $cambiaPct) {
-            //Se corrigió el renglón del total del día
-            if ($cambiaHoras && !$cambiaPct) { $p['pct'] = self::pctDeHoras($u['ejecutadas'], $u['prometidas']); }
-            else { $p['pct'] = $u['pct'] !== null ? $u['pct'] : self::pctDeHoras($u['ejecutadas'], $u['prometidas']); }
-            if ($p['pct'] === null) { $p['pct'] = self::pctDePeajes($u['peajes'], $base); }
-            //Si el porcentaje escrito no cuadra con las horas escritas, las horas no se muestran (vale el porcentaje)
-            $deHoras = self::pctDeHoras($u['ejecutadas'], $u['prometidas']);
-            if ($deHoras !== null && $p['pct'] !== null && abs($deHoras - $p['pct']) > 0.15) { $p['ejecutadas'] = null; }
-            return self::conPeajes($p, $u);
-        }
-
-        //El renglón del total del día sigue igual: se mira si cambió algún peaje o algún caso
-        $horasBase = array();
-        foreach (isset($base['peajes']) ? $base['peajes'] : array() as $peaje) {
-            $horasBase[self::clave($peaje['nombre'])] = array((float)$peaje['prometidas'], (float)$peaje['ejecutadas']);
-        }
-        $peajesS = array();
-        foreach ($s['peajes'] as $peaje) { $peajesS[self::clave($peaje['nombre'])] = $peaje; }
-        $prometidas = 0; $ejecutadas = 0; $cambio = false;
+        $proyectoDe = array();
+        foreach ($centros as $centro) { $proyectoDe[(int)$centro['ID_CENTRO_OP']] = (int)$centro['ID_PROYECTO']; }
+        if (!count($proyectoDe)) { return; }
+        $ids = array_keys($proyectoDe);
+        $marcas = implode(',', array_fill(0, count($ids), '?'));
+        $hasta = date('Y-m-d', strtotime($fecha . ' +' . self::DIAS_COMPROMISOS . ' days'));
+        $filas = HanaDB::q("SELECT k.ID_CENTRO_OP, c.NOM_CENTRO_OP, k.FECHA, k.TIPO, k.DESCRIPCION
+                              FROM cronograma k INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = k.ID_CENTRO_OP
+                             WHERE k.ID_CENTRO_OP IN ($marcas) AND k.ESTADO = 'PROGRAMADA' AND k.TIPO NOT IN ('DESCANSO', 'VACACIONES')
+                               AND k.FECHA > ? AND k.FECHA <= ?
+                             ORDER BY k.FECHA, c.NOM_CENTRO_OP",
+                           str_repeat('i', count($ids)) . 'ss', array_merge($ids, array($fecha, $hasta)));
+        $tipos = HanaConfig::opciones('LISTA_TIPOS_CRONO');
         $vistos = array();
-        foreach ($u['peajes'] as $peaje) {
-            $k = self::clave($peaje['nombre']); $vistos[$k] = true;
-            $antes = isset($peajesS[$k]) ? $peajesS[$k] : null;
-            if (!isset($horasBase[$k])) {
-                continue;   //un peaje que no está en la base (escrito a mano): no tiene horas con qué contarlo
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            $idProyecto = $proyectoDe[(int)$fila['ID_CENTRO_OP']];
+            if (!isset($datos[$idProyecto])) { continue; }
+            $tipo = isset($tipos[$fila['TIPO']]) ? $tipos[$fila['TIPO']] : self::nombreCargo($fila['TIPO']);
+            $descripcion = trim((string)$fila['DESCRIPCION']);
+            $gestion = ($descripcion !== '' ? self::recortar($descripcion, 120) : $tipo) . ' – ' . $fila['NOM_CENTRO_OP'];
+            //La misma actividad de varias personas el mismo día sale una vez
+            $clave = $fila['FECHA'] . '|' . mb_strtolower($gestion, 'UTF-8');
+            if (isset($vistos[$clave])) { continue; }
+            $vistos[$clave] = true;
+            $datos[$idProyecto]['agenda'][] = array('fecha' => $fila['FECHA'], 'gestion' => $gestion);
+        }
+    }
+
+    //-----------------------------------------------------------------------
+    // El reporte como lo maneja la pantalla y el PDF (estructura de la versión 3)
+    //-----------------------------------------------------------------------
+
+    //El encabezado del último reporte guardado que tenga destinatario o firma (para no escribirlo cada día);
+    //si no hay ninguno, el de fábrica
+    public static function ultimoEncabezado()
+    {
+        $filas = HanaDB::q("SELECT TEXTO FROM historial WHERE MODULO = ? AND TIPO = ? ORDER BY FECHA DESC, ID_HISTORIAL DESC LIMIT 20",
+                           'ss', array(self::MODULO, self::TIPO));
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            $datos = json_decode((string)$fila['TEXTO'], true);
+            if (!is_array($datos) || !isset($datos['encabezado']) || !is_array($datos['encabezado'])) { continue; }
+            $encabezado = self::limpiarEncabezado($datos['encabezado']);
+            if ($encabezado['destinatario'] !== '' || $encabezado['firma'] !== '') { return $encabezado; }
+        }
+        return self::ENCABEZADO;
+    }
+
+    private static function limpiarEncabezado($e)
+    {
+        $limpio = array();
+        foreach (self::ENCABEZADO as $clave => $fabrica) {
+            $valor = isset($e[$clave]) && is_string($e[$clave]) ? trim(str_replace("\r\n", "\n", $e[$clave])) : $fabrica;
+            $limpio[$clave] = mb_substr($valor, 0, self::LARGO_ENCABEZADO[$clave], 'UTF-8');
+        }
+        return $limpio;
+    }
+
+    //Un texto que llegó de la pantalla o de lo guardado: sin espacios de más y sin pasar del largo
+    private static function textoLimpio($valor, $largo)
+    {
+        $valor = is_string($valor) || is_numeric($valor) ? trim(str_replace("\r\n", "\n", (string)$valor)) : '';
+        return mb_strlen($valor, 'UTF-8') > $largo ? mb_substr($valor, 0, $largo, 'UTF-8') : $valor;
+    }
+
+    //Revisa y limpia un reporte (de la pantalla o de lo guardado). Solo quedan los apartados que tienen algo
+    //escrito y los proyectos que están en $proyectos ([id => nombre]) o, con proyecto 0, los generales.
+    //Si $estricto, en vez de recortar avisa qué pasa del largo (para guardar): devuelve [reporte, error]
+    public static function normalizar($entrada, $proyectos, $estricto = false)
+    {
+        $error = null;
+        $limite = function ($valor, $largo, $nombre) use ($estricto, &$error) {
+            $valor = is_string($valor) || is_numeric($valor) ? trim(str_replace("\r\n", "\n", (string)$valor)) : '';
+            if (mb_strlen($valor, 'UTF-8') > $largo) {
+                if ($estricto && $error === null) { $error = '«' . $nombre . '» pasa de ' . $largo . ' caracteres. Acórtalo un poco.'; }
+                $valor = mb_substr($valor, 0, $largo, 'UTF-8');
             }
-            list($pp, $ee) = $horasBase[$k];
-            if ($antes !== null && !self::igual($peaje['pct'], $antes['pct']) && $peaje['pct'] !== null) {
-                //Se corrigió el porcentaje del peaje
-                $ee = $pp * $peaje['pct'] / 100; $cambio = true;
-            } elseif ($antes !== null) {
-                //Se corrigieron las horas de algún caso (o se agregó o quitó uno): se suma la diferencia
-                $dp = 0; $de = 0;
-                $casosS = array();
-                foreach ($antes['casos'] as $c) { $casosS[$c['clave']][] = $c; }
-                foreach ($peaje['casos'] as $c) {
-                    if (isset($casosS[$c['clave']]) && count($casosS[$c['clave']])) {
-                        $a = array_shift($casosS[$c['clave']]);
-                        if ($c['prometidas'] !== null && $a['prometidas'] !== null) { $dp += $c['prometidas'] - $a['prometidas']; }
-                        $de += ($c['desvio'] - $a['desvio']) + (($c['prometidas'] !== null && $a['prometidas'] !== null) ? $c['prometidas'] - $a['prometidas'] : 0);
-                    } else {
-                        $de += $c['desvio'];                       //un caso nuevo
-                    }
+            return $valor;
+        };
+        $proyectoValido = function ($id) use ($proyectos) { $id = (int)$id; return isset($proyectos[$id]) ? $id : 0; };
+        $lista = function ($items, $conProyecto, $nombreSeccion) use ($limite, $proyectoValido) {
+            $salida = array();
+            foreach (is_array($items) ? array_slice(array_values($items), 0, self::MAX_APARTADOS) : array() as $item) {
+                if (!is_array($item)) { continue; }
+                $titulo = $limite(isset($item['titulo']) ? $item['titulo'] : '', self::LARGO_TITULO, 'Título en ' . $nombreSeccion);
+                $texto = $limite(isset($item['texto']) ? $item['texto'] : '', self::LARGO_TEXTO, ($titulo !== '' ? $titulo : $nombreSeccion));
+                if ($titulo === '' && $texto === '') { continue; }
+                $nuevo = array('titulo' => $titulo, 'texto' => $texto);
+                if ($conProyecto) { $nuevo = array('proyecto' => $proyectoValido(isset($item['proyecto']) ? $item['proyecto'] : 0)) + $nuevo; }
+                $salida[] = $nuevo;
+            }
+            return $salida;
+        };
+        //Sin encabezado (por ejemplo, un reporte viejo), va el del último informe guardado
+        $e = isset($entrada['encabezado']) && is_array($entrada['encabezado']) ? $entrada['encabezado'] : self::ultimoEncabezado();
+        $encabezado = array();
+        foreach (self::ENCABEZADO as $clave => $fabrica) {
+            $encabezado[$clave] = $limite(isset($e[$clave]) ? $e[$clave] : '', self::LARGO_ENCABEZADO[$clave], 'Encabezado');
+        }
+        $porProyecto = array();
+        $recibidos = isset($entrada['proyectos']) && is_array($entrada['proyectos']) ? $entrada['proyectos'] : array();
+        foreach ($proyectos as $id => $nombre) {
+            $items = isset($recibidos[$id]['apartados']) ? $recibidos[$id]['apartados'] : (isset($recibidos[(string)$id]['apartados']) ? $recibidos[(string)$id]['apartados'] : array());
+            $porProyecto[$id] = array('apartados' => $lista($items, false, $nombre));
+        }
+        $compromisos = array();
+        foreach (isset($entrada['compromisos']) && is_array($entrada['compromisos']) ? array_slice(array_values($entrada['compromisos']), 0, self::MAX_APARTADOS) : array() as $c) {
+            if (!is_array($c)) { continue; }
+            $gestion = $limite(isset($c['gestion']) ? $c['gestion'] : '', 300, 'Gestión de un compromiso');
+            $fechaObjetivo = $limite(isset($c['fecha']) ? $c['fecha'] : '', 60, 'Fecha objetivo de un compromiso');
+            if ($gestion === '' && $fechaObjetivo === '') { continue; }
+            $compromisos[] = array('proyecto' => $proyectoValido(isset($c['proyecto']) ? $c['proyecto'] : 0), 'gestion' => $gestion, 'fecha' => $fechaObjetivo);
+        }
+        $reporte = array(
+            'encabezado'   => $encabezado,
+            'resultados'   => $limite(isset($entrada['resultados']) ? $entrada['resultados'] : '', self::LARGO_TEXTO, 'Resultados de la operación'),
+            'prioritarias' => $lista(isset($entrada['prioritarias']) ? $entrada['prioritarias'] : array(), true, 'Gestiones prioritarias'),
+            'proyectos'    => $porProyecto,
+            'transversal'  => $lista(isset($entrada['transversal']) ? $entrada['transversal'] : array(), true, 'Gestión transversal'),
+            'compromisos'  => $compromisos
+        );
+        return $estricto ? array($reporte, $error) : $reporte;
+    }
+
+    //Lo guardado, como reporte de la versión 3 con los proyectos de la persona (y sus nombres de hoy).
+    //Los de la versión 2 (puntos por proyecto) se convierten
+    public static function deGuardado($datos, $proyectos)
+    {
+        if (!is_array($datos)) { return null; }
+        if (!isset($datos['version']) || (int)$datos['version'] < self::VERSION) { $datos = self::deVersion2($datos, $proyectos); }
+        //Un encabezado guardado sin destinatario ni firma se completa con el del último informe
+        $e = isset($datos['encabezado']) && is_array($datos['encabezado']) ? $datos['encabezado'] : array();
+        if (trim(isset($e['destinatario']) ? (string)$e['destinatario'] : '') === '' && trim(isset($e['firma']) ? (string)$e['firma'] : '') === '') {
+            unset($datos['encabezado']);
+        }
+        return self::normalizar($datos, $proyectos);
+    }
+
+    //Un reporte de la versión 2 (cada proyecto con sus puntos y unas notas adicionales) con la estructura de hoy:
+    //  - la promesa de valor de cada proyecto va a «Resultados de la operación», con el nombre del proyecto;
+    //  - los demás puntos (oficios, novedades y los que se hayan agregado) van como apartados del proyecto;
+    //  - las notas adicionales van a la gestión transversal.
+    //La disponibilidad de flota (FLOTA) no se pasa: no hace parte del informe
+    public static function deVersion2($datos, $proyectos)
+    {
+        $titulos = isset($datos['puntos']) && is_array($datos['puntos']) ? $datos['puntos'] : array();
+        $resultados = array(); $porProyecto = array();
+        foreach (isset($datos['proyectos']) && is_array($datos['proyectos']) ? $datos['proyectos'] : array() as $id => $p) {
+            $textos = isset($p['textos']) && is_array($p['textos']) ? $p['textos'] : array();
+            $nombre = isset($proyectos[(int)$id]) ? $proyectos[(int)$id] : (isset($p['nombre']) ? (string)$p['nombre'] : '');
+            if (isset($textos['PROMESA']) && trim($textos['PROMESA']) !== '') { $resultados[] = $nombre . ': ' . trim($textos['PROMESA']); }
+            $apartados = array();
+            foreach ($textos as $codigo => $texto) {
+                if ($codigo === 'PROMESA' || $codigo === 'FLOTA' || trim((string)$texto) === '') { continue; }
+                $apartados[] = array('titulo' => isset($titulos[$codigo]) ? (string)$titulos[$codigo] : (string)$codigo, 'texto' => trim((string)$texto));
+            }
+            $porProyecto[(int)$id] = array('apartados' => $apartados);
+        }
+        $transversal = array();
+        if (isset($datos['otros']) && trim((string)$datos['otros']) !== '') {
+            $transversal[] = array('proyecto' => 0, 'titulo' => 'Notas adicionales', 'texto' => trim((string)$datos['otros']));
+        }
+        return array('version' => self::VERSION, 'fecha' => isset($datos['fecha']) ? $datos['fecha'] : '', 'desde' => isset($datos['desde']) ? $datos['desde'] : '',
+                     'encabezado' => self::ultimoEncabezado(), 'resultados' => implode("\n\n", $resultados), 'prioritarias' => array(),
+                     'proyectos' => $porProyecto, 'transversal' => $transversal, 'compromisos' => array());
+    }
+
+    //Lo que se guarda: lo de la persona, más lo que traía la versión anterior de los proyectos que ella
+    //no tiene (otro director con otros peajes). $anterior es el arreglo guardado (cualquier versión)
+    public static function paraGuardar($fecha, $desde, $reporte, $proyectos, $anterior)
+    {
+        $otrosNombres = array(); $otrosProyectos = array();
+        $previo = null;
+        if (is_array($anterior)) {
+            $nombresPrevios = isset($anterior['nombres']) && is_array($anterior['nombres']) ? $anterior['nombres'] : array();
+            if (!isset($anterior['version']) || (int)$anterior['version'] < self::VERSION) {
+                foreach (isset($anterior['proyectos']) && is_array($anterior['proyectos']) ? $anterior['proyectos'] : array() as $id => $p) {
+                    if (isset($p['nombre'])) { $nombresPrevios[$id] = (string)$p['nombre']; }
                 }
-                foreach ($casosS as $quedan) { foreach ($quedan as $a) { $de -= $a['desvio']; } }   //casos que se quitaron
-                if (abs($dp) > 0.001 || abs($de) > 0.001) { $cambio = true; }
-                $pp += $dp; $ee += $de;
+                $anterior = self::deVersion2($anterior, array());
             }
-            $prometidas += $pp; $ejecutadas += $ee;
+            foreach ($nombresPrevios as $id => $nombre) { if (!isset($proyectos[(int)$id])) { $otrosNombres[(int)$id] = (string)$nombre; } }
+            $previo = self::normalizar($anterior, $otrosNombres);
         }
-        //Los peajes que se borraron del texto siguen contando con lo de la base
-        foreach ($horasBase as $k => $h) { if (!isset($vistos[$k])) { $prometidas += $h[0]; $ejecutadas += $h[1]; } }
-        if ($cambio && $prometidas > 0) {
-            $p['prometidas'] = round($prometidas, 2); $p['ejecutadas'] = round(max(0, $ejecutadas), 2);
-            $p['pct'] = 100 * $p['ejecutadas'] / $p['prometidas'];
-        } else {
-            $p['pct'] = $u['pct'] !== null ? $u['pct'] : self::pctDeHoras($u['ejecutadas'], $u['prometidas']);
-            if ($p['pct'] === null) { $p['pct'] = self::pctDePeajes($u['peajes'], $base); }
+        $ajeno = function ($item) use ($otrosNombres) { return (int)$item['proyecto'] > 0 && isset($otrosNombres[(int)$item['proyecto']]); };
+        foreach (array('prioritarias', 'transversal', 'compromisos') as $seccion) {
+            if ($previo) { $reporte[$seccion] = array_merge($reporte[$seccion], array_values(array_filter($previo[$seccion], $ajeno))); }
         }
-        return self::conPeajes($p, $u);
+        if ($previo) { foreach ($previo['proyectos'] as $id => $p) { if (count($p['apartados'])) { $otrosProyectos[$id] = $p; } } }
+        //"desde" va al principio (justo después de "fecha"): así se reconoce el periodo sin abrir todo el texto
+        return array('version' => self::VERSION, 'fecha' => $fecha, 'desde' => $desde,
+                     'encabezado' => $reporte['encabezado'], 'resultados' => $reporte['resultados'],
+                     'prioritarias' => $reporte['prioritarias'], 'proyectos' => $reporte['proyectos'] + $otrosProyectos,
+                     'transversal' => $reporte['transversal'], 'compromisos' => $reporte['compromisos'],
+                     'nombres' => $proyectos + $otrosNombres);
     }
 
-    //Lee las partes del texto de la promesa: el renglón del total del día, cada peaje y sus casos
-    private static function partesPromesa($texto)
+    //Las cifras de la promesa para el PDF, leídas del texto de los resultados tal como quedó (si la dirección
+    //corrigió el porcentaje, el PDF muestra el corregido). Lo que el texto no diga se toma de $totales (la base)
+    public static function cifrasResultados($texto, $totales)
     {
-        $n = self::NUM;
-        $r = array('ejecutadas' => null, 'prometidas' => null, 'pct' => null, 'peajes' => array(), 'debajo' => null, 'encima' => null, 'sinJustificar' => null);
-        $encabezado = ''; $debajo = 0; $encima = 0; $sinJust = 0; $noCumple = 0;
-        foreach (self::renglonesDe($texto) as $renglon) {
-            $t = $renglon['texto'];
-            if (!$renglon['vineta']) { $encabezado .= ' ' . $t; continue; }
-            if ($renglon['nivel'] === 1) {
-                $nombre = preg_match('/^([^:]{1,60}):/u', $t, $m) ? trim($m[1]) : $t;
-                $estado = preg_match('/no cumple|incumpl/iu', $t) ? 'NO' : (preg_match('/\bcumple/iu', $t) ? 'SI' : (preg_match('/pendiente/iu', $t) ? 'PENDIENTE' : ''));
-                if ($estado === 'NO') { $noCumple++; }
-                //Si el renglón del peaje dice cuántas horas faltaron o sobraron («faltaron 10 h»), también se lee
-                $desvio = null;
-                if (preg_match('/(?:falt[oó]|faltaron)\s+' . $n . '\s*(?:h\b|horas?)/iu', $t, $m) && self::numero($m[1]) !== null) { $desvio = -self::numero($m[1]); }
-                elseif (preg_match('/' . $n . '\s*(?:h\b|horas?)\s+(?:adicional|de m[aá]s)/iu', $t, $m) && self::numero($m[1]) !== null) { $desvio = self::numero($m[1]); }
-                $r['peajes'][] = array('nombre' => $nombre, 'estado' => $estado, 'desvio' => $desvio,
-                                       'pct' => preg_match('/(\d+(?:[.,]\d+)?)\s*%/u', $t, $m) ? (float)str_replace(',', '.', $m[1]) : null, 'casos' => array());
-                continue;
-            }
-            //Un caso de un peaje (día y cargo)
-            $tipo = preg_match('/falt[oóa]|faltaron|por debajo|menos/iu', $t) ? 'DEBAJO' : (preg_match('/adicional|por encima|de m[aá]s/iu', $t) ? 'ENCIMA' : '');
-            if ($tipo === '') { continue; }
-            if ($tipo === 'DEBAJO') { $debajo++; } else { $encima++; }
-            if (preg_match('/sin justificaci/iu', $t)) { $sinJust++; }
-            $caso = array('clave' => self::clave(preg_match('/^([^:]{1,80}):/u', $t, $m) ? $m[1] : $t), 'prometidas' => null, 'desvio' => 0.0);
-            if (preg_match('/' . $n . '\s+de\s+' . $n . '\s+horas?/iu', $t, $m)) {
-                $e = self::numero($m[1]); $pr = self::numero($m[2]);
-                if ($e !== null && $pr !== null) { $caso['prometidas'] = $pr; $caso['desvio'] = $e - $pr; }
-            } elseif (preg_match('/(?:falt[oó]|faltaron)\s+' . $n . '/iu', $t, $m) && self::numero($m[1]) !== null) {
-                $caso['desvio'] = -self::numero($m[1]);
-            } elseif (preg_match('/' . $n . '\s+horas?\s+adicional/iu', $t, $m) && self::numero($m[1]) !== null) {
-                $caso['desvio'] = self::numero($m[1]);
-            }
-            if (count($r['peajes'])) { $r['peajes'][count($r['peajes']) - 1]['casos'][] = $caso; }
-        }
-        if (preg_match('/' . $n . '\s+de\s+' . $n . '\s+horas/iu', $encabezado, $m)) { $r['ejecutadas'] = self::numero($m[1]); $r['prometidas'] = self::numero($m[2]); }
-        if (preg_match('/(\d+(?:[.,]\d+)?)\s*%/u', $encabezado, $m)) { $r['pct'] = (float)str_replace(',', '.', $m[1]); }
-        $peajes = count($r['peajes']);
-        //Los casos por debajo: si el texto dice cuántos («3 casos por debajo»), vale eso; si no, se cuentan
-        $r['debajo'] = preg_match('/' . $n . '\s+(?:casos?|d[ií]as?)\s+por\s+debajo/iu', $encabezado, $m) ? self::entero($m[1]) : ($debajo ? $debajo : ($peajes ? $noCumple : null));
-        $r['encima'] = $peajes || $encima ? $encima : null;
-        $r['sinJustificar'] = $peajes || $debajo || $encima ? $sinJust : null;
-        return $r;
-    }
-
-    private static function pctDeHoras($e, $p) { return ($e !== null && $p) ? 100 * $e / $p : null; }
-
-    //El porcentaje del día sacado de los peajes, cuando el renglón del total del día no lo dice. Para cada peaje:
-    //el porcentaje que tenga escrito; si dice «cumple», 100 %; si dice cuántas horas faltaron («faltaron 10 h», en su
-    //renglón o en sus casos) y se tienen sus horas prometidas en la base, se calcula. Se pesa por las horas prometidas
-    //de cada peaje (si no se tienen, todos pesan igual). Si de algún peaje no se puede saber, null
-    private static function pctDePeajes($peajes, $base)
-    {
-        if (!count($peajes)) { return null; }
-        $horas = array();
-        foreach (isset($base['peajes']) ? $base['peajes'] : array() as $b) { $horas[self::clave($b['nombre'])] = (float)$b['prometidas']; }
-        $suma = 0; $peso = 0;
-        foreach ($peajes as $peaje) {
-            $prom = isset($horas[self::clave($peaje['nombre'])]) ? $horas[self::clave($peaje['nombre'])] : 0;
-            $desvio = $peaje['desvio'];
-            if ($desvio === null && count($peaje['casos'])) { $desvio = 0; foreach ($peaje['casos'] as $c) { $desvio += $c['desvio']; } }
-            if ($peaje['pct'] !== null) { $pct = $peaje['pct']; }
-            elseif ($peaje['estado'] === 'SI' && !$desvio) { $pct = 100.0; }
-            elseif ($desvio !== null && $prom > 0) { $pct = 100 * max(0, $prom + $desvio) / $prom; }
-            else { return null; }
-            $w = $prom > 0 ? $prom : 1;
-            $suma += $pct * $w; $peso += $w;
-        }
-        return $peso ? $suma / $peso : null;
-    }
-
-    //Cuántos peajes cumplen según el texto: el PDF lo muestra («2 de 3 peajes») cuando no hay porcentaje
-    private static function conPeajes($p, $u)
-    {
-        $p['peajes'] = count($u['peajes']); $p['peajesCumplen'] = 0; $p['peajesSinEstado'] = 0;
-        foreach ($u['peajes'] as $peaje) {
-            if ($peaje['estado'] === 'SI') { $p['peajesCumplen']++; }
-            elseif ($peaje['estado'] !== 'NO') { $p['peajesSinEstado']++; }
-        }
-        return $p;
-    }
-
-    private static function igual($a, $b) { return ($a === null && $b === null) || ($a !== null && $b !== null && abs((float)$a - (float)$b) < 0.05); }
-    private static function clave($texto) { return mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string)$texto)), 'UTF-8'); }
-
-    //Oficios: «Hay 3 en gestión; 1 fuera del plazo de respuesta.» y una viñeta por oficio («• [Por enviar] …»)
-    private static function leerOficios($texto)
-    {
-        $o = array('total' => null, 'fueraPlazo' => null, 'porEnviar' => null);
-        if (trim($texto) === '') { return $o; }
-        $n = self::NUM;
-        $encabezado = ''; $vinetas = 0; $fueraV = 0; $enviarV = 0;
-        $plazo = max(0, HanaConfig::num('COMUNICACION_DIAS_RESPUESTA', 2));
-        foreach (self::renglonesDe($texto) as $r) {
-            if (!$r['vineta']) { $encabezado .= ' ' . $r['texto']; continue; }
-            if ($r['nivel'] !== 1) { continue; }
-            $vinetas++;
-            if (preg_match('/fuera de(l)? plazo/iu', $r['texto'])) { $fueraV++; }
-            elseif (!preg_match('/dentro de(l)? plazo/iu', $r['texto']) && preg_match('/(\d+)\s+d[ií]as?(?:\s+en\s+gesti[oó]n)?\s*[.;,)]/u', $r['texto'], $m) && (int)$m[1] > $plazo) { $fueraV++; }
-            if (preg_match('/por enviar/iu', $r['texto'])) { $enviarV++; }
-        }
-        if (preg_match('/no hay (oficios|comunicaciones)|sin (oficios|comunicaciones)|ning[uú]n (oficio|comunicaci)/iu', $encabezado)) {
-            $o['total'] = 0;
-        } elseif (preg_match('/hay\s+' . $n . '\b/iu', $encabezado, $m) || preg_match('/' . $n . '\s+(?:oficios?|comunicaciones?)?\s*(?:y\s+comunicaciones?\s+)?en gesti[oó]n/iu', $encabezado, $m)) {
-            $o['total'] = self::entero($m[1]);
-        } elseif ($vinetas) {
-            $o['total'] = $vinetas;
-        }
-        if ($o['total'] === 0) { return array('total' => 0, 'fueraPlazo' => 0, 'porEnviar' => 0); }
-        if (preg_match('/' . $n . '\s+(?:de ellos\s+)?fuera de(l)? plazo/iu', $encabezado, $m)) { $o['fueraPlazo'] = self::entero($m[1]); }
-        elseif (preg_match('/todos?\s+fuera de(l)? plazo/iu', $encabezado)) { $o['fueraPlazo'] = $o['total']; }
-        elseif (preg_match('/fuera de(l)? plazo/iu', $encabezado) && $o['total'] === 1) { $o['fueraPlazo'] = 1; }
-        elseif (preg_match('/dentro de(l)? plazo/iu', $encabezado)) { $o['fueraPlazo'] = 0; }
-        elseif ($vinetas) { $o['fueraPlazo'] = $fueraV; }
-        $o['porEnviar'] = preg_match('/' . $n . '\s+por enviar/iu', $encabezado, $m) ? self::entero($m[1]) : ($vinetas ? $enviarV : null);
-        if ($o['total'] !== null) {
-            if ($o['fueraPlazo'] !== null) { $o['fueraPlazo'] = min($o['fueraPlazo'], $o['total']); }
-            if ($o['porEnviar'] !== null) { $o['porEnviar'] = min($o['porEnviar'], $o['total']); }
-        }
-        return $o;
-    }
-
-    //Novedades: una viñeta por tema con el cliente o novedad, «Sin novedades relevantes…» y «Temas con el cliente abiertos: 2.»
-    private static function leerNovedades($texto)
-    {
-        $r = array('novedades' => null, 'temasHoy' => null, 'temasAbiertos' => null);
-        if (trim($texto) === '') { return $r; }
-        $n = self::NUM;
-        $temas = 0; $novedades = 0; $parrafos = 0; $sin = false; $libre = '';
-        foreach (self::renglonesDe($texto) as $renglon) {
-            $t = $renglon['texto'];
-            //Los temas abiertos: «Temas con el cliente abiertos: 2» o «2 temas con el cliente abiertos» (en un renglón sin viñeta)
-            if (!$renglon['vineta'] && (preg_match('/temas?\s+(?:con\s+el\s+cliente\s+)?abiertos?\s*:\s*' . $n . '/iu', $t, $m) || preg_match('/' . $n . '\s+temas?\s+(?:con\s+el\s+cliente\s+)?abiertos?/iu', $t, $m))) {
-                $r['temasAbiertos'] = self::entero($m[1]); continue;
-            }
-            if (preg_match('/sin novedad|no (hay|hubo|se presentaron|se reportaron) novedad|ninguna novedad/iu', $t)) { $sin = true; continue; }
-            if ($renglon['nivel'] === 2) { continue; }
-            if (!$renglon['vineta']) { $parrafos++; $libre .= ' ' . $t; continue; }
-            if (preg_match('/^tema/iu', $t) || preg_match('/\(con [^;)]+;\s*(seguimiento|tema nuevo|tema cerrado|se cerr[oó]|se abri[oó])/iu', $t)) { $temas++; } else { $novedades++; }
-        }
-        $r['temasHoy'] = $temas;
-        //Si un renglón sin viñeta dice cuántas («Se reportaron 5 novedades»), vale eso; si no, se cuentan las viñetas
-        if (preg_match('/' . $n . '\s+novedad(es)?/iu', $libre, $m) && self::entero($m[1]) !== null) { $r['novedades'] = self::entero($m[1]); }
-        elseif ($novedades || $temas) { $r['novedades'] = $novedades; }
-        elseif ($sin) { $r['novedades'] = 0; }
-        elseif ($parrafos) { $r['novedades'] = $parrafos; }
-        return $r;
+        $c = array('pct' => $totales['pct'], 'cumplen' => $totales['peajes'] ? $totales['cumplen'] : null, 'peajes' => $totales['peajes'] ?: null);
+        if (preg_match('/cumplimiento\s+(?:del?\s+)?(\d{1,3}(?:[.,]\d+)?)\s*%/iu', (string)$texto, $m)) { $c['pct'] = (float)str_replace(',', '.', $m[1]); }
+        if (preg_match('/(\d+)\s+de\s+(\d+)\s+peajes?\b/iu', (string)$texto, $m)) { $c['cumplen'] = (int)$m[1]; $c['peajes'] = (int)$m[2]; }
+        return $c;
     }
 
     //-----------------------------------------------------------------------
@@ -825,7 +786,7 @@ class ReporteGerencia
     }
 
     //Lo mismo, leído del comienzo del texto guardado (sin decodificar todo el JSON: el reporte puede ser
-    //grande). El controlador pone "desde" al principio del JSON, justo después de "fecha"
+    //grande). El JSON lleva "desde" al principio, justo después de "fecha"
     private static function desdeDelTexto($inicio, $hasta)
     {
         $desde = preg_match('/"desde"\s*:\s*"(\d{4}-\d{2}-\d{2})"/', (string)$inicio, $m) ? $m[1] : '';
@@ -905,29 +866,7 @@ class ReporteGerencia
             $desde = self::desdeDelTexto($fila['INICIO'], $hasta);
             $periodos[$desde . '|' . $hasta] = array('desde' => $desde, 'hasta' => $hasta);
         }
-        ksort($periodos);
         usort($periodos, function ($a, $b) { return strcmp($a['hasta'] . $a['desde'], $b['hasta'] . $b['desde']); });
         return array_values($periodos);
-    }
-
-    //Los días guardados de un mes ("2026-11"), del primero al último
-    public static function diasGuardadosMes($mes)
-    {
-        $dias = self::diasGuardados($mes . '-01', date('Y-m-t', strtotime($mes . '-01')));
-        sort($dias);
-        return $dias;
-    }
-
-    //Los días que ya tienen reporte guardado entre dos fechas (incluidas): ["2026-11-01", ...]
-    public static function diasGuardados($desde, $hasta)
-    {
-        $filas = HanaDB::q("SELECT DISTINCT ID_REGISTRO FROM historial WHERE MODULO = ? AND TIPO = ? AND ID_REGISTRO BETWEEN ? AND ?
-                             ORDER BY ID_REGISTRO DESC", 'ssii', array(self::MODULO, self::TIPO, self::numeroDia($desde), self::numeroDia($hasta)));
-        $dias = array();
-        foreach (is_array($filas) ? $filas : array() as $fila) {
-            $n = (string)$fila['ID_REGISTRO'];
-            if (strlen($n) === 8) { $dias[] = substr($n, 0, 4) . '-' . substr($n, 4, 2) . '-' . substr($n, 6, 2); }
-        }
-        return $dias;
     }
 }
