@@ -67,6 +67,8 @@
     <!-- Configuración comun: tablas en español, adaptables e indicador de carga.
          Debe ir DESPUES de DataTables -->
     <script src="../Ajax/ComunAjax.js?v=1"></script>
+    <!-- Ordenar las tablas tocando el encabezado de cada columna (las de DataTables ya lo traen) -->
+    <script src="../Ajax/OrdenarTablas.js?v=1"></script>
     <!-- Campana de notificaciones: se revisa sola una vez por minuto -->
     <script src="../Ajax/CampanaAjax.js?v=2"></script>
 
@@ -74,4 +76,4 @@
 
 </body>
 
-</html>
+</html>

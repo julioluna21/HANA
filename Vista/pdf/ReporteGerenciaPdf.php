@@ -69,12 +69,16 @@ class ReporteGerenciaPdf extends FPDF
         $this->SetMargins(0, 0, 0);
         $this->SetAutoPageBreak(false);
         $this->AliasNbPages('{total}');
-        $this->SetTitle('Reporte diario a la Gerencia - ' . $reporte['fecha'], true);
+        $this->SetTitle('Reporte a la Gerencia - ' . (!empty($reporte['esRango']) ? $reporte['desde'] . ' a ' : '') . $reporte['fecha'], true);
         $this->SetAuthor('HANA - Grupo Regency', true);
     }
 
     //Nombre del archivo: Reporte_Gerencia_2026-10-29.pdf
-    public static function nombreArchivo($fecha) { return 'Reporte_Gerencia_' . $fecha . '.pdf'; }
+    //Con rango de días: Reporte_Gerencia_2026-11-10_a_2026-11-14.pdf
+    public static function nombreArchivo($fecha, $desde = null) { return 'Reporte_Gerencia_' . ($desde && $desde < $fecha ? $desde . '_a_' : '') . $fecha . '.pdf'; }
+
+    //Las palabras que cambian si el reporte es de un día o de un rango de días
+    private function periodo($deUnDia, $deRango) { return !empty($this->r['esRango']) ? $deRango : $deUnDia; }
 
     //=======================================================================
     // Utilidades de texto y de dibujo
@@ -240,7 +244,7 @@ class ReporteGerenciaPdf extends FPDF
         $logo = __DIR__ . '/../../public/img/logo_pdf.jpg';
         $x = self::M;
         if (is_file($logo)) { $this->Image($logo, self::M, 22, 42 * (360 / 312), 42); $x = self::M + 60; }
-        $this->escribir($x, 27, 'REPORTE DIARIO A LA GERENCIA', 13.5, 'B', self::VINO);
+        $this->escribir($x, 27, $this->periodo('REPORTE DIARIO A LA GERENCIA', 'REPORTE A LA GERENCIA'), 13.5, 'B', self::VINO);
         $this->escribir($x, 46, self::primeraMayus($this->r['fechaLarga']), 9.5, '', self::GRIS);
         $this->escribir(self::M + self::ANCHO, 28, 'Grupo Regency', 9.5, 'B', self::NEGRO, 'R');
         $this->escribir(self::M + self::ANCHO, 43, 'Dirección de Operaciones · Peajes', 7.5, '', self::GRIS, 'R');
@@ -338,7 +342,7 @@ class ReporteGerenciaPdf extends FPDF
         $this->cy = self::INICIO;
         $this->resumen();
         $this->AddPage(); $this->cy = self::INICIO;
-        $this->titulo('Detalle por proyecto', 'Lo que reporta cada proyecto en los puntos del día, con la información registrada por los coordinadores y revisada por la Dirección de Operaciones.');
+        $this->titulo('Detalle por proyecto', 'Lo que reporta cada proyecto en los puntos ' . $this->periodo('del día', 'del periodo') . ', con la información registrada por los coordinadores y revisada por la Dirección de Operaciones.');
         $this->detalle();
     }
 
@@ -351,8 +355,9 @@ class ReporteGerenciaPdf extends FPDF
         $n = count($this->r['proyectos']);
         //Presentación
         //Todo el reporte es del día elegido: la promesa de valor también (antes era de la semana)
-        $intro = 'Se presenta el estado de la operación con fecha de entrega el ' . $this->r['fechaLarga'] . ', para ' . ($n === 1 ? 'el proyecto a cargo' : 'los ' . $n . ' proyectos a cargo') .
-                 ' de la Dirección de Operaciones: disponibilidad de la flota, cumplimiento de la promesa de valor del día, oficios y comunicaciones en gestión, y novedades relevantes de la jornada. Las cifras corresponden a lo reportado en cada punto del reporte.';
+        $intro = 'Se presenta el estado de la operación ' . $this->periodo('con fecha de entrega el ' . $this->r['fechaLarga'], 'del periodo comprendido ' . $this->r['fechaLarga']) . ', para ' . ($n === 1 ? 'el proyecto a cargo' : 'los ' . $n . ' proyectos a cargo') .
+                 ' de la Dirección de Operaciones: disponibilidad de la flota, cumplimiento de la promesa de valor ' . $this->periodo('del día', 'del periodo') . ', oficios y comunicaciones en gestión, y novedades relevantes ' . $this->periodo('de la jornada', 'del periodo') . '. Las cifras corresponden a lo reportado en cada punto del reporte.';
+        if (!empty($this->r['esRango'])) { $intro .= ' La flota y los oficios en gestión se presentan como estaban el último día del periodo.'; }
         if ($this->otros() !== '') {
             $intro .= ' Al final se incluyen notas adicionales.';
         }
@@ -403,11 +408,11 @@ class ReporteGerenciaPdf extends FPDF
         }
         $tarjetas = array(
             array('Disponibilidad de flota', $flotaValor, $flotaDetalle, $flotaColor),
-            array('Promesa de valor del día', isset($promesaValor) ? $promesaValor : self::pctTexto($pPromesa), $promesaDetalle,
+            array($this->periodo('Promesa de valor del día', 'Promesa de valor del periodo'), isset($promesaValor) ? $promesaValor : self::pctTexto($pPromesa), $promesaDetalle,
                   isset($promesaColor) ? $promesaColor : (!$t['hayPromesa'] ? self::GRIS : ($pPromesa === null && $t['debajo'] ? self::VINO : self::colorPromesa($pPromesa)))),
             array('Oficios en gestión', self::num($t['oficios']), $oficiosDetalle, self::colorOficios($t['oficios'], $t['fueraPlazo'])),
             array('Novedades', self::num($t['novedades']),
-                  $t['novedades'] === null ? 'Sin dato en el reporte' : ($t['novedades'] ? ($t['novedades'] === 1 ? 'reportada en la fecha' : 'reportadas en la fecha') : 'Sin novedades en la fecha'),
+                  $t['novedades'] === null ? 'Sin dato en el reporte' : ($t['novedades'] ? ($t['novedades'] === 1 ? $this->periodo('reportada en la fecha', 'reportada en el periodo') : $this->periodo('reportadas en la fecha', 'reportadas en el periodo')) : $this->periodo('Sin novedades en la fecha', 'Sin novedades en el periodo')),
                   $t['novedades'] === null ? self::GRIS : ($t['novedades'] ? self::AMBAR : self::MENTA)),
         );
         $sep = 9; $anchoT = (self::ANCHO - 3 * $sep) / 4;

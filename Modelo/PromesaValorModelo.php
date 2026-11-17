@@ -88,12 +88,15 @@ class PromesaValor
     }
 
     //Guarda una casilla (peaje, cargo, día). Los valores null dejan la casilla vacía.
-    //Si las tres cosas quedan vacías, la fila se borra
+    //Si las tres cosas quedan vacías, la fila NO se borra (es trazabilidad): se deja en blanco y
+    //queda quién la vació y cuándo. Si no existía, no se crea una fila vacía
     public static function guardar($idCentro, $idCargo, $fecha, $promesa, $ejecutado, $justificacion, $idColaborador, $ahora)
     {
         if ($promesa === null && $ejecutado === null && ($justificacion === null || $justificacion === '')) {
-            return HanaDB::q("DELETE FROM pv_dia WHERE ID_CENTRO_OP = ? AND FECHA = ? AND ID_CARGO_AUS = ?",
-                             'isi', array((int)$idCentro, $fecha, (int)$idCargo));
+            return HanaDB::q("UPDATE pv_dia SET PROMESA_HORAS = NULL, EJECUTADO_HORAS = NULL, JUSTIFICACION = NULL,
+                                                ID_COLABORADOR = ?, FEC_MODIFICACION = ?
+                               WHERE ID_CENTRO_OP = ? AND FECHA = ? AND ID_CARGO_AUS = ?",
+                             'isisi', array((int)$idColaborador, $ahora, (int)$idCentro, $fecha, (int)$idCargo));
         }
         return HanaDB::q("INSERT INTO pv_dia (ID_CENTRO_OP, ID_CARGO_AUS, FECHA, PROMESA_HORAS, EJECUTADO_HORAS, JUSTIFICACION, ID_COLABORADOR, FEC_MODIFICACION)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -132,4 +135,5 @@ class PromesaValor
                              ORDER BY c.NOM_CENTRO_OP, a.ORDEN", 'si', array($fecha, (int)$idColaborador));
         return is_array($filas) ? $filas : array();
     }
+
 }

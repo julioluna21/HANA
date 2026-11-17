@@ -110,7 +110,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             'hoy'           => $hoy,
             'primerEditable'=> $primerEditable,
             'ultimoEditable'=> $ultimoEditable,
-            'habilitados'   => HanaFechas::habilitados($idColaborador), //los días que el administrador le abrió
+            'habilitados'   => HanaFechas::habilitados($idColaborador), //los días abiertos: los que le abrió el administrador y los sábados, domingos y festivos del mes
+            'findes'        => HanaFechas::findesAbiertos(),              //de esos, los sábados, domingos y festivos (para mostrarlos distinto)
             'situaciones'   => Hoy::$SITUACIONES,
             'centros'       => hanaMisCentros(), //sus peajes asignados
             'yo'            => $idColaborador,

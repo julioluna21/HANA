@@ -23,6 +23,20 @@ class Arqueo
     //Arqueo de casetas: cómo cuenta cada campo configurable (columna ROL de arqueo_concepto)
     public static $ROLES = array('ESPERADO' => 'Valor esperado (recaudo de la caseta)', 'SUMA' => 'Suma al total recaudo',
                                  'RESTA' => 'Resta del total recaudo', 'INFO' => 'Informativo (no entra en la cuenta)');
+    //Caja menor y recambio: cómo cuenta cada concepto (no tienen valor esperado: se comparan con el fondo)
+    public static $ROLES_FONDO = array('SUMA' => 'Suma al total del arqueo', 'RESTA' => 'Resta del total del arqueo',
+                                       'INFO' => 'Informativo (no entra en la cuenta)');
+
+    //Los conceptos con los que nacen caja menor y recambio, los de los formatos en papel:
+    //código => array(nombre, orden, activo). Siempre suman. El reintegro de fondo ya no se usa
+    //(nace apagado), pero los arqueos viejos que lo tienen lo siguen mostrando
+    const FABRICA = array(
+        'CAJA_MENOR' => array('FACTURA' => array('Factura', 1, 1), 'REINTEGRO' => array('Reintegro de fondo', 2, 0),
+                              'RECIBO_CAJA' => array('Recibo de caja', 3, 1), 'FALTANTE' => array('Faltantes', 4, 1)),
+        'RECAMBIO'   => array('BASES_CASETAS' => array('Dinero para bases en casetas', 1, 1), 'BASE_SUPERVISORA' => array('Dinero base supervisora', 2, 1),
+                              'BILLETES' => array('Dinero en efectivo: billetes', 3, 1), 'MONEDAS' => array('Dinero en efectivo: monedas', 4, 1),
+                              'CAJA_FUERTE' => array('Dinero custodiado en caja fuerte', 5, 1))
+    );
 
     //Qué se cuenta en cada tipo, en el orden de los formatos en papel. Efectivo: un campo por concepto.
     //Documentos (solo caja menor): tantas líneas como haya, con fecha.
@@ -39,32 +53,64 @@ class Arqueo
                               'MONEDAS'          => 'Dinero en efectivo: monedas',
                               'CAJA_FUERTE'      => 'Dinero custodiado en caja fuerte')
     );
+    //Todos los conceptos de documentos de caja menor, también los apagados (para mostrar los arqueos viejos)
     public static $DOCUMENTOS = array('FACTURA' => 'Factura', 'REINTEGRO' => 'Reintegro de fondo',
                                       'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltantes');
     //Los conceptos de documentos que se pueden usar en un arqueo nuevo. Un concepto apagado en
     //arqueo_concepto (ESTADO = 0, como el reintegro de fondo) ya no se ofrece,
     //pero los arqueos viejos que lo tienen lo siguen mostrando con su nombre
     public static $DOCUMENTOS_ACTIVOS = array('FACTURA' => 'Factura', 'RECIBO_CAJA' => 'Recibo de caja', 'FALTANTE' => 'Faltantes');
+    //Todos los conceptos del recambio, también los apagados, en su orden (para mostrar los arqueos viejos).
+    //$EFECTIVO['RECAMBIO'] tiene solo los activos: los que pide un recambio nuevo
+    public static $RECAMBIO_TODOS = array('BASES_CASETAS' => 'Dinero para bases en casetas', 'BASE_SUPERVISORA' => 'Dinero base supervisora',
+                                          'BILLETES' => 'Dinero en efectivo: billetes', 'MONEDAS' => 'Dinero en efectivo: monedas',
+                                          'CAJA_FUERTE' => 'Dinero custodiado en caja fuerte');
+    //Cómo cuenta hoy cada concepto: [tipo][código] => SUMA, RESTA o INFO
+    public static $ROL_CONCEPTO = array('CAJA_MENOR' => array(), 'RECAMBIO' => array());
 
-    //Los nombres de los conceptos de caja menor y recambio salen de arqueo_concepto (el administrador
-    //los cambia en Parámetros del sistema → Listas). Los de arriba son los de fábrica, por si la base no
-    //responde. El formato en PDF conserva los títulos impresos del formato en papel
+    //Los conceptos de caja menor y recambio salen de arqueo_concepto: el administrador les cambia
+    //el nombre, la forma de contar y el orden, los apaga y agrega otros en Arqueos → Configuración de
+    //arqueos. Los de arriba son los de fábrica, por si la base todavía no tiene ninguno de ese tipo.
+    //El formato en PDF conserva los títulos impresos del formato en papel
     public static function nombresDeLaBase()
     {
-        $filas = HanaDB::q("SELECT TIPO_ARQUEO, CODIGO, NOMBRE, ESTADO FROM arqueo_concepto WHERE CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO') ORDER BY ORDEN, ID_CONCEPTO");
-        if (is_array($filas) && count($filas)) { self::$DOCUMENTOS_ACTIVOS = array(); }
-        foreach (is_array($filas) ? $filas : array() as $fila) {
-            if ($fila['TIPO_ARQUEO'] === 'CAJA_MENOR' && isset(self::$DOCUMENTOS[$fila['CODIGO']])) {
+        $filas = HanaDB::q("SELECT TIPO_ARQUEO, CODIGO, NOMBRE, ROL, ESTADO FROM arqueo_concepto WHERE CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO') ORDER BY ORDEN, ID_CONCEPTO");
+        $porTipo = array('CAJA_MENOR' => array(), 'RECAMBIO' => array());
+        foreach (is_array($filas) ? $filas : array() as $fila) { $porTipo[$fila['TIPO_ARQUEO']][] = $fila; }
+        foreach (self::FABRICA as $tipo => $conceptos) {
+            foreach ($conceptos as $codigo => $datos) { self::$ROL_CONCEPTO[$tipo][$codigo] = 'SUMA'; }
+        }
+
+        if (count($porTipo['CAJA_MENOR'])) {
+            self::$DOCUMENTOS_ACTIVOS = array();
+            foreach ($porTipo['CAJA_MENOR'] as $fila) {
                 self::$DOCUMENTOS[$fila['CODIGO']] = $fila['NOMBRE'];
+                self::$ROL_CONCEPTO['CAJA_MENOR'][$fila['CODIGO']] = $fila['ROL'];
                 if ((int)$fila['ESTADO'] === 1) { self::$DOCUMENTOS_ACTIVOS[$fila['CODIGO']] = $fila['NOMBRE']; }
             }
-            if ($fila['TIPO_ARQUEO'] === 'RECAMBIO' && isset(self::$EFECTIVO['RECAMBIO'][$fila['CODIGO']])) { self::$EFECTIVO['RECAMBIO'][$fila['CODIGO']] = $fila['NOMBRE']; }
+        }
+        if (count($porTipo['RECAMBIO'])) {
+            self::$EFECTIVO['RECAMBIO'] = array();
+            $todos = array();
+            foreach ($porTipo['RECAMBIO'] as $fila) {
+                $todos[$fila['CODIGO']] = $fila['NOMBRE'];
+                self::$ROL_CONCEPTO['RECAMBIO'][$fila['CODIGO']] = $fila['ROL'];
+                if ((int)$fila['ESTADO'] === 1) { self::$EFECTIVO['RECAMBIO'][$fila['CODIGO']] = $fila['NOMBRE']; }
+            }
+            //Los de fábrica que la base no tenga quedan al final, para no perder renglones viejos
+            self::$RECAMBIO_TODOS = $todos + self::$RECAMBIO_TODOS;
         }
     }
 
+    //Cuánto pesa un valor en el total según cómo cuenta su concepto: 1 suma, -1 resta, 0 no entra
+    public static function signo($rol)
+    {
+        return $rol === 'SUMA' ? 1 : ($rol === 'RESTA' ? -1 : 0);
+    }
+
     //Total del arqueo en SQL = billetes y monedas + las líneas que suman - las que restan.
-    //Sirve para los tres tipos: los documentos y los conceptos del recambio suman; en casetas
-    //cada campo dice si suma, resta o es informativo. $alias es el alias de la tabla arqueo
+    //Sirve para los tres tipos: cada línea cuenta según el ROL que tenía su concepto el día
+    //del arqueo (suma, resta o es informativa). $alias es el alias de la tabla arqueo
     public static function sqlTotal($alias = 'a')
     {
         return "(IFNULL($alias.BILLETES_MONEDAS, 0) + IFNULL((SELECT SUM(CASE lt.ROL WHEN 'SUMA' THEN lt.VALOR WHEN 'RESTA' THEN -lt.VALOR ELSE 0 END)"
@@ -187,13 +233,13 @@ class Arqueo
         //En casetas el fondo es el valor esperado (una línea); en los demás, el guardado
         $arqueo['FONDO_AUTORIZADO'] = $arqueo['FONDO_CALCULADO'];
         unset($arqueo['FONDO_CALCULADO']);
-        //Los subtotales del formato: efectivo (billetes + conceptos del recambio) y documentos
+        //Los subtotales del formato: efectivo (billetes + conceptos del recambio) y documentos.
+        //En caja menor todas las líneas son documentos; en el recambio, renglones del efectivo
         $documentos = 0.0; $otrosEfectivo = 0.0;
-        if (isset(self::$EFECTIVO[$arqueo['TIPO']])) {
-            foreach ($arqueo['LINEAS'] as $linea) {
-                if (isset(self::$DOCUMENTOS[$linea['CODIGO']])) { $documentos += (float)$linea['VALOR']; }
-                else { $otrosEfectivo += (float)$linea['VALOR']; }
-            }
+        foreach ($arqueo['LINEAS'] as $linea) {
+            $valor = self::signo($linea['ROL']) * (float)$linea['VALOR'];
+            if ($arqueo['TIPO'] === 'CAJA_MENOR') { $documentos += $valor; }
+            elseif ($arqueo['TIPO'] === 'RECAMBIO') { $otrosEfectivo += $valor; }
         }
         //En casetas no hay billetes aparte: lo contado es el total recaudo de sus campos
         $arqueo['TOTAL_EFECTIVO'] = $arqueo['TIPO'] === 'CASETA' ? round((float)$arqueo['TOTAL_ARQUEO'], 2)
@@ -204,74 +250,128 @@ class Arqueo
     }
 
     //Las líneas del arqueo con el efectivo (billetes y monedas) en su lugar, en el orden del formato:
-    //primero el efectivo y los conceptos del recambio, después los documentos de caja menor.
+    //en caja menor, primero el efectivo y después los documentos; en el recambio, sus conceptos en orden.
     //El efectivo (billetes y monedas) no es una línea: viene de arqueo.BILLETES_MONEDAS
     private static function conEfectivo($arqueo)
     {
-        if (!isset(self::$EFECTIVO[$arqueo['TIPO']])) { return $arqueo['LINEAS']; } //casetas: sus campos van tal cual
-        $porConcepto = array(); $documentos = array();
-        foreach ($arqueo['LINEAS'] as $linea) {
-            if (isset(self::$DOCUMENTOS[$linea['CODIGO']])) { $documentos[] = $linea; continue; }
-            $porConcepto[$linea['CODIGO']] = $linea;
-        }
+        if ($arqueo['TIPO'] === 'CASETA') { return $arqueo['LINEAS']; } //casetas: sus campos van tal cual
+        $efectivo = array('ID_CONCEPTO' => null, 'CODIGO' => 'EFECTIVO', 'NOMBRE' => self::$EFECTIVO['CAJA_MENOR']['EFECTIVO'], 'ROL' => 'SUMA',
+                          'FECHA' => null, 'VALOR' => round((float)$arqueo['BILLETES_MONEDAS'], 2), 'OBSERVACION' => null);
+        if ($arqueo['TIPO'] === 'CAJA_MENOR') { return array_merge(array($efectivo), $arqueo['LINEAS']); }
+
+        $porConcepto = array();
+        foreach ($arqueo['LINEAS'] as $linea) { $porConcepto[$linea['CODIGO']] = $linea; }
         $lineas = array();
-        foreach (self::$EFECTIVO[$arqueo['TIPO']] as $codigo => $nombre) {
+        foreach (array_keys(self::$RECAMBIO_TODOS) as $codigo) {
             //Un recambio viejo: billetes y monedas juntos, en el lugar de los billetes
             if ($codigo === 'BILLETES' && (float)$arqueo['BILLETES_MONEDAS'] != 0 && !isset($porConcepto['BILLETES'])) {
-                $lineas[] = array('ID_CONCEPTO' => null, 'CODIGO' => 'EFECTIVO', 'NOMBRE' => 'Dinero en efectivo (billetes y monedas)', 'ROL' => 'SUMA',
-                                  'FECHA' => null, 'VALOR' => round((float)$arqueo['BILLETES_MONEDAS'], 2), 'OBSERVACION' => null);
+                $efectivo['NOMBRE'] = 'Dinero en efectivo (billetes y monedas)';
+                $lineas[] = $efectivo;
                 continue;
             }
-            if ($codigo === 'EFECTIVO') {
-                $lineas[] = array('ID_CONCEPTO' => null, 'CODIGO' => 'EFECTIVO', 'NOMBRE' => $nombre, 'ROL' => 'SUMA', 'FECHA' => null,
-                                  'VALOR' => round((float)$arqueo['BILLETES_MONEDAS'], 2), 'OBSERVACION' => null);
-            } elseif (isset($porConcepto[$codigo])) {
-                $lineas[] = $porConcepto[$codigo];
-            }
+            if (isset($porConcepto[$codigo])) { $lineas[] = $porConcepto[$codigo]; unset($porConcepto[$codigo]); }
         }
-        return array_merge($lineas, $documentos);
+        return array_merge($lineas, array_values($porConcepto));
     }
 
-    //Los conceptos fijos de un tipo de arqueo (caja menor o recambio), con su código como llave:
-    //así cada línea que se guarda apunta a su concepto y lleva el nombre que tiene hoy
+    //Los conceptos de un tipo de arqueo (caja menor o recambio), con su código como llave:
+    //así cada línea que se guarda apunta a su concepto y lleva el nombre y la forma de contar que tiene hoy
     public function conceptosFijos($tipo)
     {
-        $conceptos = $this->leerConceptosFijos($tipo);
-
-        //Si falta alguno de los conceptos que el arqueo necesita, se crea aquí con su nombre de fábrica
-        //(el administrador después lo puede renombrar en Parámetros del sistema → Listas). Así una base
-        //nueva, o a la que le falten filas, no impide guardar. INSERT IGNORE: el par (TIPO_ARQUEO, CODIGO)
-        //es único, y si dos personas guardan a la vez, uno solo se crea
-        $necesarios = array();
-        foreach ((array)(isset(self::$EFECTIVO[$tipo]) ? self::$EFECTIVO[$tipo] : array()) as $codigo => $nombre) {
-            if ($codigo !== 'EFECTIVO') { $necesarios[$codigo] = $nombre; } //EFECTIVO no es línea: va en BILLETES_MONEDAS
-        }
-        if ($tipo === 'CAJA_MENOR') {
-            foreach (self::$DOCUMENTOS_ACTIVOS as $codigo => $nombre) { $necesarios[$codigo] = $nombre; }
-        }
-        $orden = array('FACTURA' => 1, 'REINTEGRO' => 2, 'RECIBO_CAJA' => 3, 'FALTANTE' => 4);
-        $posicion = 0;
-        $creado = false;
-        foreach ($necesarios as $codigo => $nombre) {
-            $posicion++;
-            if (isset($conceptos[$codigo])) { continue; }
-            $lugar = ($tipo === 'CAJA_MENOR' && isset($orden[$codigo])) ? $orden[$codigo] : $posicion;
-            HanaDB::q("INSERT IGNORE INTO arqueo_concepto (TIPO_ARQUEO, CODIGO, ID_CENTRO_OP, NOMBRE, ROL, ORDEN, ESTADO)
-                       VALUES (?, ?, NULL, ?, 'SUMA', ?, 1)", 'sssi', array($tipo, $codigo, $nombre, $lugar));
-            error_log('HANA - arqueo: se creó el concepto ' . $tipo . '/' . $codigo . ' que faltaba en arqueo_concepto');
-            $creado = true;
-        }
-        return $creado ? $this->leerConceptosFijos($tipo) : $conceptos;
-    }
-
-    private function leerConceptosFijos($tipo)
-    {
+        $this->asegurarFabrica();
         $conceptos = array();
-        foreach ((array)HanaDB::q("SELECT ID_CONCEPTO, CODIGO, NOMBRE, ROL FROM arqueo_concepto
+        foreach ((array)HanaDB::q("SELECT ID_CONCEPTO, CODIGO, NOMBRE, ROL, ESTADO FROM arqueo_concepto
                                     WHERE TIPO_ARQUEO = ? AND CODIGO IS NOT NULL", 's', array($tipo)) as $concepto) {
             $conceptos[$concepto['CODIGO']] = $concepto;
         }
         return $conceptos;
+    }
+
+    //Crea los conceptos de fábrica de caja menor y recambio que la base no tenga, con su nombre,
+    //orden y estado de fábrica. Solo agrega filas: nunca cambia ni borra las que ya existen. Así una
+    //base nueva, o a la que le falten filas, muestra sus conceptos y deja guardar. INSERT IGNORE: el par
+    //(TIPO_ARQUEO, CODIGO) es único, y si dos personas abren a la vez, uno solo se crea
+    public function asegurarFabrica()
+    {
+        $hay = array();
+        foreach ((array)HanaDB::q("SELECT TIPO_ARQUEO, CODIGO FROM arqueo_concepto WHERE CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')") as $fila) {
+            $hay[$fila['TIPO_ARQUEO'] . '/' . $fila['CODIGO']] = true;
+        }
+        $creado = false;
+        foreach (self::FABRICA as $tipo => $conceptos) {
+            foreach ($conceptos as $codigo => $datos) {
+                if (isset($hay["$tipo/$codigo"])) { continue; }
+                HanaDB::q("INSERT IGNORE INTO arqueo_concepto (TIPO_ARQUEO, CODIGO, ID_CENTRO_OP, NOMBRE, ROL, ORDEN, ESTADO)
+                           VALUES (?, ?, NULL, ?, 'SUMA', ?, ?)", 'sssii', array($tipo, $codigo, $datos[0], $datos[1], $datos[2]));
+                $creado = true;
+            }
+        }
+        if ($creado) { self::nombresDeLaBase(); }
+    }
+
+    //-----------------------------------------------------------------------
+    // Caja menor y recambio: sus conceptos (Configuración de arqueos)
+    //-----------------------------------------------------------------------
+
+    //Todos los conceptos de caja menor y recambio, activos o no, con en cuántos arqueos se han usado
+    public function conceptosDeFondo()
+    {
+        $filas = HanaDB::q("SELECT c.ID_CONCEPTO, c.TIPO_ARQUEO, c.CODIGO, c.NOMBRE, c.ROL, c.ORDEN, c.ESTADO,
+                                   (SELECT COUNT(DISTINCT l.ID_ARQUEO) FROM arqueo_linea l WHERE l.ID_CONCEPTO = c.ID_CONCEPTO) AS USOS
+                              FROM arqueo_concepto c
+                             WHERE c.CODIGO IS NOT NULL AND c.TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')
+                             ORDER BY c.TIPO_ARQUEO, c.ORDEN, c.ID_CONCEPTO");
+        $lista = array();
+        $fabrica = self::FABRICA;
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            $fila['FABRICA'] = isset($fabrica[$fila['TIPO_ARQUEO']][$fila['CODIGO']]);
+            $lista[] = $fila;
+        }
+        return $lista;
+    }
+
+    //Un concepto de caja menor o recambio por su ID
+    public function conceptoDeFondo($id)
+    {
+        return HanaDB::fila("SELECT ID_CONCEPTO, TIPO_ARQUEO, CODIGO, NOMBRE, ROL, ORDEN, ESTADO FROM arqueo_concepto
+                              WHERE ID_CONCEPTO = ? AND CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')", 'i', array((int)$id));
+    }
+
+    //¿Ya hay otro concepto con ese nombre en el mismo tipo de arqueo? (sin importar mayúsculas)
+    public function nombreRepetido($tipo, $nombre, $sinId)
+    {
+        return (bool)HanaDB::fila("SELECT ID_CONCEPTO FROM arqueo_concepto
+                                    WHERE TIPO_ARQUEO = ? AND CODIGO IS NOT NULL AND UPPER(NOMBRE) = UPPER(?) AND ID_CONCEPTO <> ?",
+                                  'ssi', array($tipo, $nombre, (int)$sinId));
+    }
+
+    //Edita un concepto de caja menor o recambio. Los arqueos ya registrados no cambian: cada
+    //línea guardó el nombre y la forma de contar que tenía su concepto ese día
+    public function editarConceptoDeFondo($id, $nombre, $rol, $orden, $estado)
+    {
+        return HanaDB::q("UPDATE arqueo_concepto SET NOMBRE = ?, ROL = ?, ORDEN = ?, ESTADO = ?
+                           WHERE ID_CONCEPTO = ? AND CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')",
+                         'ssiii', array($nombre, $rol, (int)$orden, (int)$estado, (int)$id));
+    }
+
+    //Agrega un concepto a caja menor o recambio. El código (con el que el sistema lo reconoce)
+    //sale del nombre: "Vale de transporte" => VALE_DE_TRANSPORTE; si ya existe, se le pone un número
+    public function agregarConceptoDeFondo($tipo, $nombre, $rol, $orden)
+    {
+        $base = $nombre;
+        if (function_exists('iconv')) { $sinTildes = @iconv('UTF-8', 'ASCII//TRANSLIT', $nombre); if ($sinTildes !== false) { $base = $sinTildes; } }
+        $base = trim(preg_replace('/[^A-Z0-9]+/', '_', strtoupper($base)), '_');
+        if ($base === '') { $base = 'CONCEPTO'; }
+        $usados = array('EFECTIVO' => true); //EFECTIVO es el de billetes y monedas de caja menor (no es línea)
+        foreach ((array)HanaDB::q("SELECT CODIGO FROM arqueo_concepto WHERE TIPO_ARQUEO = ? AND CODIGO IS NOT NULL", 's', array($tipo)) as $fila) {
+            $usados[$fila['CODIGO']] = true;
+        }
+        foreach (self::FABRICA[$tipo] as $codigo => $datos) { $usados[$codigo] = true; }
+        //CODIGO tiene máximo 20 letras: si hay que ponerle número, se acorta lo necesario
+        $codigo = substr($base, 0, 20);
+        for ($n = 2; isset($usados[$codigo]); $n++) { $codigo = rtrim(substr($base, 0, 19 - strlen($n)), '_') . '_' . $n; }
+        return HanaDB::q("INSERT INTO arqueo_concepto (TIPO_ARQUEO, CODIGO, ID_CENTRO_OP, NOMBRE, ROL, ORDEN, ESTADO) VALUES (?, ?, NULL, ?, ?, ?, 1)",
+                         'ssssi', array($tipo, $codigo, $nombre, $rol, (int)$orden));
     }
 
     //Guarda un arqueo nuevo con sus líneas (dentro de una transacción).
@@ -322,6 +422,13 @@ class Arqueo
                          WHERE c.TIPO_ARQUEO = 'CASETA' AND (c.ID_CENTRO_OP IS NULL OR c.ID_CENTRO_OP = ?)
                          ORDER BY c.ID_CENTRO_OP IS NOT NULL, c.ORDEN, c.ID_CONCEPTO", 'i', array((int)$idCentro));
         return $filas ? $filas : array();
+    }
+
+    //Un campo del arqueo de casetas por su ID
+    public function conceptoCaseta($id)
+    {
+        return HanaDB::fila("SELECT ID_CONCEPTO, ID_CENTRO_OP, NOMBRE, ROL, ORDEN, ESTADO FROM arqueo_concepto
+                              WHERE ID_CONCEPTO = ? AND TIPO_ARQUEO = 'CASETA'", 'i', array((int)$id));
     }
 
     //Crea o edita un campo del arqueo de casetas (general o de un peaje).

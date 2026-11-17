@@ -10,4 +10,4 @@ $pdf->armar();
 
 //Un aviso de PHP antes del PDF lo dañaría: se descarta lo que se haya escrito
 while (ob_get_level() > 0) { ob_end_clean(); }
-$pdf->Output(isset($_GET['ver']) || isset($_POST['reporte']) ? 'I' : 'D', ReporteGerenciaPdf::nombreArchivo($reporte['fecha']));
+$pdf->Output(isset($_GET['ver']) || isset($_POST['reporte']) ? 'I' : 'D', ReporteGerenciaPdf::nombreArchivo($reporte['fecha'], $reporte['desde']));

@@ -16,8 +16,8 @@
       estaba editando, sin guardar) o 'sistema' (lo que propone el sistema).
 
   Dos formas de pedirlo:
-    GET  ?fecha=AAAA-MM-DD           lo guardado ese día, o lo que propone el sistema
-    POST reporte={fecha, textos, otros}  lo que está en la pantalla en ese momento (el mismo
+    GET  ?fecha=AAAA-MM-DD[&desde=AAAA-MM-DD]  lo guardado de ese día o periodo, o lo que propone el sistema
+    POST reporte={fecha, desde, textos, otros}  lo que está en la pantalla en ese momento (el mismo
                                      formato de «Guardar»): sale tal cual, sin guardarlo
   Solo salen los proyectos de los peajes asignados a la persona.
 */
@@ -58,22 +58,27 @@ if (isset($_POST['reporte'])) {
     $enviado = json_decode((string)$_POST['reporte'], true);
     if (!is_array($enviado) || !isset($enviado['textos']) || !is_array($enviado['textos'])) { gerPdfError(400, 'No llegó el reporte. Recarga la página e intenta de nuevo.'); }
     $fecha = HanaVal::fecha(isset($enviado['fecha']) ? $enviado['fecha'] : '');
+    $desde = HanaVal::fecha(isset($enviado['desde']) ? (string)$enviado['desde'] : '');
 } else {
     $fecha = HanaVal::fecha(isset($_GET['fecha']) ? $_GET['fecha'] : $hoy);
+    $desde = HanaVal::fecha(isset($_GET['desde']) ? (string)$_GET['desde'] : '');
 }
 if ($fecha === '' || $fecha > $hoy || $fecha < '2020-01-01') { gerPdfError(400, 'Elige un día válido (hasta hoy).'); }
+//Rango de días: sin «desde» (o igual al último día) es un solo día. Máximo 31 días
+if ($desde === '' || $desde >= $fecha) { $desde = $fecha; }
+if ((strtotime($fecha) - strtotime($desde)) / 86400 + 1 > 31) { gerPdfError(400, 'El reporte puede cubrir hasta 31 días. Acorta el rango.'); }
 
 //Los puntos: los de la lista de hoy, más los que traiga lo guardado ese día y ya no estén en la lista
 $puntos = ReporteGerencia::puntos();
-$guardado = ReporteGerencia::guardado($fecha);
+$guardado = ReporteGerencia::guardado($fecha, $desde);
 if ($guardado && isset($guardado['datos']['puntos']) && is_array($guardado['datos']['puntos'])) {
     foreach ($guardado['datos']['puntos'] as $codigo => $titulo) { if (!isset($puntos[$codigo])) { $puntos[$codigo] = (string)$titulo; } }
 }
 
 //Lo que propone el sistema con los datos de la base: llena los proyectos que no tengan texto guardado (si no llegó
 //el de la pantalla) y sirve para saber qué corrigió la persona en la promesa de valor (ver ReporteGerencia::leerPromesa)
-$base = ReporteGerencia::calcular($proyectos, $centros, $fecha, $conNovedades);
-$sistema = ReporteGerencia::textos($base, $fecha);
+$base = ReporteGerencia::calcular($proyectos, $centros, $fecha, $conNovedades, $desde);
+$sistema = ReporteGerencia::textos($base, $fecha, $desde);
 $lista = array();
 foreach ($proyectos as $idProyecto => $nombre) {
     $textosGuardados = $guardado && isset($guardado['datos']['proyectos'][$idProyecto]['textos']) ? $guardado['datos']['proyectos'][$idProyecto]['textos'] : null;
@@ -108,7 +113,9 @@ $filaRol = HanaDB::fila("SELECT NOM_ROL_USUARIO_SISTEMA AS ROL FROM rol_usuarios
 $rol = $filaRol ? html_entity_decode((string)$filaRol['ROL'], ENT_QUOTES, 'UTF-8') : '';
 $reporte = array(
     'fecha'      => $fecha,
-    'fechaLarga' => ReporteGerencia::fechaLarga($fecha),
+    'desde'      => $desde,          //igual a fecha cuando es un solo día
+    'esRango'    => $desde < $fecha,
+    'fechaLarga' => ReporteGerencia::periodoLargo($desde, $fecha), //"jueves, 29 de octubre de 2026" o "del lunes 26 al jueves 29 de octubre de 2026"
     'puntos'     => $puntos,
     'proyectos'  => $lista,
     'otros'      => $otros,

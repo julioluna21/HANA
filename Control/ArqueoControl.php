@@ -2,8 +2,8 @@
 /*
   HANA - Controlador de arqueos (Reporte diario)
     Casillas de Arqueos en Permisos de usuario, siempre en los peajes asignados a la persona:
-    hacer arqueos (29M), verlos (45M), autorizar fondos y campos de casetas (36M) y anular
-    los de otros (46M).
+    hacer arqueos (29M), verlos (45M), autorizar fondos y configurar los arqueos (36M: conceptos
+    de caja menor y recambio, campos de casetas) y anular los de otros (46M).
 */
 session_start();
 require_once __DIR__ . "/../Modelo/ArqueoModelo.php";
@@ -29,7 +29,7 @@ if (!HanaConfig::modulo('ARQUEOS')) { arqError(403, 'Este módulo está desactiv
 hanaUsarModulo('ARQUEOS');
 if (!isset($_SESSION['IdUsuarios'], $_SESSION['Idcolaborador'])) { arqError(401, 'Tu sesión terminó. Vuelve a iniciar sesión.'); }
 //Casillas de Arqueos (Permisos de usuario), siempre en los peajes asignados a la persona:
-//  hacer arqueos (29M), ver los de sus peajes (45M), autorizar fondos y campos de casetas (36M),
+//  hacer arqueos (29M), ver los de sus peajes (45M), autorizar fondos y configurar los arqueos (36M),
 //  anular los arqueos que hicieron otros (46M). El ADMIN TEC (24M) todo, en todos los peajes
 $idUsuario        = (int)$_SESSION['Idcolaborador']; //el usuario es la persona (colaboradores)
 $idColaborador    = (int)$_SESSION['Idcolaborador'];
@@ -82,17 +82,72 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!$puedeCampos) { arqError(403, 'No tienes permiso para configurar los campos.'); }
         $idCampo = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         $idCentro = isset($_POST['centro']) ? (int)$_POST['centro'] : 0;
+        //Al editar, el peaje es el que ya tiene el campo (no el que mande la pantalla)
+        if ($idCampo > 0) {
+            $campoActual = $modeloArqueo->conceptoCaseta($idCampo);
+            if (!$campoActual) { arqError(404, 'Ese campo ya no existe. Recarga la pantalla.'); }
+            $idCentro = (int)$campoActual['ID_CENTRO_OP'];
+        }
+        if ($idCentro > 0) {
+            if (!Organizacion::centroActivo($idCentro)) { arqError(400, 'Ese peaje no existe o está inactivo.'); }
+            if ($centrosFondo !== null && !in_array($idCentro, $centrosFondo, true)) { arqError(403, 'Solo configuras los campos de tus peajes.'); }
+        }
         $nombre = HanaVal::texto(isset($_POST['nombre']) ? (function_exists('mb_strtoupper') ? mb_strtoupper(trim($_POST['nombre']), 'UTF-8') : strtoupper(trim($_POST['nombre']))) : '', 80);
         if ($nombre === null) { arqError(400, 'Escribe el nombre del campo.'); }
         $rol = isset($_POST['rol']) ? $_POST['rol'] : '';
         if (!isset(Arqueo::$ROLES[$rol])) { arqError(400, 'Elige cómo se comporta el campo.'); }
         $estado = isset($_POST['estado']) && $_POST['estado'] === '0' ? 0 : 1;
-        $modeloArqueo->guardarConcepto($idCampo, $idCentro, $nombre, $rol, isset($_POST['orden']) ? (int)$_POST['orden'] : 99, $estado);
+        if (!$modeloArqueo->guardarConcepto($idCampo, $idCentro, $nombre, $rol, isset($_POST['orden']) ? (int)$_POST['orden'] : 99, $estado)) {
+            arqError(500, 'No se pudo guardar el campo. Intenta de nuevo.');
+        }
         echo hanaJsonTexto(array('ok' => true, 'mensaje' => $idCampo ? 'Campo actualizado.' : 'Campo agregado.'), JSON_UNESCAPED_UNICODE);
+        break;
+
+    //-----------------------------------------------------------------------
+    // Caja menor y recambio: sus conceptos (casilla 36M)
+    //-----------------------------------------------------------------------
+    //Todos los conceptos de caja menor y recambio, activos o no
+    case 'conceptosConfig':
+        if (!$puedeCampos) { arqError(403, 'Los conceptos los configura quien autoriza fondos (casilla de Arqueos en Permisos de usuario).'); }
+        $modeloArqueo->asegurarFabrica();
+        echo hanaJsonTexto(array('conceptos' => $modeloArqueo->conceptosDeFondo(), 'roles' => Arqueo::$ROLES_FONDO), JSON_UNESCAPED_UNICODE);
+        break;
+
+    //Agrega un concepto (id = 0) o edita uno: nombre, cómo cuenta, orden y si está activo.
+    //Los de fábrica (los del formato en papel) siempre suman: a ellos solo se les cambia el nombre,
+    //el orden y si están activos
+    case 'guardarConcepto':
+        if (!$puedeCampos) { arqError(403, 'No tienes permiso para configurar los conceptos.'); }
+        $idConcepto = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        $nombre = HanaVal::texto(isset($_POST['nombre']) ? $_POST['nombre'] : '', 80);
+        if ($nombre === null) { arqError(400, 'Escribe el nombre del concepto.'); }
+        $rol = isset($_POST['rol']) ? $_POST['rol'] : '';
+        if (!isset(Arqueo::$ROLES_FONDO[$rol])) { arqError(400, 'Elige cómo cuenta el concepto.'); }
+        $orden = isset($_POST['orden']) ? max(0, min(999, (int)$_POST['orden'])) : 99;
+        $estado = isset($_POST['estado']) && $_POST['estado'] === '0' ? 0 : 1;
+
+        if ($idConcepto > 0) {
+            $actual = $modeloArqueo->conceptoDeFondo($idConcepto);
+            if (!$actual) { arqError(404, 'Ese concepto ya no existe. Recarga la pantalla.'); }
+            $tipo = $actual['TIPO_ARQUEO'];
+            $fabrica = Arqueo::FABRICA;
+            if (isset($fabrica[$tipo][$actual['CODIGO']])) { $rol = $actual['ROL']; }
+        } else {
+            $tipo = isset($_POST['tipo']) ? $_POST['tipo'] : '';
+            if ($tipo !== 'CAJA_MENOR' && $tipo !== 'RECAMBIO') { arqError(400, 'Elige si el concepto es de caja menor o de recambio.'); }
+        }
+        if ($modeloArqueo->nombreRepetido($tipo, $nombre, $idConcepto)) {
+            arqError(400, 'Ya hay un concepto de ' . strtolower(Arqueo::$TIPOS[$tipo]) . ' con ese nombre.');
+        }
+        $ok = $idConcepto > 0 ? $modeloArqueo->editarConceptoDeFondo($idConcepto, $nombre, $rol, $orden, $estado)
+                              : $modeloArqueo->agregarConceptoDeFondo($tipo, $nombre, $rol, $orden);
+        if (!$ok) { arqError(500, 'No se pudo guardar el concepto. Intenta de nuevo.'); }
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => $idConcepto ? 'Concepto actualizado.' : 'Concepto agregado.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //Lo que necesita la pantalla al abrir: los peajes de la persona con sus fondos autorizados
     case 'config':
+        $modeloArqueo->asegurarFabrica(); //una base nueva tiene de una vez los conceptos de caja menor y recambio
         $fondos = $modeloArqueo->fondos(array_keys($centros));
         $lista = array();
         foreach ($centros as $id => $centro) {
@@ -101,9 +156,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         }
         echo hanaJsonTexto(array(
             'hoy' => $hoy, 'primerEditable' => $primerEditable, 'ultimoEditable' => $ultimoEditable,
-            'habilitados' => HanaFechas::habilitados($idColaborador), //los días que el administrador le abrió
+            'habilitados' => HanaFechas::habilitados($idColaborador), //los días abiertos (administrador + sábados, domingos y festivos del mes)
+            'findes' => HanaFechas::findesAbiertos(),
             'tipos' => Arqueo::$TIPOS, 'efectivo' => Arqueo::$EFECTIVO, 'documentos' => Arqueo::$DOCUMENTOS_ACTIVOS,
-            'roles' => Arqueo::$ROLES, 'puedeCampos' => $puedeCampos,
+            'rolConcepto' => Arqueo::$ROL_CONCEPTO, 'roles' => Arqueo::$ROLES, 'puedeCampos' => $puedeCampos,
             'centros' => $lista, 'puedeArquear' => $puedeArquear, 'puedeFondos' => $puedeFondos
         ), JSON_UNESCAPED_UNICODE);
         break;
@@ -166,7 +222,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             if ($caseta === null) { arqError(400, 'Escribe la caseta.'); }
             $campos = $modeloArqueo->conceptosCaseta($idCentro);
             if (!count(array_filter($campos, function ($campo) { return $campo['ROL'] === 'ESPERADO'; }))) {
-                arqError(400, 'Este peaje no tiene un campo de "valor esperado" (el recaudo de la caseta). Pide que lo configuren en "Campos del arqueo de casetas".');
+                arqError(400, 'Este peaje no tiene un campo de "valor esperado" (el recaudo de la caseta). Pide que lo configuren en "Configuración de arqueos".');
             }
             $valores = isset($_POST['campo']) ? (array)$_POST['campo'] : array();
             $lineas = array(); $esperado = 0; $recaudo = 0;
@@ -204,7 +260,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             break;
         }
 
-        //Los conceptos fijos de este tipo (arqueo_concepto con CODIGO): cada línea apunta al suyo
+        //Los conceptos de este tipo (arqueo_concepto con CODIGO): cada línea apunta al suyo
         $fijos = $modeloArqueo->conceptosFijos($tipo);
         $linea = function ($codigo, $fecha, $valor, $obs) use ($fijos) {
             if (!isset($fijos[$codigo])) {
@@ -215,24 +271,28 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                          'fecha' => $fecha, 'valor' => $valor, 'obs' => $obs);
         };
 
-        //--- Efectivo: un valor por concepto del tipo. En caja menor, billetes y monedas juntos (EFECTIVO)
-        //no son una línea: van en arqueo.BILLETES_MONEDAS. En el recambio todo es línea, también los
-        //billetes y las monedas, cada uno por separado ---
+        //--- Efectivo: un valor por concepto activo del tipo. En caja menor, billetes y monedas juntos
+        //(EFECTIVO) no son una línea: van en arqueo.BILLETES_MONEDAS y siempre suman. En el recambio todo
+        //es línea, también los billetes y las monedas, cada uno por separado, y cada concepto suma, resta
+        //o es informativo según su configuración ---
         $lineas = array();
         $efectivo = 0;
         $billetes = 0.0;
+        $hayValor = false;
         $valores = isset($_POST['efectivo']) ? (array)$_POST['efectivo'] : array();
         $obsEf   = isset($_POST['efectivoObs']) ? (array)$_POST['efectivoObs'] : array();
         foreach (Arqueo::$EFECTIVO[$tipo] as $codigo => $nombre) {
             $crudo = isset($valores[$codigo]) ? trim($valores[$codigo]) : '';
             $valor = ($crudo === '') ? 0.0 : HanaVal::pesos($crudo);
             if ($valor === null) { arqError(400, "El valor de \"$nombre\" no es válido."); }
-            $efectivo += $valor;
-            if ($codigo === 'EFECTIVO') { $billetes = $valor; continue; } //va en BILLETES_MONEDAS, no como línea
-            $lineas[] = $linea($codigo, null, $valor, HanaVal::texto(isset($obsEf[$codigo]) ? $obsEf[$codigo] : '', 300));
+            if ($valor != 0) { $hayValor = true; }
+            if ($codigo === 'EFECTIVO') { $billetes = $valor; $efectivo += $valor; continue; } //va en BILLETES_MONEDAS, no como línea
+            $nueva = $linea($codigo, null, $valor, HanaVal::texto(isset($obsEf[$codigo]) ? $obsEf[$codigo] : '', 300));
+            $efectivo += Arqueo::signo($nueva['rol']) * $valor;
+            $lineas[] = $nueva;
         }
 
-        //--- Documentos (solo caja menor): facturas, recibos de caja y faltantes ---
+        //--- Documentos (solo caja menor): facturas, recibos de caja, faltantes y los que se agreguen ---
         $documentos = 0;
         if ($tipo === 'CAJA_MENOR') {
             $docFechas = isset($_POST['docFecha'])    ? (array)$_POST['docFecha']    : array();
@@ -254,8 +314,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                     $fechaDoc = HanaVal::fecha($docFechas[$i]);
                     if ($fechaDoc === '' || $fechaDoc > $fecha) { arqError(400, "La fecha del documento $numeroDoc no es válida o es posterior al arqueo."); }
                 }
-                $documentos += $valor;
-                $lineas[] = $linea($concepto, $fechaDoc, $valor, HanaVal::texto(isset($docObservaciones[$i]) ? $docObservaciones[$i] : '', 300));
+                $hayValor = true;
+                $nueva = $linea($concepto, $fechaDoc, $valor, HanaVal::texto(isset($docObservaciones[$i]) ? $docObservaciones[$i] : '', 300));
+                $documentos += Arqueo::signo($nueva['rol']) * $valor;
+                $lineas[] = $nueva;
             }
         }
 
@@ -266,7 +328,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($diferencia != 0 && $observacion === null) {
             arqError(400, 'El arqueo no cuadra con el fondo autorizado. Explica la diferencia en la observación.');
         }
-        if ($total <= 0) { arqError(400, 'El arqueo no tiene ningún valor contado.'); }
+        if (!$hayValor) { arqError(400, 'El arqueo no tiene ningún valor contado.'); }
 
         HanaDB::iniciar();
         $id = $modeloArqueo->insertar(array(

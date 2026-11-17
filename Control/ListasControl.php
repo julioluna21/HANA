@@ -69,7 +69,8 @@ switch ($_GET["op"]) {
   //Los días en que esta persona puede diligenciar una lista: hoy y los que le habilitó el administrador
   case "dias":
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(array('hoy' => HanaFechas::hoy(), 'habilitados' => HanaFechas::habilitados((isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0))));
+    //Los días abiertos: los que le habilitó el administrador y los sábados, domingos y festivos del mes (findes)
+    echo json_encode(array('hoy' => HanaFechas::hoy(), 'habilitados' => HanaFechas::habilitados((isset($_SESSION['Idcolaborador']) ? (int)$_SESSION['Idcolaborador'] : 0)), 'findes' => HanaFechas::findesAbiertos()));
     break;
   //¿Ya hay una lista de este tipo empezada para ese peaje en esa fecha?
   case "validaListaIniciada":
@@ -142,6 +143,8 @@ switch ($_GET["op"]) {
         //la lista igual queda guardada y el usuario no ve ningún error.
         require_once __DIR__ . "/EnvioNotificacionesControl.php";
         hanaNotificarInmediato($idLista);
+        //Y los avisos por respuesta (Editar listas → campana de cada pregunta): por ejemplo, si respondieron «No»
+        hanaNotificarPorRespuesta($idLista);
 
         //Una sola respuesta al navegador, ya con todas las preguntas procesadas.
         //Si falla cualquiera de ellas, la pantalla recibe el error

@@ -148,7 +148,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!$inicial && count($proyectos)) { $inicial = (int)key($proyectos); }
         echo hanaJsonTexto(array(
             'hoy' => $hoy, 'primerEditable' => $primerEditable, 'ultimoEditable' => $ultimoEditable, 'ultimoPlan' => $ultimoPlan,
-            'habilitados' => HanaFechas::habilitados($idColaborador), //los días pasados que el administrador le abrió
+            'habilitados' => HanaFechas::habilitados($idColaborador), //los días abiertos (administrador + sábados, domingos y festivos del mes)
+            'findes' => HanaFechas::findesAbiertos(),
             'tipos' => Cronograma::$TIPOS, 'estadosVh' => Cronograma::$ESTADOS_VH, 'transportes' => Cronograma::$TRANSPORTES,
             'proyectos' => array_values($proyectos), 'proyectoInicial' => $inicial,
             'centros' => hanaMisCentros(), //para planear visitas: sus peajes

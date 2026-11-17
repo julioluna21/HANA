@@ -22,7 +22,8 @@ define('HANA_MENTA', '#1ABB9C'); //verde menta, color de acento del sistema
 $GLOBALS['hanaUltimoError'] = '';
 
 //Envía un correo HTML. Reusa la misma cuenta SMTP que ya usa el sistema
-function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
+//$modulo: cómo queda anotado el envío en la bitácora (LISTAS, o AVISO_RESPUESTA para los avisos por respuesta)
+function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml, $modulo = 'LISTAS')
 {
     $mail = new PHPMailer();
     $mail->CharSet  = "UTF-8"; //para que las tildes y la ñ no se dañen
@@ -71,7 +72,7 @@ function hanaEnviarCorreo($destinatarios, $asunto, $cuerpoHtml)
         $marca = '<tr><td style="padding:24px 28px; color:#333333; font-size:14px;">';
         $mail->Body = strpos($cuerpoHtml, $marca) !== false ? preg_replace('/' . preg_quote($marca, '/') . '/', $marca . $saludo, $cuerpoHtml, 1) : $saludo . $cuerpoHtml;
         //Si el envío falla, se guarda el motivo que reporta PHPMailer
-        if (!hanaEnviar($mail, 'LISTAS')) { //queda anotado en la bitácora (ver CorreoHelper.php)
+        if (!hanaEnviar($mail, $modulo)) { //queda anotado en la bitácora (ver CorreoHelper.php)
             $GLOBALS['hanaUltimoError'] = $mail->ErrorInfo;
             $bien = false;
         }
@@ -222,6 +223,67 @@ function hanaNotificarInmediato($idLista)
 }
 
 // ---------------------------------------------------------------------------
+// AVISOS POR RESPUESTA: si en la lista respondieron algo que tiene aviso (por
+// ejemplo «No» en «¿La talanquera funciona?»), les escribe a las personas y a
+// los roles elegidos en Editar listas (ver Modelo/AvisoRespuestaModelo.php).
+// A cada persona le llega UN correo con todas las preguntas que le tocan.
+// ---------------------------------------------------------------------------
+function hanaNotificarPorRespuesta($idLista)
+{
+    //Como el envío inmediato: si algo falla, el guardado de la lista NO se rompe
+    try {
+        require_once __DIR__ . '/../Modelo/AvisoRespuestaModelo.php';
+        $lista = AvisoRespuesta::lista($idLista);
+        if (!$lista) { return 0; }
+        $avisos = AvisoRespuesta::deGrupo($lista['ID_GRUPO_LISTA_CHEQUEO']);
+        if (!count($avisos)) { return 0; } //ninguna pregunta de esta lista tiene aviso
+
+        //Qué preguntas le tocan a cada correo
+        $porCorreo = array(); $nombres = array();
+        foreach ($lista['respuestas'] as $respuesta) {
+            $idPregunta = (int)$respuesta['ID_PREGUNTA'];
+            if (!isset($avisos[$idPregunta])) { continue; }
+            $valor = (string)$respuesta['RESPUESTA'];
+            if (!in_array($valor, $avisos[$idPregunta]['r'], true)) { continue; } //esa respuesta no dispara el aviso
+            $opciones = AvisoRespuesta::respuestasDeTipo($respuesta['TIPO_RESPUESTA']);
+            $texto = isset($opciones[$valor]) ? $opciones[$valor] : $valor;
+            foreach (AvisoRespuesta::destinatarios($avisos[$idPregunta], $lista['ID_CENTRO_OP']) as $correo => $nombre) {
+                $porCorreo[$correo][] = array('pregunta' => html_entity_decode($respuesta['PREGUNTA'], ENT_QUOTES, 'UTF-8'), 'respuesta' => $texto);
+                $nombres[$correo] = $nombre;
+            }
+        }
+        if (!count($porCorreo)) { return 0; }
+
+        $nombreLista = html_entity_decode($lista['NOM_GRUPO_LISTA_CHEQUEO'], ENT_QUOTES, 'UTF-8');
+        $centro = html_entity_decode($lista['NOM_CENTRO_OP'], ENT_QUOTES, 'UTF-8') . ' (' . html_entity_decode($lista['NOM_PROYECTO'], ENT_QUOTES, 'UTF-8') . ')';
+        $enviados = 0;
+        foreach ($porCorreo as $correo => $preguntas) {
+            $filas = '';
+            foreach ($preguntas as $item) {
+                $filas .= '<tr><td style="padding:6px 8px;border-bottom:1px solid #eeeeee;">' . htmlspecialchars($item['pregunta'], ENT_QUOTES, 'UTF-8') . '</td>'
+                        . '<td style="padding:6px 8px;border-bottom:1px solid #eeeeee;font-weight:bold;color:' . HANA_VINO . ';">' . htmlspecialchars($item['respuesta'], ENT_QUOTES, 'UTF-8') . '</td></tr>';
+            }
+            $contenido = '<p>En la lista <strong>' . htmlspecialchars($nombreLista, ENT_QUOTES, 'UTF-8') . '</strong> respondieron algo que tiene aviso para ti:</p>'
+                       . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 14px;font-size:14px;">'
+                       . '<tr><th align="left" style="padding:6px 8px;background:#f4f5f7;">Pregunta</th><th align="left" style="padding:6px 8px;background:#f4f5f7;">Respuesta</th></tr>'
+                       . $filas . '</table>'
+                       . hanaFichaCabecera(html_entity_decode($lista['NOM_COLABORADOR'], ENT_QUOTES, 'UTF-8'), $centro, $lista['FEC_REGISTRO']);
+            $html = hanaPlantillaCorreo('Aviso de una lista de chequeo', htmlspecialchars($nombreLista, ENT_QUOTES, 'UTF-8'), $contenido);
+            $asunto = 'HANA - Aviso: ' . $nombreLista . ' en ' . html_entity_decode($lista['NOM_CENTRO_OP'], ENT_QUOTES, 'UTF-8')
+                    . (count($preguntas) === 1 ? ' (' . $preguntas[0]['respuesta'] . ')' : ' (' . count($preguntas) . ' respuestas)');
+            Bitacora::contexto(null, (int)$idLista); //en la bitácora: qué lista lo disparó
+            if (hanaEnviarCorreo($correo, $asunto, $html, 'AVISO_RESPUESTA')) { $enviados++; }
+            Bitacora::contexto();
+        }
+        return $enviados;
+    } catch (\Throwable $error) {
+        Bitacora::contexto();
+        error_log('HANA - avisos por respuesta de la lista ' . (int)$idLista . ': ' . $error->getMessage());
+        return 0; //nunca se propaga el error hacia el guardado de la lista
+    }
+}
+
+// ---------------------------------------------------------------------------
 // RESUMEN DIARIO / SEMANAL: agrupa todas las listas del periodo por persona
 // ---------------------------------------------------------------------------
 //Con $simular no envía nada: anota en $GLOBALS['hanaResumenSimulado'] a quién le llegaría cada resumen
@@ -308,4 +370,4 @@ function hanaEnviarResumen($frecuencia, $simular = false)
     }
     return $enviados;
 }
-?>
+?>

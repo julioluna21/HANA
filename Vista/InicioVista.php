@@ -9,71 +9,36 @@ if (isset($_SESSION['IdUsuarios'])) {
 
     include('head.php'); //cabecera comun: menú lateral, CSS, topbar
 
-    //Nombre del usuario para el saludo. Si no viene, se saluda de forma genérica
-    $nombreUsuario = isset($_SESSION['Nombre']) ? $_SESSION['Nombre'] : "Usuario";
-
-    //Saludo al azar. Se usa switch y no match() porque match() solo existe desde
-    //PHP 8 y el servidor corre PHP 7: allí match() deja la pantalla en blanco
-    $azar = rand(1, 10); //son 10 saludos; si el número no tuviera saludo, queda "Buenas"
-
-    switch ($azar) {
-        case 1:  $saludo = "¡Hola! Qué gusto verte"; break;
-        case 2:  $saludo = "Me alegra verte"; break;
-        case 3:  $saludo = "Todo listo para empezar"; break;
-        case 4:  $saludo = "¡Hola de nuevo!"; break;
-        case 5:  $saludo = "¡Hola! Bienvenido de vuelta"; break;
-        case 6:  $saludo = "¡Hola! Comencemos con la revisión de hoy"; break;
-        case 7:  $saludo = "¡Buenas! Empecemos la revisión de hoy"; break;
-        case 8:  $saludo = "¡Buenas! ¿Por dónde empezamos?"; break;
-        case 9:  $saludo = "¡Hola, qué tal!"; break;
-        case 10: $saludo = "¡Hola, empecemos!"; break;
-
-
-        default: $saludo = "Buenas"; break;
-    }
+    //El saludo de arriba sale al azar de los del sistema (Vista/saludo.php)
+    require_once __DIR__ . '/saludo.php';
     /* Catalogo de accesos directos.
        Cada elemento es: [modulo, archivo, icono, titulo, descripcion]
        El "modulo" es el mismo código de permisos que usa el menú lateral,
        así la tarjeta solo se muestra si el usuario tiene acceso a ese modulo. */
-    //Las mismas etiquetas del menú lateral, en el mismo orden y con el mismo nombre.
-    //El primer dato es el permiso; TODOS, REPORTE y AUSENTISMO usan las mismas reglas
-    //del menú (se calculan abajo, antes de pintar las tarjetas)
+    //Accesos unificados: lo que tiene varias pantallas va en UN solo botón que abre su
+    //propia lista de accesos (Configuración, Reporte diario y Consultas), en vez de un
+    //botón por cada pantalla. El primer dato es el permiso; TODOS, CONFIG, RQ, REPORTE y
+    //CONSULTAS usan las mismas reglas del menú (se calculan abajo, antes de pintar las tarjetas)
     $accesos = array(
         array("TODOS", "MisNotificacionesVista.php", "fa-bell", "Mis notificaciones", "Las novedades y RQ que te llegaron"),
-        array("6M", "proyectosVista.php", "fa-folder-open", "Proyectos", "Administra los proyectos y concesiones"),
-        array("5M", "centroOperativoVista.php", "fa-building", "Centros de operación", "Administra los centros operativos"),
-        array("2M", "RolesVista.php", "fa-key", "Permisos de usuario", "Define qué puede hacer cada rol"),
-        array("24M", "ParametrosVista.php", "fa-sliders", "Parámetros del sistema", "Módulos activos, plazos y catálogos"),
-        array("COLABORADORES", "ColaboradoresVista.php", "fa-user-plus", "Colaboradores", "Las personas que trabajan en los proyectos"),
-        array("USUARIOS", "UsuariosVista.php", "fa-users", "Usuarios", "El acceso de cada persona a HANA"),
-        array("7M", "TitulosNovedadesVista.php", "fa-tags", "Títulos de novedades", "Parametriza los títulos de novedades"),
+        array("CONFIG", "ConfiguracionVista.php", "fa-cog", "Configuración", "Proyectos, centros, colaboradores, usuarios, permisos y parámetros"),
         array("10M", "novedadesVista.php", "fa-comment", "Novedades", "Registra y consulta novedades y hallazgos"),
-        array("RQ", "RQVista.php", "fa-wrench", "Requisiciones (RQ)", "REQUISICIONES"),
-        array("REPORTE", "ReporteDiarioVista.php", "fa-calendar-check-o", "Reporte diario", "Hoy en qué estás, listas de chequeo y más"),
-        array("19M", "ControlDiarioVista.php", "fa-list-alt", "Reporte general", "Todo lo que enviaron coordinadores y jefes, por día, módulo y proyecto"),
-        array("37M", "InformeMensualVista.php", "fa-file-pdf-o", "Informe mensual", "Un PDF de un mes, una quincena o las fechas que elijas"),
-        array("GERENCIA", "ReporteGerenciaVista.php", "fa-briefcase", "Reporte a la Gerencia", "El reporte del día por proyecto: flota, promesa de valor, oficios y novedades"),
-        array("12M", "GruposListasVista.php", "fa-list-ul", "Editar listas", "Crea y edita las preguntas de cada lista"),
-        array("12M", "NotificacionesVista.php", "fa-envelope-o", "Correos automáticos", "Recordatorios, resúmenes y avisos por correo"),
-        array("AUSENTISMO", "AusentismoVista.php", "fa-user-times", "Registrar ausentismo", "El reporte de ausentismo de cada peaje"),
-        array("PROMESA", "PromesaValorVista.php", "fa-clock-o", "Promesa de valor", "Horas prometidas y ejecutadas de cada peaje, y por qué no se cumplió")
+        array("RQ", "RQVista.php", "fa-wrench", "Requisiciones (RQ)", "Pide, revisa y aprueba requisiciones"),
+        array("REPORTE", "ReporteDiarioVista.php", "fa-calendar-check-o", "Reporte diario", "Hoy en qué estás, listas de chequeo, arqueos, promesa de valor y más"),
+        array("CONSULTAS", "ConsultasVista.php", "fa-line-chart", "Consultas", "Reporte general, informes, reporte a la Gerencia y trazabilidad")
     );
 ?>
         <!-- Contenido de la página -->
         <div class="right_col" role="main">
             <div class="">
 
-                <!-- Banner de bienvenida -->   
+                <!-- Saludo de bienvenida (Vista/saludo.php) -->
                 <div class="row">
                     <div class="col-md-12">
-                        <div class="panel-bienvenida">
-                            <h1><?php echo $saludo; ?>, <?php echo htmlspecialchars($nombreUsuario); ?></h1>
-                            <p>
-                                Bienvenido a <strong>HANA</strong>, el sistema de gestión de reportes diarios, gestion de novedades
-                                y reportes de ausentismo. Selecciona abajo el módulo al que deseas ingresar,
-                                o usa el menú lateral en cualquier momento.
-                            </p>    
-                        </div>
+                        <?php hanaSaludo(array(
+                            'texto'  => 'Bienvenido a HANA, el sistema de gestión de reportes diarios, novedades y requisiciones. Selecciona abajo el módulo al que deseas ingresar, o usa el menú lateral en cualquier momento.',
+                            'icono'  => hanaSaludoIcono() //sol de día, luna de noche
+                        )); ?>
                     </div>
                 </div>
 
@@ -100,13 +65,12 @@ if (isset($_SESSION['IdUsuarios'])) {
     $permitidos[] = 'TODOS';
     $esCoordMenu = !empty($menuCoord); //head.php ya calculó si coordina un proyecto
     if (array_intersect(array('15M', '17M', '18M', '41M'), $modulosAcceso)) { $permitidos[] = 'RQ'; } //ver, ver todas, aprobar o pedir
-    if (array_intersect(array('3M', '24M'), $modulosAcceso)) { $permitidos[] = 'COLABORADORES'; } //registrar a las personas (3M)
-    if (array_intersect(array('1M', '24M'), $modulosAcceso)) { $permitidos[] = 'USUARIOS'; }      //su acceso (1M)
-    //Reporte diario: con alguna pantalla del reporte en el menú (head.php ya lo calculó)
-    if ($esCoordMenu || !empty($menuListas) || !empty($menuEditarListas) || !empty($menuCorreos)) { $permitidos[] = 'REPORTE'; }
-    if (!empty($menuAusReg)) { $permitidos[] = 'AUSENTISMO'; } //head.php ya calculó quién entra al ausentismo
-    if (!empty($menuGerencia)) { $permitidos[] = 'GERENCIA'; } //head.php ya calculó quién arma el reporte a la Gerencia
-    if (!empty($menuPromesa)) { $permitidos[] = 'PROMESA'; } //head.php ya calculó quién entra a la promesa de valor
+    //Configuración: alguna de sus pantallas (las mismas casillas del menú lateral)
+    if (array_intersect(array('1M', '2M', '3M', '5M', '6M', '7M', '24M'), $modulosAcceso)) { $permitidos[] = 'CONFIG'; }
+    //Reporte diario: con alguna pantalla del reporte en el menú (head.php ya lo calculó), la promesa de valor incluida
+    if ($esCoordMenu || !empty($menuListas) || !empty($menuEditarListas) || !empty($menuCorreos) || !empty($menuPromesa)) { $permitidos[] = 'REPORTE'; }
+    //Consultas: reporte general, informe mensual, reporte a la Gerencia o trazabilidad
+    if (array_intersect(array('19M', '37M'), $modulosAcceso) || !empty($menuGerencia) || !empty($menuTraza)) { $permitidos[] = 'CONSULTAS'; }
 
     foreach ($accesos as $acceso) {
         if (!in_array($acceso[0], $permitidos)) { continue; } //sin permiso: se salta
@@ -143,13 +107,8 @@ if (isset($_SESSION['IdUsuarios'])) {
         </div>
 
         <style>
-            /* Banner superior de bienvenida. Color solido, el mismo del menú lateral */
-            .panel-bienvenida{
-                background:#6E1A1E;
-                color:#fff; border-radius:8px; padding:25px 30px; margin:15px 0 20px 0; margin-top: 50px;
-            }
-            .panel-bienvenida h1{ margin:0 0 8px 0; font-size:26px; font-weight:600; }
-            .panel-bienvenida p{ margin:0; opacity:.9; font-size:14px; }
+            /* El saludo de arriba (Vista/saludo.php, estilos en public/css/comun.css). En Inicio va un poco más abajo */
+            .right_col .hana-bienvenida{ margin-top: 50px; }
 
             /* Grilla de tarjetas. Se reparten solas en columnas de minimo 200px:
                si caben 5 pone 5, si caben 3 pone 3, sin dejar huecos ni columnas vacías */
@@ -200,4 +159,4 @@ if (isset($_SESSION['IdUsuarios'])) {
   //-->
   </script>";
 }
-?>
+?>

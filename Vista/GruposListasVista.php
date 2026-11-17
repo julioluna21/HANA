@@ -180,6 +180,37 @@ if (isset($_SESSION['IdUsuarios'])) {
                                                     </div>
                                                 </div>
                                             </div>
+                                            <!-- Aviso por respuesta de una pregunta: si responden tal cosa, se le
+                                                 envía un correo a ciertas personas o roles (Ajax/AvisoRespuestaAjax.js) -->
+                                            <div class="modal fade" id="modalAviso" tabindex="-1" role="dialog" aria-labelledby="tituloAviso">
+                                                <div class="modal-dialog" role="document">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                                                            <h4 class="modal-title" id="tituloAviso"><i class="fa fa-bell-o"></i> Enviar notificación según la respuesta</h4>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <p id="avisoPregunta" style="font-weight:600;"></p>
+                                                            <div class="form-group"><label>¿Envía notificación?</label><br>
+                                                                <label class="radio-inline"><input type="radio" name="avisoOn" value="1"> Sí</label>
+                                                                <label class="radio-inline"><input type="radio" name="avisoOn" value="0" checked> No</label></div>
+                                                            <div id="avisoCampos">
+                                                                <div class="form-group"><label>Cuando la respuesta sea:</label><div id="avisoRespuestas"></div></div>
+                                                                <div class="form-group"><label for="avisoPersonas">A estas personas:</label>
+                                                                    <select id="avisoPersonas" class="form-control" multiple style="width:100%;"></select></div>
+                                                                <div class="form-group"><label for="avisoRoles">A estos roles:</label>
+                                                                    <select id="avisoRoles" class="form-control" multiple style="width:100%;"></select>
+                                                                    <small class="rd-ayuda">Les llega a las personas de ese rol que tienen asignado el peaje donde se llenó la lista.</small></div>
+                                                            </div>
+                                                            <p class="rd-ayuda" id="avisoQuien"></p>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+                                                            <button type="button" class="btn btn-primary" id="btnGuardarAviso"><i class="fa fa-save"></i> Guardar aviso</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                             <!-- Listado Preguntas-->
                                     <div id="listadoPreguntas">
                                         <div class="x_panel">
@@ -256,6 +287,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         include('footer.php');
         ?>
         <script type="text/javascript" src="../Ajax/GruposListasnAjax.js?v=8"></script>
+        <script type="text/javascript" src="../Ajax/AvisoRespuestaAjax.js?v=1"></script>
         <script type="text/javascript">
         //Esta función se define aquí a proposito: si el navegador tiene cacheado
         //GruposListasnAjax.js, el botón igual sigue funcionando
@@ -307,4 +339,4 @@ if (isset($_SESSION['IdUsuarios'])) {
   //-->
   </script>";
 }
-?>
+?>

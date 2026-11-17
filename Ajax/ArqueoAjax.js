@@ -1,6 +1,7 @@
 //Reporte diario - Arqueos
 //Formulario con cálculo en vivo (el servidor vuelve a calcular al guardar),
-//listado del mes, detalle con impresión y configuración de fondos
+//listado del mes, detalle con impresión, fondos autorizados y configuración de arqueos
+//(conceptos de caja menor y recambio, campos de casetas)
 
 var URL_ARQ = '../Control/ArqueoControl.php';
 var cfgArq = null;
@@ -20,8 +21,10 @@ $(function () {
             $('#btnNuevoArq').toggle(!!config.puedeArquear);
             $('#btnFondos').toggle(!!config.puedeFondos);
             $('#btnCampos').toggle(!!config.puedeCampos);
-            //Desde Parámetros del sistema se llega directo: ArqueosVista.php#campos o #fondos
-            if (location.hash === '#campos' && config.puedeCampos) { setTimeout(function () { $('#btnCampos').trigger('click'); }, 0); }
+            //Desde Parámetros del sistema se llega directo: ArqueosVista.php#config, #campos (casetas) o #fondos
+            if ((location.hash === '#config' || location.hash === '#campos') && config.puedeCampos) {
+                setTimeout(function () { abrirCampos(location.hash === '#campos' ? 'casetas' : ''); }, 0);
+            }
             if (location.hash === '#fondos' && config.puedeFondos) { setTimeout(function () { $('#btnFondos').trigger('click'); }, 0); }
 
             //Filtros
@@ -59,11 +62,13 @@ $(function () {
     $(document).on('change', 'input[name="tipo"]', function () { pintarTipo(); });
     //En el arqueo de casetas, cada peaje tiene sus campos: al cambiar de peaje se vuelven a pintar
     $('#arqCentro').on('change', function () { if (tipoArq() === 'CASETA') { pintarCampos(); } else { calcular(); } });
-    $('#btnCampos').on('click', abrirCampos);
+    $('#btnCampos').on('click', function () { abrirCampos(''); });
     $('#btnVolverCampos').on('click', function () { mostrarPanel('#panelListaArq'); listarArq(); });
     $('#cmpCentro').on('change', cargarCampos);
     $('#btnAgregarCampo').on('click', agregarCampo);
     $(document).on('change', '.cmp-editar', guardarCampoFila);
+    $(document).on('change', '.cpt-editar', guardarConceptoFila);
+    $(document).on('click', '.cpt-agregar', agregarConcepto);
     $(document).on('input change', '#formArq .rd-pesos, #formArq select', calcular);
     $('#btnAgregarDoc').on('click', function () { agregarDoc(); });
     $(document).on('click', '.rd-quitar-doc', function () { $(this).closest('tr').remove(); calcular(); });
@@ -74,7 +79,7 @@ $(function () {
     $(document).on('click', '.btn-fondo', guardarFondo);
 });
 
-//Muestra solo uno de los paneles de la pantalla (lista, formulario, fondos o campos)
+//Muestra solo uno de los paneles de la pantalla (lista, formulario, fondos o configuración)
 function mostrarPanel(id) {
     $('#panelListaArq, #panelFormArq, #panelFondos, #panelCampos').hide();
     $(id).show();
@@ -125,8 +130,8 @@ function etiquetaDif(diferencia) {
 function abrirFormulario() {
     $('#formArq')[0].reset();
     $('#arqFecha').val(cfgArq.hoy);
-    rdLimitarFecha('#arqFecha', cfgArq.hoy, cfgArq.habilitados);            //solo hoy o un día habilitado
-    rdBotonesDia('#arqRapido', cfgArq.hoy, cfgArq.habilitados, 'btn-xs');
+    rdLimitarFecha('#arqFecha', cfgArq.hoy, cfgArq.habilitados);            //hoy, un sábado, domingo o festivo del mes, o un día habilitado
+    rdBotonesDia('#arqRapido', cfgArq.hoy, cfgArq.habilitados, 'btn-xs', cfgArq.findes);
     var ahora = new Date();
     $('#arqHora').val(rdDos(ahora.getHours()) + ':' + rdDos(ahora.getMinutes()));
     $('input[name="tipo"]').first().prop('checked', true);
@@ -163,17 +168,18 @@ function pintarTipo() {
     //se guarda solo como total del arqueo; lo que haya que explicar va en la observación general
     var htmlEfectivo = '';
     $.each(cfgArq.efectivo[tipo], function (codigo, nombre) {
-        var soloTotal = codigo === 'EFECTIVO';
+        var soloTotal = codigo === 'EFECTIVO', rol = rolConcepto(tipo, codigo);
         htmlEfectivo += '<div class="row rd-linea-ef"><div class="form-group col-sm-5 col-xs-12"><label>' + rdEsc(nombre) + ':</label>' +
-              '<input type="text" inputmode="numeric" class="form-control rd-pesos" name="efectivo[' + rdEsc(codigo) + ']" placeholder="$ 0"></div>' +
+              (rol !== 'SUMA' ? '<div class="rd-ayuda" style="margin:-3px 0 4px;">' + rdEsc(NOTA_ROL[rol]) + '</div>' : '') +
+              '<input type="text" inputmode="numeric" class="form-control rd-pesos" name="efectivo[' + rdEsc(codigo) + ']" data-rol="' + rdEsc(rol) + '" placeholder="$ 0"></div>' +
               (soloTotal ? '' : '<div class="form-group col-sm-7 col-xs-12"><label>Observación:</label>' +
               '<input type="text" class="form-control" name="efectivoObs[' + rdEsc(codigo) + ']" maxlength="300"></div>') + '</div>';
     });
     $('#arqEfectivo').html(htmlEfectivo);
 
-    //Documentos: solo en caja menor
+    //Documentos: solo en caja menor (y si hay algún concepto de documento activo)
     $('#arqDocs').empty();
-    var docs = tipo === 'CAJA_MENOR';
+    var docs = tipo === 'CAJA_MENOR' && !$.isEmptyObject(cfgArq.documentos);
     $('#arqBloqueDocs').toggle(docs);
     if (docs) { agregarDoc(); }
     //El cargo del responsable aparece en el formato de recambio
@@ -192,6 +198,14 @@ function pintarTipo() {
 //El tipo de arqueo elegido: caja menor o recambio
 function tipoArq() { return $('input[name="tipo"]:checked').val(); }
 
+//Cómo cuenta hoy un concepto de caja menor o recambio (los billetes y monedas de caja menor siempre suman)
+function rolConcepto(tipo, codigo) {
+    return (cfgArq.rolConcepto && cfgArq.rolConcepto[tipo] && cfgArq.rolConcepto[tipo][codigo]) || 'SUMA';
+}
+var NOTA_ROL = { SUMA: 'Suma al total', RESTA: 'Resta del total', INFO: 'No entra en la cuenta' };
+//Un valor según cómo cuenta: suma, resta o no entra (informativo)
+function conSigno(valor, rol) { return rol === 'RESTA' ? -valor : (rol === 'INFO' ? 0 : valor); }
+
 //Casetas: un renglón por cada campo configurado para el peaje elegido
 var camposCaseta = [];
 //Trae los campos de documentos del peaje elegido y arma un renglón por cada uno
@@ -208,7 +222,7 @@ function pintarCampos() {
                      '<label>' + rdEsc(campo.NOMBRE) + ':</label><div class="rd-ayuda" style="margin:-3px 0 4px;">' + rdEsc(nota) + '</div>' +
                      '<input type="text" inputmode="numeric" class="form-control rd-pesos" name="campo[' + parseInt(campo.ID_CONCEPTO, 10) + ']" data-rol="' + rdEsc(campo.ROL) + '" placeholder="$ 0"></div></div>';
             });
-            $('#arqCampos').html(html || '<p class="rd-vacio">Este peaje no tiene campos configurados. Pídelos en "Campos de casetas".</p>');
+            $('#arqCampos').html(html || '<p class="rd-vacio">Este peaje no tiene campos configurados. Pídelos en "Configuración de arqueos".</p>');
             calcular();
         })
         .fail(function (xhr) { $('#arqCampos').html('<p class="rd-ayuda">' + rdEsc(rdError(xhr, 'No se pudieron cargar los campos.')) + '</p>'); });
@@ -217,7 +231,10 @@ function pintarCampos() {
 //Agrega un renglón vacío a la tabla de documentos del arqueo
 function agregarDoc() {
     var opciones = '<option value="">Concepto...</option>';
-    $.each(cfgArq.documentos, function (codigo, nombre) { opciones += '<option value="' + rdEsc(codigo) + '">' + rdEsc(nombre) + '</option>'; });
+    $.each(cfgArq.documentos, function (codigo, nombre) {
+        var rol = rolConcepto('CAJA_MENOR', codigo);
+        opciones += '<option value="' + rdEsc(codigo) + '" data-rol="' + rdEsc(rol) + '">' + rdEsc(nombre) + (rol !== 'SUMA' ? ' (' + NOTA_ROL[rol].toLowerCase() + ')' : '') + '</option>';
+    });
     $('#arqDocs').append('<tr>' +
         '<td><input type="date" name="docFecha[]" class="form-control input-sm" max="' + cfgArq.ultimoEditable + '"></td>' +
         '<td><select name="docConcepto[]" class="form-control input-sm">' + opciones + '</select></td>' +
@@ -226,7 +243,8 @@ function agregarDoc() {
         '<td><button type="button" class="btn btn-link rd-quitar-doc" title="Quitar"><i class="fa fa-times"></i></button></td></tr>');
 }
 
-//Los mismos cálculos del formato: efectivo + documentos = total; total - fondo = diferencia
+//Los mismos cálculos del formato: efectivo + documentos = total; total - fondo = diferencia.
+//Cada valor cuenta según su concepto: suma, resta o no entra
 function calcular() {
     //Casetas: total recaudo = lo que suma - lo que resta; novedad = total recaudo - recaudo de la caseta
     if (tipoArq() === 'CASETA') {
@@ -247,8 +265,11 @@ function calcular() {
         return;
     }
     var efectivo = 0, documentos = 0;
-    $('#arqEfectivo .rd-pesos').each(function () { efectivo += rdLeerPesos(this.value); });
-    $('#arqDocs .rd-pesos').each(function () { documentos += rdLeerPesos(this.value); });
+    $('#arqEfectivo .rd-pesos').each(function () { efectivo += conSigno(rdLeerPesos(this.value), $(this).data('rol') || 'SUMA'); });
+    $('#arqDocs tr').each(function () {
+        var rol = $(this).find('select[name="docConcepto[]"] option:selected').data('rol') || 'SUMA';
+        documentos += conSigno(rdLeerPesos($(this).find('.rd-pesos').val()), rol);
+    });
     var total = efectivo + documentos;
     var op = $('#arqCentro option:selected'), fondo = parseFloat(op.data('fondo'));
     $('#arqFondoTxt').text(isNaN(fondo) ? '' : 'Fondo autorizado: ' + rdPesos(fondo));
@@ -306,8 +327,11 @@ function verArq(id) {
                 var linea = arqueo.LINEAS[i];
                 //Cada renglón trae el nombre que tenía el concepto el día del arqueo
                 var nombre = linea.NOMBRE || linea.CODIGO;
+                //Lo que resta va con signo menos; lo informativo, con su nota (no entra en el total)
+                var valor = linea.ROL === 'RESTA' ? '− ' + rdPesos(linea.VALOR) : rdPesos(linea.VALOR);
+                if (linea.ROL === 'INFO') { nombre += ' (informativo)'; }
                 html += '<tr><td>' + rdEsc(nombre) + '</td><td>' + rdFecha(linea.FECHA) + '</td><td>' + rdEsc(linea.OBSERVACION) + '</td>' +
-                     '<td class="rd-num-col">' + rdPesos(linea.VALOR) + '</td></tr>';
+                     '<td class="rd-num-col">' + valor + '</td></tr>';
             }
             html += '</tbody><tfoot>' +
                  '<tr><th colspan="3">Total arqueo</th><th class="rd-num-col">' + rdPesos(arqueo.TOTAL_ARQUEO) + '</th></tr>' +
@@ -347,7 +371,7 @@ function anularArq() {
 }
 
 //---------------------------------------------------------------------------
-// Fondos autorizados (permiso 5M)
+// Fondos autorizados (casilla 36M)
 //---------------------------------------------------------------------------
 function abrirFondos() {
     mostrarPanel('#panelFondos');
@@ -383,12 +407,80 @@ function guardarFondo() {
 }
 
 //---------------------------------------------------------------------------
-// Campos del arqueo de casetas (5M o 24M): agregar, renombrar, ordenar y apagar
+// Configuración de arqueos (casilla 36M): conceptos de caja menor y recambio, campos de casetas
 //---------------------------------------------------------------------------
-function abrirCampos() {
+//pestana: 'casetas' abre esa pestaña; si no, la de caja menor
+function abrirCampos(pestana) {
     mostrarPanel('#panelCampos');
     $('#cmpRol').html(Object.keys(cfgArq.roles).map(function (clave) { return '<option value="' + clave + '">' + rdEsc(cfgArq.roles[clave]) + '</option>'; }).join('')).val('SUMA');
+    $(pestana === 'casetas' ? '#cfgTabCasetas' : '#cfgArqTabs a:first').tab('show');
+    cargarConceptos();
     cargarCampos();
+}
+
+//Caja menor y recambio: sus conceptos, activos o no, con en cuántos arqueos se han usado
+var conceptoFilas = [], rolesFondo = {};
+function cargarConceptos() {
+    $.getJSON(URL_ARQ + '?op=conceptosConfig')
+        .done(function (respuesta) {
+            conceptoFilas = respuesta.conceptos;
+            rolesFondo = respuesta.roles;
+            var opcionesRol = function (elegido) {
+                return Object.keys(rolesFondo).map(function (clave) { return '<option value="' + clave + '"' + (clave === elegido ? ' selected' : '') + '>' + rdEsc(rolesFondo[clave]) + '</option>'; }).join('');
+            };
+            $('.cpt-nuevo-rol').each(function () { if (!$(this).children().length) { $(this).html(opcionesRol('SUMA')); } });
+            $('#cfgCajaMenor, #cfgRecambio').each(function () {
+                var tipo = $(this).data('tipo'), html = '';
+                conceptoFilas.forEach(function (concepto) {
+                    if (concepto.TIPO_ARQUEO !== tipo) { return; }
+                    var activo = +concepto.ESTADO === 1, usos = parseInt(concepto.USOS, 10) || 0;
+                    html += '<tr data-id="' + parseInt(concepto.ID_CONCEPTO, 10) + '"' + (activo ? '' : ' class="rd-anulado"') + '>' +
+                         '<td><input type="number" class="form-control input-sm cpt-editar" data-campo="orden" min="0" max="999" value="' + parseInt(concepto.ORDEN, 10) + '" aria-label="Orden"></td>' +
+                         '<td><input type="text" class="form-control input-sm cpt-editar" data-campo="nombre" maxlength="80" value="' + rdEsc(concepto.NOMBRE) + '" aria-label="Nombre del concepto"></td>' +
+                         //Los del formato en papel siempre suman
+                         '<td>' + (concepto.FABRICA ? rdEsc(rolesFondo[concepto.ROL] || concepto.ROL) + '<br><small class="text-muted">Del formato en papel</small>'
+                                  : '<select class="form-control input-sm cpt-editar" data-campo="rol" aria-label="Cómo cuenta">' + opcionesRol(concepto.ROL) + '</select>') + '</td>' +
+                         '<td>' + (usos ? '<span class="rd-tag rd-tag-ok">' + usos + (usos === 1 ? ' arqueo' : ' arqueos') + '</span>' : '<span class="rd-ayuda">Sin usar</span>') + '</td>' +
+                         '<td><label class="par-interruptor"><input type="checkbox" class="cpt-editar" data-campo="estado"' + (activo ? ' checked' : '') + '><span class="par-riel"></span> ' +
+                         (activo ? 'Activo' : 'Apagado') + '</label></td></tr>';
+                });
+                $(this).find('.cpt-filas').html(html || '<tr><td colspan="5" class="rd-vacio">No hay conceptos.</td></tr>');
+            });
+        })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudieron cargar los conceptos.')); });
+}
+
+//Guarda un cambio en la fila de un concepto (nombre, orden, cómo cuenta o activo)
+function guardarConceptoFila() {
+    var filaTabla = $(this).closest('tr'), id = filaTabla.data('id');
+    var concepto = conceptoFilas.filter(function (fila) { return +fila.ID_CONCEPTO === +id; })[0];
+    if (!concepto) { return; }
+    var nombre = $.trim(filaTabla.find('[data-campo="nombre"]').val());
+    if (!nombre) { alert('El concepto necesita un nombre.'); cargarConceptos(); return; }
+    var datos = { id: id, nombre: nombre, rol: filaTabla.find('[data-campo="rol"]').val() || concepto.ROL,
+                  orden: filaTabla.find('[data-campo="orden"]').val() || concepto.ORDEN,
+                  estado: filaTabla.find('[data-campo="estado"]').prop('checked') ? '1' : '0' };
+    $.post(URL_ARQ + '?op=guardarConcepto', datos, null, 'json')
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarConceptos(); recargarConfig(); })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el concepto.')); cargarConceptos(); });
+}
+
+//Agrega un concepto nuevo a caja menor o recambio (la pestaña en la que se escribió)
+function agregarConcepto() {
+    var pestana = $(this).closest('.tab-pane'), campoNombre = pestana.find('.cpt-nuevo-nombre'), nombre = $.trim(campoNombre.val());
+    if (!nombre) { campoNombre.focus(); return; }
+    var boton = this;
+    hanaBoton(boton, true);
+    $.post(URL_ARQ + '?op=guardarConcepto', { id: 0, tipo: pestana.data('tipo'), nombre: nombre, rol: pestana.find('.cpt-nuevo-rol').val(),
+                                              orden: pestana.find('.cpt-nuevo-orden').val(), estado: '1' }, null, 'json')
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); campoNombre.val(''); cargarConceptos(); recargarConfig(); })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudo agregar el concepto.')); })
+        .always(function () { hanaBoton(boton, false); });
+}
+
+//Después de cambiar un concepto, el formulario del arqueo usa los conceptos nuevos
+function recargarConfig() {
+    $.getJSON(URL_ARQ + '?op=config', function (config) { cfgArq = config; });
 }
 
 //Carga la configuración de campos de documentos del peaje elegido

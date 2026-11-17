@@ -78,7 +78,7 @@ $gruposRoles = array(
     'Listas de chequeo' => array(array('11M', 'Llenar: diligenciar y corregir listas'), array('21M', 'Ver: revisar las listas diligenciadas'),
         array('12M', 'Editar: crear y cambiar las listas y sus preguntas'), array('44M', 'Correos de las listas (a quién le llegan)')),
     'Arqueos' => array(array('29M', 'Llenar: hacer arqueos'), array('45M', 'Ver: los arqueos de sus peajes'),
-        array('36M', 'Autorizar fondos y configurar los campos de casetas'), array('46M', 'Anular arqueos que hicieron otros')),
+        array('36M', 'Autorizar fondos y configurar los arqueos (conceptos y campos de casetas)'), array('46M', 'Anular arqueos que hicieron otros')),
     'Cronograma y vehículo' => array(array('30M', 'Llenar: el cronograma del proyecto y el estado del vehículo'), array('34M', 'Ver: el cronograma y el vehículo'),
         array('47M', 'Vehículos: agregar, cambiar y quitar los de sus proyectos (placas)')),
     'Vacantes' => array(array('31M', 'Llenar: registrar y actualizar vacantes'), array('48M', 'Ver: las vacantes de sus peajes'),
@@ -88,7 +88,8 @@ $gruposRoles = array(
     'Temas con el cliente' => array(array('59M', 'Llenar: registrar temas, escribir en qué van, cerrarlos y reabrirlos'),
         array('60M', 'Ver: los temas de sus proyectos')),
     'Consultas' => array(array('19M', 'Reporte general (de sus peajes)'), array('43M', 'Tablero por proyectos, dentro del reporte general'),
-        array('37M', 'Informe mensual de gestión (PDF)'), array('61M', 'Reporte diario a la Gerencia: armarlo, corregirlo y guardarlo')),
+        array('37M', 'Informe mensual de gestión (PDF)'), array('61M', 'Reporte diario a la Gerencia: armarlo, corregirlo y guardarlo'),
+        array('62M', 'Trazabilidad: ver qué se registró, cambió, anuló o envió en sus peajes, quién y cuándo')),
     //El grupo «Ausentismo» (casillas 52M, 53M, 58M, 25M, 23M) se retiró junto con el módulo de ausentismo.
     //Esos códigos quedan reservados y no se reutilizan. También quedan reservados y sin pantalla: 40M (consolidado
     //de promesa, retirado), 4M, 8M, 9M, 13M y 27M (funciones retiradas: cargos, estados, observadores, Power BI).
@@ -191,4 +192,4 @@ include('footer.php');
   //-->
   </script>";
 }
-?>
+?>

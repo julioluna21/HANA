@@ -28,13 +28,15 @@ class HanaConfig
         'MODULO_CRONOGRAMA'     => array('Módulos del reporte diario', 'Cronograma y vehículo', null, 'SI_NO', null, null, '1'),
         'MODULO_VACANTES'       => array('Módulos del reporte diario', 'Vacantes', null, 'SI_NO', null, null, '1'),
         'MODULO_COMUNICACIONES' => array('Módulos del reporte diario', 'Comunicaciones y oficios', null, 'SI_NO', null, null, '1'),
-        'MODULO_TEMAS'          => array('Módulos del reporte diario', 'Temas con el cliente', 'Los temas importantes que cada coordinador trata con el cliente: cuándo se abrieron, en qué van y cuándo se cerraron.', 'SI_NO', null, null, '1'),
+        'MODULO_TEMAS'          => array('Módulos del reporte diario', 'Temas con el cliente y con Regency', 'Los temas importantes que cada coordinador trata con el cliente o internamente con Regency: cuándo se abrieron, en qué van y cuándo se cerraron.', 'SI_NO', null, null, '1'),
         'MODULO_GERENCIA'       => array('Módulos del reporte diario', 'Reporte diario a la Gerencia', 'Lo arma la dirección cada día con lo que llenan los coordinadores (Consultas → Reporte a la Gerencia).', 'SI_NO', null, null, '1'),
         //El módulo de ausentismo (matriz de cubrimiento) se retiró del sistema; queda solo la promesa de valor.
         'MODULO_PROMESA'        => array('Módulos del reporte diario', 'Promesa de valor', 'Las horas prometidas y ejecutadas por peaje, cargo y día.', 'SI_NO', null, null, '1'),
 
         'RQ_MAX_REINTENTOS'     => array('Reglas del reporte diario', 'Veces que una RQ rechazada se puede corregir y enviar de nuevo',
                                      'Cuando se llega a ese número, si la vuelven a rechazar queda rechazada para siempre y hay que pedir una RQ nueva. Con 0 no se reenvía nunca.', 'NUMERO', 0, 20, '3'),
+        'REPORTE_FINDE_ABIERTO' => array('Reglas del reporte diario', 'Abrir los sábados, domingos y festivos del mes',
+                                     'Hoy en qué estás, listas de chequeo, arqueos y cronograma se pueden registrar o corregir en cualquier sábado, domingo o festivo del mes (por adelantado y después), como el estado del vehículo. Los demás días, solo hoy o un día habilitado.', 'SI_NO', null, null, '1'),
         'CRONO_TRANSPORTE_OBLIGATORIO' => array('Reglas del reporte diario', 'Pedir cómo se transportó cuando el vehículo no está operativo', null, 'SI_NO', null, null, '1'),
         'CRONO_VH_FINDE_DIAS'   => array('Reglas del reporte diario', 'Días hacia adelante para registrar el vehículo de sábados, domingos y festivos',
                                      'Esos días el estado del vehículo se puede dejar registrado por adelantado. Los demás días, solo hoy. Con 0 se apaga.', 'NUMERO', 0, 366, '60'),

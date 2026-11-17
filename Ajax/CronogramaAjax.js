@@ -353,7 +353,7 @@ function abrirDia(fecha) {
                 } else {
                     html += '<button type="button" class="btn btn-default btn-xs btn-estado-crono" data-id="' + id + '" data-estado="PROGRAMADA">Reactivar</button>';
                 }
-                if (fecha >= cfgC.hoy) { html += '<button type="button" class="btn btn-link btn-xs btn-quitar-crono" data-id="' + id + '" title="Quitar"><i class="fa fa-trash-o"></i></button>'; }
+                if (fecha >= cfgC.hoy && item.ESTADO !== 'CANCELADA') { html += '<button type="button" class="btn btn-link btn-xs btn-quitar-crono" data-id="' + id + '" title="Quitar"><i class="fa fa-trash-o"></i></button>'; }
                 html += '</div>';
             }
             html += '</div>';
@@ -444,7 +444,7 @@ function cambiarEstado() {
 //Quita una actividad del cronograma (pregunta antes)
 function quitarItem() {
     var id = $(this).data('id');
-    hanaConfirmar('¿Quitar esta actividad del cronograma?', function () {
+    hanaConfirmar('¿Quitar esta actividad del cronograma? Queda como cancelada, para que se sepa que estuvo programada.', function () {
         $.post(URL_CRONO + '?op=quitar', { id: id }, null, 'json')
             .done(function () { cargarMes(); })
             .fail(function (xhr) { alert(rdError(xhr, 'No se pudo quitar.')); });

@@ -968,7 +968,7 @@ function mostrarform(flag) {
         diaListaFecha = '';
         $.getJSON('../Control/ListasControl.php?op=dias', function (respuesta) {
             diasLista = respuesta;
-            rdBotonesDia('#diaLista', respuesta.hoy, respuesta.habilitados, 'btn-sm');
+            rdBotonesDia('#diaLista', respuesta.hoy, respuesta.habilitados, 'btn-sm', respuesta.findes);
             rdMarcarDia('#diaLista', respuesta.hoy);
             $('#diaLista').toggle(respuesta.habilitados.length > 0); //sin días habilitados no hay nada que escoger
         });

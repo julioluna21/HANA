@@ -25,14 +25,15 @@
   Los nombres y el orden de los puntos se cambian en Parámetros del sistema →
   Listas (LISTA_PUNTOS_GERENCIA). Los que se agreguen allí salen en blanco.
 
-  No tiene tabla propia. Se guarda en historial, UNA sola fila por día:
+  No tiene tabla propia. Se guarda en historial, una fila por cada versión del día:
     MODULO = 'GERENCIA', ID_REGISTRO = el día como número AAAAMMDD (20261101),
     TIPO = 'REPORTE', TEXTO = el reporte en JSON, ID_COLABORADOR y FECHA.
-  Cada vez que se guarda, esa fila se actualiza: quedan el reporte de ahora,
-  quién lo guardó por última vez y cuándo. Antes se agregaba una fila nueva
-  por cada guardado (el reporte completo repetido decenas de veces por día y
-  un conteo de «se ha guardado N veces» que no le servía a nadie): al guardar
-  un día, sus copias viejas se borran y queda una sola.
+  Cada guardado que cambia algo agrega una fila NUEVA: el historial nunca se
+  modifica ni se borra (es la trazabilidad del reporte). La pantalla y el PDF
+  usan siempre la fila más reciente del día (quién la guardó y cuándo); las
+  anteriores quedan como versiones viejas, y se ven en Trazabilidad.
+  Para no llenar la base de copias iguales, si el reporte no cambió desde la
+  última vez que se guardó, no se agrega nada.
 */
 require_once __DIR__ . "/HanaDB.php";
 require_once __DIR__ . "/HanaConfig.php";
@@ -82,6 +83,25 @@ class ReporteGerencia
         return self::$DIAS_LARGOS[(int)date('w', $t)] . ', ' . (int)date('j', $t) . ' de ' . self::$MESES[(int)date('n', $t)] . ' de ' . date('Y', $t);
     }
 
+    //El periodo para leer: un día -> "jueves, 29 de octubre de 2026";
+    //un rango -> "del lunes 26 al jueves 29 de octubre de 2026" (o "del viernes 30 de octubre al martes 3 de noviembre de 2026")
+    public static function periodoLargo($desde, $hasta)
+    {
+        if ($desde === null || $desde === '' || $desde >= $hasta) { return self::fechaLarga($hasta); }
+        $d = strtotime($desde); $h = strtotime($hasta);
+        $inicio = self::$DIAS_LARGOS[(int)date('w', $d)] . ' ' . (int)date('j', $d);
+        if (date('n', $d) !== date('n', $h) || date('Y', $d) !== date('Y', $h)) { $inicio .= ' de ' . self::$MESES[(int)date('n', $d)]; }
+        if (date('Y', $d) !== date('Y', $h)) { $inicio .= ' de ' . date('Y', $d); }
+        return 'del ' . $inicio . ' al ' . self::$DIAS_LARGOS[(int)date('w', $h)] . ' ' . (int)date('j', $h) . ' de ' . self::$MESES[(int)date('n', $h)] . ' de ' . date('Y', $h);
+    }
+
+    //El periodo corto: "mar 27/10" o "lun 26/10 – jue 29/10"
+    public static function periodoCorto($desde, $hasta)
+    {
+        if ($desde === null || $desde === '' || $desde >= $hasta) { return self::diaCorto($hasta); }
+        return self::diaCorto($desde) . ' – ' . self::diaCorto($hasta);
+    }
+
     //Porcentaje para leer: (518, 527) -> "98,3 %". Sin base, null
     public static function porcentaje($parte, $total)
     {
@@ -126,8 +146,12 @@ class ReporteGerencia
     //   'novedades' => lista [...]
     // ]]
     //-----------------------------------------------------------------------
-    public static function calcular($proyectos, $centros, $fecha, $conNovedades)
+    //   $desde         primer día del periodo (rango de días). Sin él, el reporte es solo de $fecha.
+    //                  La promesa de valor, los temas que se movieron y las novedades se cuentan en todo el
+    //                  periodo; la flota, los oficios en gestión y los temas abiertos, como quedaron el último día
+    public static function calcular($proyectos, $centros, $fecha, $conNovedades, $desde = null)
     {
+        $desde = ($desde !== null && $desde !== '' && $desde < $fecha) ? $desde : $fecha;
         $ids = array_map('intval', array_keys($proyectos));
         $datos = array();
         foreach ($ids as $id) {
@@ -143,27 +167,28 @@ class ReporteGerencia
         foreach ($centros as $centro) { $centrosPorProyecto[(int)$centro['ID_PROYECTO']][(int)$centro['ID_CENTRO_OP']] = $centro['NOM_CENTRO_OP']; }
 
         self::datosFlota($datos, $ids, $fecha);
-        self::datosPromesa($datos, $centrosPorProyecto, $fecha);
+        self::datosPromesa($datos, $centrosPorProyecto, $fecha, $desde);
         self::datosOficios($datos, $ids, $fecha);
-        foreach (TemaCliente::movimientosDelDia($ids, $fecha) as $id => $movimientos) { if (isset($datos[$id])) { $datos[$id]['temas']['movimientos'] = $movimientos; } }
+        foreach (TemaCliente::movimientosDelDia($ids, $fecha, $desde) as $id => $movimientos) { if (isset($datos[$id])) { $datos[$id]['temas']['movimientos'] = $movimientos; } }
         self::temasAbiertos($datos, $ids, $fecha);
-        if ($conNovedades) { self::datosNovedades($datos, $centros, $fecha); }
+        if ($conNovedades) { self::datosNovedades($datos, $centros, $fecha, $desde); }
         return $datos;
     }
 
     //Lo que el sistema propone escribir en cada punto: [idProyecto => [CODIGO => texto]]
-    public static function prellenar($proyectos, $centros, $fecha, $conNovedades)
+    public static function prellenar($proyectos, $centros, $fecha, $conNovedades, $desde = null)
     {
-        return self::textos(self::calcular($proyectos, $centros, $fecha, $conNovedades), $fecha);
+        return self::textos(self::calcular($proyectos, $centros, $fecha, $conNovedades, $desde), $fecha, $desde);
     }
 
-    //Los textos de cada punto a partir de los datos del día, en tono formal
-    public static function textos($datos, $fecha)
+    //Los textos de cada punto a partir de los datos del periodo, en tono formal
+    public static function textos($datos, $fecha, $desde = null)
     {
+        $desde = ($desde !== null && $desde !== '' && $desde < $fecha) ? $desde : $fecha;
         $textos = array();
         foreach ($datos as $id => $d) {
-            $textos[$id] = array('FLOTA' => self::textoFlota($d['flota']), 'PROMESA' => self::textoPromesa($d['promesa'], $fecha),
-                                 'OFICIOS' => self::textoOficios($d['oficios']), 'NOVEDADES' => self::textoNovedades($d['temas'], $d['novedades'], $fecha));
+            $textos[$id] = array('FLOTA' => self::textoFlota($d['flota']), 'PROMESA' => self::textoPromesa($d['promesa'], $fecha, $desde),
+                                 'OFICIOS' => self::textoOficios($d['oficios']), 'NOVEDADES' => self::textoNovedades($d['temas'], $d['novedades'], $fecha, $desde));
         }
         return $textos;
     }
@@ -210,11 +235,11 @@ class ReporteGerencia
     }
 
     //-----------------------------------------------------------------------
-    // Promesa de valor del día del reporte, por peaje y cargo.
-    // Solo se leen las casillas de pv_dia con FECHA = día del reporte: ni los
-    // días anteriores de la semana ni los siguientes entran en las cuentas.
+    // Promesa de valor del periodo del reporte, por peaje y cargo.
+    // Solo se leen las casillas de pv_dia del periodo (desde - hasta; si es un
+    // solo día, solo ese día): nada de antes ni de después entra en las cuentas.
     //-----------------------------------------------------------------------
-    private static function datosPromesa(&$datos, $centrosPorProyecto, $fecha)
+    private static function datosPromesa(&$datos, $centrosPorProyecto, $fecha, $desde)
     {
         $idsCentros = array();
         foreach ($centrosPorProyecto as $lista) { foreach (array_keys($lista) as $idCentro) { $idsCentros[] = (int)$idCentro; } }
@@ -222,9 +247,9 @@ class ReporteGerencia
         $marcas = implode(',', array_fill(0, count($idsCentros), '?'));
         $filas = HanaDB::q("SELECT d.ID_CENTRO_OP, d.FECHA, a.NOMBRE AS CARGO, d.PROMESA_HORAS, d.EJECUTADO_HORAS, d.JUSTIFICACION
                               FROM pv_dia d INNER JOIN aus_cargo a ON a.ID_CARGO_AUS = d.ID_CARGO_AUS
-                             WHERE d.ID_CENTRO_OP IN ($marcas) AND d.FECHA = ? AND d.PROMESA_HORAS IS NOT NULL
-                             ORDER BY a.ORDEN, a.NOMBRE",
-                           str_repeat('i', count($idsCentros)) . 's', array_merge($idsCentros, array($fecha)));
+                             WHERE d.ID_CENTRO_OP IN ($marcas) AND d.FECHA BETWEEN ? AND ? AND d.PROMESA_HORAS IS NOT NULL
+                             ORDER BY d.FECHA, a.ORDEN, a.NOMBRE",
+                           str_repeat('i', count($idsCentros)) . 'ss', array_merge($idsCentros, array($desde, $fecha)));
         $porCentro = array();
         foreach (is_array($filas) ? $filas : array() as $fila) { $porCentro[(int)$fila['ID_CENTRO_OP']][] = $fila; }
 
@@ -258,10 +283,13 @@ class ReporteGerencia
     //518 de 527 horas prometidas (98,3 %).»), una viñeta por peaje y, debajo, cada cargo que quedó por debajo o por
     //encima. Como todo es del mismo día, los casos ya no llevan la fecha delante, solo el cargo.
     //OJO: cifrasDeTextos() lee estos textos para el PDF; si se cambia la redacción, revisar partesPromesa()
-    private static function textoPromesa($p, $fecha)
+    //Con un rango de días, el primer renglón dice «Periodo del ... al ...» y cada caso lleva su día delante («12/11 · Recaudadores: ...»)
+    private static function textoPromesa($p, $fecha, $desde = null)
     {
-        if (!count($p['peajes'])) { return 'No hay promesa de valor registrada para la fecha.'; }
-        $lineas = array('Jornada del ' . self::diaLargo($fecha) . ': ' . ($p['prometidas'] > 0
+        $rango = $desde !== null && $desde < $fecha;
+        $diaDe = function ($c) use ($rango) { return $rango ? date('d/m', strtotime($c['fecha'])) . ' · ' : ''; };
+        if (!count($p['peajes'])) { return $rango ? 'No hay promesa de valor registrada para el periodo.' : 'No hay promesa de valor registrada para la fecha.'; }
+        $lineas = array(($rango ? 'Periodo ' . self::periodoLargo($desde, $fecha) : 'Jornada del ' . self::diaLargo($fecha)) . ': ' . ($p['prometidas'] > 0
             ? 'se ejecutaron ' . self::horas($p['ejecutadas']) . ' de ' . self::horas($p['prometidas']) . ' horas prometidas (' . self::porcentaje($p['ejecutadas'], $p['prometidas']) . ').'
             : 'todavía no se ha registrado lo ejecutado.'));
         foreach ($p['peajes'] as $peaje) {
@@ -272,11 +300,11 @@ class ReporteGerencia
             if (count($peaje['sinRegistro']) && $peaje['prometidas'] > 0 && !count($peaje['debajo'])) { $estado .= ' en lo registrado'; }
             $linea = '• ' . $peaje['nombre'] . ': ' . $estado . ($peaje['prometidas'] > 0 ? ' (' . self::porcentaje($peaje['ejecutadas'], $peaje['prometidas']) . ').' : '.');
             foreach ($peaje['debajo'] as $c) {
-                $linea .= "\n   – " . $c['cargo'] . ': se ejecutaron ' . self::horas($c['ejecutado']) . ' de ' . self::enHoras($c['promesa']) .
+                $linea .= "\n   – " . $diaDe($c) . $c['cargo'] . ': se ejecutaron ' . self::horas($c['ejecutado']) . ' de ' . self::enHoras($c['promesa']) .
                           ' (' . ($c['diferencia'] == 1 ? 'faltó 1' : 'faltaron ' . self::horas($c['diferencia'])) . '). ' . ($c['justificacion'] !== '' ? 'Justificación: ' . rtrim(self::recortar($c['justificacion'], 160), '.') . '.' : 'Sin justificación registrada.');
             }
             foreach ($peaje['encima'] as $c) {
-                $linea .= "\n   – " . $c['cargo'] . ': se ejecutaron ' . self::horas($c['ejecutado']) . ' de ' . self::enHoras($c['promesa']) .
+                $linea .= "\n   – " . $diaDe($c) . $c['cargo'] . ': se ejecutaron ' . self::horas($c['ejecutado']) . ' de ' . self::enHoras($c['promesa']) .
                           ' (' . self::enHoras($c['diferencia']) . ' adicional' . ($c['diferencia'] == 1 ? '' : 'es') . '). ' .
                           ($c['justificacion'] !== '' ? 'Justificación: ' . rtrim(self::recortar($c['justificacion'], 160), '.') . '.' : 'Sin justificación registrada.');
             }
@@ -284,7 +312,7 @@ class ReporteGerencia
             //(«pendiente de registrar lo ejecutado»); si faltan solo algunos, se nombran
             foreach ($peaje['sinRegistro'] as $dia => $cargos) {
                 if (count($cargos) < $peaje['cargosDia'][$dia]) {
-                    $linea .= "\n   – Pendiente registrar lo ejecutado de: " . implode(', ', $cargos) . '.';
+                    $linea .= "\n   – " . ($rango ? date('d/m', strtotime($dia)) . ' · ' : '') . "Pendiente registrar lo ejecutado de: " . implode(', ', $cargos) . '.';
                 }
             }
             $lineas[] = $linea;
@@ -365,8 +393,9 @@ class ReporteGerencia
         foreach (is_array($filas) ? $filas : array() as $fila) { $datos[(int)$fila['ID_PROYECTO']]['temas']['abiertos'] = (int)$fila['N']; }
     }
 
-    private static function datosNovedades(&$datos, $centros, $fecha)
+    private static function datosNovedades(&$datos, $centros, $fecha, $desde = null)
     {
+        $desde = ($desde !== null && $desde < $fecha) ? $desde : $fecha;
         $proyectoDe = array();
         foreach ($centros as $centro) { $proyectoDe[(int)$centro['ID_CENTRO_OP']] = (int)$centro['ID_PROYECTO']; }
         if (!count($proyectoDe)) { return; }
@@ -379,7 +408,7 @@ class ReporteGerencia
                               LEFT JOIN titulo_novedades_hallazgos t ON t.ID_TITULO_NOVEDADES_HALLAZGOS = n.ID_TITULO
                              WHERE n.ID_CENTRO_OP IN ($marcas) AND n.FEC_CREACION >= ? AND n.FEC_CREACION < ?
                              ORDER BY FIELD(n.PRIORIDAD, 'ALTO', 'MEDIO', 'BAJO'), n.FEC_CREACION",
-                           str_repeat('i', count($ids)) . 'ss', array_merge($ids, array($fecha, $manana)));
+                           str_repeat('i', count($ids)) . 'ss', array_merge($ids, array($desde, $manana)));
         foreach (is_array($filas) ? $filas : array() as $fila) {
             $idProyecto = $proyectoDe[(int)$fila['ID_CENTRO_OP']];
             if (!isset($datos[$idProyecto])) { continue; }
@@ -390,13 +419,15 @@ class ReporteGerencia
         }
     }
 
-    private static function textoNovedades($temas, $novedades, $fecha)
+    private static function textoNovedades($temas, $novedades, $fecha, $desde = null)
     {
+        $desde = ($desde !== null && $desde < $fecha) ? $desde : $fecha;
+        $enPeriodo = function ($dia) use ($desde, $fecha) { return $dia !== null && $dia >= $desde && $dia <= $fecha; };
         $lineas = array();
         foreach ($temas['movimientos'] as $tema) {
-            $nuevo = $tema['FECHA_RECEPCION'] === $fecha; $cerrado = $tema['FECHA_ATENCION'] === $fecha;
-            $estado = $nuevo && $cerrado ? 'se abrió y se cerró en la fecha' : ($nuevo ? 'tema nuevo' : ($cerrado ? 'tema cerrado' : 'seguimiento'));
-            $lineas[] = '• Tema con el cliente: ' . self::recortar($tema['ASUNTO'], 160) . ' (con ' . self::recortar($tema['REMITENTE'], 60) . '; ' . $estado . ')' .
+            $nuevo = $enPeriodo($tema['FECHA_RECEPCION']); $cerrado = $enPeriodo($tema['FECHA_ATENCION']);
+            $estado = $nuevo && $cerrado ? ($desde < $fecha ? 'se abrió y se cerró en el periodo' : 'se abrió y se cerró en la fecha') : ($nuevo ? 'tema nuevo' : ($cerrado ? 'tema cerrado' : 'seguimiento'));
+            $lineas[] = '• Tema ' . ((isset($tema['CON']) && $tema['CON'] === 'REGENCY') ? 'con Regency (interno)' : 'con el cliente') . ': ' . self::recortar($tema['ASUNTO'], 160) . ' (con ' . self::recortar($tema['REMITENTE'], 60) . '; ' . $estado . ')' .
                         ($tema['TEXTO_DIA'] ? '. ' . rtrim(self::recortar($tema['TEXTO_DIA'], 300), '.') . '.' : '.');
         }
         $prioridades = array('ALTO' => 'prioridad alta', 'MEDIO' => 'prioridad media', 'BAJO' => 'prioridad baja');
@@ -404,7 +435,7 @@ class ReporteGerencia
             $lineas[] = '• Novedad en ' . $n['peaje'] . ($n['titulo'] !== '' ? ' — ' . $n['titulo'] : '') .
                         (isset($prioridades[$n['prioridad']]) ? ' (' . $prioridades[$n['prioridad']] . ')' : '') . ': ' . rtrim(self::recortar($n['descripcion'], 200), '.') . '.';
         }
-        return count($lineas) ? implode("\n", $lineas) : 'Sin novedades relevantes en la jornada.';
+        return count($lineas) ? implode("\n", $lineas) : ($desde < $fecha ? 'Sin novedades relevantes en el periodo.' : 'Sin novedades relevantes en la jornada.');
     }
 
     //-----------------------------------------------------------------------
@@ -785,19 +816,43 @@ class ReporteGerencia
     // Guardado (historial)
     //-----------------------------------------------------------------------
 
-    //Lo guardado de un día: ['datos' => arreglo, 'quien' => nombre, 'fecha' => cuándo] o null.
-    //Si quedan copias viejas de antes (de cuando se guardaba una fila por cada guardado), vale la última
-    public static function guardado($fecha)
+    //El primer día del periodo de un reporte guardado. Si no lo trae, o es igual al último día,
+    //el reporte es de un solo día
+    public static function desdeDe($datos, $hasta)
     {
-        $fila = HanaDB::fila("SELECT h.TEXTO, h.FECHA, col.NOM_COLABORADOR AS QUIEN
-                                FROM historial h LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
-                               WHERE h.MODULO = ? AND h.ID_REGISTRO = ? AND h.TIPO = ?
-                               ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1",
-                             'sis', array(self::MODULO, self::numeroDia($fecha), self::TIPO));
-        if (!$fila) { return null; }
-        $datos = json_decode((string)$fila['TEXTO'], true);
-        if (!is_array($datos)) { return null; }
-        return array('datos' => $datos, 'quien' => $fila['QUIEN'], 'fecha' => $fila['FECHA']);
+        $desde = is_array($datos) && isset($datos['desde']) ? HanaVal::fecha((string)$datos['desde']) : '';
+        return ($desde !== '' && $desde < $hasta) ? $desde : $hasta;
+    }
+
+    //Lo mismo, leído del comienzo del texto guardado (sin decodificar todo el JSON: el reporte puede ser
+    //grande). El controlador pone "desde" al principio del JSON, justo después de "fecha"
+    private static function desdeDelTexto($inicio, $hasta)
+    {
+        $desde = preg_match('/"desde"\s*:\s*"(\d{4}-\d{2}-\d{2})"/', (string)$inicio, $m) ? $m[1] : '';
+        return ($desde !== '' && $desde < $hasta) ? $desde : $hasta;
+    }
+
+    //Lo guardado de un periodo (o de un día): ['datos' => arreglo, 'quien' => nombre, 'fecha' => cuándo] o null.
+    //Cada reporte se identifica por su último día (ID_REGISTRO) y su primer día ("desde" dentro del texto);
+    //de cada uno vale la versión más reciente (las anteriores quedan como trazabilidad)
+    public static function guardado($fecha, $desde = null)
+    {
+        $desde = ($desde !== null && $desde !== '' && $desde < $fecha) ? $desde : $fecha;
+        $filas = HanaDB::q("SELECT h.ID_HISTORIAL, LEFT(h.TEXTO, 120) AS INICIO
+                              FROM historial h
+                             WHERE h.MODULO = ? AND h.ID_REGISTRO = ? AND h.TIPO = ?
+                             ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC",
+                           'sis', array(self::MODULO, self::numeroDia($fecha), self::TIPO));
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            if (self::desdeDelTexto($fila['INICIO'], $fecha) !== $desde) { continue; } //es de otro periodo con el mismo último día
+            $guardada = HanaDB::fila("SELECT h.TEXTO, h.FECHA, col.NOM_COLABORADOR AS QUIEN
+                                        FROM historial h LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
+                                       WHERE h.ID_HISTORIAL = ?", 'i', array((int)$fila['ID_HISTORIAL']));
+            $datos = $guardada ? json_decode((string)$guardada['TEXTO'], true) : null;
+            if (!is_array($datos)) { return null; }
+            return array('datos' => $datos, 'quien' => $guardada['QUIEN'], 'fecha' => $guardada['FECHA']);
+        }
+        return null;
     }
 
     //¿Cabe el reporte en historial.TEXTO? (TEXT: 65.535 bytes)
@@ -807,32 +862,17 @@ class ReporteGerencia
         return $texto !== false && strlen($texto) <= self::LARGO_TOTAL;
     }
 
-    //Guarda el reporte de un día en SU fila: si ya existe se actualiza (texto, quién y cuándo) y,
-    //si quedaban copias viejas del mismo día, se borran. Todo en una transacción: si algo falla,
-    //queda lo que había. Devuelve true si se guardó
+    //Guarda el reporte de un periodo (o de un día). Nunca modifica ni borra filas del historial: si el
+    //reporte cambió, agrega una fila nueva (la más reciente es la que vale); si quedó igual a la última
+    //versión de ESE periodo, no hace nada. Devuelve true si quedó guardado
     public static function guardar($fecha, $datos, $idColaborador, $ahora)
     {
         if (!self::cabe($datos)) { return false; }
         $texto = json_encode($datos, JSON_UNESCAPED_UNICODE);
-        $dia = self::numeroDia($fecha);
-        $filas = HanaDB::q("SELECT ID_HISTORIAL FROM historial WHERE MODULO = ? AND ID_REGISTRO = ? AND TIPO = ?
-                             ORDER BY FECHA DESC, ID_HISTORIAL DESC", 'sis', array(self::MODULO, $dia, self::TIPO));
-        if ($filas === false) { return false; }
-        if (!count($filas)) {
-            return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES (?, ?, ?, ?, NULLIF(?, 0), ?)",
-                             'sissis', array(self::MODULO, $dia, self::TIPO, $texto, (int)$idColaborador, $ahora)) === true;
-        }
-        $idFila = (int)$filas[0]['ID_HISTORIAL'];
-        HanaDB::iniciar();
-        $ok = HanaDB::q("UPDATE historial SET TEXTO = ?, ID_COLABORADOR = NULLIF(?, 0), FECHA = ? WHERE ID_HISTORIAL = ?",
-                        'sisi', array($texto, (int)$idColaborador, $ahora, $idFila)) === true;
-        if ($ok && count($filas) > 1) {
-            //Las copias viejas de ese mismo día (solo las del reporte a la Gerencia)
-            $ok = HanaDB::q("DELETE FROM historial WHERE MODULO = ? AND ID_REGISTRO = ? AND TIPO = ? AND ID_HISTORIAL <> ?",
-                            'sisi', array(self::MODULO, $dia, self::TIPO, $idFila)) === true;
-        }
-        if ($ok) { HanaDB::confirmar(); } else { HanaDB::deshacer(); }
-        return $ok;
+        $ultima = self::guardado($fecha, self::desdeDe($datos, $fecha));
+        if ($ultima && json_encode($ultima['datos'], JSON_UNESCAPED_UNICODE) === $texto) { return true; } //no cambió nada
+        return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES (?, ?, ?, ?, NULLIF(?, 0), ?)",
+                         'sissis', array(self::MODULO, self::numeroDia($fecha), self::TIPO, $texto, (int)$idColaborador, $ahora)) === true;
     }
 
     //Los meses que tienen al menos un día guardado, del más reciente al más viejo: ["2026-11", "2026-10", ...].
@@ -847,6 +887,27 @@ class ReporteGerencia
             if (strlen($n) === 6) { $meses[] = substr($n, 0, 4) . '-' . substr($n, 4, 2); }
         }
         return $meses;
+    }
+
+    //Los reportes guardados de un mes (por su último día), del primero al último:
+    //[["desde" => "2026-11-10", "hasta" => "2026-11-14"], ["desde" => "2026-11-14", "hasta" => "2026-11-14"], ...]
+    public static function guardadosMes($mes)
+    {
+        $inicio = $mes . '-01'; $fin = date('Y-m-t', strtotime($inicio));
+        $filas = HanaDB::q("SELECT DISTINCT ID_REGISTRO, LEFT(TEXTO, 120) AS INICIO FROM historial
+                             WHERE MODULO = ? AND TIPO = ? AND ID_REGISTRO BETWEEN ? AND ?",
+                           'ssii', array(self::MODULO, self::TIPO, self::numeroDia($inicio), self::numeroDia($fin)));
+        $periodos = array();
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            $n = (string)$fila['ID_REGISTRO'];
+            if (strlen($n) !== 8) { continue; }
+            $hasta = substr($n, 0, 4) . '-' . substr($n, 4, 2) . '-' . substr($n, 6, 2);
+            $desde = self::desdeDelTexto($fila['INICIO'], $hasta);
+            $periodos[$desde . '|' . $hasta] = array('desde' => $desde, 'hasta' => $hasta);
+        }
+        ksort($periodos);
+        usort($periodos, function ($a, $b) { return strcmp($a['hasta'] . $a['desde'], $b['hasta'] . $b['desde']); });
+        return array_values($periodos);
     }
 
     //Los días guardados de un mes ("2026-11"), del primero al último

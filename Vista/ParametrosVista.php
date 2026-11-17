@@ -39,19 +39,24 @@ if (isset($_SESSION['IdUsuarios'])) {
             </div>
             <!-- Días habilitados: el reporte diario solo se llena hoy; aquí se abre otro día a una persona -->
             <div class="tab-pane" id="tabDias">
-              <p style="margin-top:0;">El reporte diario (Hoy en qué estás, listas de chequeo, arqueos, cronograma y vehículo) solo se llena <strong>el día de hoy</strong>.
-                Si alguien necesita registrar o corregir otro día, habilítaselo aquí. Cuando termine, deshabilítalo: ese día vuelve a quedar solo de consulta.</p>
+              <p style="margin-top:0;">El reporte diario (Hoy en qué estás, listas de chequeo, arqueos, cronograma y vehículo) se llena <strong>el día de hoy</strong>;
+                los sábados, domingos y festivos del mes quedan abiertos solos. Si alguien necesita registrar o corregir otro día, habilítaselo aquí:
+                un solo día, o un rango poniendo también el último día. Cuando termine, deshabilítalo: ese día vuelve a quedar solo de consulta.</p>
               <form id="formDia" autocomplete="off">
                 <div class="row">
-                  <div class="form-group col-md-4 col-sm-6 col-xs-12">
+                  <div class="form-group col-md-3 col-sm-6 col-xs-12">
                     <label for="diaPersona">Persona: <span class="rd-req">*</span></label>
                     <select id="diaPersona" name="persona" class="form-control"></select>
                   </div>
-                  <div class="form-group col-md-2 col-sm-6 col-xs-12">
-                    <label for="diaFecha">Día: <span class="rd-req">*</span></label>
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                    <label for="diaFecha">Desde: <span class="rd-req">*</span></label>
                     <input type="date" id="diaFecha" name="fecha" class="form-control">
                   </div>
-                  <div class="form-group col-md-4 col-sm-8 col-xs-12">
+                  <div class="form-group col-md-2 col-sm-3 col-xs-6">
+                    <label for="diaHasta" title="Déjalo vacío para habilitar un solo día">Hasta (opcional):</label>
+                    <input type="date" id="diaHasta" name="hasta" class="form-control">
+                  </div>
+                  <div class="form-group col-md-3 col-sm-8 col-xs-12">
                     <label for="diaMotivo">Motivo:</label>
                     <input type="text" id="diaMotivo" name="motivo" class="form-control" maxlength="200" placeholder="Ej: no tuvo señal en el peaje">
                   </div>
@@ -88,7 +93,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <thead><tr><th>Qué</th><th>Dónde se edita</th></tr></thead>
                 <tbody>
                   <tr><td>Módulos encendidos, plazos, reglas, adjuntos, contraseñas e ingreso</td><td>Aquí, pestaña <strong>Parámetros</strong></td></tr>
-                  <tr><td>Medios de los oficios, «Pendiente de», transportes, tipos del cronograma, estados de Gestión Humana, nombres de los conceptos de caja menor y recambio</td><td>Aquí, pestaña <strong>Listas</strong></td></tr>
+                  <tr><td>Medios de los oficios, «Pendiente de», transportes, tipos del cronograma, estados de Gestión Humana</td><td>Aquí, pestaña <strong>Listas</strong></td></tr>
                   <tr><td>Cargos de la promesa de valor</td><td>Aquí, pestaña <strong>Cargos (promesa de valor)</strong></td></tr>
                   <tr><td>Días que se le abren a una persona para registrar fuera de fecha</td><td>Aquí, pestaña <strong>Días habilitados</strong></td></tr>
                   <tr><td>Proyectos y su coordinador</td><td><a href="proyectosVista.php">Configuración → Proyectos</a></td></tr>
@@ -99,7 +104,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                   <tr><td>Listas de chequeo y sus preguntas</td><td><a href="GruposListasVista.php">Reporte diario → Editar listas</a></td></tr>
                   <tr><td>Recordatorios por correo, resultado de la promesa de valor, aviso de promesa por debajo: hora, días y a quién le llegan</td><td><a href="NotificacionesVista.php">Reporte diario → Correos automáticos</a></td></tr>
                   <tr><td>A quién le llegan los correos de cada lista de chequeo</td><td><a href="NotificacionesVista.php#listas">Reporte diario → Correos automáticos</a></td></tr>
-                  <tr><td>Campos del arqueo de casetas (por peaje o para todos)</td><td><a href="ArqueosVista.php#campos">Arqueos → Campos de casetas</a></td></tr>
+                  <tr><td>Conceptos de caja menor y recambio (agregar, cómo cuentan, apagar) y campos del arqueo de casetas (por peaje o para todos)</td><td><a href="ArqueosVista.php#config">Arqueos → Configuración de arqueos</a></td></tr>
                   <tr><td>Fondos autorizados de caja menor y recambio</td><td><a href="ArqueosVista.php#fondos">Arqueos → Fondos autorizados</a></td></tr>
                   <tr><td>Vehículos y su responsable</td><td><a href="CronogramaVista.php#vehiculos">Cronograma y vehículo → Vehículos</a></td></tr>
                 </tbody></table></div>
@@ -114,9 +119,9 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=6"></script>
-<script type="text/javascript" src="../Ajax/ParametrosListasAjax.js?v=1"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
+<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=7"></script>
+<script type="text/javascript" src="../Ajax/ParametrosListasAjax.js?v=2"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

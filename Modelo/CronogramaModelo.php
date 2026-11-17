@@ -104,10 +104,12 @@ class Cronograma
                          'ssi', array($estado, $observacion, (int)$idCronograma));
     }
 
-    //Borra una actividad del cronograma
+    //Quita una actividad agregada por error. No se borra (es trazabilidad): queda como CANCELADA,
+    //con el motivo, y así se sabe que estuvo programada y que se quitó
     public function quitar($idCronograma)
     {
-        return HanaDB::q("DELETE FROM cronograma WHERE ID_CRONOGRAMA = ?", 'i', array((int)$idCronograma));
+        return HanaDB::q("UPDATE cronograma SET ESTADO = 'CANCELADA', OBSERVACION = ? WHERE ID_CRONOGRAMA = ?",
+                         'si', array('Se quitó del cronograma (agregada por error)', (int)$idCronograma));
     }
 
     //-----------------------------------------------------------------------

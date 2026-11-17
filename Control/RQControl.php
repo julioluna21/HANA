@@ -440,21 +440,24 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $tipo        = hanaTipoRQ(isset($_POST['tipo']) ? $_POST['tipo'] : $datosRq['TIPO_RQ']);
         $observacion = isset($_POST['sst']) ? $_POST['sst'] : '';
 
-        //Todo o nada
+        //Todo o nada. Los ítems no se borran y se reescriben: se actualizan en su lugar y solo se
+        //quitan los que se eliminaron (RQModelo::reemplazarDetalle). Lo que pedía antes queda en el historial
+        $itemsAntes = $modeloRq->resumenItems($idRq);
         $modeloRq->iniciar();
-        $ok = $modeloRq->actualizarCabecera($idRq, $fecha, $observacion, $tipo) && $modeloRq->borrarDetalle($idRq);
-        foreach ($items as $item) {
-            if (!$ok) { break; }
-            $ok = $modeloRq->insertarDetalle($idRq, $item['descripcion'], $item['justificacion'], $item['cantidad'], $item['unidad'], $item['soporte'], $item['peaje']) > 0;
+        $ok = $modeloRq->actualizarCabecera($idRq, $fecha, $observacion, $tipo) && $modeloRq->reemplazarDetalle($idRq, $items);
+        $cambioItems = '';
+        if ($ok) {
+            $itemsAhora = $modeloRq->resumenItems($idRq);
+            if ($itemsAntes !== $itemsAhora) { $cambioItems = ' · Ítems antes: ' . mb_substr($itemsAntes, 0, 1500) . '. Ítems ahora: ' . mb_substr($itemsAhora, 0, 1500) . '.'; }
         }
         if ($ok && $retrocede) {
             $ok = $modeloRq->reiniciarFlujo($idRq)
                && $modeloRq->insertarSeguimiento($idRq, $datosRq['ID_RQ_ESTADO'], RqEstado::SOLICITADA, $idColaborador,
-                                           'Corregida y enviada de nuevo: ' . $motivo) > 0
+                                           'Corregida y enviada de nuevo: ' . $motivo . $cambioItems) > 0
                && $modeloRq->marcarNoLeida($idRq);
         } elseif ($ok) {
             $ok = $modeloRq->insertarSeguimiento($idRq, null, RqEstado::SOLICITADA, $idColaborador,
-                                           'RQ corregida' . ($motivo !== '' ? ': ' . $motivo : ''), RqEstado::HIST_CORRECCION) > 0;
+                                           'RQ corregida' . ($motivo !== '' ? ': ' . $motivo : '') . $cambioItems, RqEstado::HIST_CORRECCION) > 0;
         }
         if (!$ok) { $modeloRq->deshacer(); hanaError(500, 'No se pudo guardar la corrección. No cambió nada; intenta de nuevo.'); }
         $modeloRq->confirmar();

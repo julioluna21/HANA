@@ -45,7 +45,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'config':
         echo hanaJsonTexto(array('hoy' => $hoy, 'ultimoEditable' => $ultimoEditable, 'centros' => array_values($centros), 'estados' => Vacante::$ESTADOS,
                                'estadosGh' => Vacante::$ESTADOS_GH, 'diasAns' => Vacante::diasAns(), 'editaCompromiso' => $puedeCompromiso && $puedeLlenar, 'puedeLlenar' => $puedeLlenar,
-                               'motivos' => $modeloVacante->motivos(array_keys($centros))), JSON_UNESCAPED_UNICODE);
+                               'motivos' => $modeloVacante->motivos(array_keys($centros)),
+                               'nombresCubren' => $modeloVacante->nombresCubren(array_keys($centros))), JSON_UNESCAPED_UNICODE);
         break;
 
     //Sin mes: todas las abiertas. Con mes: las que se abrieron ese mes
@@ -99,7 +100,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
         $datos['rq']     = HanaVal::texto(isset($_POST['rq']) ? $_POST['rq'] : '', 20);
         $datos['nombre'] = HanaVal::texto(isset($_POST['nombre']) ? $_POST['nombre'] : '', 120);
-        if ($datos['estado'] === 'CUBIERTA' && $datos['nombre'] === null) { vacError(400, 'Escribe el nombre de la persona que cubrió la vacante.'); }
+        //Quién la cubre: mientras está abierta, quien la está cubriendo (encargo o apoyo), si hay alguien;
+        //al cubrirla, quién quedó en el cargo (obligatorio)
+        if ($datos['estado'] === 'CUBIERTA' && $datos['nombre'] === null) { vacError(400, 'Escribe quién cubrió la vacante (quién quedó en el cargo).'); }
         $datos['gh'] = isset($_POST['gh']) && $_POST['gh'] !== '' ? $_POST['gh'] : null;
         if ($datos['gh'] !== null && !isset(Vacante::$ESTADOS_GH[$datos['gh']])) { vacError(400, 'Estado de Gestión Humana no válido.'); }
         //La fecha comprometida por Gestión Humana es automática: la del acuerdo de servicio.
@@ -113,9 +116,18 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $datos['compromiso'] = $antes['FECHA_COMPROMISO_GH'];
         }
         $datos['obs'] = HanaVal::texto(isset($_POST['obs']) ? $_POST['obs'] : '', 300);
+        //Quién deja el puesto (renunció, se trasladó...). Opcional: un cargo nuevo no lo tiene.
+        //Se guarda en historial (ver VacanteModelo::guardarSale), sin cambiar la tabla vacante
+        $sale = HanaVal::texto(isset($_POST['sale']) ? $_POST['sale'] : '', 120);
 
-        $nuevo = $modeloVacante->guardar($id, $datos, $idColaborador, date('Y-m-d H:i:s'));
-        if (!$nuevo) { vacError(500, 'No se pudo guardar la vacante. Intenta de nuevo.'); }
+        $ahora = date('Y-m-d H:i:s');
+        HanaDB::iniciar(); //la vacante y quién deja el puesto quedan juntos, o nada
+        $nuevo = $modeloVacante->guardar($id, $datos, $idColaborador, $ahora);
+        if (!$nuevo || !$modeloVacante->guardarSale($nuevo, $sale, $idColaborador, $ahora)) {
+            HanaDB::deshacer();
+            vacError(500, 'No se pudo guardar la vacante. Intenta de nuevo.');
+        }
+        HanaDB::confirmar();
         echo hanaJsonTexto(array('ok' => true, 'id' => $nuevo, 'mensaje' => $id ? 'Vacante actualizada.'
                          : 'Vacante registrada. Fecha límite del acuerdo de servicio: ' . date('d/m/Y', strtotime($datos['ans'])) . '.'),
                          JSON_UNESCAPED_UNICODE);

@@ -21,7 +21,8 @@ if (isset($_SESSION['IdUsuarios'])) {
     <div class="col-md-12 col-xs-12">
       <?php //Ausentismo y Promesa de valor, las dos partes de la sección (si solo entra a la promesa, la miga de pan)
         $secciones = pagSeccionesAusentismo('PROMESA');
-        echo $secciones !== '' ? $secciones : '<div class="rd-migas"><i class="fa fa-clock-o"></i> Promesa de valor</div>'; ?>
+        //La promesa de valor va dentro del Reporte diario: la miga de pan lleva de vuelta allá
+        echo $secciones !== '' ? $secciones : '<div class="rd-migas"><a href="ReporteDiarioVista.php"><i class="fa fa-calendar-check-o"></i> Reporte diario</a> <span>›</span> Promesa de valor</div>'; ?>
 
       <div class="x_panel">
         <div class="x_title">
@@ -88,12 +89,13 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div id="pvComentarios"></div>
         </div>
       </div>
+
     </div>
   </div>
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
 <script type="text/javascript" src="../Ajax/PromesaValorAjax.js?v=14"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }

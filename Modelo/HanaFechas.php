@@ -22,9 +22,14 @@ class HanaFechas
     // Qué días se pueden registrar o corregir en el reporte diario.
     // La regla es una sola: HOY. Lo usan Hoy en qué estás, listas, arqueos,
     // cronograma y vehículo.
-    // La excepción la pone el ADMIN TEC: en Parámetros del sistema → Días
-    // habilitados le abre un día específico a una persona y después se lo
-    // cierra (tabla dia_habilitado). No hay margen de días que configurar
+    // Hay dos excepciones:
+    //   1. El ADMIN TEC, en Parámetros del sistema → Días habilitados, le abre a
+    //      una persona un día o un rango de días y después se los cierra
+    //      (tabla dia_habilitado).
+    //   2. Los sábados, domingos y festivos del mes quedan abiertos solos, igual
+    //      que en el estado del vehículo: se pueden dejar registrados por
+    //      adelantado y corregir después (el lunes se corrige el fin de semana).
+    //      Se apaga en Parámetros del sistema (REPORTE_FINDE_ABIERTO).
     //-----------------------------------------------------------------------
 
     //El día de hoy en la hora de Colombia, como 'AAAA-MM-DD'
@@ -51,19 +56,53 @@ class HanaFechas
         return array($hoy, $hoy);
     }
 
-    //Los días que la persona tiene habilitados en este momento, de más viejo a más nuevo.
+    //Los días abiertos para la persona en este momento, de más viejo a más nuevo, sin hoy:
+    //los que le habilitó el administrador más los sábados, domingos y festivos del mes (findesAbiertos).
     //El controlador dice de quién (hanaEnVentana en AccesoHelper usa la persona de la sesión)
     public static function habilitados($idColaborador = 0)
     {
         $id = (int)$idColaborador;
         if ($id <= 0) { return array(); }
         if (isset(self::$habilitados[$id])) { return self::$habilitados[$id]; } //ya se consultó en esta petición
+        $dias = array_values(array_unique(array_merge(self::habilitadosAdmin($id), self::findesAbiertos())));
+        sort($dias);
+        self::$habilitados[$id] = $dias;
+        return $dias;
+    }
+
+    //Solo los días que el administrador le abrió a la persona (tabla dia_habilitado)
+    public static function habilitadosAdmin($idColaborador)
+    {
+        $id = (int)$idColaborador;
+        if ($id <= 0) { return array(); }
         require_once __DIR__ . '/HanaDB.php';
         $dias = array();
         //Si la tabla dia_habilitado no existe (base sin actualizar), q() devuelve false: no hay días habilitados
         $filas = HanaDB::q("SELECT FECHA FROM dia_habilitado WHERE ID_COLABORADOR = ? AND ESTADO = 1 ORDER BY FECHA", 'i', array($id));
         if (is_array($filas)) { foreach ($filas as $fila) { $dias[] = $fila['FECHA']; } }
-        self::$habilitados[$id] = $dias;
+        return $dias;
+    }
+
+    //Los sábados, domingos y festivos que están abiertos para todos en el reporte diario, sin hoy:
+    //los de todo el mes en curso (por adelantado y hacia atrás) y, al empezar un mes, también los de
+    //la última semana del mes anterior (para que el lunes 1 se pueda corregir el fin de semana).
+    //Vacío si el administrador lo apagó (Parámetros del sistema → REPORTE_FINDE_ABIERTO)
+    public static function findesAbiertos()
+    {
+        static $dias = null;
+        if ($dias !== null) { return $dias; }
+        $dias = array();
+        require_once __DIR__ . '/HanaConfig.php';
+        if (!HanaConfig::si('REPORTE_FINDE_ABIERTO', true)) { return $dias; }
+        $hoy = self::hoy();
+        $inicioMes = substr($hoy, 0, 8) . '01';
+        $semanaAtras = date('Y-m-d', strtotime("$hoy -7 day"));
+        $desde = $semanaAtras < $inicioMes ? $semanaAtras : $inicioMes;
+        $hasta = date('Y-m-t', strtotime($hoy)); //último día del mes
+        for ($momento = strtotime($desde); $momento <= strtotime($hasta); $momento = strtotime('+1 day', $momento)) {
+            $fecha = date('Y-m-d', $momento);
+            if ($fecha !== $hoy && !self::esHabil($fecha)) { $dias[] = $fecha; }
+        }
         return $dias;
     }
 
@@ -73,8 +112,8 @@ class HanaFechas
         return in_array(substr((string)$fecha, 0, 10), self::habilitados($idColaborador), true);
     }
 
-    //¿Ese día se puede registrar o corregir? Hoy siempre; otro día, solo si
-    //el administrador se lo habilitó a la persona
+    //¿Ese día se puede registrar o corregir? Hoy siempre; otro día, si es sábado, domingo o
+    //festivo del mes, o si el administrador se lo habilitó a la persona
     public static function enVentana($fecha, $idColaborador = 0)
     {
         $dia = substr((string)$fecha, 0, 10);
@@ -84,7 +123,7 @@ class HanaFechas
     //Para los mensajes de error: "solo se registran arqueos de hoy (o un día que...)"
     public static function textoVentana()
     {
-        return 'hoy (o un día que el administrador te haya habilitado)';
+        return 'hoy, los sábados, domingos y festivos del mes, o un día que el administrador te haya habilitado';
     }
 
     //Domingo de Pascua (algoritmo gregoriano anónimo, de Meeus/Jones/Butcher), como 'AAAA-MM-DD'.

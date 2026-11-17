@@ -189,12 +189,25 @@ class Hoy
         if (!$filas) { return 0; }
         $id = (int)$filas[0]['ID_REPORTE_HOY'];
 
-        //Los centros visitados se reemplazan completos
-        if (!$this->q("DELETE FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id))) { return 0; }
+        //Los peajes por donde pasó: solo se toca lo que cambió. Se agregan los nuevos y se quitan
+        //únicamente los que la persona desmarcó. Es una lista auxiliar del día: lo que importa del
+        //registro queda en reporte_hoy
+        $antes = array();
+        $filasCentros = $this->q("SELECT ID_CENTRO_OP FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ?", 'i', array($id));
+        if ($filasCentros === false) { return 0; }
+        foreach ((array)$filasCentros as $filaCentro) { $antes[(int)$filaCentro['ID_CENTRO_OP']] = true; }
+        $ahoraCentros = array();
+        foreach ($datos['centros'] as $idCentro) { $ahoraCentros[(int)$idCentro] = true; }
 
-        foreach ($datos['centros'] as $idCentro) {
-            if (!$this->q("INSERT INTO reporte_hoy_centro (ID_REPORTE_HOY, ID_CENTRO_OP) VALUES (?, ?)",
-                          'ii', array($id, (int)$idCentro))) { return 0; }
+        foreach (array_keys($antes) as $idCentro) {
+            if (isset($ahoraCentros[$idCentro])) { continue; } //sigue marcado
+            if (!$this->q("DELETE FROM reporte_hoy_centro WHERE ID_REPORTE_HOY = ? AND ID_CENTRO_OP = ?",
+                          'ii', array($id, $idCentro))) { return 0; }
+        }
+        foreach (array_keys($ahoraCentros) as $idCentro) {
+            if (isset($antes[$idCentro])) { continue; } //ya estaba
+            if (!$this->q("INSERT IGNORE INTO reporte_hoy_centro (ID_REPORTE_HOY, ID_CENTRO_OP) VALUES (?, ?)",
+                          'ii', array($id, $idCentro))) { return 0; }
         }
         return $id;
     }

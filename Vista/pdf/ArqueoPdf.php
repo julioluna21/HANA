@@ -60,6 +60,18 @@ class ArqueoPdf extends FPDF
         return strtr(strtoupper((string)$texto), array('á' => 'Á', 'é' => 'É', 'í' => 'Í', 'ó' => 'Ó', 'ú' => 'Ú', 'ñ' => 'Ñ', 'ü' => 'Ü'));
     }
 
+    //Las iniciales de un nombre para la columna del concepto: "Vale de transporte" => "VT"
+    //(sin las palabras cortas como "de"; máximo tres letras)
+    private static function sigla($nombre)
+    {
+        $sigla = '';
+        foreach (preg_split('/\s+/u', self::mayus(trim((string)$nombre))) as $palabra) {
+            if ($palabra === '' || (mb_strlen($palabra, 'UTF-8') <= 2 && $sigla !== '')) { continue; }
+            $sigla .= mb_substr($palabra, 0, 1, 'UTF-8');
+        }
+        return $sigla === '' ? 'O' : mb_substr($sigla, 0, 3, 'UTF-8');
+    }
+
     //Escribe un texto. $top es el borde superior de la letra (como se midió en el
     //formato PDF); FPDF necesita la línea base, que queda 0,905 × tamaño más abajo.
     //$alin: L (desde $x), R (terminando en $x) o C (centrado entre $x y $x2)
@@ -213,13 +225,18 @@ class ArqueoPdf extends FPDF
         $this->AddPage();
         if ((int)$arqueo['ESTADO'] !== 1) { $this->sello($arqueo['MOTIVO_ANULACION']); }
 
-        //Líneas del efectivo y de los documentos. El efectivo es un solo valor (billetes y monedas juntos)
+        //Líneas del efectivo y de los documentos. El efectivo es un solo valor (billetes y monedas juntos).
+        //Los conceptos del formato en papel van con sus títulos impresos; los que se agregaron en la
+        //configuración van con el nombre que tenían el día del arqueo, después de los del formato
         $efectivo = 0;
         $documentos = array();
         $subtotales = array('FACTURA' => 0, 'REINTEGRO' => 0, 'RECIBO_CAJA' => 0, 'FALTANTE' => 0);
+        $extras = array(); //código => array(nombre, rol)
         foreach ($arqueo['LINEAS'] as $linea) {
-            if (isset($subtotales[$linea['CODIGO']])) { $documentos[] = $linea; $subtotales[$linea['CODIGO']] += (float)$linea['VALOR']; }
-            else { $efectivo += (float)$linea['VALOR']; }
+            if ($linea['CODIGO'] === 'EFECTIVO') { $efectivo += (float)$linea['VALOR']; continue; }
+            $documentos[] = $linea;
+            if (!isset($subtotales[$linea['CODIGO']])) { $subtotales[$linea['CODIGO']] = 0; $extras[$linea['CODIGO']] = array($linea['NOMBRE'], $linea['ROL']); }
+            $subtotales[$linea['CODIGO']] += Arqueo::signo($linea['ROL']) * (float)$linea['VALOR'];
         }
 
         //--- Marco exterior y encabezado (el logo va en 93..221, en blanco) ---
@@ -265,28 +282,45 @@ class ArqueoPdf extends FPDF
         if ($conReintegro) { $conceptos[] = array('REINTEGRO DE FONDO', $subtotales['REINTEGRO']); }
         $conceptos[] = array('RECIBO DE CAJA', $subtotales['RECIBO_CAJA']);
         $conceptos[] = array('FALTANTES', $subtotales['FALTANTE']);
+        //Los agregados: los informativos no entran en la cuenta, así que no salen en los subtotales
+        foreach ($extras as $codigo => $extra) {
+            if ($extra[1] !== 'INFO') { $conceptos[] = array($this->cabe(self::mayus($extra[0]), 150, 7.3), $subtotales[$codigo]); }
+        }
         $conceptos[] = array('SUBTOTAL', $arqueo['TOTAL_DOCUMENTOS']);
-        //Los renglones del formato: [arriba del texto, arriba del valor, raya]
+        //Los renglones del formato: [arriba del texto, arriba del valor, raya]. Si hay más conceptos de los
+        //que caben, los renglones se hacen más bajos en el mismo espacio (y la letra, más pequeña)
         $renglones = array(array(168, 169, 178), array(179, 181, 190), array(190, 190, 199), array(200, 200, 209), array(210, 211, 220));
+        $tamTotales = 7.3;
+        if (count($conceptos) > count($renglones)) {
+            $altoRenglon = 53 / count($conceptos);
+            $tamTotales = min(7.3, $altoRenglon * 0.78);
+            $renglones = array();
+            for ($i = 0; $i < count($conceptos); $i++) {
+                $arriba = 168 + $altoRenglon * $i + ($altoRenglon - $tamTotales * 1.1) / 2;
+                $renglones[] = array($arriba, $arriba, 168 + $altoRenglon * ($i + 1) - 0.5);
+            }
+        }
         $filas = array();
         foreach ($conceptos as $i => $concepto) {
-            $filas[] = array($concepto[0], $renglones[$i][0], $renglones[$i][1], $concepto[1], $concepto[0] === 'SUBTOTAL', $renglones[$i][2]);
+            $filas[] = array($concepto[0], $renglones[$i][0], $renglones[$i][1], $concepto[1], $concepto[0] === 'SUBTOTAL', $renglones[$i][2], $tamTotales);
         }
         $filas = array_merge($filas, array(
-            array('TOTAL ARQUEO', 231, 232, $arqueo['TOTAL_ARQUEO'], false, 241),
-            array('FONDO AUTORIZADO', 242, 243, $arqueo['FONDO_AUTORIZADO'], false, 252),
-            array('DIFERENCIA', 252, 253, $arqueo['DIFERENCIA'], false, 262)
+            array('TOTAL ARQUEO', 231, 232, $arqueo['TOTAL_ARQUEO'], false, 241, 7.3),
+            array('FONDO AUTORIZADO', 242, 243, $arqueo['FONDO_AUTORIZADO'], false, 252, 7.3),
+            array('DIFERENCIA', 252, 253, $arqueo['DIFERENCIA'], false, 262, 7.3)
         ));
         foreach ($filas as $filaTotal) {
-            $this->escribir(435, $filaTotal[1], $filaTotal[0], 7.3, $filaTotal[4], 'R');
-            $this->pesos(440, 522, $filaTotal[2], $filaTotal[3], 7.3);
+            $this->escribir(435, $filaTotal[1], $filaTotal[0], $filaTotal[6], $filaTotal[4], 'R');
+            $this->pesos(440, 522, $filaTotal[2], $filaTotal[3], $filaTotal[6]);
             $this->rayaHorizontal(436, 526, $filaTotal[5]);
         }
 
         //--- Tabla de documentos ---
         $this->relleno(93, 273, 526, 305, 217, 217, 217);
         $this->rayaHorizontal(93, 526, 273); $this->rayaHorizontal(93, 525, 283); $this->rayaHorizontal(222, 287, 294);
-        $this->escribir(93, 274, $conReintegro ? 'DESCRIPCION DE FACTURAS, REINTEGROS, RECIBOS Y FALTANTES' : 'DESCRIPCION DE FACTURAS, RECIBOS DE CAJA Y FALTANTES', 7.3, true, 'C', 525);
+        $titulo = $conReintegro ? 'DESCRIPCION DE FACTURAS, REINTEGROS, RECIBOS Y FALTANTES' : 'DESCRIPCION DE FACTURAS, RECIBOS DE CAJA Y FALTANTES';
+        if (count($extras)) { $titulo = 'DESCRIPCION DE FACTURAS, RECIBOS, FALTANTES Y OTROS DOCUMENTOS'; }
+        $this->escribir(93, 274, $titulo, 7.3, true, 'C', 525);
         $this->escribir(221, 285, 'CONCEPTO', 7.3, true, 'C', 287);
         $this->escribir(93, 290, 'FECHA MÁS ANTIGUA', 6.6, true, 'C', 172);
         $this->escribir(172, 290, 'VALOR', 7.3, true, 'C', 221);
@@ -295,7 +329,29 @@ class ArqueoPdf extends FPDF
         $columnas = $conReintegro
             ? array('FACTURA' => array(221, 238, 'F'), 'REINTEGRO' => array(238, 254, 'R'), 'RECIBO_CAJA' => array(254, 271, 'RC'), 'FALTANTE' => array(271, 287, 'FA'))
             : array('FACTURA' => array(221, 243, 'F'), 'RECIBO_CAJA' => array(243, 265, 'RC'), 'FALTANTE' => array(265, 287, 'FA'));
-        foreach ($columnas as $columna) { $this->escribir($columna[0], 295, $columna[2], 7.3, true, 'C', $columna[1]); }
+        $leyenda = $conReintegro ? '(F) Factura   (R) Reintegro de Fondo  (RC) Recibo de Caja  (FA) Faltantes.' : '(F) Factura   (RC) Recibo de Caja   (FA) Faltantes.';
+        $tamColumna = 7.3;
+        //Los conceptos agregados tienen su columna con sus iniciales ("Vale de transporte" => VT), y
+        //todas las columnas se reparten el mismo ancho del formato
+        if (count($extras)) {
+            $siglas = array();
+            foreach ($columnas as $columna) { $siglas[$columna[2]] = true; }
+            foreach ($extras as $codigo => $extra) {
+                $sigla = self::sigla($extra[0]);
+                for ($n = 2; isset($siglas[$sigla]); $n++) { $sigla = self::sigla($extra[0]) . $n; }
+                $siglas[$sigla] = true;
+                $columnas[$codigo] = array(0, 0, $sigla);
+                $leyenda .= '  (' . $sigla . ') ' . $extra[0] . ($extra[1] === 'INFO' ? ' (informativo)' : ($extra[1] === 'RESTA' ? ' (resta)' : ''));
+            }
+            $anchoColumna = 66 / count($columnas);
+            $tamColumna = min(7.3, $anchoColumna * 0.6);
+            $i = 0;
+            foreach ($columnas as $codigo => $columna) {
+                $columnas[$codigo] = array(221 + $anchoColumna * $i, 221 + $anchoColumna * ($i + 1), $columna[2]);
+                $i++;
+            }
+        }
+        foreach ($columnas as $columna) { $this->escribir($columna[0], 295, $columna[2], $tamColumna, true, 'C', $columna[1]); }
 
         //15 renglones como el formato en papel. Si hay más documentos, los renglones
         //se hacen más bajos para que todo quepa en el mismo espacio
@@ -309,13 +365,13 @@ class ArqueoPdf extends FPDF
         foreach ($documentos as $i => $documento) {
             $top = 304 + $alto * $i + ($alto - $tam * 1.1) / 2;
             if ($documento['FECHA']) { $this->escribir(171, $top, date('d/m/Y', strtotime($documento['FECHA'])), $tam, false, 'R'); }
-            $this->escribir(220, $top, '$ ' . self::num($documento['VALOR']), $tam, false, 'R');
+            $this->escribir(220, $top, ($documento['ROL'] === 'RESTA' ? '- $ ' : '$ ') . self::num($documento['VALOR']), $tam, false, 'R');
             $columna = $columnas[$documento['CODIGO']];
             $this->escribir($columna[0], $top, 'X', $tam, false, 'C', $columna[1]);
             $this->escribir(287, $top, $this->cabe($documento['OBSERVACION'], 232, $tam), $tam, false, 'C', 525);
         }
         $this->rayaHorizontal(93, 526, 463);
-        $this->escribir(95, 464, $conReintegro ? '(F) Factura   (R) Reintegro de Fondo  (RC) Recibo de Caja  (FA) Faltantes.' : '(F) Factura   (RC) Recibo de Caja   (FA) Faltantes.', 7.3);
+        $this->escribir(95, 464, $this->cabe($leyenda, 428, 7.3), 7.3);
 
         //--- Observación ---
         $this->escribir(95, 480, 'OBSERVACION :', 7.3, true);
@@ -382,9 +438,6 @@ class ArqueoPdf extends FPDF
         $this->escribir(93, 175, 'CONCEPTO', 8.1, true, 'C', 285);
         $this->escribir(285, 175, 'VALOR', 8.1, true, 'C', 375);
         $this->escribir(375, 175, 'OBSERVACIONES', 8.1, true, 'C', 515);
-        foreach (array(174, 185, 201, 218, 235, 252, 269, 286, 293, 310, 327, 344) as $alturaRaya) { $this->rayaHorizontal(93, 515, $alturaRaya); }
-        $this->rayaVertical(285, 174, 286); $this->rayaVertical(375, 174, 286); $this->rayaVertical(285, 293, 344); $this->rayaVertical(375, 293, 344);
-
         //Cinco conceptos: billetes y monedas por separado. Un recambio viejo los
         //tiene juntos (EFECTIVO): van en la fila de los billetes, con su nombre de entonces
         $antiguo = isset($lineaPorCodigo['EFECTIVO']);
@@ -395,13 +448,34 @@ class ArqueoPdf extends FPDF
             array('MONEDAS', 'DINERO EN EFECTIVO: MONEDAS', 235),
             array('CAJA_FUERTE', 'DINERO CUSTODIADO EN CAJA FUERTE', 252)
         );
+        //Los conceptos que se agregaron en la configuración van debajo, con el nombre que tenían ese día
+        $delFormato = array('BASES_CASETAS' => 1, 'BASE_SUPERVISORA' => 1, 'BILLETES' => 1, 'MONEDAS' => 1, 'CAJA_FUERTE' => 1, 'EFECTIVO' => 1);
+        foreach ($arqueo['LINEAS'] as $linea) {
+            if (isset($delFormato[$linea['CODIGO']])) { continue; }
+            $conceptos[] = array($linea['CODIGO'], self::mayus($linea['NOMBRE']) . ($linea['ROL'] === 'INFO' ? ' (INFORMATIVO)' : ''), 0);
+        }
+        //Los renglones del formato van de 185 a 269 (cinco de 17 de alto). Con más conceptos se hacen
+        //más bajos en el mismo espacio, y la letra, más pequeña
+        $altoFila = 84 / count($conceptos);
+        $tamFila = count($conceptos) > 5 ? min(7.5, $altoFila * 0.6) : 7.5;
+        $rayas = array(174, 185);
+        foreach ($conceptos as $i => $concepto) {
+            if (count($conceptos) > 5) { $conceptos[$i][2] = 185 + $altoFila * $i; }
+            $rayas[] = count($conceptos) > 5 ? 185 + $altoFila * ($i + 1) : $concepto[2] + ($i < 4 ? array(16, 17, 17, 17)[$i] : 17);
+        }
+        foreach (array_merge($rayas, array(286, 293, 310, 327, 344)) as $alturaRaya) { $this->rayaHorizontal(93, 515, $alturaRaya); }
+        $this->rayaVertical(285, 174, 286); $this->rayaVertical(375, 174, 286); $this->rayaVertical(285, 293, 344); $this->rayaVertical(375, 293, 344);
+
         foreach ($conceptos as $concepto) {
             $fila = $concepto[2];
-            $this->escribir(95, $fila + 4, $concepto[1], 7.5);
+            $margen = count($conceptos) > 5 ? ($altoFila - $tamFila * 1.1) / 2 : 4;
+            $this->escribir(95, $fila + $margen, $this->cabe($concepto[1], 188, $tamFila), $tamFila);
             $linea = isset($lineaPorCodigo[$concepto[0]]) ? $lineaPorCodigo[$concepto[0]] : null;
-            //Como en el formato en papel: un concepto sin valor queda en blanco
-            if ($linea && (float)$linea['VALOR'] != 0) { $this->pesos(289, 370, $fila + 1, $linea['VALOR'], 7.5); }
-            if ($linea && $linea['OBSERVACION']) { $this->escribir(378, $fila + 4, $this->cabe($linea['OBSERVACION'], 134, 6.6), 6.6); }
+            //Como en el formato en papel: un concepto sin valor queda en blanco. Lo que resta, con signo menos
+            if ($linea && (float)$linea['VALOR'] != 0) {
+                $this->pesos(289, 370, $fila + (count($conceptos) > 5 ? $margen : 1), $linea['ROL'] === 'RESTA' ? -$linea['VALOR'] : $linea['VALOR'], $tamFila);
+            }
+            if ($linea && $linea['OBSERVACION']) { $this->escribir(378, $fila + $margen, $this->cabe($linea['OBSERVACION'], 134, min(6.6, $tamFila)), min(6.6, $tamFila)); }
         }
         $this->escribir(95, 273, 'TOTAL ARQUEO DEL FONDO', 7.5, true);
         $this->pesos(289, 370, 270, $arqueo['TOTAL_ARQUEO'], 7.5);

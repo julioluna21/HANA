@@ -29,7 +29,9 @@ class Vacante
     {
         if (!count($idsCentros)) { return array(); }
         $marcas = implode(',', array_fill(0, count($idsCentros), '?'));
-        $sql = "SELECT v.*, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO
+        $sql = "SELECT v.*, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO,
+                       (SELECT h.TEXTO FROM historial h WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'SALE_CARGO'
+                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS NOMBRE_SALE
                   FROM vacante v
                   INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = v.ID_CENTRO_OP
                   INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
@@ -65,7 +67,10 @@ class Vacante
     //Una vacante con el nombre de su peaje
     public function mostrar($id)
     {
-        return HanaDB::fila("SELECT v.*, c.NOM_CENTRO_OP FROM vacante v
+        return HanaDB::fila("SELECT v.*, c.NOM_CENTRO_OP,
+                                    (SELECT h.TEXTO FROM historial h WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'SALE_CARGO'
+                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS NOMBRE_SALE
+                               FROM vacante v
                               INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = v.ID_CENTRO_OP
                               WHERE v.ID_VACANTE = ?", 'i', array((int)$id));
     }
@@ -90,6 +95,28 @@ class Vacante
         return $ok ? HanaDB::id() : 0;
     }
 
+    //-----------------------------------------------------------------------
+    // Quién deja el puesto (quien renunció, se trasladó, salió...)
+    // La tabla vacante no tiene esa columna y la base no se toca: se guarda en
+    // historial, como un evento de la vacante:
+    //   MODULO = 'VACANTE', ID_REGISTRO = ID_VACANTE, TIPO = 'SALE_CARGO',
+    //   TEXTO = el nombre, ID_COLABORADOR = quién lo anotó, FECHA = cuándo.
+    // Vale la fila más reciente (se lee como NOMBRE_SALE en listar() y mostrar()).
+    // Si se corrige el nombre, se agrega una fila nueva: no se modifica ni se
+    // borra nada (queda la trazabilidad). Para quitarlo se anota un texto vacío.
+    // Si algún día se crea la columna en vacante, basta copiar la última fila
+    // de cada vacante (la consulta está en LEEME_CAMBIOS.md).
+    //-----------------------------------------------------------------------
+    public function guardarSale($idVacante, $nombre, $idColaborador, $ahora)
+    {
+        $nombre = $nombre === null ? '' : (string)$nombre;
+        $actual = HanaDB::fila("SELECT TEXTO FROM historial WHERE MODULO = 'VACANTE' AND ID_REGISTRO = ? AND TIPO = 'SALE_CARGO'
+                                 ORDER BY FECHA DESC, ID_HISTORIAL DESC LIMIT 1", 'i', array((int)$idVacante));
+        if (($actual ? (string)$actual['TEXTO'] : '') === $nombre) { return true; } //no cambió
+        return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES ('VACANTE', ?, 'SALE_CARGO', ?, NULLIF(?, 0), ?)",
+                         'isis', array((int)$idVacante, $nombre, (int)$idColaborador, $ahora)) === true;
+    }
+
     //Motivos ya usados, para sugerirlos al escribir
     public function motivos($idsCentros)
     {
@@ -98,6 +125,25 @@ class Vacante
         $filas = HanaDB::q("SELECT MOTIVO, COUNT(*) n FROM vacante WHERE ID_CENTRO_OP IN ($marcas) GROUP BY MOTIVO ORDER BY n DESC LIMIT 30",
                        str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
         return array_map(function ($fila) { return $fila['MOTIVO']; }, $filas ? $filas : array());
+    }
+
+    //Nombres para sugerir en «Quién la cubre»: las personas activas y los nombres que ya se han
+    //escrito en las vacantes de esos centros (el campo sigue siendo de texto libre: puede ser
+    //alguien que no está registrado en HANA, por ejemplo un recaudador)
+    public function nombresCubren($idsCentros)
+    {
+        $nombres = array();
+        $filas = HanaDB::q("SELECT NOM_COLABORADOR AS NOMBRE FROM colaboradores WHERE ESTADO = 1 ORDER BY NOM_COLABORADOR");
+        foreach (is_array($filas) ? $filas : array() as $fila) { $nombres[] = html_entity_decode($fila['NOMBRE'], ENT_QUOTES, 'UTF-8'); }
+        if (count($idsCentros)) {
+            $marcas = implode(',', array_fill(0, count($idsCentros), '?'));
+            $filas = HanaDB::q("SELECT DISTINCT NOMBRE_REEMPLAZO AS NOMBRE FROM vacante WHERE ID_CENTRO_OP IN ($marcas) AND NOMBRE_REEMPLAZO IS NOT NULL AND NOMBRE_REEMPLAZO <> ''",
+                               str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
+            foreach (is_array($filas) ? $filas : array() as $fila) { $nombres[] = html_entity_decode($fila['NOMBRE'], ENT_QUOTES, 'UTF-8'); }
+        }
+        $nombres = array_values(array_unique($nombres));
+        sort($nombres);
+        return $nombres;
     }
 }
 

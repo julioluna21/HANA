@@ -113,7 +113,8 @@ function hanaCasillas()
         'PROMESA'        => array('llenar' => '54M', 'ver' => '55M', 'pasados' => '56M'),
         'REPORTE'        => array('ver' => '19M', 'tablero' => '43M', 'informe' => '37M'),
         'TAREAS'         => array('editar' => '57M'),
-        'GERENCIA'       => array('armar' => '61M')
+        'GERENCIA'       => array('armar' => '61M'),
+        'TRAZABILIDAD'   => array('ver' => '62M') //ver qué se registró, cambió o anuló, quién y cuándo (de sus peajes)
     );
 }
 

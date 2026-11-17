@@ -65,7 +65,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'config':
         echo hanaJsonTexto(array('hoy' => $hoy, 'proyectos' => array_values($proyectos), 'centros' => array_values($centros),
                                  'clases' => TemaCliente::clases(), 'pendiente' => TemaCliente::pendientes(),
-                                 'puedeLlenar' => $puedeLlenar), JSON_UNESCAPED_UNICODE);
+                                 'con' => TemaCliente::CON, 'puedeLlenar' => $puedeLlenar), JSON_UNESCAPED_UNICODE);
         break;
 
     //Los abiertos (mes 0) o los que estuvieron abiertos en un mes
@@ -82,7 +82,9 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (isset($_GET['proyecto']) && (int)$_GET['proyecto'] > 0) {
             $ids = isset($proyectos[(int)$_GET['proyecto']]) ? array((int)$_GET['proyecto']) : array();
         }
-        $filas = TemaCliente::listar($ids, $abiertos, $desde, $hasta, $hoy);
+        //Con quién: todos, solo con el cliente o solo con Regency
+        $con = isset($_GET['con']) && in_array($_GET['con'], array('CLIENTE', 'REGENCY'), true) ? $_GET['con'] : '';
+        $filas = TemaCliente::listar($ids, $abiertos, $desde, $hasta, $hoy, $con);
         foreach ($filas as $i => $fila) { $filas[$i]['PUEDE_CORREGIR'] = $puedeCorregir($fila); }
         echo hanaJsonTexto($filas, JSON_UNESCAPED_UNICODE);
         break;
@@ -111,8 +113,10 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         }
         $datos['tema'] = HanaVal::texto(isset($_POST['tema']) ? $_POST['tema'] : '', 300);
         if ($datos['tema'] === null) { temaError(400, 'Escribe cuál es el tema.'); }
+        //¿Es un tema con el cliente o interno con Regency? (se guarda en comunicacion.RADICADO: ver TemaClienteModelo)
+        $datos['con'] = TemaCliente::conValido(isset($_POST['con']) ? (string)$_POST['con'] : '');
         $datos['conQuien'] = HanaVal::texto(isset($_POST['conQuien']) ? $_POST['conQuien'] : '', 120);
-        if ($datos['conQuien'] === null) { temaError(400, 'Escribe con quién se está tratando (persona o área del cliente).'); }
+        if ($datos['conQuien'] === null) { temaError(400, $datos['con'] === 'REGENCY' ? 'Escribe con quién se está tratando (persona o área de Regency).' : 'Escribe con quién se está tratando (persona o área del cliente).'); }
         $clases = TemaCliente::clases();
         $datos['clase'] = isset($_POST['clase']) ? (string)$_POST['clase'] : '';
         if (!isset($clases[$datos['clase']])) { temaError(400, 'Elige de qué se trata el tema.'); }

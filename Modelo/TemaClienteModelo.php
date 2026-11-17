@@ -15,7 +15,10 @@
     MEDIO             de qué se trata (lista LISTA_CLASES_TEMA de Parámetros)
     PENDIENTE_DE      a quién le toca el siguiente paso (la misma lista de los oficios)
     FECHA_ATENCION    fecha de cierre (vacía = el tema sigue abierto)
-    RADICADO          sin uso en los temas
+    RADICADO          con quién es el tema: 'REGENCY' (interno, con Regency) o vacío / 'CLIENTE'
+                      (con el cliente). Vacío también es con el cliente.
+                      Los temas no tienen radicado, por eso se usa esta columna.
+                      Se lee como m.CON (ver columnas())
 
   historial.TIPO de un tema: SEGUIMIENTO (en qué va), RESUELTA (se cerró) y
   REABIERTA. Las pantallas de comunicaciones, el tablero, el informe mensual y
@@ -28,6 +31,12 @@ class TemaCliente
 {
     const TIPO = 'TEMA_CLIENTE';
 
+    //Con quién es un tema: con el cliente o interno con Regency (se guarda en comunicacion.RADICADO)
+    const CON = array('CLIENTE' => 'Con el cliente', 'REGENCY' => 'Con Regency');
+
+    //Lo que viene del formulario, como se guarda: 'REGENCY' o null (con el cliente)
+    public static function conValido($valor) { return $valor === 'REGENCY' ? 'REGENCY' : null; }
+
     //De qué se trata un tema: la edita el administrador en Parámetros del sistema → Listas
     public static function clases() { return HanaConfig::opciones('LISTA_CLASES_TEMA'); }
 
@@ -38,6 +47,7 @@ class TemaCliente
     private static function columnas()
     {
         return "m.ID_COMUNICACION, m.ID_PROYECTO, m.ID_CENTRO_OP, m.FECHA_RECEPCION, m.ASUNTO, m.REMITENTE, m.MEDIO,
+                IF(m.RADICADO = 'REGENCY', 'REGENCY', 'CLIENTE') AS CON,
                 m.PENDIENTE_DE, m.FECHA_ATENCION, m.ESTADO, m.ID_COLABORADOR_REGISTRA, m.FEC_REGISTRO, m.FEC_MODIFICACION,
                 p.NOM_PROYECTO, c.NOM_CENTRO_OP, reg.NOM_COLABORADOR AS REGISTRO,
                 (SELECT COUNT(*) FROM historial h WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.TIPO = 'SEGUIMIENTO') AS SEGUIMIENTOS,
@@ -59,7 +69,8 @@ class TemaCliente
     //  $soloAbiertos  true: los que siguen abiertos hoy.
     //                 false: los que estuvieron abiertos en algún momento entre $desde y $hasta
     //                 (se abrieron antes de $hasta y no se habían cerrado antes de $desde)
-    public static function listar($idsProyectos, $soloAbiertos, $desde, $hasta, $hoy)
+    //  $con           '' todos, 'CLIENTE' solo con el cliente, 'REGENCY' solo internos con Regency
+    public static function listar($idsProyectos, $soloAbiertos, $desde, $hasta, $hoy, $con = '')
     {
         if (!count($idsProyectos)) { return array(); }
         $marcas = implode(',', array_fill(0, count($idsProyectos), '?'));
@@ -67,6 +78,8 @@ class TemaCliente
                " WHERE m.TIPO = '" . self::TIPO . "' AND m.ESTADO = 1 AND m.ID_PROYECTO IN ($marcas)";
         $tipos = str_repeat('i', count($idsProyectos));
         $params = array_map('intval', $idsProyectos);
+        if ($con === 'REGENCY') { $sql .= " AND m.RADICADO = 'REGENCY'"; }
+        elseif ($con === 'CLIENTE') { $sql .= " AND (m.RADICADO IS NULL OR m.RADICADO <> 'REGENCY')"; }
         if ($soloAbiertos) { $sql .= " AND m.FECHA_ATENCION IS NULL"; }
         else {
             $sql .= " AND m.FECHA_RECEPCION < ? AND (m.FECHA_ATENCION IS NULL OR m.FECHA_ATENCION >= ?)";
@@ -100,17 +113,17 @@ class TemaCliente
     public static function guardar($id, $datos, $idColaborador, $ahora)
     {
         if ((int)$id > 0) {
-            $ok = HanaDB::q("UPDATE comunicacion SET ID_PROYECTO = ?, ID_CENTRO_OP = ?, FECHA_RECEPCION = ?, MEDIO = ?, REMITENTE = ?, ASUNTO = ?,
+            $ok = HanaDB::q("UPDATE comunicacion SET ID_PROYECTO = ?, ID_CENTRO_OP = ?, RADICADO = ?, FECHA_RECEPCION = ?, MEDIO = ?, REMITENTE = ?, ASUNTO = ?,
                                     PENDIENTE_DE = ?, FEC_MODIFICACION = ?
-                              WHERE ID_COMUNICACION = ? AND TIPO = '" . self::TIPO . "'", 'iissssssi',
-                            array($datos['proyecto'], $datos['centro'], $datos['apertura'], $datos['clase'], $datos['conQuien'], $datos['tema'],
+                              WHERE ID_COMUNICACION = ? AND TIPO = '" . self::TIPO . "'", 'iisssssssi',
+                            array($datos['proyecto'], $datos['centro'], $datos['con'], $datos['apertura'], $datos['clase'], $datos['conQuien'], $datos['tema'],
                                   $datos['pendiente'], $ahora, (int)$id));
             return $ok ? (int)$id : 0;
         }
         $ok = HanaDB::q("INSERT INTO comunicacion (ID_PROYECTO, ID_CENTRO_OP, TIPO, RADICADO, FECHA_RECEPCION, MEDIO, REMITENTE, ASUNTO,
                                                    PENDIENTE_DE, FECHA_ATENCION, ESTADO, ID_COLABORADOR_REGISTRA, FEC_REGISTRO)
-                         VALUES (?, ?, '" . self::TIPO . "', NULL, ?, ?, ?, ?, ?, NULL, 1, ?, ?)", 'iisssssis',
-                        array($datos['proyecto'], $datos['centro'], $datos['apertura'], $datos['clase'], $datos['conQuien'], $datos['tema'],
+                         VALUES (?, ?, '" . self::TIPO . "', ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?)", 'iissssssis',
+                        array($datos['proyecto'], $datos['centro'], $datos['con'], $datos['apertura'], $datos['clase'], $datos['conQuien'], $datos['tema'],
                               $datos['pendiente'], (int)$idColaborador, $ahora));
         return $ok ? (int)HanaDB::id() : 0;
     }
@@ -156,24 +169,27 @@ class TemaCliente
 
     //Para el reporte a la Gerencia: por proyecto, los temas que se movieron ese día
     //(se abrieron, tuvieron seguimiento, se cerraron o se reabrieron), con lo que se escribió
-    public static function movimientosDelDia($idsProyectos, $fecha)
+    //Con $desde (reporte a la Gerencia por rango de días): los que se movieron en cualquier día del periodo
+    public static function movimientosDelDia($idsProyectos, $fecha, $desde = null)
     {
         if (!count($idsProyectos)) { return array(); }
+        $desde = ($desde !== null && $desde < $fecha) ? $desde : $fecha;
         $marcas = implode(',', array_fill(0, count($idsProyectos), '?'));
         $manana = date('Y-m-d', strtotime("$fecha +1 day"));
         $filas = HanaDB::q("SELECT m.ID_COMUNICACION, m.ID_PROYECTO, m.ASUNTO, m.REMITENTE, m.FECHA_RECEPCION, m.FECHA_ATENCION, c.NOM_CENTRO_OP,
+                                   IF(m.RADICADO = 'REGENCY', 'REGENCY', 'CLIENTE') AS CON,
                                    (SELECT h.TEXTO FROM historial h
                                      WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.FECHA >= ? AND h.FECHA < ?
                                        AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
                                      ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS TEXTO_DIA
                               FROM comunicacion m LEFT JOIN centros_operacion c ON c.ID_CENTRO_OP = m.ID_CENTRO_OP
                              WHERE m.TIPO = '" . self::TIPO . "' AND m.ESTADO = 1 AND m.ID_PROYECTO IN ($marcas)
-                               AND (m.FECHA_RECEPCION = ? OR m.FECHA_ATENCION = ?
+                               AND (m.FECHA_RECEPCION BETWEEN ? AND ? OR m.FECHA_ATENCION BETWEEN ? AND ?
                                     OR EXISTS (SELECT 1 FROM historial h2 WHERE h2.MODULO = 'COMUNICACION' AND h2.ID_REGISTRO = m.ID_COMUNICACION
                                                   AND h2.FECHA >= ? AND h2.FECHA < ?))
                              ORDER BY m.FECHA_RECEPCION, m.ID_COMUNICACION",
-                           'ss' . str_repeat('i', count($idsProyectos)) . 'ssss',
-                           array_merge(array($fecha, $manana), array_map('intval', $idsProyectos), array($fecha, $fecha, $fecha, $manana)));
+                           'ss' . str_repeat('i', count($idsProyectos)) . 'ssssss',
+                           array_merge(array($desde, $manana), array_map('intval', $idsProyectos), array($desde, $fecha, $desde, $fecha, $desde, $manana)));
         $porProyecto = array();
         foreach (is_array($filas) ? $filas : array() as $fila) { $porProyecto[(int)$fila['ID_PROYECTO']][] = $fila; }
         return $porProyecto;

@@ -32,25 +32,35 @@ function rdATexto(fecha) { return fecha.getFullYear() + '-' + rdDos(fecha.getMon
 function rdSumarDias(texto, cantidad) { var fecha = rdAFecha(texto); fecha.setDate(fecha.getDate() + cantidad); return rdATexto(fecha); }
 
 //---------------------------------------------------------------------------
-// El día de un registro: solo HOY, más los días que el administrador le
-// habilitó a la persona (Parámetros del sistema → Días habilitados)
+// El día de un registro: HOY, los sábados, domingos y festivos del mes y los
+// días que el administrador le habilitó a la persona (Parámetros del sistema →
+// Días habilitados). El servidor manda todos esos días en «habilitados» y, de
+// ellos, los sábados, domingos y festivos en «findes» (para mostrarlos distinto)
 //---------------------------------------------------------------------------
 var RD_DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-//¿Ese día se puede registrar? Hoy siempre; otro, solo si está habilitado
+//¿Ese día se puede registrar? Hoy siempre; otro, solo si está entre los días abiertos
 function rdDiaPermitido(fecha, hoy, habilitados) {
     return fecha === hoy || (habilitados || []).indexOf(fecha) !== -1;
 }
 
-//Pinta los botones del día: "Hoy" y uno por cada día habilitado ("Jue 01/10").
-//Cada botón lleva data-fecha con el día en AAAA-MM-DD. tam: 'btn-sm' o 'btn-xs'
-function rdBotonesDia(contenedor, hoy, habilitados, tamano) {
-    var html = '<button type="button" class="btn btn-default ' + (tamano || 'btn-sm') + '" data-fecha="' + rdEsc(hoy) + '">Hoy</button>';
-    (habilitados || []).forEach(function (fechaHabilitada) {
-        var fecha = rdAFecha(fechaHabilitada);
-        html += '<button type="button" class="btn btn-default ' + (tamano || 'btn-sm') + '" data-fecha="' + rdEsc(fechaHabilitada) + '" title="El administrador te habilitó este día">' +
-             '<i class="fa fa-unlock"></i> ' + RD_DIAS_SEMANA[fecha.getDay()] + ' ' + rdDos(fecha.getDate()) + '/' + rdDos(fecha.getMonth() + 1) + '</button>';
-    });
+//El botón de un día abierto ("Sáb 14/11"): con calendario si es sábado, domingo o festivo, con
+//candado abierto si se lo habilitó el administrador
+function rdBotonDiaAbierto(fechaAbierta, clases, findes, atributo) {
+    var fecha = rdAFecha(fechaAbierta);
+    var esFinde = (findes || []).indexOf(fechaAbierta) !== -1;
+    return '<button type="button" class="' + clases + '"' + (atributo || '') + ' data-fecha="' + rdEsc(fechaAbierta) + '" title="' +
+           (esFinde ? 'Sábado, domingo o festivo: queda abierto todo el mes' : 'El administrador te habilitó este día') + '">' +
+           '<i class="fa ' + (esFinde ? 'fa-calendar-o' : 'fa-unlock') + '"></i> ' + RD_DIAS_SEMANA[fecha.getDay()] + ' ' + rdDos(fecha.getDate()) + '/' + rdDos(fecha.getMonth() + 1) + '</button>';
+}
+
+//Pinta los botones del día: "Hoy" y uno por cada día abierto, en orden de fecha.
+//Cada botón lleva data-fecha con el día en AAAA-MM-DD. tam: 'btn-sm' o 'btn-xs'.
+//findes (opcional): cuáles de los días abiertos son sábado, domingo o festivo
+function rdBotonesDia(contenedor, hoy, habilitados, tamano, findes) {
+    var clases = 'btn btn-default ' + (tamano || 'btn-sm');
+    var html = '<button type="button" class="' + clases + '" data-fecha="' + rdEsc(hoy) + '">Hoy</button>';
+    (habilitados || []).slice().sort().forEach(function (fechaAbierta) { html += rdBotonDiaAbierto(fechaAbierta, clases, findes); });
     $(contenedor).html(html);
 }
 
@@ -68,7 +78,7 @@ function rdLimitarFecha(campo, hoy, habilitados) {
             .off('change.rdDia').on('change.rdDia', function () {
                 if (!rdDiaPermitido(this.value, hoy, habilitados)) {
                     this.value = hoy;
-                    rdAviso('Solo se registra hoy, o un día que el administrador te haya habilitado.', 'error');
+                    rdAviso('Solo se registra hoy, un sábado, domingo o festivo del mes, o un día que el administrador te haya habilitado.', 'error');
                     $(this).trigger('change'); //para que la pantalla se entere de que volvió a hoy
                 }
             });

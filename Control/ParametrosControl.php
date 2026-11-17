@@ -5,7 +5,6 @@
   negocio sin tocar el código.
     listar, guardar                     los parámetros (tabla configuracion)
     listas, guardarLista                las listas de opciones (HanaConfig::LISTAS, también en configuracion)
-    concepto                            el nombre de un concepto fijo de arqueo (arqueo_concepto)
     cargo, novedad                      los catálogos de ausentismo
     diasHabilitados, habilitarDia...    los días que se le abren a una persona
 */
@@ -122,7 +121,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     // necesita registrar o corregir otro día, el administrador se lo abre
     // aquí y después se lo cierra (tabla dia_habilitado)
     //-----------------------------------------------------------------------
-    //Las listas de opciones (medios, transportes, tipos del cronograma...) y los conceptos de arqueo
+    //Las listas de opciones (medios, transportes, tipos del cronograma...)
     case 'listas':
         $listas = array();
         foreach (HanaConfig::LISTAS as $clave => $def) {
@@ -137,7 +136,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             $listas[] = array('clave' => $clave, 'grupo' => $def[0], 'nombre' => $def[1], 'ayuda' => $def[2], 'opciones' => $opciones,
                               'modifico' => $guardado ? $guardado['MODIFICO'] : null, 'fecha' => $guardado ? $guardado['FEC_MODIFICACION'] : null);
         }
-        echo json_encode(array('listas' => $listas, 'conceptos' => $modeloParametros->conceptosArqueo(),
+        echo json_encode(array('listas' => $listas,
                                'maxOpciones' => HanaConfig::LISTA_MAX_OPCIONES, 'largoNombre' => HanaConfig::LISTA_LARGO_NOMBRE), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -194,16 +193,6 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         echo json_encode(array('ok' => true, 'mensaje' => 'Lista guardada.'), JSON_UNESCAPED_UNICODE);
         break;
 
-    //El nombre de un concepto fijo del arqueo de caja menor o de recambio
-    case 'concepto':
-        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-        $nombre = trim(preg_replace('/\s+/u', ' ', isset($_POST['nombre']) ? strip_tags((string)$_POST['nombre']) : ''));
-        if ($id <= 0 || $nombre === '') { parError(400, 'Escribe el nombre del concepto.'); }
-        if (mb_strlen($nombre, 'UTF-8') > 80) { parError(400, 'El nombre pasa de 80 caracteres.'); }
-        if (!$modeloParametros->nombrarConcepto($id, $nombre)) { parError(500, 'No se pudo guardar el nombre.'); }
-        echo json_encode(array('ok' => true, 'mensaje' => 'Nombre guardado.'), JSON_UNESCAPED_UNICODE);
-        break;
-
     case 'diasHabilitados':
         //Las personas a las que se les puede abrir un día: primero quienes coordinan un proyecto
         $personas = Organizacion::personasConProyectos();
@@ -217,25 +206,49 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
                          JSON_UNESCAPED_UNICODE);
         break;
 
-    //Abre un día a una persona. Si ya se le había abierto y cerrado, se vuelve a abrir la misma fila
+    //Abre un día, o un rango de días (desde - hasta), a una persona. Si un día ya se le había abierto
+    //y cerrado, se vuelve a abrir la misma fila. Hoy no se habilita (siempre está abierto) y los días
+    //que ya tenía abiertos se saltan. Todo el rango queda o no queda (transacción)
     case 'habilitarDia':
         $persona = isset($_POST['persona']) ? (int)$_POST['persona'] : 0;
         $fecha = HanaVal::fecha(isset($_POST['fecha']) ? $_POST['fecha'] : '');
+        $hasta = HanaVal::fecha(isset($_POST['hasta']) ? $_POST['hasta'] : '');
         $motivo = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 200);
         if (!Organizacion::colaboradorActivo($persona)) {
             parError(400, 'Elige a quién se le habilita el día.');
         }
-        if ($fecha === '') { parError(400, 'Elige el día que se va a habilitar.'); }
+        if ($fecha === '') { parError(400, 'Elige el día que se va a habilitar (o el primer día del rango).'); }
+        if ($hasta === '') { $hasta = $fecha; }               //sin "hasta": un solo día
+        if ($hasta < $fecha) { parError(400, 'El último día del rango no puede ser antes del primero.'); }
         $hoyCol = HanaFechas::hoy();
-        if ($fecha === $hoyCol) { parError(400, 'Hoy siempre está abierto: no hace falta habilitarlo.'); }
         //Un tope razonable, para que un error de dedo no abra un día de otro año
-        if ($fecha < date('Y-m-d', strtotime("$hoyCol -366 days")) || $fecha > date('Y-m-d', strtotime("$hoyCol +31 days"))) {
-            parError(400, 'El día debe estar entre un año atrás y un mes adelante.');
+        $minimo = date('Y-m-d', strtotime("$hoyCol -366 days")); $maximo = date('Y-m-d', strtotime("$hoyCol +31 days"));
+        if ($fecha < $minimo || $hasta > $maximo) {
+            parError(400, 'Los días deben estar entre un año atrás y un mes adelante.');
         }
-        if ($modeloParametros->estadoDia($persona, $fecha) === 1) { parError(400, 'Esa persona ya tiene habilitado ese día.'); }
-        $ok = $modeloParametros->habilitarDia($persona, $fecha, $motivo, $idColaborador, $ahora);
-        if (!$ok) { parError(500, 'No se pudo habilitar el día.'); }
-        echo json_encode(array('ok' => true, 'mensaje' => 'Día habilitado. La persona ya puede registrar o corregir ese día.'), JSON_UNESCAPED_UNICODE);
+        $dias = array();
+        for ($momento = strtotime($fecha); $momento <= strtotime($hasta); $momento = strtotime('+1 day', $momento)) {
+            $dia = date('Y-m-d', $momento);
+            if ($dia !== $hoyCol) { $dias[] = $dia; }
+        }
+        if (count($dias) > 62) { parError(400, 'Un rango puede tener hasta 62 días. Divídelo en partes.'); }
+        if (!count($dias)) { parError(400, 'Hoy siempre está abierto: no hace falta habilitarlo.'); }
+        $nuevos = 0; $yaEstaban = 0;
+        HanaDB::iniciar();
+        foreach ($dias as $dia) {
+            if ($modeloParametros->estadoDia($persona, $dia) === 1) { $yaEstaban++; continue; }
+            if (!$modeloParametros->habilitarDia($persona, $dia, $motivo, $idColaborador, $ahora)) {
+                HanaDB::deshacer();
+                parError(500, 'No se pudo habilitar el día ' . date('d/m/Y', strtotime($dia)) . '. No se habilitó ninguno; intenta de nuevo.');
+            }
+            $nuevos++;
+        }
+        HanaDB::confirmar();
+        if (!$nuevos) { parError(400, count($dias) === 1 ? 'Esa persona ya tiene habilitado ese día.' : 'Esa persona ya tenía habilitados todos esos días.'); }
+        $mensaje = $nuevos === 1 ? 'Día habilitado. La persona ya puede registrar o corregir ese día.'
+                                 : 'Se habilitaron ' . $nuevos . ' días. La persona ya puede registrar o corregir esos días.';
+        if ($yaEstaban) { $mensaje = rtrim($mensaje, '.') . ' (' . $yaEstaban . ($yaEstaban === 1 ? ' ya estaba habilitado' : ' ya estaban habilitados') . ').'; }
+        echo json_encode(array('ok' => true, 'mensaje' => $mensaje), JSON_UNESCAPED_UNICODE);
         break;
 
     //Cierra un día que estaba abierto. La fila se conserva con quién y cuándo lo cerró

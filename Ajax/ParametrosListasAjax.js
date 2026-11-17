@@ -1,7 +1,8 @@
 //Configuración - Parámetros del sistema, pestaña Listas
 //Las opciones de los desplegables (medios de los oficios, «Pendiente de», transportes, tipos del
-//cronograma, estados de Gestión Humana) y los nombres de los conceptos de caja menor y recambio.
-//Habla con Control/ParametrosControl.php: op=listas, op=guardarLista y op=concepto
+//cronograma, estados de Gestión Humana). Los conceptos de caja menor y recambio se configuran en
+//Arqueos → Configuración de arqueos.
+//Habla con Control/ParametrosControl.php: op=listas y op=guardarLista
 var datosListas = null;
 
 $(function () {
@@ -22,10 +23,9 @@ $(function () {
         rdHayCambios = true;
     });
     $(document).on('click', '.lst-guardar', function () { guardarLista($(this).data('clave'), this); });
-    $(document).on('click', '.cpt-guardar', function () { guardarConcepto($(this).closest('tr'), this); });
 });
 
-//Trae las listas y los conceptos de arqueo y los dibuja
+//Trae las listas y las dibuja
 function cargarListas() {
     $.getJSON(URL_PAR + '?op=listas')
         .done(function (respuesta) {
@@ -44,17 +44,10 @@ function cargarListas() {
                         (lista.modifico ? ' <span class="rd-ayuda">Último cambio: ' + rdEsc(lista.modifico) + ' · ' + rdFecha(lista.fecha) + '</span>' : '') +
                         '</div></div>';
             });
-            //Los conceptos fijos del arqueo de caja menor y recambio (tabla arqueo_concepto)
-            html += '<h4 class="rd-subtitulo">Arqueos</h4><div class="lst-caja" style="margin-bottom:18px;"><p style="margin:0 0 4px;"><strong>Nombres de los conceptos de caja menor y de recambio</strong></p>' +
-                    '<p class="rd-ayuda" style="margin:0 0 6px;">Es el nombre que se ve en la pantalla del arqueo. El PDF conserva los títulos del formato en papel. ' +
-                    'Los campos del arqueo de casetas se configuran en <a href="ArqueosVista.php#campos">Arqueos → Campos de casetas</a>.</p>' +
-                    '<div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr><th style="width:130px;">Arqueo</th><th>Nombre que se ve</th><th style="width:100px;"></th></tr></thead><tbody>';
-            respuesta.conceptos.forEach(function (concepto) {
-                html += '<tr data-id="' + parseInt(concepto.ID_CONCEPTO, 10) + '"><td>' + (concepto.TIPO_ARQUEO === 'CAJA_MENOR' ? 'Caja menor' : 'Recambio') + '</td>' +
-                        '<td><input type="text" class="form-control input-sm cpt-nombre" maxlength="80" value="' + rdEsc(concepto.NOMBRE) + '" aria-label="Nombre del concepto"></td>' +
-                        '<td><button type="button" class="btn btn-success btn-xs cpt-guardar"><i class="fa fa-save"></i> Guardar</button></td></tr>';
-            });
-            html += '</tbody></table></div></div>';
+            //Los conceptos de los arqueos tienen su propia pantalla
+            html += '<h4 class="rd-subtitulo">Arqueos</h4><div class="lst-caja" style="margin-bottom:18px;"><p class="rd-ayuda" style="margin:0;">' +
+                    'Los conceptos de caja menor y recambio (agregar, cómo cuentan, apagar) y los campos del arqueo de casetas se configuran en ' +
+                    '<a href="ArqueosVista.php#config">Arqueos → Configuración de arqueos</a>.</p></div>';
             $('#parListas').html(html);
             rdCambiosGuardados();
         })
@@ -90,15 +83,4 @@ function guardarLista(clave, boton) {
     $.post(URL_PAR + '?op=guardarLista', { clave: clave, opciones: JSON.stringify(opciones) }, null, 'json')
         .done(function (respuesta) { rdAviso(respuesta.mensaje); rdCambiosGuardados(); cargarListas(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar la lista.')); hanaBoton(boton, false); });
-}
-
-//Guarda el nombre de un concepto de caja menor o recambio
-function guardarConcepto(fila, boton) {
-    var nombre = $.trim(fila.find('.cpt-nombre').val());
-    if (!nombre) { alert('Escribe el nombre del concepto.'); return; }
-    hanaBoton(boton, true);
-    $.post(URL_PAR + '?op=concepto', { id: fila.data('id'), nombre: nombre }, null, 'json')
-        .done(function (respuesta) { rdAviso(respuesta.mensaje); rdCambiosGuardados(); })
-        .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el nombre.')); })
-        .always(function () { hanaBoton(boton, false); });
 }

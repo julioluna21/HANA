@@ -96,7 +96,7 @@ class Parametros
     }
 
     //-----------------------------------------------------------------------
-    // Listas de opciones (HanaConfig::LISTAS) y nombres de los conceptos de arqueo
+    // Listas de opciones (HanaConfig::LISTAS)
     //-----------------------------------------------------------------------
     //Cuántos registros usan cada código de una lista: [CODIGO => n]. $columna = 'tabla.COLUMNA'
     //de HanaConfig::LISTAS (fija en el código, nunca viene de la pantalla)
@@ -117,21 +117,5 @@ class Parametros
         $usos = array();
         foreach (is_array($filas) ? $filas : array() as $fila) { $usos[(string)$fila['CODIGO']] = (int)$fila['N']; }
         return $usos;
-    }
-
-    //Los conceptos fijos del arqueo de caja menor y de recambio (los de casetas se configuran en Arqueos → Campos)
-    public function conceptosArqueo()
-    {
-        $filas = HanaDB::q("SELECT ID_CONCEPTO, TIPO_ARQUEO, CODIGO, NOMBRE, ORDEN FROM arqueo_concepto
-                             WHERE CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')
-                             ORDER BY TIPO_ARQUEO = 'RECAMBIO', ORDEN, ID_CONCEPTO");
-        return is_array($filas) ? $filas : array();
-    }
-
-    //Cambia el nombre de un concepto fijo de caja menor o recambio
-    public function nombrarConcepto($id, $nombre)
-    {
-        return HanaDB::q("UPDATE arqueo_concepto SET NOMBRE = ? WHERE ID_CONCEPTO = ? AND CODIGO IS NOT NULL AND TIPO_ARQUEO IN ('CAJA_MENOR', 'RECAMBIO')",
-                         'si', array($nombre, (int)$id));
     }
 }

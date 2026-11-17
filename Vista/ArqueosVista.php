@@ -31,7 +31,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           <h2><i class="fa fa-money"></i> Arqueos</h2>
           <div class="pull-right rd-botones-titulo">
             <button type="button" class="btn btn-default" id="btnFondos" style="display:none;"><i class="fa fa-cog"></i> Fondos autorizados</button>
-            <button type="button" class="btn btn-default" id="btnCampos" style="display:none;"><i class="fa fa-list-ul"></i> Campos de casetas</button>
+            <button type="button" class="btn btn-default" id="btnCampos" style="display:none;"><i class="fa fa-sliders"></i> Configuración de arqueos</button>
             <button type="button" class="btn btn-success rd-btn-flotante" id="btnNuevoArq" style="display:none;"><i class="fa fa-plus-square"></i> Nuevo arqueo</button>
           </div>
           <div class="clearfix"></div>
@@ -126,7 +126,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             </div>
 
             <div id="arqBloqueDocs">
-              <h4 class="rd-subtitulo">Facturas, recibos de caja y faltantes</h4>
+              <h4 class="rd-subtitulo">Documentos</h4>
               <p class="rd-ayuda">No hace falta anotar cada recibo: se puede poner un solo renglón por concepto con el valor total y, en la fecha, la del recibo más antiguo.</p>
               <div class="table-responsive">
                 <table class="table rd-tabla-docs">
@@ -153,34 +153,75 @@ if (isset($_SESSION['IdUsuarios'])) {
         </div>
       </div>
 
-      <!-- ============ CAMPOS DEL ARQUEO DE CASETAS (configurables) ============ -->
+      <!-- ============ CONFIGURACIÓN DE ARQUEOS: conceptos de caja menor y recambio, campos de casetas ============ -->
       <div class="x_panel" id="panelCampos" style="display:none;">
-        <div class="x_title"><h2><i class="fa fa-list-ul"></i> Campos del arqueo de casetas</h2>
+        <div class="x_title"><h2><i class="fa fa-sliders"></i> Configuración de arqueos</h2>
           <button type="button" class="btn btn-default pull-right" id="btnVolverCampos"><i class="fa fa-arrow-left"></i> Volver</button>
           <div class="clearfix"></div></div>
         <div class="x_content">
-          <p class="rd-ayuda" style="margin-top:0;">Cada renglón del arqueo de casetas es un campo. Los de "todos los peajes" salen en todos; a un peaje
-            le puedes agregar campos propios. Los arqueos ya registrados conservan sus renglones tal como estaban.</p>
-          <div class="row">
-            <div class="form-group col-md-5 col-sm-7 col-xs-12"><label for="cmpCentro">Ver los campos de:</label>
-              <select id="cmpCentro" class="form-control"></select></div>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-bordered rd-tabla rd-tabla-compacta">
-              <thead><tr><th style="width:70px;">Orden</th><th>Campo</th><th>Cómo se comporta</th><th>De dónde es</th><th>En este peaje</th><th></th></tr></thead>
-              <tbody id="filasCampos"></tbody>
-            </table>
-          </div>
-          <h4 class="rd-subtitulo">Agregar un campo <span id="cmpDonde" class="rd-ayuda" style="display:inline;"></span></h4>
-          <div class="row" id="cmpNuevo">
-            <div class="form-group col-md-5 col-sm-6 col-xs-12"><label for="cmpNombre">Nombre:</label>
-              <input type="text" id="cmpNombre" class="form-control" maxlength="80" placeholder="Ej: TARJETAS O TAG"></div>
-            <div class="form-group col-md-4 col-sm-6 col-xs-12"><label for="cmpRol">Cómo se comporta:</label>
-              <select id="cmpRol" class="form-control"></select></div>
-            <div class="form-group col-md-1 col-sm-3 col-xs-4"><label for="cmpOrden">Orden:</label>
-              <input type="number" id="cmpOrden" class="form-control" value="10"></div>
-            <div class="form-group col-md-2 col-sm-3 col-xs-8"><label>&nbsp;</label>
-              <button type="button" class="btn btn-success btn-block" id="btnAgregarCampo"><i class="fa fa-plus"></i> Agregar</button></div>
+          <ul class="nav nav-tabs" role="tablist" id="cfgArqTabs">
+            <li role="presentation" class="active"><a href="#cfgCajaMenor" role="tab" data-toggle="tab">Caja menor</a></li>
+            <li role="presentation"><a href="#cfgRecambio" role="tab" data-toggle="tab">Recambio</a></li>
+            <li role="presentation"><a href="#cfgCasetas" role="tab" data-toggle="tab" id="cfgTabCasetas">Casetas</a></li>
+          </ul>
+          <div class="tab-content" style="padding-top:14px;">
+<?php
+          //Caja menor y recambio se configuran igual: una tabla con sus conceptos y un renglón para agregar
+          $pestanasConcepto = array(
+              'CAJA_MENOR' => array('cfgCajaMenor', 'caja menor', 'Ej: VALE DE TRANSPORTE',
+                  'Los conceptos de los documentos de caja menor (facturas, recibos de caja, faltantes...). Cada documento se anota con su fecha y su valor. El efectivo (billetes y monedas) siempre suma.'),
+              'RECAMBIO'   => array('cfgRecambio', 'recambio', 'Ej: DINERO EN TRÁNSITO',
+                  'Los renglones del dinero que se cuenta en el recambio. Cada uno lleva un solo valor.')
+          );
+          foreach ($pestanasConcepto as $tipoConcepto => $pestana) {
+?>
+            <div role="tabpanel" class="tab-pane<?php echo $tipoConcepto === 'CAJA_MENOR' ? ' active' : ''; ?>" id="<?php echo $pestana[0]; ?>" data-tipo="<?php echo $tipoConcepto; ?>">
+              <p class="rd-ayuda" style="margin-top:0;"><?php echo htmlspecialchars($pestana[3]); ?> Los cambios valen para los arqueos nuevos:
+                los ya registrados conservan el nombre y la forma de contar que tenían. Un concepto que ya se usó no se borra: se apaga.</p>
+              <div class="table-responsive">
+                <table class="table table-bordered rd-tabla rd-tabla-compacta">
+                  <thead><tr><th style="width:70px;">Orden</th><th>Concepto</th><th>Cómo cuenta</th><th>Usado en</th><th>Estado</th></tr></thead>
+                  <tbody class="cpt-filas"><tr><td colspan="5" class="rd-vacio">Cargando...</td></tr></tbody>
+                </table>
+              </div>
+              <h4 class="rd-subtitulo">Agregar un concepto de <?php echo $pestana[1]; ?></h4>
+              <div class="row cpt-nuevo">
+                <div class="form-group col-md-5 col-sm-6 col-xs-12"><label>Nombre:</label>
+                  <input type="text" class="form-control cpt-nuevo-nombre" maxlength="80" placeholder="<?php echo htmlspecialchars($pestana[2]); ?>"></div>
+                <div class="form-group col-md-4 col-sm-6 col-xs-12"><label>Cómo cuenta:</label>
+                  <select class="form-control cpt-nuevo-rol"></select></div>
+                <div class="form-group col-md-1 col-sm-3 col-xs-4"><label>Orden:</label>
+                  <input type="number" class="form-control cpt-nuevo-orden" value="10" min="0" max="999"></div>
+                <div class="form-group col-md-2 col-sm-3 col-xs-8"><label>&nbsp;</label>
+                  <button type="button" class="btn btn-success btn-block cpt-agregar"><i class="fa fa-plus"></i> Agregar</button></div>
+              </div>
+            </div>
+<?php } ?>
+            <div role="tabpanel" class="tab-pane" id="cfgCasetas">
+              <p class="rd-ayuda" style="margin-top:0;">Cada renglón del arqueo de casetas es un campo. Los de "todos los peajes" salen en todos; a un peaje
+                le puedes agregar campos propios. Los arqueos ya registrados conservan sus renglones tal como estaban.</p>
+              <div class="row">
+                <div class="form-group col-md-5 col-sm-7 col-xs-12"><label for="cmpCentro">Ver los campos de:</label>
+                  <select id="cmpCentro" class="form-control"></select></div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-bordered rd-tabla rd-tabla-compacta">
+                  <thead><tr><th style="width:70px;">Orden</th><th>Campo</th><th>Cómo se comporta</th><th>De dónde es</th><th>En este peaje</th><th></th></tr></thead>
+                  <tbody id="filasCampos"></tbody>
+                </table>
+              </div>
+              <h4 class="rd-subtitulo">Agregar un campo <span id="cmpDonde" class="rd-ayuda" style="display:inline;"></span></h4>
+              <div class="row" id="cmpNuevo">
+                <div class="form-group col-md-5 col-sm-6 col-xs-12"><label for="cmpNombre">Nombre:</label>
+                  <input type="text" id="cmpNombre" class="form-control" maxlength="80" placeholder="Ej: TARJETAS O TAG"></div>
+                <div class="form-group col-md-4 col-sm-6 col-xs-12"><label for="cmpRol">Cómo se comporta:</label>
+                  <select id="cmpRol" class="form-control"></select></div>
+                <div class="form-group col-md-1 col-sm-3 col-xs-4"><label for="cmpOrden">Orden:</label>
+                  <input type="number" id="cmpOrden" class="form-control" value="10"></div>
+                <div class="form-group col-md-2 col-sm-3 col-xs-8"><label>&nbsp;</label>
+                  <button type="button" class="btn btn-success btn-block" id="btnAgregarCampo"><i class="fa fa-plus"></i> Agregar</button></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -220,8 +261,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
+<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=14"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

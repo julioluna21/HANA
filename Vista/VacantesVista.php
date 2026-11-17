@@ -53,8 +53,8 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="table-responsive">
             <table class="table table-bordered rd-tabla rd-tabla-compacta">
               <thead><tr><th>#RQ</th><th>Centro</th><th>Cargo</th><th>Fecha vacante</th><th>Acuerdo hasta</th><th title="El día en que la vacante se cubrió o se canceló">Cerrada el</th>
-                <th class="rd-num-col">Días</th><th>Motivo</th><th>Estado</th><th>Resultado</th><th>Nombre</th><th>Compromiso GH</th><th></th></tr></thead>
-              <tbody id="filas"><tr><td colspan="13" class="rd-vacio">Cargando...</td></tr></tbody>
+                <th class="rd-num-col">Días</th><th>Motivo</th><th title="Quien renunció, se trasladó o dejó el cargo">Quién lo deja</th><th>Estado</th><th>Resultado</th><th title="Mientras está abierta: quién la está cubriendo. Cubierta: quién quedó en el cargo">Quién la cubre</th><th>Compromiso GH</th><th></th></tr></thead>
+              <tbody id="filas"><tr><td colspan="14" class="rd-vacio">Cargando...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -76,9 +76,13 @@ if (isset($_SESSION['IdUsuarios'])) {
             <div class="row">
               <div class="form-group col-md-3 col-sm-6 col-xs-6"><label for="vFecha">Fecha de la vacante: <span class="rd-req">*</span></label>
                 <input type="date" id="vFecha" name="fecha" class="form-control"></div>
-              <div class="form-group col-md-9 col-sm-6 col-xs-12"><label for="vMotivo">Motivo: <span class="rd-req">*</span></label>
+              <div class="form-group col-md-5 col-sm-6 col-xs-12"><label for="vMotivo">Motivo: <span class="rd-req">*</span></label>
                 <input type="text" id="vMotivo" name="motivo" class="form-control" maxlength="150" list="listaMotivos" placeholder="Ej: Renuncia - mejor oferta laboral">
                 <datalist id="listaMotivos"></datalist></div>
+              <!-- Quién deja el puesto: se guarda en historial (VacanteModelo::guardarSale), no en la tabla vacante -->
+              <div class="form-group col-md-4 col-sm-6 col-xs-12"><label for="vSale">Quién deja el puesto:</label>
+                <input type="text" id="vSale" name="sale" class="form-control" maxlength="120" list="listaCubren" placeholder="Quien renunció, se trasladó o salió">
+                <small class="rd-ayuda">Déjalo vacío si es un cargo nuevo.</small></div>
             </div>
             <h4 class="rd-subtitulo">Seguimiento</h4>
             <div class="row">
@@ -86,8 +90,10 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <select id="vGh" name="gh" class="form-control"><option value="">Sin información</option></select></div>
               <div class="form-group col-md-3 col-sm-4 col-xs-6"><label for="vCompromiso">Fecha comprometida por GH:</label>
                 <input type="date" id="vCompromiso" name="compromiso" class="form-control"><small class="rd-ayuda" id="ayudaCompromiso"></small></div>
-              <div class="form-group col-md-6 col-sm-4 col-xs-12"><label for="vNombre">Nombre de quien la cubre:</label>
-                <input type="text" id="vNombre" name="nombre" class="form-control" maxlength="120"></div>
+              <div class="form-group col-md-6 col-sm-4 col-xs-12"><label for="vNombre">Quién la cubre:</label>
+                <input type="text" id="vNombre" name="nombre" class="form-control" maxlength="120" list="listaCubren" placeholder="Escribe o elige el nombre">
+                <datalist id="listaCubren"></datalist>
+                <small class="rd-ayuda" id="ayudaCubre">Mientras está abierta: quién la está cubriendo (encargo o apoyo), si hay alguien. Al marcarla como cubierta: quién quedó en el cargo.</small></div>
             </div>
             <div class="row">
               <div class="form-group col-md-3 col-sm-4 col-xs-6"><label for="vEstado">Estado de la vacante:</label>
@@ -110,8 +116,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/VacanteAjax.js?v=7"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
+<script type="text/javascript" src="../Ajax/VacanteAjax.js?v=9"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

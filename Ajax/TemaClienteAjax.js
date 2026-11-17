@@ -1,4 +1,4 @@
-//Reporte diario - Temas con el cliente
+//Reporte diario - Temas con el cliente y con Regency
 var URL_TEMA = '../Control/TemaClienteControl.php';
 var cfgT = null, filasT = [], temaAbierto = null;
 var DIAS_QUIETO = 7; //días sin seguimiento para resaltar un tema abierto
@@ -28,7 +28,7 @@ $(function () {
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudo abrir Temas con el cliente.'); });
 
-    $('#fProyecto, #fAnio').on('change', listar);
+    $('#fProyecto, #fAnio, #fCon').on('change', listar);
     $('#fMes').on('change', function () { $('#fAnio').prop('disabled', this.value === '0'); listar(); });
     rdVigilarCambios('#formTema');
     $('#btnNuevo').on('click', function () { abrir(null); });
@@ -57,7 +57,7 @@ function peajesDe(idProyecto, marcado) {
 
 //Trae los temas según los filtros y los pinta
 function listar() {
-    var filtros = '&proyecto=' + ($('#fProyecto').val() || 0) + '&mes=' + $('#fMes').val() + '&anio=' + $('#fAnio').val();
+    var filtros = '&proyecto=' + ($('#fProyecto').val() || 0) + '&mes=' + $('#fMes').val() + '&anio=' + $('#fAnio').val() + '&con=' + encodeURIComponent($('#fCon').val() || '');
     $.getJSON(URL_TEMA + '?op=listar' + filtros)
         .done(function (filas) {
             filasT = filas;
@@ -74,12 +74,13 @@ function listar() {
                 html += '<tr><td>' + rdEsc(tema.NOM_PROYECTO) + (tema.NOM_CENTRO_OP ? '<br><small>' + rdEsc(tema.NOM_CENTRO_OP) + '</small>' : '') + '</td>' +
                         '<td>' + rdEsc(tema.ASUNTO) + (+tema.SEGUIMIENTOS ? ' <span class="adj-clip" title="Seguimientos"><i class="fa fa-comments-o"></i> ' + parseInt(tema.SEGUIMIENTOS, 10) + '</span>' : '') +
                         '<br><small>Registró: ' + rdEsc(tema.REGISTRO || '') + '</small></td>' +
+                        '<td>' + (tema.CON === 'REGENCY' ? '<span class="rd-tag">Regency</span>' : '<span class="rd-tag rd-tag-ok">Cliente</span>') + '</td>' +
                         '<td>' + rdEsc(tema.REMITENTE) + '</td><td>' + rdEsc(cfgT.clases[tema.MEDIO] || tema.MEDIO) + '</td>' +
                         '<td>' + rdFecha(tema.FECHA_RECEPCION) + '</td><td>' + ultimo + movimiento + '</td>' +
                         '<td class="rd-num-col">' + parseInt(tema.DIAS, 10) + '</td><td>' + estado + '</td>' +
                         '<td><button type="button" class="btn btn-default btn-xs btn-abrir-tema" data-i="' + i + '" title="Abrir"><i class="fa fa-folder-open-o"></i></button></td></tr>';
             });
-            $('#filas').html(html || '<tr><td colspan="9" class="rd-vacio">No hay temas para mostrar.</td></tr>');
+            $('#filas').html(html || '<tr><td colspan="10" class="rd-vacio">No hay temas para mostrar.</td></tr>');
             $('#cAbiertos').text(abiertos); $('#cQuietos').text(quietos); $('#cCerrados').text(cerrados);
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudieron cargar los temas.'); });
@@ -97,6 +98,7 @@ function abrir(tema) {
     if (tema) {
         $('#mApertura').val(tema.FECHA_RECEPCION); $('#mTema').val(tema.ASUNTO); $('#mConQuien').val(tema.REMITENTE);
         $('#mClase').val(tema.MEDIO); $('#mPendiente').val(tema.PENDIENTE_DE || '');
+        $('#formTema input[name="con"][value="' + (tema.CON === 'REGENCY' ? 'REGENCY' : 'CLIENTE') + '"]').prop('checked', true);
     } else {
         $('#mApertura').val(cfgT.hoy);
     }

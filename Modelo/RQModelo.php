@@ -389,11 +389,56 @@ class Rq
         return $this->ejecutar($sql);
     }
 
-    //Los ítems se reemplazan completos: se borran y se vuelven a escribir
-    //dentro de la misma transacción, así nunca queda una RQ sin ítems
-    public function borrarDetalle($idRq)
+    //Los ítems de una corrección: el ítem 1 nuevo actualiza el ítem 1 que había, el 2 el 2, y así;
+    //los que sobran se agregan y solo se quitan los que la persona eliminó. Lo que pedía la RQ antes queda escrito en el historial (ver resumenItems
+    //y RQControl: op=editar), así no se pierde. Va dentro de la transacción de la corrección.
+    //$items: lista de arreglos con descripcion, justificacion, cantidad, unidad, soporte y peaje
+    public function reemplazarDetalle($idRq, $items)
     {
-        return $this->ejecutar("DELETE FROM rq_detalle WHERE ID_RQ = " . intval($idRq));
+        $viejos = array();
+        $resultado = $this->ejecutar("SELECT ID_RQ_DETALLE FROM rq_detalle WHERE ID_RQ = " . intval($idRq) . " ORDER BY ID_RQ_DETALLE");
+        if ($resultado === false) { return false; }
+        while ($fila = $resultado->fetch_assoc()) { $viejos[] = (int)$fila['ID_RQ_DETALLE']; }
+        $conPeaje = self::hayPeajePorItem();
+
+        foreach (array_values($items) as $i => $item) {
+            if (isset($viejos[$i])) {
+                $cantidad = is_numeric($item['cantidad']) && $item['cantidad'] > 0 ? (float)$item['cantidad'] : 1;
+                $sql = "UPDATE rq_detalle SET " . ($conPeaje ? "ID_CENTRO_OP = " . intval($item['peaje']) . ", " : "") . "
+                               DESCRIPCION = " . $this->textoSql($item['descripcion']) . ",
+                               JUSTIFICACION = " . $this->textoSql($item['justificacion']) . ",
+                               CANTIDAD = $cantidad,
+                               UNIDAD = " . $this->textoSql($item['unidad'] !== '' ? $item['unidad'] : 'UNIDAD') . ",
+                               SOPORTE_ULTIMA_ADQUISICION = " . $this->textoSql($item['soporte']) . "
+                         WHERE ID_RQ_DETALLE = " . $viejos[$i] . " AND ID_RQ = " . intval($idRq);
+                if (!$this->ejecutar($sql)) { return false; }
+            } elseif ($this->insertarDetalle($idRq, $item['descripcion'], $item['justificacion'], $item['cantidad'], $item['unidad'], $item['soporte'], $item['peaje']) <= 0) {
+                return false;
+            }
+        }
+        //Los ítems que la persona quitó (quedaron de sobra)
+        $sobran = array_slice($viejos, count($items));
+        if (count($sobran) && !$this->ejecutar("DELETE FROM rq_detalle WHERE ID_RQ = " . intval($idRq) . " AND ID_RQ_DETALLE IN (" . implode(',', $sobran) . ")")) {
+            return false;
+        }
+        return true;
+    }
+
+    //Los ítems de una RQ en una línea legible, para dejarlos en el historial:
+    //"2 UNIDAD de Tornillos; 1 GALÓN de Pintura (Peaje Mediacanoa)". Sirve con las filas de detalle()
+    public function resumenItems($idRq)
+    {
+        $partes = array();
+        $resultado = $this->detalle($idRq);
+        if ($resultado) {
+            while ($fila = $resultado->fetch_assoc()) {
+                $cantidad = rtrim(rtrim(number_format((float)$fila['CANTIDAD'], 2, ',', '.'), '0'), ',');
+                $texto = $cantidad . ' ' . $fila['UNIDAD'] . ' de ' . $fila['DESCRIPCION'];
+                if (!empty($fila['PEAJE_ITEM'])) { $texto .= ' (' . $fila['PEAJE_ITEM'] . ')'; }
+                $partes[] = html_entity_decode($texto, ENT_QUOTES, 'UTF-8');
+            }
+        }
+        return implode('; ', $partes);
     }
 
     //Vuelve la RQ a "Solicitada": tiene que aprobarse de nuevo

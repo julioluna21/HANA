@@ -1,7 +1,7 @@
 <?php
-//Reporte diario - Temas con el cliente
-//Los temas importantes que cada coordinador trata con el cliente: cuándo se
-//abrió el tema, en qué va y cuándo se cerró
+//Reporte diario - Temas con el cliente y con Regency
+//Los temas importantes que cada coordinador trata con el cliente o internamente
+//con Regency: cuándo se abrió el tema, en qué va y cuándo se cerró
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -25,11 +25,11 @@ if (isset($_SESSION['IdUsuarios'])) {
 <div class="right_col" role="main">
   <div class="row">
     <div class="col-md-12 col-xs-12">
-      <div class="rd-migas"><a href="ReporteDiarioVista.php"><i class="fa fa-calendar-check-o"></i> Reporte diario</a> <span>›</span> Temas con el cliente</div>
+      <div class="rd-migas"><a href="ReporteDiarioVista.php"><i class="fa fa-calendar-check-o"></i> Reporte diario</a> <span>›</span> Temas con el cliente y con Regency</div>
 
       <div class="x_panel" id="panelLista">
         <div class="x_title">
-          <h2><i class="fa fa-commenting-o"></i> Temas con el cliente</h2>
+          <h2><i class="fa fa-commenting-o"></i> Temas con el cliente y con Regency</h2>
           <div class="pull-right rd-botones-titulo"><button type="button" class="btn btn-success rd-btn-flotante" id="btnNuevo"><i class="fa fa-plus-square"></i> Nuevo<span class="rd-solo-movil"> tema</span></button></div>
           <div class="clearfix"></div>
         </div>
@@ -40,9 +40,11 @@ if (isset($_SESSION['IdUsuarios'])) {
             <div class="rd-contador rd-cnt-ok"><span class="rd-num" id="cCerrados">0</span><span class="rd-lbl">Cerrados</span></div>
           </div>
           <div class="row">
-            <div class="form-group col-md-4 col-sm-6 col-xs-12"><label for="fProyecto">Proyecto:</label>
+            <div class="form-group col-md-3 col-sm-6 col-xs-12"><label for="fProyecto">Proyecto:</label>
               <select id="fProyecto" class="form-control"><option value="0">Todos</option></select></div>
-            <div class="form-group col-md-4 col-sm-3 col-xs-6"><label for="fMes">Ver:</label>
+            <div class="form-group col-md-3 col-sm-6 col-xs-12"><label for="fCon">Con quién:</label>
+              <select id="fCon" class="form-control"><option value="">Cliente y Regency</option><option value="CLIENTE">Solo con el cliente</option><option value="REGENCY">Solo con Regency</option></select></div>
+            <div class="form-group col-md-3 col-sm-3 col-xs-6"><label for="fMes">Ver:</label>
               <select id="fMes" class="form-control">
                 <option value="0">Los abiertos</option>
                 <option value="1">Los de enero</option><option value="2">Los de febrero</option><option value="3">Los de marzo</option>
@@ -50,15 +52,15 @@ if (isset($_SESSION['IdUsuarios'])) {
                 <option value="7">Los de julio</option><option value="8">Los de agosto</option><option value="9">Los de septiembre</option>
                 <option value="10">Los de octubre</option><option value="11">Los de noviembre</option><option value="12">Los de diciembre</option>
               </select></div>
-            <div class="form-group col-md-4 col-sm-3 col-xs-6"><label for="fAnio">Año:</label>
+            <div class="form-group col-md-3 col-sm-3 col-xs-6"><label for="fAnio">Año:</label>
               <select id="fAnio" class="form-control"></select></div>
           </div>
           <p class="rd-ayuda">«Los de un mes» son los que estuvieron abiertos en algún momento de ese mes: los que se abrieron, siguieron o se cerraron ese mes.</p>
           <div class="table-responsive">
             <table class="table table-bordered rd-tabla rd-tabla-compacta">
-              <thead><tr><th>Proyecto</th><th>Tema</th><th>Con quién</th><th>De qué se trata</th><th>Apertura</th><th>En qué va</th>
+              <thead><tr><th>Proyecto</th><th>Tema</th><th>Con</th><th>Con quién</th><th>De qué se trata</th><th>Apertura</th><th>En qué va</th>
                 <th class="rd-num-col" title="Días que lleva abierto, o que duró si ya se cerró">Días</th><th>Estado</th><th></th></tr></thead>
-              <tbody id="filas"><tr><td colspan="9" class="rd-vacio">Cargando...</td></tr></tbody>
+              <tbody id="filas"><tr><td colspan="10" class="rd-vacio">Cargando...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -77,11 +79,15 @@ if (isset($_SESSION['IdUsuarios'])) {
               <div class="form-group col-md-4 col-sm-6 col-xs-12"><label for="mApertura">Fecha de apertura: <span class="rd-req">*</span></label>
                 <input type="date" id="mApertura" name="apertura" class="form-control"></div>
             </div>
+            <!-- Con quién es el tema: con el cliente o interno con Regency -->
+            <div class="form-group"><label>El tema es: <span class="rd-req">*</span></label><br>
+              <label class="radio-inline"><input type="radio" name="con" value="CLIENTE" checked> Con el cliente</label>
+              <label class="radio-inline"><input type="radio" name="con" value="REGENCY"> Con Regency (interno)</label></div>
             <div class="form-group"><label for="mTema">Tema: <span class="rd-req">*</span></label>
               <input type="text" id="mTema" name="tema" class="form-control" maxlength="300" placeholder="Ej: Ajuste de horarios del personal de recaudo"></div>
             <div class="row">
               <div class="form-group col-md-6 col-sm-12 col-xs-12"><label for="mConQuien">Con quién se está tratando: <span class="rd-req">*</span></label>
-                <input type="text" id="mConQuien" name="conQuien" class="form-control" maxlength="120" placeholder="Ej: Interventoría, gerente del proyecto"></div>
+                <input type="text" id="mConQuien" name="conQuien" class="form-control" maxlength="120" placeholder="Ej: Interventoría, gerente del proyecto, Gestión Humana"></div>
               <div class="form-group col-md-3 col-sm-6 col-xs-12"><label for="mClase">De qué se trata: <span class="rd-req">*</span></label>
                 <select id="mClase" name="clase" class="form-control"></select></div>
               <div class="form-group col-md-3 col-sm-6 col-xs-12" id="grupoPendiente"><label for="mPendiente">Pendiente de:</label>
@@ -123,8 +129,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/TemaClienteAjax.js?v=1"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
+<script type="text/javascript" src="../Ajax/TemaClienteAjax.js?v=2"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

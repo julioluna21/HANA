@@ -123,7 +123,7 @@ function guardarCatalogo(evento) {
 }
 
 //---------------------------------------------------------------------------
-// Pestaña Días habilitados: abrirle a una persona un día distinto de hoy
+// Pestaña Días habilitados: abrirle a una persona un día (o un rango de días) distinto de hoy
 // y cerrárselo después
 //---------------------------------------------------------------------------
 $(function () {
@@ -160,19 +160,20 @@ function cargarDias() {
                      '<td>' + (abierto ? '<button type="button" class="btn btn-default btn-xs btn-deshabilitar-dia" data-id="' + parseInt(dia.ID_DIA_HABILITADO, 10) +
                                          '" data-texto="' + rdEsc(dia.PERSONA + ', ' + rdFecha(dia.FECHA)).replace(/"/g, '&quot;') + '"><i class="fa fa-lock"></i> Deshabilitar</button>' : '') + '</td></tr>';
             });
-            $('#tbDias').html(html || '<tr><td colspan="6" class="rd-vacio">No hay días habilitados. Todos registran solo el día de hoy.</td></tr>');
+            $('#tbDias').html(html || '<tr><td colspan="6" class="rd-vacio">No hay días habilitados. Todos registran hoy (y los sábados, domingos y festivos del mes).</td></tr>');
         })
         .fail(function (xhr) { $('#tbDias').html('<tr><td colspan="6" class="rd-vacio">' + rdEsc(rdError(xhr, 'No se pudieron cargar los días habilitados.')) + '</td></tr>'); });
 }
 
-//Habilita un día pasado a una persona para que pueda registrar
+//Habilita un día o un rango de días a una persona para que pueda registrar
 function habilitarDia(evento) {
     evento.preventDefault();
     if (!$('#diaPersona').val()) { alert('Elige a quién se le habilita el día.'); return; }
-    if (!$('#diaFecha').val()) { alert('Elige el día que se va a habilitar.'); return; }
+    if (!$('#diaFecha').val()) { alert('Elige el día que se va a habilitar (o el primer día del rango).'); return; }
+    if ($('#diaHasta').val() && $('#diaHasta').val() < $('#diaFecha').val()) { alert('El último día del rango no puede ser antes del primero.'); return; }
     hanaBoton('#btnHabilitarDia', true);
     $.post(URL_PAR + '?op=habilitarDia', $('#formDia').serialize(), null, 'json')
-        .done(function (respuesta) { rdAviso(respuesta.mensaje); $('#diaFecha, #diaMotivo').val(''); cargarDias(); })
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); $('#diaFecha, #diaHasta, #diaMotivo').val(''); cargarDias(); })
         .fail(function (xhr) { alert(rdError(xhr, 'No se pudo habilitar el día.')); })
         .always(function () { hanaBoton('#btnHabilitarDia', false); });
 }

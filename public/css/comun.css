@@ -329,3 +329,27 @@ input, textarea, select, [contenteditable="true"]{
   .rd-solo-movil{ display: inline; }
   body.nav-md .right_col, body.nav-sm .right_col{ padding-bottom: 84px; } /* que el botón no tape lo último de la página */
 }
+
+/* Ordenar tablas tocando el encabezado (Ajax/OrdenarTablas.js) */
+th.hana-ordenable-th { cursor: pointer; user-select: none; }
+th.hana-ordenable-th:hover { background-color: rgba(26, 187, 156, .08); }
+th.hana-orden-asc::after, th.hana-orden-desc::after { font-family: FontAwesome; font-size: 11px; margin-left: 5px; opacity: .7; }
+th.hana-orden-asc::after { content: "\f0de"; }   /* flecha hacia arriba */
+th.hana-orden-desc::after { content: "\f0dd"; }  /* flecha hacia abajo */
+@media print { th.hana-orden-asc::after, th.hana-orden-desc::after { content: none; } }
+
+/* Saludo de arriba de las pantallas principales (Inicio, Reporte diario, Configuración y Consultas).
+   Un solo estilo para todas: la franja vino del menú, el saludo grande y un renglón debajo.
+   Lo pinta Vista/saludo.php */
+.hana-bienvenida { position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px;
+                   background: #6E1A1E; color: #fff; border-radius: 8px; padding: 22px 30px; margin: 10px 0 18px; }
+.hana-bienvenida-texto { position: relative; z-index: 1; }
+.hana-bienvenida h1 { margin: 0 0 6px; font-size: 26px; font-weight: 600; color: #fff; }
+.hana-bienvenida p { margin: 0; opacity: .9; font-size: 14px; color: #fff; }
+.hana-bienvenida-icono { position: absolute; right: 26px; top: 50%; transform: translateY(-50%); font-size: 74px; opacity: .13; }
+@media (max-width: 767px) {
+    .hana-bienvenida { padding: 16px 18px; }
+    .hana-bienvenida h1 { font-size: 20px; }
+    .hana-bienvenida-icono { font-size: 54px; right: 12px; }
+}
+@media print { .hana-bienvenida { display: none; } }

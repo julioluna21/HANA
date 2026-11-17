@@ -25,6 +25,8 @@ $(function () {
             $.each(config.estadosGh, function (clave, nombre) { htmlEstadosGh += '<option value="' + rdEsc(clave) + '">' + rdEsc(nombre) + '</option>'; });
             for (var numMotivo = 0; numMotivo < config.motivos.length; numMotivo++) { htmlMotivos += '<option value="' + rdEsc(config.motivos[numMotivo]) + '">'; }
             $('#vEstado').html(htmlEstados); $('#vGh').html(htmlEstadosGh); $('#listaMotivos').html(htmlMotivos);
+            //Sugerencias para «Quién la cubre» (sigue siendo texto libre)
+            $('#listaCubren').html((config.nombresCubren || []).map(function (nombre) { return '<option value="' + rdEsc(nombre) + '">'; }).join(''));
             rdPeriodo('#fMes', '#fAnio', config.hoy); $('#fMes').val('0'); $('#fAnio').prop('disabled', true);
             //La fecha comprometida por GH se llena sola con el acuerdo de servicio; solo el administrador la cambia
             $('#vCompromiso').prop('readonly', !config.editaCompromiso);
@@ -69,12 +71,14 @@ function listar() {
                      '<td>' + rdEsc(vacante.NUMERO_RQ_GH || '') + '</td><td>' + rdEsc(vacante.NOM_CENTRO_OP) + '</td><td>' + rdEsc(vacante.CARGO) + '</td>' +
                      '<td>' + rdFecha(vacante.FECHA_VACANTE) + '</td><td>' + rdFecha(vacante.FECHA_ANS) + '</td><td>' + rdFecha(vacante.FECHA_CIERRE) + '</td>' +
                      '<td class="rd-num-col">' + (abierta ? vacante.DIAS_A_HOY + ' a hoy' : (vacante.TIEMPO_CIERRE !== null ? vacante.TIEMPO_CIERRE + ' en cerrar' : '')) + '</td>' +
-                     '<td>' + rdEsc(vacante.MOTIVO) + '</td><td>' + rdEsc(cfgV.estados[vacante.ESTADO_VACANTE]) + '</td>' +
-                     '<td>' + (RESULTADO_ANS[vacante.RESULTADO_ANS] || '') + '</td><td>' + rdEsc(vacante.NOMBRE_REEMPLAZO || '') + '</td>' +
+                     '<td>' + rdEsc(vacante.MOTIVO) + '</td><td>' + rdEsc(vacante.NOMBRE_SALE || '') + '</td><td>' + rdEsc(cfgV.estados[vacante.ESTADO_VACANTE]) + '</td>' +
+                     '<td>' + (RESULTADO_ANS[vacante.RESULTADO_ANS] || '') + '</td>' +
+                     '<td>' + (vacante.NOMBRE_REEMPLAZO ? (abierta ? '<small class="rd-ayuda">Cubriendo:</small> ' : '<i class="fa fa-user"></i> ') + rdEsc(vacante.NOMBRE_REEMPLAZO)
+                                                       : (abierta ? '<span class="rd-ayuda">Nadie</span>' : '')) + '</td>' +
                      '<td>' + rdEsc(comp) + '</td>' +
                      '<td>' + (cfgV.puedeLlenar !== false ? '<button type="button" class="btn btn-default btn-xs btn-editar-vac" data-i="' + i + '"><i class="fa fa-pencil"></i></button>' : '') + '</td></tr>';
             }
-            $('#filas').html(html || '<tr><td colspan="13" class="rd-vacio">No hay vacantes para mostrar.</td></tr>');
+            $('#filas').html(html || '<tr><td colspan="14" class="rd-vacio">No hay vacantes para mostrar.</td></tr>');
             $('#cAbiertas').text(abiertas); $('#cVencidas').text(vencidas); $('#cCumple').text(cumplen); $('#cNoCumple').text(noCumplen);
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudieron cargar las vacantes.'); });
@@ -91,6 +95,7 @@ function abrir(vacante) {
         $('#vCentro').val(String(vacante.ID_CENTRO_OP)); $('#vRq').val(vacante.NUMERO_RQ_GH || ''); $('#vCargo').val(vacante.CARGO);
         $('#vFecha').val(vacante.FECHA_VACANTE); $('#vMotivo').val(vacante.MOTIVO); $('#vGh').val(vacante.ESTADO_GH || '');
         $('#vCompromiso').val(vacante.FECHA_COMPROMISO_GH || ''); $('#vNombre').val(vacante.NOMBRE_REEMPLAZO || '');
+        $('#vSale').val(vacante.NOMBRE_SALE || ''); //quién deja el puesto (viene del historial)
         $('#vEstado').val(vacante.ESTADO_VACANTE); $('#vObs').val(vacante.OBSERVACION || '');
     } else {
         $('#vFecha').val(cfgV.hoy); $('#vEstado').val('ABIERTA');

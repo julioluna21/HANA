@@ -1,8 +1,8 @@
 <?php
-//Consultas - Reporte diario a la Gerencia
-//La dirección lo arma cada día, por proyecto, con lo que llenan los coordinadores:
-//disponibilidad de flota, promesa de valor, oficios en gestión y novedades.
-//Lo propone el sistema; se corrige a mano y se guarda por día
+//Consultas - Reporte a la Gerencia
+//La dirección lo arma por proyecto, con lo que llenan los coordinadores: disponibilidad de
+//flota, promesa de valor, oficios en gestión y novedades. Es de un día o de un rango de días
+//(desde - hasta, máximo 31). Lo propone el sistema; se corrige a mano y se guarda por periodo
 session_start();
 
 if (isset($_SESSION['IdUsuarios'])) {
@@ -19,6 +19,9 @@ if (isset($_SESSION['IdUsuarios'])) {
   .ger-barra .form-group { margin-bottom: 0; }
   .ger-dia { display: flex; gap: 4px; align-items: center; }
   .ger-dia input[type="date"] { width: auto; min-width: 150px; }
+  .ger-dia .ger-al { color: #666; padding: 0 2px; }
+  .ger-atajos { display: flex; gap: 4px; margin-top: 4px; }
+  .ger-atajos .btn { padding: 1px 8px; font-size: 12px; }
   .ger-botones { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
   .ger-botones .btn { margin: 0; }
   .ger-estado { margin: 12px 0 4px; padding: 8px 12px; border-radius: 4px; background: #f4f6f8; color: #444; }
@@ -62,16 +65,24 @@ if (isset($_SESSION['IdUsuarios'])) {
     <div class="col-md-12 col-xs-12">
       <div class="x_panel rd-no-imprimir">
         <div class="x_title">
-          <h2><i class="fa fa-briefcase"></i> Reporte diario a la Gerencia</h2>
+          <h2><i class="fa fa-briefcase"></i> Reporte a la Gerencia</h2>
           <div class="clearfix"></div>
         </div>
         <div class="x_content">
           <div class="ger-barra">
-            <div class="form-group"><label for="gFecha">Día del reporte:</label>
+            <!-- Periodo del reporte: un solo día (desde = hasta) o un rango de días, de hasta 31 -->
+            <div class="form-group"><label for="gDesde">Periodo del reporte:</label>
               <div class="ger-dia">
-                <button type="button" class="btn btn-default" id="btnAntes" title="Día anterior"><i class="fa fa-chevron-left"></i></button>
-                <input type="date" id="gFecha" class="form-control">
-                <button type="button" class="btn btn-default" id="btnDespues" title="Día siguiente"><i class="fa fa-chevron-right"></i></button>
+                <button type="button" class="btn btn-default" id="btnAntes" title="Correr el periodo un día atrás"><i class="fa fa-chevron-left"></i></button>
+                <input type="date" id="gDesde" class="form-control" title="Primer día">
+                <span class="ger-al">al</span>
+                <input type="date" id="gFecha" class="form-control" title="Último día">
+                <button type="button" class="btn btn-default" id="btnDespues" title="Correr el periodo un día adelante"><i class="fa fa-chevron-right"></i></button>
+              </div>
+              <div class="ger-atajos">
+                <button type="button" class="btn btn-default" data-ger-periodo="dia" title="Solo el último día">Un día</button>
+                <button type="button" class="btn btn-default" data-ger-periodo="semana" title="Del lunes al último día">Semana</button>
+                <button type="button" class="btn btn-default" data-ger-periodo="mes" title="Del 1 del mes al último día">Mes</button>
               </div>
             </div>
             <div class="ger-botones">
@@ -83,11 +94,11 @@ if (isset($_SESSION['IdUsuarios'])) {
           </div>
           <div class="ger-estado" id="gEstado">Cargando...</div>
           <div class="ger-guardados" id="gGuardados">
-            <label for="gMes">Días guardados en</label>
+            <label for="gMes">Reportes guardados en</label>
             <select id="gMes" class="form-control"></select>
             <span class="ger-dias-mes" id="gDiasMes"></span>
           </div>
-          <p class="rd-ayuda" style="margin-top:8px;">Los puntos se llenan solos con lo que registran los coordinadores (vehículos, promesa de valor, comunicaciones y temas con el cliente). Corrige lo que haga falta y guarda: queda guardado para ese día. «Traer del sistema» vuelve a llenar solo ese punto.</p>
+          <p class="rd-ayuda" style="margin-top:8px;">Los puntos se llenan solos con lo que registran los coordinadores (vehículos, promesa de valor, comunicaciones y temas con el cliente). Corrige lo que haga falta y guarda: queda guardado para ese día o ese periodo. «Traer del sistema» vuelve a llenar solo ese punto.</p>
           <div id="gProyectos"></div>
           <div class="ln_solid"></div>
           <div class="rd-acciones"><button type="button" class="btn btn-success" id="btnGuardar2"><i class="fa fa-save"></i> Guardar</button></div>
@@ -101,7 +112,7 @@ if (isset($_SESSION['IdUsuarios'])) {
 
 <?php include('footer.php'); ?>
 <script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=5"></script>
+<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=6"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

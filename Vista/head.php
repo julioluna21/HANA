@@ -40,7 +40,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
   <!-- Alertas personalizadas de HANA (reemplazan las ventanas del navegador y de bootbox) -->
   <link href="../public/css/alertas.css?v=5" rel="stylesheet">
   <!-- Estilos comunes: tablas en celular, indicador de carga y barra de progreso -->
-  <link href="../public/css/comun.css?v=6" rel="stylesheet">
+  <link href="../public/css/comun.css?v=8" rel="stylesheet">
   <!-- Tablas adaptables al celular (la librería ya venia en vendors) -->
   <link href="../vendors/datatables.net-responsive-bs/css/responsive.bootstrap.min.css" rel="stylesheet">
 
@@ -97,7 +97,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
   <?php if(in_array("1M",$modulosAcceso) or in_array("2M",$modulosAcceso) or in_array("3M",$modulosAcceso) or in_array("5M",$modulosAcceso) or in_array("6M",$modulosAcceso) or in_array("7M",$modulosAcceso) or in_array("24M",$modulosAcceso)){ ?>
     <li><a><i class="fa fa-cog "></i>Configuración<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
-          
+        <li><a href="ConfiguracionVista.php">Configuración</a></li>
         <?php if(in_array("6M",$modulosAcceso)){ ?><li><a href="proyectosVista.php">Proyectos</a></li> <?php } ?> 
         <?php if(in_array("5M",$modulosAcceso)){ ?><li><a href="centroOperativoVista.php">Centros de operación</a></li> <?php } ?>
         <?php if(in_array("2M",$modulosAcceso)){ ?><li><a href="RolesVista.php">Permisos de usuario</a></li> <?php } ?> 
@@ -129,8 +129,12 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
       $menuCoord = $menuHoy || $menuArq || $menuCrono || $menuVac || $menuOficios || $menuTemas;
       //Reporte diario a la Gerencia (Consultas): casilla 61M y el módulo encendido
       $menuGerencia = pagPuede('GERENCIA', 'armar') && $menuModuloActivo('GERENCIA');
+      //Promesa de valor (va dentro del Reporte diario): con su casilla, peajes asignados y el módulo encendido
+      $menuPromesa = pagPromesaEntrar();
+      //Trazabilidad (Consultas): casilla 62M o el ADMIN TEC
+      $menuTraza = pagPuede('TRAZABILIDAD', 'ver');
     ?>
-    <?php if($menuCoord or $menuListas or $menuEditarListas or $menuCorreos){ ?>
+    <?php if($menuCoord or $menuListas or $menuEditarListas or $menuCorreos or $menuPromesa){ ?>
     <!-- Reporte diario: las listas de chequeo y las demás secciones del día -->
     <li><a><i class="fa fa-calendar-check-o"></i>Reporte diario<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
@@ -140,31 +144,29 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
         <?php if($menuCrono){ ?><li><a href="CronogramaVista.php">Cronograma y vehículo</a></li><?php } ?>
         <?php if($menuVac){ ?><li><a href="VacantesVista.php">Vacantes</a></li><?php } ?>
         <?php if($menuOficios){ ?><li><a href="ComunicacionesVista.php">Comunicaciones y oficios</a></li><?php } ?>
-        <?php if($menuTemas){ ?><li><a href="TemasClienteVista.php">Temas con el cliente</a></li><?php } ?>
+        <?php if($menuTemas){ ?><li><a href="TemasClienteVista.php">Temas con el cliente y Regency</a></li><?php } ?>
         <?php if($menuListas){ ?><li><a href="ListasVista.php">Listas de chequeo</a></li><?php } ?>
+        <?php if($menuPromesa){ ?><li><a href="PromesaValorVista.php">Promesa de valor</a></li><?php } ?>
         <?php if($menuEditarListas){ ?><li><a href="GruposListasVista.php">Editar listas</a></li><?php } ?>
         <?php if($menuCorreos){ ?><li><a href="NotificacionesVista.php">Correos automáticos</a></li><?php } ?>
       </ul>
     </li><?php } ?>
 
-    <?php if(in_array("19M",$modulosAcceso) or in_array("37M",$modulosAcceso) or $menuGerencia){ ?>
+    <?php if(in_array("19M",$modulosAcceso) or in_array("37M",$modulosAcceso) or $menuGerencia or $menuTraza){ ?>
     <!-- Consultas: donde se revisa lo que se llena en el Reporte diario. Es la misma información,
          vista de otra manera: el coordinador la llena en Reporte diario y el director de operaciones
          la revisa aquí (Reporte general: por día, módulo y proyecto, con el tablero por proyectos;
          Informe mensual: un mes, una quincena o las fechas que se elijan) -->
     <li><a><i class="fa fa-line-chart"></i>Consultas<span class="fa fa-chevron-down"></span></a>
       <ul class="nav child_menu">
+        <li><a href="ConsultasVista.php">Consultas</a></li>
         <?php if(in_array("19M",$modulosAcceso)){ ?><li><a href="ControlDiarioVista.php">Reporte general</a></li><?php } ?>
         <?php if(in_array("37M",$modulosAcceso)){ ?><li><a href="InformeMensualVista.php">Informe mensual</a></li><?php } ?>
         <?php if($menuGerencia){ ?><li><a href="ReporteGerenciaVista.php">Reporte a la Gerencia</a></li><?php } ?>
+        <?php if($menuTraza){ ?><li><a href="TrazabilidadVista.php">Trazabilidad</a></li><?php } ?>
       </ul>
     </li><?php } ?>
 
-    <?php //Promesa de valor (el ausentismo se retiró del sistema): con su casilla y peajes asignados
-      $menuPromesa = pagPromesaEntrar(); //ya revisa que el módulo esté encendido
-      if($menuPromesa){ ?>
-    <li><a href="PromesaValorVista.php"><i class="fa fa-clock-o"></i> Promesa de valor</a></li>
-    <?php } ?>
 
 
   </ul>
@@ -222,4 +224,4 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
           </nav>
         </div>
       </div>
-      <!-- /top navigation -->
+      <!-- /top navigation -->

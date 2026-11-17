@@ -381,8 +381,18 @@ switch ($_GET["op"]) {
   case 'listar':
     try {
       $resultado= $modeloPreguntas->listar($idGrupoPreguntas);
+      //Las preguntas que tienen aviso por respuesta encendido (la campana sale resaltada)
+      require_once __DIR__ . '/../Modelo/AvisoRespuestaModelo.php';
+      $conAviso = AvisoRespuesta::deGrupo((int)$idGrupoPreguntas);
+      $editaListas = in_array('12M', explode(',', $_SESSION['Modulos']), true) || in_array('24M', explode(',', $_SESSION['Modulos']), true);
       $filasTabla = array();
         while ($fila = $resultado->fetch_object()) {
+          //Aviso por respuesta: solo en las preguntas de respuesta fija (Sí/No o Lista) y para quien edita listas
+          $botonAviso = '';
+          if ($editaListas && count(AvisoRespuesta::respuestasDeTipo($fila->TIPO_RESPUESTA))) {
+            $activo = isset($conAviso[(int)$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO]);
+            $botonAviso = '<SPAN title="' . ($activo ? 'Tiene aviso: envía notificación con ciertas respuestas' : 'Enviar notificación según la respuesta') . '"><button type="button" class="btn ' . ($activo ? 'btn-warning' : 'btn-default') . '" onclick="abrirAvisoPregunta(' . (int)$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO . ')"><i class="fa fa-bell' . ($activo ? '' : '-o') . '"></i></button></SPAN>';
+          }
           $filasTabla[] = array(
             "0"=>$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO,
             "1"=>$fila->ORDEN,
@@ -391,7 +401,7 @@ switch ($_GET["op"]) {
             "4"=>$fila->TIPO_RESPUESTA,
             "5"=>$fila->ESTADO == 1 ? "Activo":"Inactivo",
             "6"=>'<SPAN title="Editar"><button class="btn btn-success" onclick="mostrarPregunta('.$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-eye"></i></button></SPAN>
-            <SPAN title="anular"><button type="button" class="btn btn-success" onclick="anularPregunta('.$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO.','.$fila->ID_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-trash-o"></i></button></SPAN>'
+            <SPAN title="anular"><button type="button" class="btn btn-success" onclick="anularPregunta('.$fila->ID_DETALLE_GRUPO_LISTA_CHEQUEO.','.$fila->ID_GRUPO_LISTA_CHEQUEO.')"><i class="fa fa-trash-o"></i></button></SPAN>' . $botonAviso
           );
         }
         $respuestaTabla = array(
@@ -408,4 +418,4 @@ switch ($_GET["op"]) {
 }
 
 
-?>
+?>

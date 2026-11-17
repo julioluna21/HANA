@@ -18,6 +18,8 @@ if (isset($_SESSION['IdUsuarios'])) {
     if (pagPuede('LISTAS', 'correos') || pagPuede('TAREAS', 'editar')) { $modulosAcceso[] = 'CORREOS'; }
     $consultaHoy = pagPuede('HOY', 'ver') && !pagPuede('HOY', 'llenar');
     foreach (array('HOY', 'ARQUEOS', 'CRONOGRAMA', 'VACANTES', 'COMUNICACIONES', 'TEMAS') as $moduloRD) { if (pagEntra($moduloRD)) { $modulosAcceso[] = 'P_' . $moduloRD; } }
+    //La promesa de valor va dentro del Reporte diario. pagPromesaEntrar ya revisa que esté encendida
+    if (pagPromesaEntrar()) { $modulosAcceso[] = 'P_PROMESA'; }
     //Módulos que el administrador apagó en Parámetros del sistema: su mosaico no sale
     //OJO: head.php vuelve a leer $modulosAcceso de la sesión y borra las marcas de
     //arriba (COORD, LISTAS, P_...). Por eso los mosaicos usan su propia copia
@@ -25,7 +27,7 @@ if (isset($_SESSION['IdUsuarios'])) {
     $apagados = array('HoyVista.php' => 'HOY', 'ListasVista.php' => 'LISTAS', 'ArqueosVista.php' => 'ARQUEOS',
                       'CronogramaVista.php' => 'CRONOGRAMA', 'VacantesVista.php' => 'VACANTES',
                       'ComunicacionesVista.php' => 'COMUNICACIONES', 'TemasClienteVista.php' => 'TEMAS');
-    //El ausentismo se retiró del sistema. La promesa de valor va en su propio enlace del menú, no como mosaico aquí.
+    //La promesa de valor es un mosaico más de aquí.
 
     //Entra quien tenga algún mosaico (el Reporte general, 19M, va aparte)
     if ($esCoordinador || count(preg_grep('/^(P_|LISTAS$|EDITAR_LISTAS$|CORREOS$)/', $modulosAcceso)) > 0) {
@@ -73,16 +75,16 @@ if (isset($_SESSION['IdUsuarios'])) {
                   'Cargos por cubrir y su acuerdo de servicio', true, ''),
             array(array('P_COMUNICACIONES'), 'ComunicacionesVista.php', 'fa-inbox', 'Comunicaciones y oficios',
                   'Lo que hay por atender y por enviar', true, ''),
-            array(array('P_TEMAS'), 'TemasClienteVista.php', 'fa-commenting-o', 'Temas con el cliente',
-                  'Lo que se está tratando con el cliente: apertura, en qué va y cierre', true, ''),
+            array(array('P_TEMAS'), 'TemasClienteVista.php', 'fa-commenting-o', 'Temas con el cliente y con Regency',
+                  'Lo que se está tratando con el cliente o con Regency: apertura, en qué va y cierre', true, ''),
+            array(array('P_PROMESA'), 'PromesaValorVista.php', 'fa-clock-o', 'Promesa de valor',
+                  'Horas prometidas y ejecutadas de cada peaje y por qué no se cumplió', true, ''),
             //El Reporte general y el informe mensual o por fechas van aparte (menú lateral e Inicio), no aquí
         );
 
         include('head.php');
-        //Un saludo según la hora, con lo que le falta hoy (si es coordinador)
-        $horaActual = (int)date('G');
-        $saludo = $horaActual < 12 ? 'Buenos días' : ($horaActual < 19 ? 'Buenas tardes' : 'Buenas noches');
-        $nombre = isset($_SESSION['Nombre']) ? trim(explode(' ', html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8'))[0]) : '';
+        //El saludo (Vista/saludo.php), con lo que le falta hoy (si es coordinador)
+        require_once __DIR__ . '/saludo.php';
         $faltan = array();
         if ($esCoordinador && !empty($estadoDia)) {
             if (pagModuloActivo('HOY') && !$estadoDia['hoy']['ok']) { $faltan[] = 'contar en qué estás hoy'; }
@@ -101,17 +103,16 @@ if (isset($_SESSION['IdUsuarios'])) {
 <div class="right_col" role="main">
   <div class="row">
     <div class="col-md-12 col-xs-12">
+      <?php hanaSaludo(array(
+          'texto'  => $resumen,
+          'icono'  => 'fa-calendar-check-o'
+      )); ?>
       <div class="x_panel">
         <div class="x_title">
           <h2><i class="fa fa-calendar-check-o"></i> Reporte diario</h2>
           <div class="clearfix"></div>
         </div>
         <div class="x_content">
-          <div class="hana-saludo">
-            <div class="hana-sol"><i class="fa <?php echo $horaActual < 19 ? 'fa-sun-o' : 'fa-moon-o'; ?>"></i></div>
-            <div><h3><?php echo htmlspecialchars($saludo . ($nombre !== '' ? ', ' . mb_convert_case(mb_strtolower($nombre, 'UTF-8'), MB_CASE_TITLE, 'UTF-8') : ''), ENT_QUOTES, 'UTF-8'); ?></h3>
-              <p><?php echo htmlspecialchars($resumen, ENT_QUOTES, 'UTF-8'); ?></p></div>
-          </div>
           <div class="rd-mosaicos">
 <?php
         foreach ($mosaicos as $mosaico) {

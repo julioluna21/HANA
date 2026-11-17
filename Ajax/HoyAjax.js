@@ -221,12 +221,12 @@ function mostrarLaboral() {
 //---------------------------------------------------------------------------
 // Días habilitados: un botón por cada día que el administrador le abrió
 //---------------------------------------------------------------------------
+//(y los sábados, domingos y festivos del mes, que quedan abiertos solos: llegan en cfgHoy.findes)
 function pintarHabilitados() {
     $('#hoyRapido [data-habilitado]').remove(); //se vuelven a pintar desde cero
     var html = '';
-    (cfgHoy.habilitados || []).forEach(function (fechaHabilitada) {
-        html += '<button type="button" class="btn btn-default btn-sm" data-habilitado="1" data-fecha="' + esc(fechaHabilitada) + '" title="El administrador te habilitó este día">' +
-             '<i class="fa fa-unlock"></i> ' + esc(diaCorto(fechaHabilitada)) + '</button>';
+    (cfgHoy.habilitados || []).slice().sort().forEach(function (fechaHabilitada) {
+        html += rdBotonDiaAbierto(fechaHabilitada, 'btn btn-default btn-sm', cfgHoy.findes, ' data-habilitado="1"');
     });
     $('#hoyRapido').append(html);
 }

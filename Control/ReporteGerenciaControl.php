@@ -6,12 +6,15 @@
   reporte del día, con los proyectos de los peajes asignados a la persona. El
   ADMIN TEC (24M) también, con todos los proyectos.
 
+  El reporte es de un día o de un RANGO DE DÍAS (desde - hasta, máximo 31 días).
+  Se identifica por su último día («fecha») y su primer día («desde»).
+
   Operaciones:
-    config    los puntos del reporte y los meses que tienen días guardados
-    abrir     el reporte de un día: lo guardado (si hay), lo que propone el sistema
-              y los días guardados del mes de ese día
-    guardados los días guardados de un mes (mes=AAAA-MM), para la lista de la pantalla
-    guardar   guarda el reporte del día en su fila de historial (MODULO = 'GERENCIA')
+    config    los puntos del reporte y los meses que tienen reportes guardados
+    abrir     el reporte de un periodo (fecha y, si es un rango, desde): lo guardado (si hay),
+              lo que propone el sistema y los reportes guardados del mes del último día
+    guardados los reportes guardados de un mes (mes=AAAA-MM), para la lista de la pantalla
+    guardar   guarda el reporte como una versión nueva en historial (MODULO = 'GERENCIA')
 */
 session_start();
 require_once __DIR__ . "/../Modelo/ReporteGerenciaModelo.php";
@@ -54,6 +57,16 @@ function gerFecha($valor, $hoy)
     return $fecha;
 }
 
+//El primer día del periodo: vacío o igual al último = un solo día. Máximo 31 días en total
+const GER_MAX_DIAS = 31;
+function gerDesde($valor, $fecha)
+{
+    $desde = HanaVal::fecha((string)$valor);
+    if ($desde === '' || $desde >= $fecha) { return $fecha; }
+    if ((strtotime($fecha) - strtotime($desde)) / 86400 + 1 > GER_MAX_DIAS) { gerError(400, 'El reporte puede cubrir hasta ' . GER_MAX_DIAS . ' días. Acorta el rango.'); }
+    return $desde;
+}
+
 switch (isset($_GET['op']) ? $_GET['op'] : '') {
 
     case 'config':
@@ -68,16 +81,17 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'guardados':
         $mes = isset($_GET['mes']) ? (string)$_GET['mes'] : '';
         if (!preg_match('/^(20[2-9]\d)-(0[1-9]|1[0-2])$/', $mes)) { gerError(400, 'Elige un mes válido.'); }
-        echo hanaJsonTexto(array('mes' => $mes, 'dias' => ReporteGerencia::diasGuardadosMes($mes)), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto(array('mes' => $mes, 'guardados' => ReporteGerencia::guardadosMes($mes)), JSON_UNESCAPED_UNICODE);
         break;
 
     //El reporte de un día. Si ya se guardó, va lo guardado; «sistema» trae siempre lo que propone el
     //sistema con los datos de ESE día (el elegido, no el de hoy), para volver a traer un punto o todo el reporte
     case 'abrir':
         $fecha = gerFecha(isset($_GET['fecha']) ? $_GET['fecha'] : '', $hoy);
+        $desde = gerDesde(isset($_GET['desde']) ? $_GET['desde'] : '', $fecha);
         $puntos = ReporteGerencia::puntos();
-        $sistema = ReporteGerencia::prellenar($proyectos, $centros, $fecha, $conNovedades);
-        $guardado = ReporteGerencia::guardado($fecha);
+        $sistema = ReporteGerencia::prellenar($proyectos, $centros, $fecha, $conNovedades, $desde);
+        $guardado = ReporteGerencia::guardado($fecha, $desde);
         $titulosGuardados = $guardado && isset($guardado['datos']['puntos']) && is_array($guardado['datos']['puntos']) ? $guardado['datos']['puntos'] : array();
         //Los puntos que tenía lo guardado y ya no están en la lista siguen saliendo, para no perder lo escrito
         foreach ($titulosGuardados as $codigo => $titulo) { if (!isset($puntos[$codigo])) { $puntos[$codigo] = (string)$titulo; } }
@@ -96,21 +110,23 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $mes = substr($fecha, 0, 7);
         //Notas adicionales: lo que se haya escrito ese día (no lo propone el sistema: es texto libre)
         $otros = $guardado && isset($guardado['datos']['otros']) ? (string)$guardado['datos']['otros'] : '';
-        echo hanaJsonTexto(array('fecha' => $fecha, 'diaCorto' => ReporteGerencia::diaCorto($fecha), 'puntos' => $puntos, 'proyectos' => $lista,
+        echo hanaJsonTexto(array('fecha' => $fecha, 'desde' => $desde, 'diaCorto' => ReporteGerencia::periodoCorto($desde, $fecha),
+                                 'periodoLargo' => ReporteGerencia::periodoLargo($desde, $fecha), 'puntos' => $puntos, 'proyectos' => $lista,
                                  'otros' => $otros, 'tituloOtros' => ReporteGerencia::TITULO_OTROS,
                                  'guardado' => $guardado ? array('quien' => $guardado['quien'], 'fecha' => $guardado['fecha']) : null,
-                                 'mes' => $mes, 'guardadosMes' => ReporteGerencia::diasGuardadosMes($mes)),
+                                 'mes' => $mes, 'guardadosMes' => ReporteGerencia::guardadosMes($mes)),
                            JSON_UNESCAPED_UNICODE);
         break;
 
-    //Guarda el reporte del día (reemplaza lo que había de ese día). Llega como JSON:
-    //{fecha, textos: {idProyecto: {CODIGO: texto}}, otros: texto}
+    //Guarda el reporte del periodo (una versión nueva; la anterior queda como trazabilidad). Llega como JSON:
+    //{fecha, desde, textos: {idProyecto: {CODIGO: texto}}, otros: texto}
     case 'guardar':
         $entrada = json_decode(isset($_POST['reporte']) ? (string)$_POST['reporte'] : '', true);
         if (!is_array($entrada) || !isset($entrada['textos']) || !is_array($entrada['textos'])) { gerError(400, 'No llegó el reporte. Recarga la página e intenta de nuevo.'); }
         $fecha = gerFecha(isset($entrada['fecha']) ? $entrada['fecha'] : '', $hoy);
+        $desde = gerDesde(isset($entrada['desde']) ? $entrada['desde'] : '', $fecha);
         $puntos = ReporteGerencia::puntos();
-        $anterior = ReporteGerencia::guardado($fecha);
+        $anterior = ReporteGerencia::guardado($fecha, $desde);
         //Los títulos: los de la lista de hoy, más los que traía lo guardado y ya no están en la lista
         if ($anterior && isset($anterior['datos']['puntos']) && is_array($anterior['datos']['puntos'])) {
             foreach ($anterior['datos']['puntos'] as $codigo => $titulo) { if (!isset($puntos[$codigo])) { $puntos[$codigo] = (string)$titulo; } }
@@ -140,7 +156,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (mb_strlen($otros, 'UTF-8') > ReporteGerencia::LARGO_PUNTO) {
             gerError(400, '«' . ReporteGerencia::TITULO_OTROS . '» pasa de ' . ReporteGerencia::LARGO_PUNTO . ' caracteres. Acórtalo un poco.');
         }
-        $datos = array('version' => 1, 'fecha' => $fecha, 'puntos' => $puntos, 'proyectos' => $guardarProyectos, 'otros' => $otros);
+        //"desde" va al principio (justo después de "fecha"): así se reconoce el periodo sin abrir todo el texto
+        $datos = array('version' => 2, 'fecha' => $fecha, 'desde' => $desde, 'puntos' => $puntos, 'proyectos' => $guardarProyectos, 'otros' => $otros);
         $ahora = date('Y-m-d H:i:s');
         if (!ReporteGerencia::cabe($datos)) {
             gerError(400, 'El reporte quedó demasiado largo para guardarlo. Acorta algunos puntos e intenta de nuevo.');
@@ -148,7 +165,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!ReporteGerencia::guardar($fecha, $datos, $idColaborador, $ahora)) {
             gerError(500, 'No se pudo guardar el reporte. Intenta de nuevo en un momento.');
         }
-        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Reporte del ' . ReporteGerencia::diaCorto($fecha) . ' guardado.', 'fecha' => $ahora), JSON_UNESCAPED_UNICODE);
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Reporte ' . ($desde < $fecha ? 'del periodo ' . ReporteGerencia::periodoCorto($desde, $fecha) : 'del ' . ReporteGerencia::diaCorto($fecha)) . ' guardado.', 'fecha' => $ahora), JSON_UNESCAPED_UNICODE);
         break;
 
     default:
