@@ -45,6 +45,16 @@ foreach (hanaMisCentros() as $centro) {
 }
 if (!count($proyectos)) { temaError(403, 'No tienes peajes asignados. Pide que te los asignen en Configuración → Colaboradores.'); }
 
+//Quién responde y la fecha comprometida de cierre que vienen del formulario: [responsable, fecha o null].
+//La fecha no puede ser anterior a la apertura del tema
+function temaCompromisoPedido($apertura)
+{
+    $responsable = HanaVal::texto(isset($_POST['responsable']) ? $_POST['responsable'] : '', 120);
+    $fecha = HanaVal::fecha(isset($_POST['fechaCompromiso']) ? $_POST['fechaCompromiso'] : '');
+    if ($fecha !== '' && $fecha < $apertura) { temaError(400, 'La fecha comprometida de cierre no puede ser anterior a la apertura del tema (' . date('d/m/Y', strtotime($apertura)) . ').'); }
+    return array($responsable === null ? '' : $responsable, $fecha === '' ? null : $fecha);
+}
+
 //Trae un tema vigente de los proyectos de la persona, o corta con 404
 function temaCargar($proyectos, $id)
 {
@@ -92,8 +102,11 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     //El seguimiento de un tema
     case 'seguimiento':
         $tema = temaCargar($proyectos, isset($_GET['id']) ? (int)$_GET['id'] : 0);
+        $compromiso = TemaCliente::compromisos(array($tema['ID_COMUNICACION']));
         echo hanaJsonTexto(array('seguimiento' => TemaCliente::seguimiento($tema['ID_COMUNICACION']), 'cerrado' => $tema['FECHA_ATENCION'] !== null,
-                                 'fechaCierre' => $tema['FECHA_ATENCION'], 'apertura' => $tema['FECHA_RECEPCION']), JSON_UNESCAPED_UNICODE);
+                                 'fechaCierre' => $tema['FECHA_ATENCION'], 'apertura' => $tema['FECHA_RECEPCION'],
+                                 'compromiso' => isset($compromiso[(int)$tema['ID_COMUNICACION']]) ? $compromiso[(int)$tema['ID_COMUNICACION']] : TemaCliente::sinCompromiso()),
+                           JSON_UNESCAPED_UNICODE);
         break;
 
     //Crea un tema o corrige sus datos
@@ -126,6 +139,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             temaError(400, 'La fecha de apertura no puede ser posterior a la de cierre (' . $antes['FECHA_ATENCION'] . ').');
         }
         $pendientes = TemaCliente::pendientes();
+        //En un tema nuevo se pueden poner de una vez quién responde y la fecha comprometida de cierre
+        if ($id === 0) { list($responsable, $fechaCompromiso) = temaCompromisoPedido($datos['apertura']); }
         $datos['pendiente'] = isset($_POST['pendiente']) && $_POST['pendiente'] !== '' ? (string)$_POST['pendiente'] : null;
         if ($datos['pendiente'] !== null && !isset($pendientes[$datos['pendiente']])) { temaError(400, '«Pendiente de» no es válido.'); }
         if ($id > 0 && $antes['FECHA_ATENCION'] !== null) { $datos['pendiente'] = null; } //cerrado: no está pendiente de nadie
@@ -135,6 +150,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         //En un tema nuevo se puede escribir de una vez en qué va
         $primero = $id > 0 ? null : HanaVal::texto(isset($_POST['inicio']) ? $_POST['inicio'] : '', 2000);
         if ($primero !== null) { TemaCliente::anotar($nuevo, $idColaborador, 'SEGUIMIENTO', $primero, $ahora); }
+        if ($id === 0) { TemaCliente::guardarCompromiso($nuevo, $responsable, $fechaCompromiso, '', $idColaborador, $ahora); }
         echo hanaJsonTexto(array('ok' => true, 'id' => $nuevo, 'mensaje' => $id ? 'Tema actualizado.' : 'Tema registrado.'), JSON_UNESCAPED_UNICODE);
         break;
 
@@ -146,6 +162,25 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if ($texto === null) { temaError(400, 'Escribe en qué va el tema.'); }
         TemaCliente::anotar($tema['ID_COMUNICACION'], $idColaborador, 'SEGUIMIENTO', $texto, $ahora);
         echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Seguimiento guardado.'), JSON_UNESCAPED_UNICODE);
+        break;
+
+    //Quién responde y la fecha comprometida de cierre. Lo cambia cualquiera que llene temas, mientras
+    //el tema siga abierto; si se cambia una fecha que ya estaba, hay que decir por qué
+    case 'compromiso':
+        if (!$puedeLlenar) { temaError(403, 'Tu rol solo consulta los temas.'); }
+        $tema = temaCargar($proyectos, isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        if ($tema['FECHA_ATENCION'] !== null) { temaError(400, 'El tema ya está cerrado. Para cambiar el compromiso, reábrelo.'); }
+        list($responsable, $fecha) = temaCompromisoPedido($tema['FECHA_RECEPCION']);
+        $actual = TemaCliente::compromisos(array($tema['ID_COMUNICACION']));
+        $actual = isset($actual[(int)$tema['ID_COMUNICACION']]) ? $actual[(int)$tema['ID_COMUNICACION']] : TemaCliente::sinCompromiso();
+        $motivo = HanaVal::texto(isset($_POST['motivo']) ? $_POST['motivo'] : '', 300);
+        if ($actual['fecha'] !== null && $fecha !== $actual['fecha'] && $motivo === null) {
+            temaError(400, 'Escribe por qué cambia la fecha comprometida (antes era el ' . date('d/m/Y', strtotime($actual['fecha'])) . ').');
+        }
+        if (!TemaCliente::guardarCompromiso($tema['ID_COMUNICACION'], $responsable, $fecha, $fecha !== $actual['fecha'] ? (string)$motivo : '', $idColaborador, $ahora)) {
+            temaError(500, 'No se pudo guardar. Intenta de nuevo.');
+        }
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Compromiso guardado.'), JSON_UNESCAPED_UNICODE);
         break;
 
     //Cerrar (con fecha de cierre y una nota opcional) o reabrir

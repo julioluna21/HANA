@@ -115,7 +115,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <h4 class="cd-sub-imprimir">Vacantes abiertas</h4> <!-- al imprimir, el título va primero en su hoja -->
               <div id="cdVacProy"></div>
               <div class="table-responsive"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-                <thead><tr><th>Centro</th><th>Cargo</th><th>Desde</th><th>Acuerdo hasta</th><th class="rd-num-col">Días</th><th>Resultado</th><th>Compromiso GH</th></tr></thead>
+                <thead><tr><th>Centro</th><th>Cargo</th><th>Desde</th><th>Acuerdo hasta</th><th class="rd-num-col">Días</th><th>Resultado</th><th title="Estado del proceso en Gestión Humana, su fecha comprometida (si es distinta del acuerdo) y lo último que respondió">Gestión Humana</th></tr></thead>
                 <tbody id="tbVac"></tbody></table></div>
             </div>
             <div class="tab-pane" id="tabCom">
@@ -155,9 +155,9 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
 <?php if ($verTablero) { ?><script type="text/javascript" src="../Ajax/TableroAjax.js?v=15"></script><?php } ?>
-<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=21"></script>
+<script type="text/javascript" src="../Ajax/ControlDiarioAjax.js?v=22"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

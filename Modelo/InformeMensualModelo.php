@@ -254,7 +254,7 @@ class InformeMensual
         //---- El reporte diario de cada coordinador y lo que sigue pendiente
         foreach ($porProyecto as $idProyecto => $proyecto) {
             $porProyecto[$idProyecto]['reporte'] = $this->reporteCoordinador((int)$proyecto['ID_COLABORADOR_COORDINADOR'], $idProyecto, $per);
-            $porProyecto[$idProyecto]['pendientes'] = $this->pendientes($idProyecto, $per, $informe['plazoRq'], $plazo);
+            $porProyecto[$idProyecto]['pendientes'] = $this->pendientes($idProyecto, $per, RqEstado::dias(RqEstado::SOLICITADA, $idProyecto), $plazo);
             $porProyecto[$idProyecto]['arqueosDif'] = $this->arqueosDif($idProyecto, $per);
             foreach ($porProyecto[$idProyecto]['kpi'] as $llave => $valor) { $informe['total'][$llave] += $valor; } //y todo sube al total
         }

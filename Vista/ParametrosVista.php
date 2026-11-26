@@ -10,6 +10,13 @@ if (isset($_SESSION['IdUsuarios'])) {
         include('head.php');
 ?>
 <link href="../public/css/reporte.css?v=16" rel="stylesheet">
+<style>
+  /* Plazo para aprobar una RQ, por proyecto (debajo del plazo general) */
+  .par-plazos-lista { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 8px; }
+  .par-plazo { display: flex; align-items: center; gap: 6px; font-weight: normal; margin: 0; }
+  .par-plazo span { min-width: 90px; }
+  .par-plazo .par-plazo-rq { width: 80px; text-align: right; }
+</style>
 
 <div class="right_col" role="main">
   <div class="row">
@@ -119,8 +126,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
-<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=7"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
+<script type="text/javascript" src="../Ajax/ParametrosAjax.js?v=8"></script>
 <script type="text/javascript" src="../Ajax/ParametrosListasAjax.js?v=2"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }

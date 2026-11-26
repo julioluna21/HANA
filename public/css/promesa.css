@@ -64,11 +64,49 @@ thead .pv-fija{ background: #FBF8F6; }
 .pv-parcial{ background: #F1F2F4 !important; color: #8A9096 !important; }
 .pv-sinjust, .pv-muestra.pv-sinjust{ background: #FFF4F4 !important; color: #C62828 !important; box-shadow: inset 0 0 0 1px #E8A3A3; }
 
+/* Faltaron horas, pero se cubrieron con un encargo o desde otro peaje (opciones de la justificación) */
+.pv-cubierto, .pv-muestra.pv-cubierto{ background: #D7F2E9 !important; color: #0F6B57 !important; box-shadow: inset 0 0 0 2px #6CC3AA; }
+
 /* La ventanita de la justificación */
 .pv-editor{ position: fixed; z-index: 1060; width: 280px; background: #FFFFFF; border: 1px solid #E3DAD3; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.15); padding: 10px; }
 .pv-editor-titulo{ font-weight: 700; color: #6E1A1E; }
 .pv-editor-que{ font-size: 12px; color: #6B7076; margin-bottom: 6px; }
 .pv-editor-botones{ display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+/* Con las opciones fijas es más ancha y, si no cabe, se desplaza por dentro */
+.pv-editor-ancho{ width: 340px; max-height: calc(100vh - 16px); overflow-y: auto; }
+.pv-op-titulo{ font-size: 12px; font-weight: 700; color: #3A3F44; margin: 8px 0 4px; }
+.pv-op-fila{ display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.pv-op-fila label{ margin: 0; font-size: 12px; }
+.pv-op-fila select{ flex: 1 1 auto; min-width: 0; }
+.pv-cantidad{ width: 70px; }
+.pv-op-motivos{ display: flex; flex-wrap: wrap; gap: 4px; }
+.pv-op-motivos .btn{ margin: 0; }
+.pv-op-elegidas{ display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; padding: 6px; border: 1px dashed #E3DAD3; border-radius: 8px; min-height: 32px; }
+.pv-op-elegida{ background: #F4ECE7; color: #6E1A1E; border-radius: 12px; padding: 2px 4px 2px 9px; font-size: 11px; font-weight: 700; }
+.pv-op-quitar{ border: 0; background: transparent; color: #6E1A1E; font-weight: 700; padding: 0 4px; cursor: pointer; }
+.pv-op-usada .fa-star{ color: #D99A1E; }
+/* Comentario espejo: lo que se anota solo en la otra casilla (se puede apagar) */
+.pv-op-espejo{ margin-top: 8px; padding: 6px 8px; border-radius: 8px; background: #EEF7F4; border: 1px solid #CDE9E0; font-size: 12px; }
+.pv-op-espejo > label{ display: flex; align-items: flex-start; gap: 6px; margin: 0 0 4px; font-weight: 700; color: #0F6B57; cursor: pointer; }
+.pv-op-espejo > label input{ margin: 2px 0 0; }
+.pv-op-espejo-item{ margin-top: 3px; color: #3A3F44; word-break: break-word; }
+.pv-op-espejo-item .fa{ color: #0F7A64; width: 12px; }
+.pv-op-espejo-apagado{ background: #F6F6F7; border-color: #E3E6EA; }
+.pv-op-espejo-apagado > label{ color: #6B7076; }
+/* Las mismas opciones en el registro rápido */
+.pv-rp-opciones{ border: 1px solid #ECE6E1; border-radius: 10px; background: #FFFFFF; padding: 8px 12px 10px; margin-bottom: 12px; }
+.pv-rp-titulo{ font-weight: 700; color: #6E1A1E; }
+.pv-rp-titulo .rp-tipo-cerrar{ float: right; color: #6B7076; }
+/* El botón desplegable «Justificación» del registro rápido */
+.pv-rp-tipo, .pv-rp-tipo > .btn{ display: block; width: 100%; }
+.pv-rp-tipo > .btn{ text-align: left; }
+.pv-rp-tipo > .btn .caret{ float: right; margin-top: 8px; }
+.pv-rp-tipo .dropdown-menu{ min-width: 100%; }
+.pv-rp-tipo .dropdown-menu .fa{ width: 14px; color: #6B7076; }
+.pv-rp-tipo-debajo, .pv-rp-tipo-debajo:focus{ background: #F9D6D6; border-color: #E8A3A3; color: #A61B1B; }
+.pv-rp-tipo-encima, .pv-rp-tipo-encima:focus{ background: #FFE2BF; border-color: #F1C48C; color: #A55400; }
+.rp-sugerido{ display: none; margin-left: 4px; padding: 0 6px; border-radius: 8px; background: #E4F6F2; color: #0F7A64; font-size: 10px; font-weight: 700; }
+.pv-rp-opciones .pv-op-fila select{ max-width: 360px; }
 
 @media (max-width: 767px){
   .pv-fija{ width: 96px; min-width: 96px; max-width: 96px; font-size: 11px; }
@@ -84,3 +122,8 @@ thead .pv-fija{ background: #FBF8F6; }
 #pvComentarios{ margin-top: 18px; }
 #pvComentarios .pv-comentario{ min-width: 220px; white-space: normal; }
 #pvComentarios .pv-ir-dia{ padding: 0; font-weight: bold; color: #6E1A1E; }
+/* Filtros de la lista de comentarios */
+#pvComentarios .pvc-filtros .form-group{ margin-bottom: 8px; }
+#pvComentarios .pvc-filtros label{ font-size: 12px; margin-bottom: 2px; }
+#pvComentarios .pvc-cuenta{ font-size: 12px; color: #7A716E; margin-bottom: 6px; }
+#pvComentarios .pvc-cuenta .btn-link{ color: #6E1A1E; }

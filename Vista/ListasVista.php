@@ -206,7 +206,7 @@ if (isset($_SESSION['IdUsuarios'])) {
                 100% { box-shadow: 0 0 0 0 rgba(217,83,79,0); }
             }
         </style>
-        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
+        <script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
         <script>
           //Archivos al llenar una lista nueva: si están permitidos y el tamaño máximo (Parámetros del sistema)
           var HANA_ADJ_LISTAS = <?php echo pagParametroSi('ADJUNTOS_LISTAS') ? 'true' : 'false'; ?>;
@@ -216,7 +216,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           var HANA_LISTAS_TODO = <?php echo in_array('24M', $modulosAcceso) ? 'true' : 'false'; ?>;
           var HANA_YO = <?php echo (int)$_SESSION['Idcolaborador']; ?>;
         </script>
-        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=13"></script>
+        <script type="text/javascript" src="../Ajax/ListasAjax.js?v=14"></script>
         <?php if ($llenaListas) { ?><script type="text/javascript">rdAlertaDia('listas', '#alertaDia');</script><?php } ?>
 <?php
     } else {

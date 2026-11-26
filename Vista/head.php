@@ -40,7 +40,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
   <!-- Alertas personalizadas de HANA (reemplazan las ventanas del navegador y de bootbox) -->
   <link href="../public/css/alertas.css?v=5" rel="stylesheet">
   <!-- Estilos comunes: tablas en celular, indicador de carga y barra de progreso -->
-  <link href="../public/css/comun.css?v=8" rel="stylesheet">
+  <link href="../public/css/comun.css?v=11" rel="stylesheet">
   <!-- Tablas adaptables al celular (la librería ya venia en vendors) -->
   <link href="../vendors/datatables.net-responsive-bs/css/responsive.bootstrap.min.css" rel="stylesheet">
 
@@ -60,7 +60,7 @@ require_once __DIR__ . '/../Control/PaginaControl.php';
   <!-- Campana de notificaciones -->
   <link href="../public/css/campana.css?v=3" rel="stylesheet">
   <!-- Al imprimir o guardar como PDF: nada se corta ni se monta (va de último para que mande) -->
-  <link href="../public/css/impresion.css?v=5" rel="stylesheet">
+  <link href="../public/css/impresion.css?v=6" rel="stylesheet">
 
 </head>
  

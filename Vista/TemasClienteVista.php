@@ -20,6 +20,9 @@ if (isset($_SESSION['IdUsuarios'])) {
   .tema-quieto { color: #b9770e; }
   .tema-cierre { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
   .tema-cierre input[type="date"] { width: auto; }
+  .tema-compromiso { background: #FBF8F6; border: 1px solid #EFE7E2; border-radius: 6px; padding: 10px 12px 2px; margin-bottom: 12px; }
+  .tema-compromiso h4 { margin: 0 0 8px; font-size: 14px; }
+  .tema-vencido { color: #B42318; font-weight: 700; }
 </style>
 
 <div class="right_col" role="main">
@@ -37,6 +40,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="rd-contadores">
             <div class="rd-contador rd-cnt-pend"><span class="rd-num" id="cAbiertos">0</span><span class="rd-lbl">Abiertos</span></div>
             <div class="rd-contador rd-cnt-mal"><span class="rd-num" id="cQuietos">0</span><span class="rd-lbl">Sin seguimiento hace más de 7 días</span></div>
+            <div class="rd-contador rd-cnt-mal"><span class="rd-num" id="cVencidos">0</span><span class="rd-lbl">Con la fecha comprometida vencida</span></div>
             <div class="rd-contador rd-cnt-ok"><span class="rd-num" id="cCerrados">0</span><span class="rd-lbl">Cerrados</span></div>
           </div>
           <div class="row">
@@ -93,6 +97,20 @@ if (isset($_SESSION['IdUsuarios'])) {
               <div class="form-group col-md-3 col-sm-6 col-xs-12" id="grupoPendiente"><label for="mPendiente">Pendiente de:</label>
                 <select id="mPendiente" name="pendiente" class="form-control"></select></div>
             </div>
+            <!-- Quién responde y para cuándo: lo llena cualquiera que lleve los temas, mientras el tema siga abierto -->
+            <div class="tema-compromiso" id="grupoCompromiso">
+              <h4><i class="fa fa-flag-checkered"></i> Compromiso de cierre</h4>
+              <div class="row">
+                <div class="form-group col-md-4 col-sm-6 col-xs-12"><label for="mResponsable">Responsable:</label>
+                  <input type="text" id="mResponsable" name="responsable" class="form-control" maxlength="120" placeholder="Quién responde por cerrarlo"></div>
+                <div class="form-group col-md-3 col-sm-6 col-xs-12"><label for="mFechaCompromiso">Fecha comprometida de cierre:</label>
+                  <input type="date" id="mFechaCompromiso" name="fechaCompromiso" class="form-control"></div>
+                <div class="form-group col-md-5 col-sm-12 col-xs-12" id="grupoMotivoFecha" style="display:none;"><label for="mMotivoFecha">¿Por qué cambia la fecha? <span class="rd-req">*</span></label>
+                  <input type="text" id="mMotivoFecha" class="form-control" maxlength="300" placeholder="Ej: el proveedor pidió una semana más"></div>
+              </div>
+              <p class="rd-ayuda" id="mCompromisoInfo" style="margin-top:-6px;"></p>
+              <div class="form-group" id="grupoBtnCompromiso"><button type="button" class="btn btn-default btn-sm" id="btnCompromiso"><i class="fa fa-save"></i> Guardar compromiso</button></div>
+            </div>
             <div class="form-group" id="grupoInicio"><label for="mInicio">En qué va:</label>
               <textarea id="mInicio" name="inicio" class="form-control" rows="2" maxlength="2000" placeholder="Lo que se habló o se acordó hasta ahora (opcional)"></textarea></div>
 
@@ -129,8 +147,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
-<script type="text/javascript" src="../Ajax/TemaClienteAjax.js?v=2"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
+<script type="text/javascript" src="../Ajax/TemaClienteAjax.js?v=4"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

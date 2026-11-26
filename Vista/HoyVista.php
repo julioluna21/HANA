@@ -50,7 +50,7 @@ if (isset($_SESSION['IdUsuarios'])) {
             <button type="button" class="btn btn-default" id="btnDiaAnterior" title="Día anterior"><i class="fa fa-chevron-left"></i></button>
             <input type="date" id="hoyFecha" class="form-control" aria-label="Día">
             <button type="button" class="btn btn-default" id="btnDiaSiguiente" title="Día siguiente"><i class="fa fa-chevron-right"></i></button>
-            <!-- Solo se registra hoy. Si el administrador habilitó otro día, aquí sale su botón (lo pinta HoyAjax.js) -->
+            <!-- Hoy y los días que habilitó el administrador (lo pinta HoyAjax.js). Los sábados, domingos y festivos se escogen en el calendario -->
             <div class="rd-dia-rapido" id="hoyRapido" role="group" aria-label="Ir a un día" style="margin-top:0;">
               <button type="button" class="btn btn-default btn-sm" data-fecha="hoy">Hoy</button>
             </div>
@@ -147,8 +147,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
-<script type="text/javascript" src="../Ajax/HoyAjax.js?v=7"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
+<script type="text/javascript" src="../Ajax/HoyAjax.js?v=9"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

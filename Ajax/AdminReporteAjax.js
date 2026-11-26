@@ -94,7 +94,7 @@ function pintarHoyA(filas) {
              '<td>' + tagA(rdEsc(cfgA.situaciones[registro.SITUACION] || registro.SITUACION), esLaboral ? 'rd-tag-ok' : '') + '</td>' +
              '<td>' + rdEsc(esLaboral ? donde : '') + (registro.OBSERVACION ? '<br><small>' + rdEsc(registro.OBSERVACION) + '</small>' : '') + '</td>' +
              '<td class="rd-nowrap">' + (esLaboral && registro.HORA_INGRESO ? rdHora(registro.HORA_INGRESO) + ' – ' + (registro.HORA_SALIDA ? rdHora(registro.HORA_SALIDA) : '…') : '') + '</td>' +
-             '<td><small>' + (esLaboral ? rdRecortar(registro.ACTIVIDAD, 90) : '') + '</small></td>' +
+             '<td><small>' + (esLaboral ? rdRecortar(registro.ACTIVIDAD, 350) : '') + '</small></td>' +
              '<td class="rd-nowrap"><small>' + rdFecha(String(registro.FEC_MODIFICACION || registro.FEC_REGISTRO).substring(0, 10)) + ' ' +
                  rdHora(String(registro.FEC_MODIFICACION || registro.FEC_REGISTRO).substring(11)) + '</small></td>' +
              '<td><button type="button" class="btn btn-success btn-xs btn-adm-hoy" data-persona="' + parseInt(registro.ID_COLABORADOR, 10) +
@@ -232,7 +232,7 @@ function pintarVacA(filas) {
              '<td class="rd-num-col">' + (abierta ? vacante.DIAS_A_HOY + ' a hoy' : (vacante.TIEMPO_CIERRE !== null ? vacante.TIEMPO_CIERRE + ' en cerrar' : '')) + '</td>' +
              '<td>' + rdEsc(vacante.MOTIVO) + '</td><td>' + rdEsc(cfgA.estadosVacante[vacante.ESTADO_VACANTE]) + '</td><td>' + (ETIQUETA_RESULTADO[vacante.RESULTADO_ANS] || '') + '</td>' +
              '<td>' + rdEsc(vacante.NOMBRE_REEMPLAZO || '') + '</td>' +
-             '<td>' + rdEsc((vacante.ESTADO_GH ? cfgA.estadosGh[vacante.ESTADO_GH] : '') + (vacante.FECHA_COMPROMISO_GH ? ' ' + rdFecha(vacante.FECHA_COMPROMISO_GH) : '')) + '</td></tr>';
+             '<td style="min-width:160px;">' + rdCeldaGh(vacante, cfgA.estadosGh) + '</td></tr>';
     }
     $('#admResumen').html(tagA(filas.length + ' vacantes') + ' ' + tagA(abiertas + ' abiertas', 'rd-tag-pend') + ' ' + (fuera ? tagA(fuera + ' fuera del acuerdo', 'rd-tag-mal') : ''));
     $('#admFilas').html(html || vacioA(13, 'No hay vacantes con estos filtros.'));

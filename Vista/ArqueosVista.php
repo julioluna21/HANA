@@ -85,7 +85,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <div class="form-group col-md-3 col-sm-6 col-xs-12">
                 <label for="arqFecha">Fecha: <span class="rd-req">*</span></label>
                 <input type="date" id="arqFecha" name="fecha" class="form-control">
-                <!-- Solo hoy; si el administrador habilitó otro día, su botón lo pinta ArqueoAjax.js -->
+                <!-- Hoy y los días que habilitó el administrador (los pinta ArqueoAjax.js); los sábados, domingos y festivos se escogen en la fecha -->
                 <div class="rd-dia-rapido" id="arqRapido" role="group" aria-label="Día del arqueo"></div>
               </div>
               <div class="form-group col-md-2 col-sm-6 col-xs-6">
@@ -261,8 +261,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
-<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=14"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
+<script type="text/javascript" src="../Ajax/ArqueoAjax.js?v=15"></script>
 <?php
     } else {
         echo "<script>window.location.replace('InicioVista.php');</script>";

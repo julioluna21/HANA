@@ -114,7 +114,8 @@ function hanaCasillas()
         'REPORTE'        => array('ver' => '19M', 'tablero' => '43M', 'informe' => '37M'),
         'TAREAS'         => array('editar' => '57M'),
         'GERENCIA'       => array('armar' => '61M'),
-        'TRAZABILIDAD'   => array('ver' => '62M') //ver qué se registró, cambió o anuló, quién y cuándo (de sus peajes)
+        'TRAZABILIDAD'   => array('ver' => '62M'), //ver qué se registró, cambió o anuló, quién y cuándo (de sus peajes)
+        'EXCEL'          => array('descargar' => '63M') //descargar en Excel la promesa de valor y las vacantes (de sus peajes)
     );
 }
 

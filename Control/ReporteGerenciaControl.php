@@ -72,7 +72,7 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'config':
         //Los días guardados no van todos aquí (con el tiempo serían cientos): van los meses, y la
         //pantalla pide los días del mes que se esté viendo
-        echo hanaJsonTexto(array('hoy' => $hoy, 'secciones' => ReporteGerencia::SECCIONES, 'meses' => ReporteGerencia::mesesGuardados()),
+        echo hanaJsonTexto(array('hoy' => $hoy, 'secciones' => ReporteGerencia::SECCIONES + ReporteGerencia::SECCIONES_SEGUIMIENTO, 'meses' => ReporteGerencia::mesesGuardados()),
                            JSON_UNESCAPED_UNICODE);
         break;
 
@@ -91,22 +91,33 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $sistema = ReporteGerencia::propuesta($proyectos, $centros, $fecha, $conNovedades, $desde);
         $guardado = ReporteGerencia::guardado($fecha, $desde);
         $reporte = $guardado ? ReporteGerencia::deGuardado($guardado['datos'], $proyectos) : null;
-        if (!$reporte) { $reporte = ReporteGerencia::normalizar($sistema + array('encabezado' => ReporteGerencia::ultimoEncabezado()), $proyectos); }
+        if (!$reporte) {
+            $reporte = ReporteGerencia::normalizar($sistema + array('encabezado' => ReporteGerencia::ultimoEncabezado(), 'fecha' => $fecha), $proyectos);
+            //Sigue el seguimiento del último reporte guardado (planes, asuntos para la Gerencia, compromisos escritos a mano)
+            $reporte = ReporteGerencia::conSeguimientoAnterior($reporte, $fecha, $proyectos);
+        }
+        //Un reporte guardado antes de que existiera la tabla de vacantes la toma del sistema (con su nota)
+        if (!is_array($reporte['vacantes'])) { $reporte['vacantes'] = $sistema['vacantes']; $reporte['notaVacantes'] = $sistema['notaVacantes']; }
+        //«con corte al …» de la presentación queda con el día del reporte
+        $reporte['encabezado']['presentacion'] = ReporteGerencia::presentacionAlCorte($reporte['encabezado']['presentacion'], $fecha);
         $mes = substr($fecha, 0, 7);
         $lista = array();
         foreach ($proyectos as $idProyecto => $nombre) { $lista[] = array('id' => $idProyecto, 'nombre' => $nombre); }
         echo hanaJsonTexto(array('fecha' => $fecha, 'desde' => $desde, 'diaCorto' => ReporteGerencia::periodoCorto($desde, $fecha),
                                  'periodoLargo' => ReporteGerencia::periodoLargo($desde, $fecha),
                                  'fechaInforme' => ReporteGerencia::fechaInforme($desde, $fecha), 'titulo' => ReporteGerencia::tituloInforme($desde, $fecha),
-                                 'tituloPromesa' => ReporteGerencia::tituloPromesa($desde, $fecha),
+                                 'subtitulo' => ReporteGerencia::SUBTITULO,
+                                 'planCobertura' => ReporteGerencia::PLAN_COBERTURA,
+                                 'tituloPromesa' => ReporteGerencia::tituloPromesa($desde, $fecha, $centros),
                                  'proyectos' => $lista, 'reporte' => $reporte, 'sistema' => $sistema,
+                                 'centros' => array_values(array_map(function ($centro) { return $centro['NOM_CENTRO_OP']; }, $centros)),
                                  'guardado' => $guardado ? array('quien' => $guardado['quien'], 'fecha' => $guardado['fecha']) : null,
                                  'mes' => $mes, 'guardadosMes' => ReporteGerencia::guardadosMes($mes)),
                            JSON_UNESCAPED_UNICODE);
         break;
 
     //Guarda el reporte del periodo (una versión nueva; la anterior queda como trazabilidad). Llega como JSON:
-    //{fecha, desde, encabezado, resultados, prioritarias, proyectos, transversal, compromisos}
+    //{fecha, desde, encabezado, resultados, prioritarias, proyectos, transversal, vacantes, notaVacantes, compromisos}
     case 'guardar':
         $entrada = json_decode(isset($_POST['reporte']) ? (string)$_POST['reporte'] : '', true);
         if (!is_array($entrada) || !isset($entrada['resultados'])) { gerError(400, 'No llegó el reporte. Recarga la página e intenta de nuevo.'); }
@@ -114,6 +125,8 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         $desde = gerDesde(isset($entrada['desde']) ? $entrada['desde'] : '', $fecha);
         list($reporte, $error) = ReporteGerencia::normalizar($entrada, $proyectos, true);
         if ($error !== null) { gerError(400, $error); }
+        //Los peajes de la tabla de vacantes escritos a mano quedan con su nombre del sistema
+        $reporte = ReporteGerencia::corregirCentros($reporte, $centros);
         $anterior = ReporteGerencia::guardado($fecha, $desde);
         $datos = ReporteGerencia::paraGuardar($fecha, $desde, $reporte, $proyectos, $anterior ? $anterior['datos'] : null);
         $ahora = date('Y-m-d H:i:s');
@@ -123,7 +136,11 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
         if (!ReporteGerencia::guardar($fecha, $datos, $idColaborador, $ahora)) {
             gerError(500, 'No se pudo guardar el reporte. Intenta de nuevo en un momento.');
         }
-        echo hanaJsonTexto(array('ok' => true, 'mensaje' => 'Reporte ' . ($desde < $fecha ? 'del periodo ' . ReporteGerencia::periodoCorto($desde, $fecha) : 'del ' . ReporteGerencia::diaCorto($fecha)) . ' guardado.', 'fecha' => $ahora), JSON_UNESCAPED_UNICODE);
+        $mensaje = 'Reporte ' . ($desde < $fecha ? 'del periodo ' . ReporteGerencia::periodoCorto($desde, $fecha) : 'del ' . ReporteGerencia::diaCorto($fecha)) . ' guardado.';
+        if ($datos['resultados'] !== $reporte['resultados']) {
+            $mensaje .= ' La promesa de valor, el encabezado y la nota de las vacantes quedaron como estaban: son de todos los proyectos y el reporte tiene proyectos que tú no ves.';
+        }
+        echo hanaJsonTexto(array('ok' => true, 'mensaje' => $mensaje, 'fecha' => $ahora), JSON_UNESCAPED_UNICODE);
         break;
 
     default:

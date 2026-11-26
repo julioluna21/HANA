@@ -650,7 +650,7 @@ class InformeMensualPdf extends FPDF
             }
             $this->cy += 8;
         }
-        $this->nota('Plazo para aprobar una RQ: ' . self::dias($datos['plazoRq']) . '. Las urgentes y las que pasaron el plazo salen en vino. Se cambia en Configuración, Parámetros del sistema.');
+        $this->nota('Plazo para aprobar una RQ: ' . self::dias($datos['plazoRq']) . ' (los proyectos que tienen uno propio se miden con el suyo). Las urgentes y las que pasaron el plazo salen en vino. Se cambia en Configuración, Parámetros del sistema.');
     }
 
     //-----------------------------------------------------------------------

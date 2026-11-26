@@ -24,6 +24,9 @@
     .left_col, .top_nav, .nav_menu, footer, .rd-migas, .rd-no-imprimir, .rd-avisos, .modal, .modal-backdrop,
     .rd-acciones-fijas, .dataTables_filter, .dataTables_length, .dataTables_paginate, .dataTables_info,
     .btn, .nav-tabs, .pv-filtro-cargos .pv-fc:not(.activo){ display: none !important; }
+    /* Menos los que muestran un dato: la fecha de cada comentario de la promesa de valor es un botón
+       (lleva a ese día en la matriz), y en el papel tiene que salir como texto */
+    .btn.pv-ir-dia{ display: inline !important; padding: 0 !important; border: 0 !important; color: #000000 !important; text-decoration: none !important; font-size: inherit !important; }
     .right_col{ margin-left: 0 !important; padding: 0 !important; min-height: 0 !important; }
     .x_panel{ box-shadow: none !important; border: 0 !important; padding: 0 !important; }
     /* La causa de las letras partidas por la mitad: la plantilla pone los paneles (.x_panel)

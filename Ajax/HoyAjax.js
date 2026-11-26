@@ -221,11 +221,12 @@ function mostrarLaboral() {
 //---------------------------------------------------------------------------
 // Días habilitados: un botón por cada día que el administrador le abrió
 //---------------------------------------------------------------------------
-//(y los sábados, domingos y festivos del mes, que quedan abiertos solos: llegan en cfgHoy.findes)
+//Los sábados, domingos y festivos del mes (cfgHoy.findes) también están abiertos, pero no llevan
+//botón: se llega a ellos con el calendario o las flechas
 function pintarHabilitados() {
     $('#hoyRapido [data-habilitado]').remove(); //se vuelven a pintar desde cero
     var html = '';
-    (cfgHoy.habilitados || []).slice().sort().forEach(function (fechaHabilitada) {
+    (cfgHoy.habilitados || []).filter(function (fecha) { return (cfgHoy.findes || []).indexOf(fecha) === -1; }).sort().forEach(function (fechaHabilitada) {
         html += rdBotonDiaAbierto(fechaHabilitada, 'btn btn-default btn-sm', cfgHoy.findes, ' data-habilitado="1"');
     });
     $('#hoyRapido').append(html);
@@ -348,7 +349,7 @@ function cargarMes() {
                          '<td><span class="hoy-sit-tag hoy-sit-' + esc(registroDia.SITUACION.toLowerCase()) + '">' + esc(situacion) + '</span></td>' +
                          '<td>' + (esLaboral ? esc(donde) : '') + '</td>' +
                          '<td>' + (esLaboral ? esc(hhmm(registroDia.HORA_INGRESO)) + (registroDia.HORA_SALIDA ? ' – ' + esc(hhmm(registroDia.HORA_SALIDA)) : ' – …') : '') + '</td>' +
-                         '<td class="hoy-mes-actividad">' + (esLaboral ? esc(recortar(registroDia.ACTIVIDAD, 110)) : '') + '</td></tr>';
+                         '<td class="hoy-mes-actividad">' + (esLaboral ? esc(recortar(registroDia.ACTIVIDAD, 350)) : '') + '</td></tr>';
                 } else {
                     faltan++;
                     html += '<tr class="hoy-fila-mes hoy-falta" data-fecha="' + dia + '">' +

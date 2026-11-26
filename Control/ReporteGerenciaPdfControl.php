@@ -7,10 +7,12 @@
   necesita:
     - fecha, desde, la fecha y el título del informe;
     - el reporte con su estructura (encabezado, resultados, prioritarias,
-      proyectos, transversal y compromisos), los nombres de los proyectos;
-    - las cifras de la promesa de valor: el porcentaje y los peajes que cumplen se
+      proyectos, transversal, compromisos, vacantes y su nota), los nombres
+      de los proyectos;
+    - las cifras de la promesa de valor: el porcentaje y los centros de operación que cumplen se
       LEEN DEL TEXTO de los resultados tal como quedó (si la dirección lo corrigió,
-      el PDF muestra lo corregido); la gráfica por proyecto sale de la base;
+      el PDF muestra lo corregido); la gráfica por proyecto sale de la línea «Por
+      proyecto: …» del mismo texto (o de lo registrado, si el texto no la tiene);
     - cómo quedó el texto: 'guardado' (quién y cuándo), 'pantalla' (lo que se
       estaba editando, sin guardar) o 'sistema' (lo que propone el sistema).
 
@@ -69,23 +71,49 @@ if ((strtotime($fecha) - strtotime($desde)) / 86400 + 1 > 31) { gerPdfError(400,
 
 $guardado = ReporteGerencia::guardado($fecha, $desde);
 //Lo que propone el sistema con los datos de la base: es el reporte cuando no hay nada guardado (ni llegó
-//el de la pantalla), y de ahí salen las cifras que el texto no diga y la gráfica de la promesa por proyecto
+//el de la pantalla), y la gráfica por proyecto si el texto no la dice
 $base = ReporteGerencia::calcular($proyectos, $centros, $fecha, $conNovedades, $desde);
+$sistema = null;
 if ($enviado !== null) { $contenido = ReporteGerencia::normalizar($enviado, $proyectos); }
 elseif ($guardado) { $contenido = ReporteGerencia::deGuardado($guardado['datos'], $proyectos); }
-else { $contenido = ReporteGerencia::normalizar(ReporteGerencia::propuesta($proyectos, $centros, $fecha, $conNovedades, $desde) + array('encabezado' => ReporteGerencia::ultimoEncabezado()), $proyectos); }
+else {
+    $sistema = ReporteGerencia::propuesta($proyectos, $centros, $fecha, $conNovedades, $desde);
+    $contenido = ReporteGerencia::normalizar($sistema + array('encabezado' => ReporteGerencia::ultimoEncabezado()), $proyectos);
+}
+//Un reporte guardado antes de que existiera la tabla de vacantes la toma del sistema (con su nota)
+if (!is_array($contenido['vacantes'])) {
+    if ($sistema === null) { $sistema = ReporteGerencia::propuesta($proyectos, $centros, $fecha, $conNovedades, $desde); }
+    $contenido['vacantes'] = $sistema['vacantes'];
+    $contenido['notaVacantes'] = $sistema['notaVacantes'];
+}
+//«con corte al …» de la presentación queda con el día del reporte
+$contenido['encabezado']['presentacion'] = ReporteGerencia::presentacionAlCorte($contenido['encabezado']['presentacion'], $fecha);
+//Los peajes de la tabla de vacantes escritos a mano salen con su nombre del sistema
+$contenido = ReporteGerencia::corregirCentros($contenido, $centros);
 
-//Las cifras de la promesa: las del texto de los resultados (o de la base, si el texto no las dice)
-$promesa = ReporteGerencia::cifrasResultados($contenido['resultados'], ReporteGerencia::totalesPromesa($base));
-//La promesa de cada proyecto para la gráfica: [nombre, porcentaje o null, nota, rótulo («87,5 % · 1 de 2 peajes»)]
+//La gráfica por proyecto sale de lo que dice el texto de los resultados (la línea «Por proyecto: ICCU 97,5 %
+//(4 de 5 peajes) · …»); esa línea no se repite en el párrafo. Si el texto no la tiene, sale de lo registrado
+list($leidos, $resultadosSinProyectos) = ReporteGerencia::proyectosDelTexto($contenido['resultados'], $proyectos);
+$sistemaPorProyecto = array();
+foreach ($proyectos as $idProyecto => $nombre) { $sistemaPorProyecto[$idProyecto] = ReporteGerencia::totalesPromesa(array($base[$idProyecto])); }
 $porProyecto = array();
 foreach ($proyectos as $idProyecto => $nombre) {
-    $totales = ReporteGerencia::totalesPromesa(array($base[$idProyecto]));
-    if (!$totales['hay']) { $rotulo = 'Sin promesa'; }
-    elseif (!$totales['peajes']) { $rotulo = 'Pendiente'; }
-    else { $rotulo = ReporteGerencia::porcentaje($totales['ejecutadas'], $totales['prometidas']) . ' · ' . $totales['cumplen'] . ' de ' . $totales['peajes'] . ($totales['peajes'] === 1 ? ' peaje' : ' peajes'); }
-    $porProyecto[] = array($nombre, $totales['pct'], '', $rotulo);
+    if (count($leidos)) {
+        $l = isset($leidos[$idProyecto]) ? $leidos[$idProyecto] : null;
+        if ($l === null) { $porProyecto[] = array($nombre, null, '', 'Sin promesa'); continue; }
+        if ($l['pct'] === null) { $porProyecto[] = array($nombre, null, '', $l['pendiente'] ? 'Pendiente' : 'Sin promesa'); continue; }
+        $rotulo = ReporteGerencia::porcentaje($l['pct'], 100) . ($l['peajes'] ? ' · ' . (int)$l['cumplen'] . ' de ' . $l['peajes'] . ' ' . ReporteGerencia::centros($l['peajes']) : '');
+        $porProyecto[] = array($nombre, $l['pct'], '', $rotulo);
+        continue;
+    }
+    $t = $sistemaPorProyecto[$idProyecto];
+    if (!$t['hay']) { $rotulo = 'Sin promesa'; }
+    elseif (!$t['medidos']) { $rotulo = 'Pendiente'; }
+    else { $rotulo = ReporteGerencia::porcentaje($t['ejecutadas'], $t['prometidas']) . ' · ' . $t['cumplen'] . ' de ' . $t['peajes'] . ' ' . ReporteGerencia::centros($t['peajes']); }
+    $porProyecto[] = array($nombre, $t['pct'], '', $rotulo);
 }
+//Las cifras de la promesa (la cifra grande): las del texto de los resultados o, si el texto no las dice, las registradas
+$promesa = ReporteGerencia::cifrasResultados($contenido['resultados'], ReporteGerencia::totalesPromesa($base));
 
 //Quién lo genera: la persona que lo descarga
 $quien = isset($_SESSION['Nombre']) ? html_entity_decode($_SESSION['Nombre'], ENT_QUOTES, 'UTF-8') : '';
@@ -96,14 +124,20 @@ $reporte = array(
     'desde'        => $desde,          //igual a fecha cuando es un solo día
     'esRango'      => $desde < $fecha,
     'fechaLarga'   => ReporteGerencia::periodoLargo($desde, $fecha), //"jueves, 29 de octubre de 2026" o "del lunes 26 al jueves 29 de octubre de 2026"
-    'fechaInforme' => ReporteGerencia::fechaInforme($desde, $fecha),
+    'fechaInforme' => ReporteGerencia::fechaInforme($desde, $fecha), //"Corte: 20 de noviembre de 2026" o "Periodo: del 14 al 20 de …"
+    'corte'        => ReporteGerencia::diaMesAnio($fecha),
     'titulo'       => ReporteGerencia::tituloInforme($desde, $fecha),
-    'tituloPromesa' => ReporteGerencia::tituloPromesa($desde, $fecha),
-    'secciones'    => ReporteGerencia::SECCIONES,
+    'subtitulo'    => ReporteGerencia::SUBTITULO,
+    'tituloPromesa' => ReporteGerencia::tituloPromesa($desde, $fecha, $centros),
+    'secciones'    => ReporteGerencia::SECCIONES + ReporteGerencia::SECCIONES_SEGUIMIENTO,
     'nombres'      => $proyectos,
     'contenido'    => $contenido,
     'promesa'      => $promesa,
     'promesaProyectos' => $porProyecto,
+    //El párrafo de los resultados sin la línea por proyecto (esa va en la gráfica) ni los «Plan de cobertura:»
+    //que quedaron sin llenar
+    'resultadosTexto' => trim(preg_replace('/^[ \t]*' . preg_quote(ReporteGerencia::PLAN_COBERTURA, '/') . '[ \t]*$\n?/imu', '',
+                                           count($leidos) ? $resultadosSinProyectos : $contenido['resultados'])),
     'origen'       => $enviado !== null ? 'pantalla' : ($guardado ? 'guardado' : 'sistema'),
     'guardado'     => $guardado ? array('quien' => (string)$guardado['quien'], 'fecha' => $guardado['fecha']) : null,
 );

@@ -253,7 +253,7 @@ class Rq
                        IF(r.ID_RQ_ESTADO = " . RqEstado::ANULADA . ", 0, 1) AS ESTADO,
                        p.NOM_PROYECTO, c.NOM_CENTRO_OP,
                        r.ID_RQ_ESTADO,
-                       " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO') . ",
+                       " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO', array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'DIAS_ESPERADOS'), 'c.ID_PROYECTO') . ",
                        col.NOM_COLABORADOR AS SOLICITA,
                        DATEDIFF(NOW(), " . RqEstado::sqlDesde('r.ID_RQ') . ") AS DIAS_EN_ESTADO,
                        DATEDIFF(NOW(), r.FEC_CREACION) AS DIAS_TOTALES,
@@ -261,7 +261,7 @@ class Rq
                        (SELECT GROUP_CONCAT(d.DESCRIPCION SEPARATOR ' · ')
                           FROM rq_detalle d WHERE d.ID_RQ = r.ID_RQ) AS RESUMEN,
                        " . self::sqlOtrosPeajes() . " AS OTROS_PEAJES,
-                       " . RqEstado::sqlVencida('r.ID_RQ_ESTADO', RqEstado::sqlDesde('r.ID_RQ')) . " AS VENCIDA
+                       " . RqEstado::sqlVencida('r.ID_RQ_ESTADO', RqEstado::sqlDesde('r.ID_RQ'), 'c.ID_PROYECTO') . " AS VENCIDA
                   FROM rq r
                   INNER JOIN centros_operacion c  ON c.ID_CENTRO_OP = r.ID_CENTRO_OP
                   INNER JOIN proyectos p          ON p.ID_PROYECTO = c.ID_PROYECTO
@@ -284,7 +284,7 @@ class Rq
         //ID_PROYECTO sale del peaje, con el nombre que espera la pantalla
         $sql = "SELECT r.*, c.ID_PROYECTO, IF(r.ID_RQ_ESTADO = " . RqEstado::ANULADA . ", 0, 1) AS ESTADO,
                        p.NOM_PROYECTO, c.NOM_CENTRO_OP, " . self::sqlOtrosPeajes() . " AS OTROS_PEAJES,
-                       " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO', array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'ORDEN', 'DIAS_ESPERADOS')) . ",
+                       " . RqEstado::sqlColumnas('r.ID_RQ_ESTADO', array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'ORDEN', 'DIAS_ESPERADOS'), 'c.ID_PROYECTO') . ",
                        col.NOM_COLABORADOR AS SOLICITA,
                        DATEDIFF(NOW(), " . RqEstado::sqlDesde('r.ID_RQ') . ") AS DIAS_EN_ESTADO,
                        " . self::sqlReintentos('r.ID_RQ') . " AS REINTENTOS

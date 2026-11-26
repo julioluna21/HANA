@@ -1,6 +1,6 @@
 //Reporte diario - Temas con el cliente y con Regency
 var URL_TEMA = '../Control/TemaClienteControl.php';
-var cfgT = null, filasT = [], temaAbierto = null;
+var cfgT = null, filasT = [], temaAbierto = null, compromisoT = null;
 var DIAS_QUIETO = 7; //días sin seguimiento para resaltar un tema abierto
 
 //Arma las <option> de un select a partir de un objeto {valor: texto}
@@ -42,6 +42,11 @@ $(function () {
     $('#btnAnotar').on('click', function () { accion('anotar'); });
     $('#btnCerrar').on('click', function () { accion('cerrar'); });
     $('#btnReabrir').on('click', function () { accion('reabrir'); });
+    $('#btnCompromiso').on('click', guardarCompromiso);
+    //Si se cambia una fecha comprometida que ya estaba, se pide el motivo
+    $('#mFechaCompromiso').on('change input', function () {
+        $('#grupoMotivoFecha').toggle(!!(compromisoT && compromisoT.fecha && this.value !== compromisoT.fecha));
+    });
     $(document).on('click', '.btn-abrir-tema', function () { abrir(filasT[$(this).data('i')]); });
 });
 
@@ -61,14 +66,21 @@ function listar() {
     $.getJSON(URL_TEMA + '?op=listar' + filtros)
         .done(function (filas) {
             filasT = filas;
-            var html = '', abiertos = 0, quietos = 0, cerrados = 0;
+            var html = '', abiertos = 0, quietos = 0, cerrados = 0, vencidos = 0;
             filas.forEach(function (tema, i) {
                 var abierto = +tema.ABIERTO === 1, quieto = abierto && +tema.DIAS_SIN_MOVIMIENTO > DIAS_QUIETO;
-                if (abierto) { abiertos++; if (quieto) { quietos++; } } else { cerrados++; }
+                var c = tema.COMPROMISO || {}, vencido = abierto && c.fecha && c.fecha < cfgT.hoy;
+                if (abierto) { abiertos++; if (quieto) { quietos++; } if (vencido) { vencidos++; } } else { cerrados++; }
                 var estado = abierto
                     ? '<span class="rd-tag rd-tag-pend">Abierto</span>' + (tema.PENDIENTE_DE ? '<br><small>Pendiente: ' + rdEsc(cfgT.pendiente[tema.PENDIENTE_DE] || tema.PENDIENTE_DE) + '</small>' : '')
                     : '<span class="rd-tag rd-tag-ok">Cerrado el ' + rdFecha(tema.FECHA_ATENCION) + '</span>';
-                var ultimo = tema.ULTIMO_TEXTO ? rdRecortar(tema.ULTIMO_TEXTO, 140) : '<span class="rd-ayuda">Sin seguimiento todavía</span>';
+                //Quién responde y para cuándo
+                if (c.responsable) { estado += '<br><small>Responsable: ' + rdEsc(c.responsable) + '</small>'; }
+                if (abierto) {
+                    estado += '<br><small' + (vencido ? ' class="tema-vencido"' : '') + '>' + (c.fecha ? 'Cierre comprometido: ' + rdFecha(c.fecha) + (vencido ? ' (vencida)' : '') : 'Sin fecha de cierre') + '</small>' +
+                              (+c.veces ? '<br><small>Fecha corrida ' + (+c.veces === 1 ? '1 vez' : c.veces + ' veces') + '</small>' : '');
+                }
+                var ultimo = tema.ULTIMO_TEXTO ? rdRecortar(tema.ULTIMO_TEXTO, 350) : '<span class="rd-ayuda">Sin seguimiento todavía</span>';
                 var movimiento = tema.ULTIMO_MOVIMIENTO ? '<div class="tema-ultimo' + (quieto ? ' tema-quieto' : '') + '">' +
                     (quieto ? '<i class="fa fa-clock-o"></i> ' : '') + rdFecha(tema.ULTIMO_MOVIMIENTO) + '</div>' : '';
                 html += '<tr><td>' + rdEsc(tema.NOM_PROYECTO) + (tema.NOM_CENTRO_OP ? '<br><small>' + rdEsc(tema.NOM_CENTRO_OP) + '</small>' : '') + '</td>' +
@@ -81,7 +93,7 @@ function listar() {
                         '<td><button type="button" class="btn btn-default btn-xs btn-abrir-tema" data-i="' + i + '" title="Abrir"><i class="fa fa-folder-open-o"></i></button></td></tr>';
             });
             $('#filas').html(html || '<tr><td colspan="10" class="rd-vacio">No hay temas para mostrar.</td></tr>');
-            $('#cAbiertos').text(abiertos); $('#cQuietos').text(quietos); $('#cCerrados').text(cerrados);
+            $('#cAbiertos').text(abiertos); $('#cQuietos').text(quietos); $('#cVencidos').text(vencidos); $('#cCerrados').text(cerrados);
         })
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudieron cargar los temas.'); });
 }
@@ -102,9 +114,11 @@ function abrir(tema) {
     } else {
         $('#mApertura').val(cfgT.hoy);
     }
-    //Los datos los corrige quien registró el tema; los demás escriben el seguimiento
+    //Los datos los corrige quien registró el tema; los demás escriben el seguimiento y el compromiso de cierre
     var editable = !tema || !!tema.PUEDE_CORREGIR;
-    $('#formTema').find('input, select, textarea').not('#mNuevaNota, #mFechaCierre').prop('disabled', !editable);
+    $('#formTema').find('input, select, textarea').not('#mNuevaNota, #mFechaCierre, #mResponsable, #mFechaCompromiso, #mMotivoFecha').prop('disabled', !editable);
+    pintarCompromiso(tema ? tema.COMPROMISO : null, !tema || +tema.ABIERTO === 1);
+    $('#grupoBtnCompromiso').toggle(!!tema && !!cfgT.puedeLlenar && +tema.ABIERTO === 1);
     $('#btnGuardar').toggle(editable && cfgT.puedeLlenar);
     $('#btnAnular, #mMotivo').toggle(!!tema && !!tema.PUEDE_CORREGIR);
     $('#grupoInicio').toggle(!tema);
@@ -118,6 +132,8 @@ function abrir(tema) {
 //Guarda el tema (nuevo o corregido)
 function guardar(evento) {
     evento.preventDefault();
+    //En un tema que ya existe, el compromiso de cierre se guarda aparte (lo puede cambiar cualquiera que lleve temas)
+    if ($('#mId').val() && compromisoCambio()) { guardarCompromiso(); }
     hanaBoton('#btnGuardar', true);
     $.post(URL_TEMA + '?op=guardar', $('#formTema').serialize(), null, 'json')
         .done(function (respuesta) {
@@ -159,6 +175,8 @@ function cargarSeguimiento(id) {
             $('#mSeg').html(html || '<p class="rd-vacio" style="margin:6px 0;">Todavía no hay seguimiento. Escribe en qué va el tema.</p>');
             $('#mEstado').html(respuesta.cerrado ? '<span class="rd-tag rd-tag-ok">Cerrado el ' + rdFecha(respuesta.fechaCierre) + '</span>' : '<span class="rd-tag rd-tag-pend">Abierto</span>');
             $('#cajaCerrar').toggle(!respuesta.cerrado);
+            pintarCompromiso(respuesta.compromiso, !respuesta.cerrado);
+            $('#grupoBtnCompromiso').toggle(!!cfgT.puedeLlenar && !respuesta.cerrado);
             $('#btnReabrir').toggle(!!respuesta.cerrado);
             $('#mFechaCierre').attr('min', respuesta.apertura).val(cfgT.hoy);
         })
@@ -182,4 +200,38 @@ function accion(op) {
     };
     if (op === 'cerrar') { hanaConfirmar('¿Cerrar este tema con fecha ' + rdFecha(datos.fecha) + '?', enviar, { aceptar: 'Sí, cerrar', cancelar: 'No' }); }
     else { enviar(); }
+}
+
+//Quién responde y la fecha comprometida de cierre del tema (null = tema nuevo). $abierto: si se puede cambiar
+function pintarCompromiso(c, abierto) {
+    compromisoT = c || null;
+    c = c || { responsable: '', fecha: null, veces: 0, anteriores: [], motivo: '' };
+    $('#mResponsable').val(c.responsable || ''); $('#mFechaCompromiso').val(c.fecha || ''); $('#mMotivoFecha').val('');
+    $('#grupoMotivoFecha').hide();
+    $('#mResponsable, #mFechaCompromiso, #mMotivoFecha').prop('disabled', !abierto || !cfgT.puedeLlenar);
+    $('#mFechaCompromiso').attr('min', $('#mApertura').val() || '');
+    var info = '';
+    if (+c.veces) {
+        info = 'La fecha se ha corrido ' + (+c.veces === 1 ? '1 vez' : c.veces + ' veces') + ' (antes: ' + c.anteriores.map(rdFecha).join(', ') + ').' +
+               (c.motivo ? ' Último motivo: ' + rdEsc(c.motivo) : '');
+    }
+    if (c.fecha && c.fecha < cfgT.hoy && abierto) { info = '<span class="tema-vencido">La fecha comprometida ya pasó.</span> ' + info; }
+    $('#mCompromisoInfo').html(info).toggle(info !== '');
+}
+
+//¿Se cambió el responsable o la fecha comprometida en el formulario?
+function compromisoCambio() {
+    var c = compromisoT || { responsable: '', fecha: null };
+    return $.trim($('#mResponsable').val()) !== (c.responsable || '') || ($('#mFechaCompromiso').val() || null) !== (c.fecha || null);
+}
+
+//Guarda el compromiso de un tema que ya existe (en uno nuevo va con el botón Guardar del tema)
+function guardarCompromiso() {
+    var fecha = $('#mFechaCompromiso').val(), motivo = $.trim($('#mMotivoFecha').val());
+    if (compromisoT && compromisoT.fecha && fecha !== compromisoT.fecha && !motivo) { alert('Escribe por qué cambia la fecha comprometida.'); $('#mMotivoFecha').focus(); return; }
+    hanaBoton('#btnCompromiso', true);
+    $.post(URL_TEMA + '?op=compromiso', { id: $('#mId').val(), responsable: $.trim($('#mResponsable').val()), fechaCompromiso: fecha, motivo: motivo }, null, 'json')
+        .done(function (respuesta) { rdAviso(respuesta.mensaje); cargarSeguimiento($('#mId').val()); listar(); })
+        .fail(function (xhr) { alert(rdError(xhr, 'No se pudo guardar el compromiso.')); })
+        .always(function () { hanaBoton('#btnCompromiso', false); });
 }

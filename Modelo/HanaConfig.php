@@ -112,6 +112,21 @@ class HanaConfig
 
     private static $valores = null;
 
+    //Plazo para aprobar una RQ distinto por proyecto: va en configuracion con esta clave, como
+    //{"idProyecto": días}. El proyecto que no esté usa el general (RQ_DIAS_APROBACION)
+    const RQ_DIAS_POR_PROYECTO = 'RQ_DIAS_APROBACION_PROYECTO';
+
+    //[idProyecto => días] de los proyectos que tienen su propio plazo para aprobar una RQ
+    public static function plazosRqPorProyecto()
+    {
+        $guardado = json_decode((string)self::valor(self::RQ_DIAS_POR_PROYECTO, ''), true);
+        $plazos = array();
+        foreach (is_array($guardado) ? $guardado : array() as $idProyecto => $dias) {
+            if ((int)$idProyecto > 0 && is_numeric($dias) && (int)$dias >= 1 && (int)$dias <= 60) { $plazos[(int)$idProyecto] = (int)$dias; }
+        }
+        return $plazos;
+    }
+
     //Lee todos los parámetros de la tabla configuracion una sola vez por petición
     private static function cargar()
     {

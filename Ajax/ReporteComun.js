@@ -22,6 +22,22 @@ function rdRecortar(texto, max) {
     if (texto.length <= max) { return rdEsc(texto); }
     return '<span class="rd-solo-pantalla">' + rdEsc(texto.substring(0, max - 1) + '…') + '</span><span class="rd-solo-papel">' + rdEsc(texto) + '</span>';
 }
+//Lo de Gestión Humana de una vacante, para las tablas de vacantes: el estado, la fecha comprometida solo
+//si es distinta del acuerdo de servicio (si es la misma ya está en «Acuerdo hasta») y lo último que
+//respondió GH, con su fecha. estadosGh: código => nombre (Parámetros → Listas)
+function rdCeldaGh(vacante, estadosGh) {
+    var partes = [];
+    if (vacante.ESTADO_GH) { partes.push('<strong>' + rdEsc((estadosGh || {})[vacante.ESTADO_GH] || vacante.ESTADO_GH) + '</strong>'); }
+    if (vacante.FECHA_COMPROMISO_GH && vacante.FECHA_COMPROMISO_GH !== vacante.FECHA_ANS) {
+        partes.push('<small>Compromiso: ' + rdFecha(vacante.FECHA_COMPROMISO_GH) + '</small>');
+    }
+    if (vacante.RESPUESTA_GH) {
+        partes.push('<span style="font-size:12px;">«' + rdRecortar(vacante.RESPUESTA_GH, 350) + '»</span>' +
+                    (vacante.FECHA_RESPUESTA_GH ? ' <small class="rd-ayuda">' + rdFecha(String(vacante.FECHA_RESPUESTA_GH).substring(0, 10)) + '</small>' : ''));
+    }
+    return partes.length ? partes.join('<br>') : '<span class="rd-ayuda">Sin información</span>';
+}
+
 //Un texto de varios renglones listo para pintar: escapado y con sus saltos de línea
 function rdParrafo(texto) { return rdEsc(texto).replace(/\n/g, '<br>'); }
 
@@ -231,7 +247,7 @@ function rdVerLista(idLista) {
         .done(function (lista) {
             $('#rdModalListaTitulo').text(lista.LISTA + ' · ' + lista.NOM_CENTRO_OP);
             var total = lista.PREGUNTAS.length, resp = lista.PREGUNTAS.filter(function (cadaPregunta) { return cadaPregunta.RESPUESTA !== null && cadaPregunta.RESPUESTA !== ''; }).length;
-            var noes = lista.PREGUNTAS.filter(function (cadaPregunta) { return cadaPregunta.TIPO === 'si/no' && /^no$/i.test(cadaPregunta.RESPUESTA || ''); }).length;
+            var noes = lista.PREGUNTAS.filter(function (cadaPregunta) { return cadaPregunta.TIPO === 'si/no' && rdSiNo(cadaPregunta.RESPUESTA) === 'no'; }).length;
             var html = '<div class="rd-det-cab">' +
                     '<div><span class="rd-det-lbl">Fecha y hora</span>' + rdFecha(lista.FECHA) + ' ' + rdHora(String(lista.FECHA).substring(11)) + '</div>' +
                     '<div><span class="rd-det-lbl">Proyecto</span>' + rdEsc(lista.NOM_PROYECTO) + '</div>' +
@@ -241,7 +257,7 @@ function rdVerLista(idLista) {
             html += '<table class="table table-bordered rd-tabla rd-tabla-compacta"><thead><tr><th style="width:36px;">#</th><th>Pregunta</th><th>Respuesta</th></tr></thead><tbody>';
             for (var i = 0; i < lista.PREGUNTAS.length; i++) {
                 var pregunta = lista.PREGUNTAS[i];
-                html += '<tr' + (pregunta.TIPO === 'si/no' && /^no$/i.test(pregunta.RESPUESTA || '') ? ' class="rd-fila-no"' : '') + '><td>' + (i + 1) + '</td><td>' + rdEsc(pregunta.PREGUNTA) + '</td><td>' + rdRespuesta(pregunta) + '</td></tr>';
+                html += '<tr' + (pregunta.TIPO === 'si/no' && rdSiNo(pregunta.RESPUESTA) === 'no' ? ' class="rd-fila-no"' : '') + '><td>' + (i + 1) + '</td><td>' + rdEsc(pregunta.PREGUNTA) + '</td><td>' + rdRespuesta(pregunta) + '</td></tr>';
             }
             html += '</tbody></table><div id="rdListaAdj"></div>';
             $('#rdModalListaCuerpo').html(html);
@@ -250,13 +266,26 @@ function rdVerLista(idLista) {
         .fail(function (xhr) { modal.modal('hide'); alert(rdError(xhr, 'No se pudo abrir la lista.')); });
 }
 
+//Las respuestas Sí/No se guardan como 1 (Sí), 2 (No) y 3 (No aplica); las listas viejas pueden tener el texto.
+//Devuelve 'si', 'no', 'na' o '' si no es ninguna
+function rdSiNo(respuesta) {
+    var valor = String(respuesta === null || respuesta === undefined ? '' : respuesta).trim().toLowerCase();
+    if (valor === '1' || valor === 'si' || valor === 'sí') { return 'si'; }
+    if (valor === '2' || valor === 'no') { return 'no'; }
+    if (valor === '3' || valor === 'no aplica' || valor === 'n/a' || valor === 'na') { return 'na'; }
+    return '';
+}
+
 //Cómo se muestra cada respuesta según el tipo de pregunta
 function rdRespuesta(pregunta) {
     var respuestaTexto = pregunta.RESPUESTA;
     if (respuestaTexto === null || respuestaTexto === '') { return '<span class="rd-tag rd-tag-pend">Sin responder</span>'; }
     if (pregunta.TIPO === 'si/no') {
-        return /^s[ií]$/i.test(respuestaTexto) ? '<span class="rd-tag rd-tag-ok"><i class="fa fa-check"></i> Sí</span>'
-             : (/^no$/i.test(respuestaTexto) ? '<span class="rd-tag rd-tag-mal"><i class="fa fa-times"></i> No</span>' : rdEsc(respuestaTexto));
+        var siNo = rdSiNo(respuestaTexto);
+        if (siNo === 'si') { return '<span class="rd-tag rd-tag-ok"><i class="fa fa-check"></i> Sí</span>'; }
+        if (siNo === 'no') { return '<span class="rd-tag rd-tag-mal"><i class="fa fa-times"></i> No</span>'; }
+        if (siNo === 'na') { return '<span class="rd-tag rd-tag-pend">No aplica</span>'; }
+        return rdEsc(respuestaTexto);
     }
     if (pregunta.TIPO === 'fecha' && /^\d{4}-\d{2}-\d{2}/.test(respuestaTexto)) { return rdFecha(respuestaTexto); }
     if (pregunta.TIPO === 'datetime' && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(respuestaTexto)) { return rdFecha(respuestaTexto) + ' ' + respuestaTexto.substring(11, 16); }

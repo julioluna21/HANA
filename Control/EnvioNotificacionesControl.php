@@ -124,10 +124,13 @@ function hanaFormatoRespuesta($respuesta, $tipo)
     }
     if (trim($respuesta) === '') { return '<span style="color:#bbb;">(sin respuesta)</span>'; }
 
-    //Se resaltan las respuestas Si/No para que salten a la vista
-    $respuestaMinuscula = strtolower(trim($respuesta));
-    if ($respuestaMinuscula === 'si' || $respuestaMinuscula === 'sí') { return '<span style="color:#3c8f3c; font-weight:bold;">'.htmlspecialchars($respuesta).'</span>'; }
-    if ($respuestaMinuscula === 'no')                { return '<span style="color:#d9534f; font-weight:bold;">'.htmlspecialchars($respuesta).'</span>'; }
+    //Se resaltan las respuestas Si/No para que salten a la vista. Se guardan como 1 (Sí), 2 (No) y 3 (No aplica)
+    $respuestaMinuscula = mb_strtolower(trim($respuesta), 'UTF-8');
+    if ($tipo === 'si/no' || in_array($respuestaMinuscula, array('si', 'sí', 'no'), true)) {
+        if (in_array($respuestaMinuscula, array('1', 'si', 'sí'), true)) { return '<span style="color:#3c8f3c; font-weight:bold;">Sí</span>'; }
+        if (in_array($respuestaMinuscula, array('2', 'no'), true))       { return '<span style="color:#d9534f; font-weight:bold;">No</span>'; }
+        if (in_array($respuestaMinuscula, array('3', 'no aplica'), true)) { return '<span style="color:#888888;">No aplica</span>'; }
+    }
 
     return nl2br(htmlspecialchars($respuesta));
 }
@@ -244,6 +247,12 @@ function hanaNotificarPorRespuesta($idLista)
             $idPregunta = (int)$respuesta['ID_PREGUNTA'];
             if (!isset($avisos[$idPregunta])) { continue; }
             $valor = (string)$respuesta['RESPUESTA'];
+            //Sí/No se guarda como 1, 2 o 3; las listas viejas lo tienen escrito («Si», «No»): se lee igual
+            if ($respuesta['TIPO_RESPUESTA'] === 'si/no') {
+                $siNo = array('1' => '1', 'si' => '1', 'sí' => '1', '2' => '2', 'no' => '2', '3' => '3', 'no aplica' => '3', 'n/a' => '3', 'na' => '3');
+                $minuscula = mb_strtolower(trim($valor), 'UTF-8');
+                if (isset($siNo[$minuscula])) { $valor = $siNo[$minuscula]; }
+            }
             if (!in_array($valor, $avisos[$idPregunta]['r'], true)) { continue; } //esa respuesta no dispara el aviso
             $opciones = AvisoRespuesta::respuestasDeTipo($respuesta['TIPO_RESPUESTA']);
             $texto = isset($opciones[$valor]) ? $opciones[$valor] : $valor;

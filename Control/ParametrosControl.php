@@ -51,8 +51,15 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
     case 'listar':
         $par = HanaConfig::lista();
         $cargos = $modeloParametros->cargos();
+        //Los proyectos activos con su plazo propio para aprobar una RQ (null = usa el general)
+        $propios = HanaConfig::plazosRqPorProyecto();
+        $plazosRq = array();
+        foreach ((array)HanaDB::q("SELECT ID_PROYECTO, NOM_PROYECTO FROM proyectos WHERE ESTADO = 1 ORDER BY NOM_PROYECTO") as $proyecto) {
+            $plazosRq[] = array('id' => (int)$proyecto['ID_PROYECTO'], 'nombre' => $proyecto['NOM_PROYECTO'],
+                                'dias' => isset($propios[(int)$proyecto['ID_PROYECTO']]) ? $propios[(int)$proyecto['ID_PROYECTO']] : null);
+        }
         echo json_encode(array('parametros' => $par ? $par : array(), 'cargos' => $cargos ? $cargos : array(),
-                               'correo' => parEstadoCorreo()), JSON_UNESCAPED_UNICODE);
+                               'correo' => parEstadoCorreo(), 'plazosRq' => $plazosRq), JSON_UNESCAPED_UNICODE);
         break;
 
     //Guarda los parámetros que cambiaron: valores[CLAVE] = VALOR
@@ -82,6 +89,26 @@ switch (isset($_GET['op']) ? $_GET['op'] : '') {
             if ($valor === (string)HanaConfig::valor($clave, $definicion['DEFECTO'])) { continue; }
             HanaConfig::guardar($clave, $valor, $idColaborador, $ahora);
             $cambios++;
+        }
+        //El plazo para aprobar una RQ de cada proyecto que tenga uno propio: plazosRq[idProyecto] = días
+        //(vacío = usa el general)
+        if (isset($_POST['plazosRq']) && is_array($_POST['plazosRq'])) {
+            $plazos = array();
+            foreach ($_POST['plazosRq'] as $idProyecto => $dias) {
+                $dias = trim((string)$dias);
+                if ($dias === '' || (int)$idProyecto <= 0) { continue; }
+                if (!preg_match('/^\d{1,2}$/', $dias) || (int)$dias < 1 || (int)$dias > 60) { parError(400, 'El plazo de RQ de cada proyecto debe estar entre 1 y 60 días.'); }
+                $plazos[(string)(int)$idProyecto] = (int)$dias;
+            }
+            ksort($plazos);
+            $antes = HanaConfig::plazosRqPorProyecto();
+            $antesTexto = array();
+            foreach ($antes as $idProyecto => $dias) { $antesTexto[(string)$idProyecto] = $dias; }
+            ksort($antesTexto);
+            if ($plazos !== $antesTexto) {
+                HanaConfig::guardar(HanaConfig::RQ_DIAS_POR_PROYECTO, json_encode((object)$plazos), $idColaborador, $ahora);
+                $cambios++;
+            }
         }
         echo json_encode(array('ok' => true, 'mensaje' => $cambios ? ($cambios === 1 ? 'Se guardó 1 cambio.' : "Se guardaron $cambios cambios.") : 'No había cambios.'),
                          JSON_UNESCAPED_UNICODE);

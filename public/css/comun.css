@@ -330,9 +330,40 @@ input, textarea, select, [contenteditable="true"]{
   body.nav-md .right_col, body.nav-sm .right_col{ padding-bottom: 84px; } /* que el botón no tape lo último de la página */
 }
 
+/* Los menús que se abren hacia la izquierda (por ejemplo el de Excel, pegado al borde derecho):
+   el tema les ponía left: 0 y se salían de la pantalla */
+.dropdown-menu.dropdown-menu-right{ left: auto !important; right: 0 !important; }
+
+/* Los botones de días (Hoy y los días habilitados): si son muchos, bajan a otro renglón en vez de salirse */
+.rd-dia-rapido{ flex-wrap: wrap; }
+/* El campo para escoger un sábado, domingo o festivo al lado de esos botones (Listas) */
+.rd-dia-otro{ width: auto; display: inline-block; height: 30px; padding: 4px 8px; font-size: 12px; }
+
+/* En el computador, el título de la pantalla con sus botones principales (Nueva vacante, Excel,
+   Nuevo arqueo...) se queda pegado arriba, debajo de la barra, al bajar por la página.
+   En el celular no hace falta: allí el botón principal ya queda fijo abajo (.rd-btn-flotante) */
+@media (min-width: 768px){
+  /* La clase la pone Ajax/GuardarVisibleAjax.js en los títulos que tienen esos botones */
+  .x_panel > .x_title.rd-titulo-fijo{
+    position: sticky; top: 58px; z-index: 25; background: #FFFFFF;
+  }
+}
+@media print{ .x_panel > .x_title{ position: static !important; } }
+
+/* La columna de botones de una tabla ancha (editar, subir, bajar...): se queda a la vista a la derecha
+   aunque la tabla tenga que correrse hacia los lados */
+.table-responsive .rd-col-acciones{ position: sticky; right: 0; z-index: 1; background: #FFFFFF;
+                                    box-shadow: -6px 0 6px -6px rgba(0,0,0,.25); }
+.table-responsive thead .rd-col-acciones{ background: inherit; }
+/* Las tablas tenían overflow: hidden (por las esquinas redondeadas) y eso no deja que la columna se quede
+   quieta; clip recorta igual las esquinas sin estorbar */
+.right_col .table-responsive > .rd-tabla{ overflow: clip; }
+
 /* Ordenar tablas tocando el encabezado (Ajax/OrdenarTablas.js) */
 th.hana-ordenable-th { cursor: pointer; user-select: none; }
-th.hana-ordenable-th:hover { background-color: rgba(26, 187, 156, .08); }
+/* El tono va encima del fondo que ya tiene la celda (no lo reemplaza): así una columna fija
+   (position: sticky) sigue tapando lo que pasa por debajo al desplazar la tabla */
+th.hana-ordenable-th:hover { background-image: linear-gradient(rgba(26, 187, 156, .08), rgba(26, 187, 156, .08)); }
 th.hana-orden-asc::after, th.hana-orden-desc::after { font-family: FontAwesome; font-size: 11px; margin-left: 5px; opacity: .7; }
 th.hana-orden-asc::after { content: "\f0de"; }   /* flecha hacia arriba */
 th.hana-orden-desc::after { content: "\f0dd"; }  /* flecha hacia abajo */

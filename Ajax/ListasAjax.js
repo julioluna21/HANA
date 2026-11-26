@@ -830,12 +830,15 @@ function controlarStartTime() {//agrega fecha hora en real time
 }
 //Hoy o un día habilitado: cambia el día de la lista nueva y vuelve a revisar si ya
 //existe una lista de ese grupo para ese centro en ese día
-$(document).on('click', '#diaLista [data-fecha]', function () {
-    var fecha = $(this).attr('data-fecha');
+function elegirDiaLista(fecha) {
     diaListaFecha = (fecha === diasLista.hoy) ? '' : fecha; //hoy no necesita fecha fija: usa el reloj
     rdMarcarDia('#diaLista', fecha);
+    $('#diaListaOtro').val(fecha);
     if ($('#selectCentro').val()) { $('#selectCentro').trigger('change'); }
-});
+}
+$(document).on('click', '#diaLista [data-fecha]', function () { elegirDiaLista($(this).attr('data-fecha')); });
+//El campo de fecha (sábados, domingos y festivos): si el día no se puede, rdLimitarFecha lo vuelve a hoy
+$(document).on('change', '#diaListaOtro', function () { if (this.value) { elegirDiaLista(this.value); } });
 
 //Anulaba una lista diligenciada. Sin uso: ninguna pantalla tiene el botón, y el
 //servidor ya no atiende "anular" (responde que no está disponible)
@@ -968,7 +971,14 @@ function mostrarform(flag) {
         diaListaFecha = '';
         $.getJSON('../Control/ListasControl.php?op=dias', function (respuesta) {
             diasLista = respuesta;
-            rdBotonesDia('#diaLista', respuesta.hoy, respuesta.habilitados, 'btn-sm', respuesta.findes);
+            var findes = respuesta.findes || [];
+            rdBotonesDia('#diaLista', respuesta.hoy, respuesta.habilitados.filter(function (fecha) { return findes.indexOf(fecha) === -1; }), 'btn-sm');
+            //Los sábados, domingos y festivos no llevan botón: se escogen en este campo de fecha
+            if (findes.length) {
+                $('#diaLista').append('<input type="date" class="form-control rd-dia-otro" id="diaListaOtro" aria-label="Otro día" title="Sábado, domingo o festivo del mes, o un día habilitado">');
+                $('#diaListaOtro').val(respuesta.hoy);
+                rdLimitarFecha('#diaListaOtro', respuesta.hoy, respuesta.habilitados);
+            }
             rdMarcarDia('#diaLista', respuesta.hoy);
             $('#diaLista').toggle(respuesta.habilitados.length > 0); //sin días habilitados no hay nada que escoger
         });

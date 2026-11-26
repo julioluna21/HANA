@@ -71,6 +71,8 @@
     <script src="../Ajax/OrdenarTablas.js?v=1"></script>
     <!-- Campana de notificaciones: se revisa sola una vez por minuto -->
     <script src="../Ajax/CampanaAjax.js?v=2"></script>
+    <!-- El botón de guardar de los formularios largos sigue a la vista al hacer scroll -->
+    <script src="../Ajax/GuardarVisibleAjax.js?v=2"></script>
 
     
 

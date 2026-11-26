@@ -45,6 +45,7 @@ function cargarPar() {
                 html += '</div>';
             });
             $('#parGrupos').html(html || '<p class="rd-vacio">No hay parámetros para mostrar.</p>');
+            pintarPlazosRq(respuesta.plazosRq || []);
             rdCambiosGuardados();
 
             //Catálogos
@@ -67,6 +68,19 @@ function cargarPar() {
         .fail(function (xhr) { hanaErrorAjax(xhr, 'No se pudieron cargar los parámetros.'); });
 }
 
+//Debajo del plazo general para aprobar una RQ, el de cada proyecto (vacío = usa el general)
+function pintarPlazosRq(lista) {
+    var general = $('.par-num[data-clave="RQ_DIAS_APROBACION"]'), fila = general.closest('.par-fila');
+    if (!fila.length || !lista.length) { return; }
+    var html = '<div class="par-fila par-plazos-rq"><div class="par-texto"><strong>Plazo para aprobar una RQ, por proyecto</strong>' +
+               '<div class="rd-ayuda">Si un proyecto necesita más o menos días que el general, escríbelos aquí. Vacío: usa el general (' + rdEsc(general.val()) + ' días).</div>' +
+               '<div class="par-plazos-lista">' + lista.map(function (p) {
+                   return '<label class="par-plazo"><span>' + rdEsc(p.nombre) + '</span><input type="number" min="1" max="60" class="form-control input-sm par-plazo-rq" data-proyecto="' + p.id + '" value="' +
+                          (p.dias === null ? '' : p.dias) + '" placeholder="' + rdEsc(general.val()) + '"> <small>días</small></label>';
+               }).join('') + '</div></div></div>';
+    fila.after(html);
+}
+
 //Guarda todos los parámetros de la pantalla de una vez
 function guardarPar(evento) {
     evento.preventDefault();
@@ -74,6 +88,7 @@ function guardarPar(evento) {
     $('.par-si').each(function () { datos['valores[' + $(this).data('clave') + ']'] = this.checked ? '1' : '0'; });
     $('.par-num').each(function () { datos['valores[' + $(this).data('clave') + ']'] = $(this).val(); });
     $('.par-txt').each(function () { datos['valores[' + $(this).data('clave') + ']'] = $(this).val(); });
+    $('.par-plazo-rq').each(function () { datos['plazosRq[' + $(this).data('proyecto') + ']'] = $.trim($(this).val()); });
     hanaBoton('#btnGuardarPar', true);
     $.post(URL_PAR + '?op=guardar', datos, null, 'json')
         .done(function (respuesta) { rdCambiosGuardados(); rdAviso(respuesta.mensaje); cargarPar(); })

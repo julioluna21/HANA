@@ -159,7 +159,7 @@ include('head.php');
 include('footer.php');
 ?>
 <?php if ($caListas) { ?><script type="text/javascript" src="../Ajax/NotificacionesAjax.js?v=4"></script><?php } ?>
-<?php if ($caTareas) { ?><script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
+<?php if ($caTareas) { ?><script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
 <script type="text/javascript" src="../Ajax/CorreosAutomaticosAjax.js?v=2"></script><?php } ?>
 <?php
 } else {

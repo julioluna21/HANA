@@ -13,7 +13,9 @@
   mostrando con su nombre.
 
   El plazo para aprobar una RQ es el parámetro RQ_DIAS_APROBACION
-  (Configuración → Parámetros del sistema).
+  (Configuración → Parámetros del sistema). Cada proyecto puede tener el suyo,
+  más largo o más corto, en la misma pantalla (HanaConfig::plazosRqPorProyecto);
+  el proyecto que no tenga uno propio usa el general.
 
   El color es el final de la clase de la pantalla: rq-badge-ambar, -verde...
 */
@@ -39,9 +41,14 @@ class RqEstado
     );
 
     //Días que puede durar una RQ en ese estado antes de quedar vencida.
-    //El de "Solicitada" es el plazo de aprobación de Parámetros del sistema
-    public static function dias($id)
+    //El de "Solicitada" es el plazo de aprobación de Parámetros del sistema: el del proyecto, si tiene
+    //uno propio, o el general
+    public static function dias($id, $idProyecto = null)
     {
+        if ((int)$id === self::SOLICITADA && $idProyecto !== null) {
+            $propios = HanaConfig::plazosRqPorProyecto();
+            if (isset($propios[(int)$idProyecto])) { return $propios[(int)$idProyecto]; }
+        }
         $id = (int)$id;
         if ($id === self::SOLICITADA) {
             return HanaConfig::num('RQ_DIAS_APROBACION', self::LISTA[self::SOLICITADA]['dias']);
@@ -72,13 +79,15 @@ class RqEstado
     // usuario, así que van directo en el SQL.
     //-----------------------------------------------------------------------
 
-    //CASE <columna> WHEN 1 THEN 'Solicitada' ... END
-    public static function sqlCampo($columna, $campo)
+    //CASE <columna> WHEN 1 THEN 'Solicitada' ... END. Con $columnaProyecto, los días esperados de
+    //"Solicitada" son los del proyecto de cada RQ
+    public static function sqlCampo($columna, $campo, $columnaProyecto = null)
     {
         $sql = "CASE $columna";
         foreach (array_keys(self::LISTA) as $id) {
             $datosEstado = self::datos($id);
             $valor = $datosEstado[$campo];
+            if ($campo === 'DIAS_ESPERADOS' && $id === self::SOLICITADA && $columnaProyecto !== null) { $sql .= " WHEN $id THEN " . self::sqlPlazo($columnaProyecto); continue; }
             $sql .= " WHEN $id THEN " . (is_int($valor) ? $valor : "'" . str_replace("'", "''", $valor) . "'");
         }
         $otro = ($campo === 'NOM_RQ_ESTADO') ? "CONCAT('Estado ', $columna)"
@@ -86,11 +95,23 @@ class RqEstado
         return $sql . " ELSE $otro END";
     }
 
+    //El plazo para aprobar según el proyecto: CASE <proyecto> WHEN 3 THEN 5 ... ELSE <general> END
+    //(los números son de la configuración, no del usuario: van directo en el SQL)
+    public static function sqlPlazo($columnaProyecto)
+    {
+        $general = self::dias(self::SOLICITADA);
+        $propios = HanaConfig::plazosRqPorProyecto();
+        if (!count($propios)) { return (string)$general; }
+        $sql = "CASE $columnaProyecto";
+        foreach ($propios as $idProyecto => $dias) { $sql .= " WHEN " . (int)$idProyecto . " THEN " . (int)$dias; }
+        return $sql . " ELSE $general END";
+    }
+
     //Las columnas del estado de una vez: NOM_RQ_ESTADO, COLOR, ES_FINAL...
-    public static function sqlColumnas($columna, $campos = array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'DIAS_ESPERADOS'))
+    public static function sqlColumnas($columna, $campos = array('NOM_RQ_ESTADO', 'COLOR', 'ES_FINAL', 'DIAS_ESPERADOS'), $columnaProyecto = null)
     {
         $partes = array();
-        foreach ($campos as $campo) { $partes[] = self::sqlCampo($columna, $campo) . " AS $campo"; }
+        foreach ($campos as $campo) { $partes[] = self::sqlCampo($columna, $campo, $columnaProyecto) . " AS $campo"; }
         return implode(",\n                       ", $partes);
     }
 
@@ -105,14 +126,16 @@ class RqEstado
         return "(SELECT MAX(hd.FECHA) FROM historial hd WHERE hd.MODULO = 'RQ' AND hd.TIPO = '" . self::HIST_CAMBIO . "' AND hd.ID_REGISTRO = $columnaId)";
     }
 
-    //1 si la RQ lleva en su estado más días de los esperados (solo estados no finales)
-    public static function sqlVencida($columna, $columnaFecha)
+    //1 si la RQ lleva en su estado más días de los esperados (solo estados no finales). Con
+    //$columnaProyecto, "Solicitada" se mide con el plazo del proyecto de la RQ
+    public static function sqlVencida($columna, $columnaFecha, $columnaProyecto = null)
     {
         $casos = array();
         foreach (array_keys(self::LISTA) as $id) {
             $dias = self::dias($id);
             if (self::LISTA[$id]['final'] === 0 && $dias > 0) {
-                $casos[] = "WHEN $columna = $id AND DATEDIFF(NOW(), $columnaFecha) > $dias THEN 1";
+                $limite = $id === self::SOLICITADA && $columnaProyecto !== null ? '(' . self::sqlPlazo($columnaProyecto) . ')' : $dias;
+                $casos[] = "WHEN $columna = $id AND DATEDIFF(NOW(), $columnaFecha) > $limite THEN 1";
             }
         }
         return $casos ? "CASE " . implode(' ', $casos) . " ELSE 0 END" : "0";

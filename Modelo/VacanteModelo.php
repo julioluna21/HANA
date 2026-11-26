@@ -31,7 +31,7 @@ class Vacante
         $marcas = implode(',', array_fill(0, count($idsCentros), '?'));
         $sql = "SELECT v.*, c.NOM_CENTRO_OP, p.NOM_PROYECTO, p.ID_PROYECTO,
                        (SELECT h.TEXTO FROM historial h WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'SALE_CARGO'
-                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS NOMBRE_SALE
+                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS NOMBRE_SALE, " . self::SQL_RESPUESTA_GH . "
                   FROM vacante v
                   INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = v.ID_CENTRO_OP
                   INNER JOIN proyectos p ON p.ID_PROYECTO = c.ID_PROYECTO
@@ -43,6 +43,31 @@ class Vacante
         $sql .= " ORDER BY (v.ESTADO_VACANTE = 'ABIERTA') DESC, v.FECHA_VACANTE, v.ID_VACANTE";
         $filas = HanaDB::q($sql, $tipos, $params);
         return array_map(function ($vacante) use ($hoy) { return Vacante::calcular($vacante, $hoy); }, $filas ? $filas : array());
+    }
+
+    //La hoja del Excel (para HanaExcel::descargar): una fila por vacante de $lista (lo que devuelve listar),
+    //con todo lo que se registró de ella, el acuerdo de servicio y lo de Gestión Humana
+    public static function hojaExcel($lista, $titulo, $subtitulo)
+    {
+        $resultados = array('CUMPLE' => 'Cubierta a tiempo', 'NO_CUMPLE' => 'Cubierta tarde', 'EN_TIEMPO' => 'Dentro del acuerdo', 'VENCIDA' => 'Fuera del acuerdo');
+        $filas = array();
+        foreach ($lista as $v) {
+            $filas[] = array($v['NUMERO_RQ_GH'], $v['NOM_PROYECTO'], $v['NOM_CENTRO_OP'], $v['CARGO'], $v['FECHA_VACANTE'], $v['FECHA_ANS'], $v['FECHA_CIERRE'],
+                $v['ESTADO_VACANTE'] === 'ABIERTA' ? $v['DIAS_A_HOY'] : $v['TIEMPO_CIERRE'], $v['MOTIVO'], isset($v['NOMBRE_SALE']) ? $v['NOMBRE_SALE'] : '',
+                isset(self::$ESTADOS[$v['ESTADO_VACANTE']]) ? self::$ESTADOS[$v['ESTADO_VACANTE']] : $v['ESTADO_VACANTE'],
+                isset($resultados[$v['RESULTADO_ANS']]) ? $resultados[$v['RESULTADO_ANS']] : '', $v['NOMBRE_REEMPLAZO'],
+                $v['ESTADO_GH'] ? (isset(self::$ESTADOS_GH[$v['ESTADO_GH']]) ? self::$ESTADOS_GH[$v['ESTADO_GH']] : $v['ESTADO_GH']) : '',
+                $v['FECHA_COMPROMISO_GH'], isset($v['FECHA_RESPUESTA_GH']) ? $v['FECHA_RESPUESTA_GH'] : null, isset($v['RESPUESTA_GH']) ? $v['RESPUESTA_GH'] : '',
+                isset($v['QUIEN_RESPUESTA_GH']) ? $v['QUIEN_RESPUESTA_GH'] : '', $v['OBSERVACION']);
+        }
+        return array('nombre' => 'Vacantes', 'titulo' => $titulo, 'subtitulo' => $subtitulo, 'filas' => $filas,
+            'columnas' => array(array('#RQ', 13, 'texto'), array('Proyecto', 14, 'texto'), array('Centro', 18, 'texto'), array('Cargo', 22, 'texto'),
+                                array('Fecha vacante', 11, 'fecha'), array('Acuerdo hasta', 11, 'fecha'), array('Cerrada el', 11, 'fecha'),
+                                array('Días (abierta a hoy o en cerrarse)', 12, 'entero'), array('Motivo', 26, 'texto'), array('Quién lo deja', 20, 'texto'),
+                                array('Estado', 11, 'texto'), array('Resultado', 16, 'texto'), array('Quién la cubre', 20, 'texto'),
+                                array('Estado en Gestión Humana', 16, 'texto'), array('Fecha comprometida GH', 13, 'fecha'),
+                                array('Fecha respuesta GH', 12, 'fecha'), array('Respuesta de Gestión Humana', 40, 'texto'),
+                                array('Respondió', 20, 'texto'), array('Observación', 34, 'texto')));
     }
 
     //Lo que en el Excel eran fórmulas
@@ -69,7 +94,7 @@ class Vacante
     {
         return HanaDB::fila("SELECT v.*, c.NOM_CENTRO_OP,
                                     (SELECT h.TEXTO FROM historial h WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'SALE_CARGO'
-                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS NOMBRE_SALE
+                         ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS NOMBRE_SALE, " . self::SQL_RESPUESTA_GH . "
                                FROM vacante v
                               INNER JOIN centros_operacion c ON c.ID_CENTRO_OP = v.ID_CENTRO_OP
                               WHERE v.ID_VACANTE = ?", 'i', array((int)$id));
@@ -109,12 +134,83 @@ class Vacante
     //-----------------------------------------------------------------------
     public function guardarSale($idVacante, $nombre, $idColaborador, $ahora)
     {
-        $nombre = $nombre === null ? '' : (string)$nombre;
-        $actual = HanaDB::fila("SELECT TEXTO FROM historial WHERE MODULO = 'VACANTE' AND ID_REGISTRO = ? AND TIPO = 'SALE_CARGO'
-                                 ORDER BY FECHA DESC, ID_HISTORIAL DESC LIMIT 1", 'i', array((int)$idVacante));
-        if (($actual ? (string)$actual['TEXTO'] : '') === $nombre) { return true; } //no cambió
-        return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES ('VACANTE', ?, 'SALE_CARGO', ?, NULLIF(?, 0), ?)",
-                         'isis', array((int)$idVacante, $nombre, (int)$idColaborador, $ahora)) === true;
+        return $this->guardarEvento($idVacante, 'SALE_CARGO', $nombre, $idColaborador, $ahora);
+    }
+
+    //-----------------------------------------------------------------------
+    // La respuesta de Gestión Humana: qué dijo GH de la vacante, en qué va el proceso
+    // («candidato en exámenes médicos, ingresa el 24»). Igual que quién deja el puesto,
+    // vive en historial (TIPO = 'RESPUESTA_GH') y vale la más reciente; cada cambio
+    // agrega una fila, así queda el historial de lo que fue respondiendo GH.
+    // Se lee como RESPUESTA_GH, FECHA_RESPUESTA_GH y QUIEN_RESPUESTA_GH.
+    //-----------------------------------------------------------------------
+    const LARGO_RESPUESTA_GH = 350;
+    const SQL_RESPUESTA_GH = "(SELECT h.TEXTO FROM historial h WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'RESPUESTA_GH'
+                                ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS RESPUESTA_GH,
+                              (SELECT h.FECHA FROM historial h WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'RESPUESTA_GH'
+                                ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS FECHA_RESPUESTA_GH,
+                              (SELECT col.NOM_COLABORADOR FROM historial h LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
+                                WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = v.ID_VACANTE AND h.TIPO = 'RESPUESTA_GH'
+                                ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS QUIEN_RESPUESTA_GH";
+
+    public function guardarRespuestaGh($idVacante, $texto, $idColaborador, $ahora)
+    {
+        return $this->guardarEvento($idVacante, 'RESPUESTA_GH', $texto, $idColaborador, $ahora);
+    }
+
+    //Las respuestas de Gestión Humana de una vacante, de la más reciente a la más vieja
+    public function respuestasGh($idVacante)
+    {
+        $filas = HanaDB::q("SELECT h.TEXTO, h.FECHA, col.NOM_COLABORADOR AS QUIEN
+                              FROM historial h LEFT JOIN colaboradores col ON col.ID_COLABORADOR = h.ID_COLABORADOR
+                             WHERE h.MODULO = 'VACANTE' AND h.ID_REGISTRO = ? AND h.TIPO = 'RESPUESTA_GH' AND h.TEXTO <> ''
+                             ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 30", 'i', array((int)$idVacante));
+        return is_array($filas) ? $filas : array();
+    }
+
+    //-----------------------------------------------------------------------
+    // Cambios de la fecha comprometida por Gestión Humana. La tabla vacante solo guarda la
+    // vigente: cada cambio queda en historial (MODULO = 'VACANTE', TIPO = 'COMPROMISO_GH',
+    // TEXTO = 'anterior|nueva|motivo', fechas AAAA-MM-DD), así se sabe cuántas veces se corrió
+    //-----------------------------------------------------------------------
+    public function guardarCambioCompromiso($idVacante, $anterior, $nueva, $motivo, $idColaborador, $ahora)
+    {
+        return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES ('VACANTE', ?, 'COMPROMISO_GH', ?, NULLIF(?, 0), ?)",
+                         'isis', array((int)$idVacante, $anterior . '|' . $nueva . '|' . $motivo, (int)$idColaborador, $ahora)) === true;
+    }
+
+    //Los cambios de varias vacantes hasta $hasta (sin incluirlo; null = hasta hoy):
+    //[idVacante => {veces, anteriores (fechas, de la más vieja a la más nueva), motivo (el último)}]
+    public static function cambiosCompromiso($ids, $hasta = null)
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!count($ids)) { return array(); }
+        $marcas = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "SELECT ID_REGISTRO, TEXTO FROM historial WHERE MODULO = 'VACANTE' AND TIPO = 'COMPROMISO_GH' AND ID_REGISTRO IN ($marcas)";
+        $tipos = str_repeat('i', count($ids)); $params = $ids;
+        if ($hasta !== null) { $sql .= " AND FECHA < ?"; $tipos .= 's'; $params[] = $hasta; }
+        $filas = HanaDB::q($sql . " ORDER BY FECHA, ID_HISTORIAL", $tipos, $params);
+        $lista = array();
+        foreach (is_array($filas) ? $filas : array() as $f) {
+            $partes = explode('|', (string)$f['TEXTO'], 3);
+            $id = (int)$f['ID_REGISTRO'];
+            if (!isset($lista[$id])) { $lista[$id] = array('veces' => 0, 'anteriores' => array(), 'motivo' => ''); }
+            $lista[$id]['veces']++;
+            if ($partes[0] !== '') { $lista[$id]['anteriores'][] = $partes[0]; }
+            $lista[$id]['motivo'] = isset($partes[2]) ? $partes[2] : '';
+        }
+        return $lista;
+    }
+
+    //Anota un dato de la vacante en historial, solo si cambió (un texto vacío lo quita)
+    private function guardarEvento($idVacante, $tipo, $texto, $idColaborador, $ahora)
+    {
+        $texto = $texto === null ? '' : (string)$texto;
+        $actual = HanaDB::fila("SELECT TEXTO FROM historial WHERE MODULO = 'VACANTE' AND ID_REGISTRO = ? AND TIPO = ?
+                                 ORDER BY FECHA DESC, ID_HISTORIAL DESC LIMIT 1", 'is', array((int)$idVacante, $tipo));
+        if (($actual ? (string)$actual['TEXTO'] : '') === $texto) { return true; } //no cambió
+        return HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES ('VACANTE', ?, ?, ?, NULLIF(?, 0), ?)",
+                         'issis', array((int)$idVacante, $tipo, $texto, (int)$idColaborador, $ahora)) === true;
     }
 
     //Motivos ya usados, para sugerirlos al escribir
@@ -125,6 +221,38 @@ class Vacante
         $filas = HanaDB::q("SELECT MOTIVO, COUNT(*) n FROM vacante WHERE ID_CENTRO_OP IN ($marcas) GROUP BY MOTIVO ORDER BY n DESC LIMIT 30",
                        str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
         return array_map(function ($fila) { return $fila['MOTIVO']; }, $filas ? $filas : array());
+    }
+
+    //Cargos para sugerir al escribir el cargo, los más usados primero, para que el mismo cargo no
+    //quede escrito de muchas formas. Las formas de un mismo cargo (mayúsculas, tildes, espacios,
+    //abreviaturas como «Recol.») salen una sola vez, como las une el reporte a la gerencia
+    public function cargos($idsCentros)
+    {
+        if (!count($idsCentros)) { return array(); }
+        require_once __DIR__ . '/ReporteGerenciaModelo.php';
+        $marcas = implode(',', array_fill(0, count($idsCentros), '?'));
+        //BINARY: cada forma escrita por aparte («Técnico» y «Tecnico» no se juntan aquí)
+        $filas = HanaDB::q("SELECT CARGO, COUNT(*) n FROM vacante WHERE ID_CENTRO_OP IN ($marcas) AND CARGO <> '' GROUP BY BINARY CARGO ORDER BY n DESC LIMIT 300",
+                       str_repeat('i', count($idsCentros)), array_map('intval', $idsCentros));
+        $escritos = array(); $usos = array();
+        foreach (is_array($filas) ? $filas : array() as $fila) {
+            $cargo = html_entity_decode($fila['CARGO'], ENT_QUOTES, 'UTF-8');
+            for ($i = 0; $i < min(50, (int)$fila['n']); $i++) { $escritos[] = $cargo; }
+            $usos[$cargo] = (isset($usos[$cargo]) ? $usos[$cargo] : 0) + (int)$fila['n'];
+        }
+        $total = array();
+        foreach (ReporteGerencia::unificarNombres($escritos) as $escrito => $unificado) {
+            $total[$unificado] = (isset($total[$unificado]) ? $total[$unificado] : 0) + $usos[$escrito];
+        }
+        arsort($total);
+        return array_slice(array_keys($total), 0, 60);
+    }
+
+    //El cargo para compararlo: en minúscula, sin tildes, sin puntos ni signos y con un solo espacio
+    public static function llaveCargo($cargo)
+    {
+        $llave = strtr(mb_strtolower(trim((string)$cargo), 'UTF-8'), array('á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n'));
+        return trim(preg_replace('/[^a-z0-9]+/', ' ', $llave));
     }
 
     //Nombres para sugerir en «Quién la cubre»: las personas activas y los nombres que ya se han

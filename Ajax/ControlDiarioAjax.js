@@ -216,7 +216,7 @@ function pintarHoy() {
              '<td>' + tag(rdEsc(SIT_CD[registro.SITUACION] || registro.SITUACION), esLaboral ? 'rd-tag-ok' : '') + '</td>' +
              '<td>' + rdEsc(esLaboral ? donde : '') + (registro.OBSERVACION ? '<br><small>' + rdEsc(registro.OBSERVACION) + '</small>' : '') + '</td>' +
              '<td class="rd-nowrap">' + (esLaboral ? rdHora(registro.HORA_INGRESO) + ' – ' + (registro.HORA_SALIDA ? rdHora(registro.HORA_SALIDA) : '…') : '') + '</td>' +
-             '<td><small>' + (esLaboral ? rdRecortar(registro.ACTIVIDAD, 90) : '') + '</small></td>' +
+             '<td><small>' + (esLaboral ? rdRecortar(registro.ACTIVIDAD, 350) : '') + '</small></td>' +
              '<td class="rd-nowrap"><small>' + rdHora(String(registro.FEC_MODIFICACION || registro.FEC_REGISTRO).substring(11)) + '</small></td>' +
              '<td class="rd-no-imprimir"><button type="button" class="btn btn-success btn-xs btn-persona-cd" data-id="' + parseInt(persona.ID, 10) + '"><i class="fa fa-eye"></i> Ver</button></td></tr>';
     }
@@ -309,7 +309,7 @@ function pintarVac() {
         html += '<tr data-proy="' + parseInt(vacante.ID_PROYECTO, 10) + '"><td>' + rdEsc(vacante.NOM_CENTRO_OP) + '</td><td>' + rdEsc(vacante.CARGO) + '</td><td>' + rdFecha(vacante.FECHA_VACANTE) + '</td><td>' + rdFecha(vacante.FECHA_ANS) + '</td>' +
              '<td class="rd-num-col">' + vacante.DIAS_A_HOY + '</td>' +
              '<td>' + (vacante.RESULTADO_ANS === 'VENCIDA' ? tag('Fuera del acuerdo', 'rd-tag-mal') : tag('En tiempo', 'rd-tag-pend')) + '</td>' +
-             '<td>' + rdEsc((vacante.ESTADO_GH ? (GH_CD[vacante.ESTADO_GH] || vacante.ESTADO_GH) : '') + (vacante.FECHA_COMPROMISO_GH ? ' ' + rdFecha(vacante.FECHA_COMPROMISO_GH) : '')) + '</td></tr>';
+             '<td style="min-width:160px;">' + rdCeldaGh(vacante, GH_CD) + '</td></tr>';
     }
     $('#tbVac').html(html || vacio(7, 'No hay vacantes abiertas.'));
     aplicarFiltroProy('#tbVac');

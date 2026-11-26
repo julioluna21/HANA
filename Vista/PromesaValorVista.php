@@ -14,7 +14,7 @@ if (isset($_SESSION['IdUsuarios'])) {
         include('head.php');
 ?>
 <link href="../public/css/reporte.css?v=18" rel="stylesheet">
-<link href="../public/css/promesa.css?v=5" rel="stylesheet">
+<link href="../public/css/promesa.css?v=9" rel="stylesheet">
 
 <div class="right_col" role="main">
   <div class="row">
@@ -27,6 +27,16 @@ if (isset($_SESSION['IdUsuarios'])) {
       <div class="x_panel">
         <div class="x_title">
           <h2><i class="fa fa-clock-o"></i> Promesa de valor</h2>
+          <?php //Descargar en Excel el mes elegido: con la casilla 63M (o el administrador, 24M) ?>
+          <?php if (pagPuede('EXCEL', 'descargar')) { ?>
+          <div class="pull-right rd-botones-titulo"><div class="btn-group">
+            <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Descarga en Excel el mes elegido">
+              <i class="fa fa-file-excel-o"></i> Excel <span class="caret"></span></button>
+            <ul class="dropdown-menu dropdown-menu-right">
+              <li><a href="#" class="pv-excel">Este proyecto, el mes elegido</a></li>
+              <li><a href="#" class="pv-excel" data-todos="1">Todos los proyectos, el mes elegido</a></li>
+            </ul></div></div>
+          <?php } ?>
           <div class="clearfix"></div>
         </div>
         <div class="x_content">
@@ -51,6 +61,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="pv-leyenda">
             <span><i class="pv-muestra pv-cumple"></i> Cumple</span>
             <span><i class="pv-muestra pv-debajo"></i> Por debajo</span>
+            <span><i class="pv-muestra pv-cubierto"></i> Cubierto (encargo u otro peaje)</span>
             <span><i class="pv-muestra pv-encima"></i> Por encima</span>
             <span><i class="pv-muestra pv-sinjust"></i> Falta justificar</span>
           </div>
@@ -60,16 +71,35 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="aus-rapido" id="pvRapido" style="display:none;">
             <h4 class="rd-subtitulo" style="margin-top:0;">Registrar un día o una parte del mes</h4>
             <p class="rd-ayuda" style="margin-top:0;">Elige el día y, si es una parte del mes (por ejemplo del 1 al 15), también el último día: se anota en cada día del rango.
-              Escribe solo lo que quieras poner: lo que dejes vacío no cambia. El ejecutado se registra hasta hoy.</p>
+              Escribe solo lo que quieras poner: lo que dejes vacío no cambia. El ejecutado se registra hasta hoy.
+              Para justificar con las opciones (motivos, encargos y otros peajes), despliega <strong>Justificación</strong> y elige si quedó por debajo o por encima.</p>
             <form id="formPvRapido" autocomplete="off">
               <div class="row">
                 <div class="form-group col-md-2 col-sm-4 col-xs-6"><label for="rpDesde">Día: <span class="rd-req">*</span></label><input type="date" id="rpDesde" class="form-control"></div>
                 <div class="form-group col-md-2 col-sm-4 col-xs-6"><label for="rpHasta">Hasta (opcional):</label><input type="date" id="rpHasta" class="form-control" title="El último día. Vacío = solo un día"></div>
-                <div class="form-group col-md-2 col-sm-4 col-xs-12"><label for="rpCargo">Cargo: <span class="rd-req">*</span></label><select id="rpCargo" class="form-control"></select></div>
+                <div class="form-group col-md-3 col-sm-4 col-xs-12"><label for="rpCargo">Cargo: <span class="rd-req">*</span></label><select id="rpCargo" class="form-control"></select></div>
                 <div class="form-group col-md-1 col-sm-3 col-xs-6"><label for="rpPromesa">Promesa:</label><input type="text" inputmode="decimal" id="rpPromesa" class="form-control" maxlength="7" placeholder="horas"></div>
                 <div class="form-group col-md-1 col-sm-3 col-xs-6"><label for="rpEjecutado">Ejecutado:</label><input type="text" inputmode="decimal" id="rpEjecutado" class="form-control" maxlength="7" placeholder="horas"></div>
-                <div class="form-group col-md-2 col-sm-6 col-xs-12"><label for="rpJust">Justificación:</label><input type="text" id="rpJust" class="form-control" maxlength="300" placeholder="Por qué no se cumplió"></div>
-                <div class="form-group col-md-2 col-sm-12 col-xs-12"><label class="hidden-xs hidden-sm">&nbsp;</label>
+                <?php //Las opciones de la justificación solo se despliegan si se elige aquí por debajo o por encima ?>
+                <div class="form-group col-md-3 col-sm-6 col-xs-12"><label for="rpTipoBtn">Justificación:</label>
+                  <input type="hidden" id="rpTipo" value="">
+                  <div class="btn-group pv-rp-tipo">
+                    <button type="button" class="btn btn-default dropdown-toggle" id="rpTipoBtn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                            title="Elige si quedó por debajo o por encima para ver las opciones (motivos, encargos y otros peajes)">
+                      <span id="rpTipoTexto">Elegir opciones…</span> <span class="caret"></span></button>
+                    <ul class="dropdown-menu" aria-labelledby="rpTipoBtn">
+                      <li><a href="#" class="rp-tipo" data-tipo="DEBAJO"><i class="fa fa-arrow-down"></i> Quedó por debajo de la promesa <span class="rp-sugerido">según las horas</span></a></li>
+                      <li><a href="#" class="rp-tipo" data-tipo="ENCIMA"><i class="fa fa-arrow-up"></i> Quedó por encima de la promesa <span class="rp-sugerido">según las horas</span></a></li>
+                      <li role="separator" class="divider"></li>
+                      <li><a href="#" class="rp-tipo" data-tipo=""><i class="fa fa-times"></i> Sin opciones (solo el detalle)</a></li>
+                    </ul></div></div>
+              </div>
+              <!-- Las opciones de la justificación (las pinta PromesaValorAjax.js, las mismas de la ventanita) -->
+              <div class="pv-rp-opciones" id="rpOpciones" style="display:none;"></div>
+              <div class="row">
+                <div class="form-group col-md-9 col-sm-8 col-xs-12"><label for="rpJust">Detalle de la justificación (opcional):</label>
+                  <input type="text" id="rpJust" class="form-control" maxlength="300" placeholder="Por qué no se cumplió, nombre de quien cubrió, turno…"></div>
+                <div class="form-group col-md-3 col-sm-4 col-xs-12"><label class="hidden-xs">&nbsp;</label>
                   <button type="submit" class="btn btn-success btn-block" id="rpRegistrar"><i class="fa fa-plus"></i> Registrar</button></div>
               </div>
             </form>
@@ -95,8 +125,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=13"></script>
-<script type="text/javascript" src="../Ajax/PromesaValorAjax.js?v=14"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
+<script type="text/javascript" src="../Ajax/PromesaValorAjax.js?v=22"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

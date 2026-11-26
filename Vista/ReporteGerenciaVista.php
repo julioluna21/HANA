@@ -63,7 +63,42 @@ if (isset($_SESSION['IdUsuarios'])) {
   .ger-agregar { margin: 2px 0 6px; }
   .ger-compromisos td { vertical-align: middle !important; }
   .ger-compromisos td:last-child { width: 1%; white-space: nowrap; }
-  .ger-compromisos .ger-fecha-col { width: 200px; }
+  /* La manito para arrastrar los compromisos */
+  .ger-compromisos .ger-manito-col, .ger-compromisos .ger-manito { width: 34px; text-align: center; }
+  .ger-compromisos .ger-manito { cursor: grab; color: #888; font-size: 17px; user-select: none; touch-action: none; }
+  .ger-compromisos .ger-manito:active { cursor: grabbing; color: #D99C2B; }
+  .ger-compromisos tr.ger-arrastrando { opacity: .45; background: #fcf8e3; }
+  .ger-compromisos .ger-fecha-col { width: 150px; }
+  .ger-compromisos textarea { min-height: 34px !important; resize: vertical; }
+  .ger-compromisos { min-width: 1080px; }
+  .ger-compromisos .ger-c-col-asunto { min-width: 220px; }
+  .ger-compromisos .ger-c-col-accion { min-width: 260px; }
+  .ger-c-detalle { display: block; margin-top: 3px; }
+  .ger-cestado { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .ger-cestado-vencido { background: #F4CCCC; color: #8B1A1A; }
+  .ger-cestado-cumplido { background: #E2F0D9; color: #2E6B1F; }
+  .ger-cestado-sinfecha, .ger-cestado-hoy { background: #FCE4D6; color: #8A4B12; }
+  .ger-cestado-tiempo { background: #EEF2F7; color: #34495E; }
+  .ger-escalamiento label { margin: 6px 0 2px; font-size: 12px; }
+  /* Tablas de la promesa por proyecto y de las vacantes (solo lectura) */
+  .ger-tabla { margin-bottom: 6px; }
+  .ger-tabla > thead > tr > th { background: #6E1A1E !important; color: #fff !important; border-color: #6E1A1E !important; }
+  .ger-tabla .ger-dias { color: #888; font-size: 11px; white-space: nowrap; }
+  .ger-tabla tr.ger-grupo td { background: #f5e4e5; color: #6E1A1E; font-weight: 700; }
+  .ger-tabla tr.ger-total td { background: #6E1A1E; color: #fff; font-weight: 700; }
+  .ger-tabla .ger-ok { color: #138a72; } .ger-tabla .ger-medio { color: #b07814; } .ger-tabla .ger-mal { color: #6E1A1E; }
+  .ger-sub-cab { margin-top: 12px; }
+  /* Tabla de vacantes editable */
+  .ger-vac-edit td { vertical-align: top !important; }
+  .ger-vac-edit .ger-dias { display: block; margin-top: 2px; }
+  .ger-vac-edit textarea { resize: vertical; min-height: 34px; }
+  .ger-vac-pie { margin: 4px 0 8px; }
+  /* Barra flotante: Guardar, PDF y Word siempre a la vista al bajar por el informe */
+  #gerFlotante { position: fixed; right: 22px; bottom: 18px; z-index: 1030; display: none; gap: 6px; padding: 8px; border-radius: 8px;
+                 background: rgba(255, 255, 255, .97); box-shadow: 0 4px 16px rgba(0, 0, 0, .18); border: 1px solid #e3e6ea; }
+  #gerFlotante.visible { display: flex; }
+  #gerFlotante .btn { margin: 0; }
+  @media print { #gerFlotante { display: none !important; } }
   #gerImpresion { display: none; }
   @media print {
     #gerImpresion { display: block; font-size: 12px; color: #000; }
@@ -106,6 +141,7 @@ if (isset($_SESSION['IdUsuarios'])) {
               <button type="button" class="btn btn-default" id="btnTraerTodo" title="Vuelve a llenar todas las secciones con lo que hay en el sistema"><i class="fa fa-refresh"></i> Traer todo otra vez</button>
               <button type="button" class="btn btn-default" id="btnCopiar" title="Copia el reporte como texto, para pegarlo en un correo o en WhatsApp"><i class="fa fa-clipboard"></i> Copiar texto</button>
               <button type="button" class="btn btn-primary" id="btnPdf" title="El informe en PDF, listo para enviar a la Gerencia. La cifra de la promesa sale de lo que dice el texto de los resultados."><i class="fa fa-file-pdf-o"></i> PDF para la Gerencia</button>
+              <button type="button" class="btn btn-primary" id="btnWord" title="El mismo informe en Word (.docx), para seguir editándolo"><i class="fa fa-file-word-o"></i> Word</button>
               <button type="button" class="btn btn-success" id="btnGuardar"><i class="fa fa-save"></i> Guardar</button>
             </div>
           </div>
@@ -121,6 +157,12 @@ if (isset($_SESSION['IdUsuarios'])) {
           <div class="rd-acciones"><button type="button" class="btn btn-success" id="btnGuardar2"><i class="fa fa-save"></i> Guardar</button></div>
         </div>
       </div>
+      <!-- Los mismos botones, siempre a la vista al bajar por el informe -->
+      <div id="gerFlotante" class="rd-no-imprimir">
+        <button type="button" class="btn btn-primary btn-sm" id="btnPdfFlota" title="PDF para la Gerencia"><i class="fa fa-file-pdf-o"></i> PDF</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnWordFlota" title="El informe en Word (.docx)"><i class="fa fa-file-word-o"></i> Word</button>
+        <button type="button" class="btn btn-success btn-sm" id="btnGuardarFlota"><i class="fa fa-save"></i> Guardar</button>
+      </div>
       <!-- Lo que sale al imprimir o guardar como PDF -->
       <div id="gerImpresion"></div>
     </div>
@@ -128,8 +170,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=7"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
+<script type="text/javascript" src="../Ajax/ReporteGerenciaAjax.js?v=23"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }

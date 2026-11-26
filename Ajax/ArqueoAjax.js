@@ -131,7 +131,8 @@ function abrirFormulario() {
     $('#formArq')[0].reset();
     $('#arqFecha').val(cfgArq.hoy);
     rdLimitarFecha('#arqFecha', cfgArq.hoy, cfgArq.habilitados);            //hoy, un sábado, domingo o festivo del mes, o un día habilitado
-    rdBotonesDia('#arqRapido', cfgArq.hoy, cfgArq.habilitados, 'btn-xs', cfgArq.findes);
+    //Botones solo de hoy y de los días que habilitó el administrador; los sábados, domingos y festivos se escogen en la fecha
+    rdBotonesDia('#arqRapido', cfgArq.hoy, (cfgArq.habilitados || []).filter(function (fecha) { return (cfgArq.findes || []).indexOf(fecha) === -1; }), 'btn-xs');
     var ahora = new Date();
     $('#arqHora').val(rdDos(ahora.getHours()) + ':' + rdDos(ahora.getMinutes()));
     $('input[name="tipo"]').first().prop('checked', true);

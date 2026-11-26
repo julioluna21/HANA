@@ -89,7 +89,8 @@ $gruposRoles = array(
         array('60M', 'Ver: los temas de sus proyectos')),
     'Consultas' => array(array('19M', 'Reporte general (de sus peajes)'), array('43M', 'Tablero por proyectos, dentro del reporte general'),
         array('37M', 'Informe mensual de gestión (PDF)'), array('61M', 'Reporte diario a la Gerencia: armarlo, corregirlo y guardarlo'),
-        array('62M', 'Trazabilidad: ver qué se registró, cambió, anuló o envió en sus peajes, quién y cuándo')),
+        array('62M', 'Trazabilidad: ver qué se registró, cambió, anuló o envió en sus peajes, quién y cuándo'),
+        array('63M', 'Descargar en Excel la promesa de valor y las vacantes (de sus peajes)')),
     //El grupo «Ausentismo» (casillas 52M, 53M, 58M, 25M, 23M) se retiró junto con el módulo de ausentismo.
     //Esos códigos quedan reservados y no se reutilizan. También quedan reservados y sin pantalla: 40M (consolidado
     //de promesa, retirado), 4M, 8M, 9M, 13M y 27M (funciones retiradas: cargos, estados, observadores, Power BI).

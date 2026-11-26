@@ -21,7 +21,16 @@
                       Se lee como m.CON (ver columnas())
 
   historial.TIPO de un tema: SEGUIMIENTO (en qué va), RESUELTA (se cerró) y
-  REABIERTA. Las pantallas de comunicaciones, el tablero, el informe mensual y
+  REABIERTA.
+
+  El compromiso de cierre (quién responde y para cuándo) también va en historial,
+  pero con MODULO = 'TEMA_CLIENTE', para que no se mezcle con el seguimiento:
+    TIPO = 'RESPONSABLE'  TEXTO = el nombre de quien responde
+    TIPO = 'COMPROMISO'   TEXTO = 'AAAA-MM-DD|motivo' (la fecha comprometida de cierre y,
+                          si se cambió una que ya había, por qué; fecha vacía = se quitó)
+  Vale el último de cada uno; los anteriores dicen cuántas veces se corrió la fecha.
+
+  Las pantallas de comunicaciones, el tablero, el informe mensual y
   los recordatorios no cuentan los temas (filtran TIPO <> 'TEMA_CLIENTE').
 */
 require_once __DIR__ . "/HanaDB.php";
@@ -87,7 +96,12 @@ class TemaCliente
         }
         $sql .= " ORDER BY (m.FECHA_ATENCION IS NULL) DESC, p.NOM_PROYECTO, m.FECHA_RECEPCION, m.ID_COMUNICACION";
         $filas = HanaDB::q($sql, $tipos, $params);
-        return array_map(function ($tema) use ($hoy) { return TemaCliente::calcular($tema, $hoy); }, is_array($filas) ? $filas : array());
+        $filas = is_array($filas) ? $filas : array();
+        $compromisos = self::compromisos(array_map(function ($t) { return (int)$t['ID_COMUNICACION']; }, $filas));
+        return array_map(function ($tema) use ($hoy, $compromisos) {
+            $tema['COMPROMISO'] = isset($compromisos[(int)$tema['ID_COMUNICACION']]) ? $compromisos[(int)$tema['ID_COMUNICACION']] : TemaCliente::sinCompromiso();
+            return TemaCliente::calcular($tema, $hoy);
+        }, $filas);
     }
 
     //Días que lleva abierto (o que duró) y días desde el último movimiento
@@ -146,6 +160,60 @@ class TemaCliente
                          'issis', array((int)$id, $tipo, $texto, (int)$idColaborador, $ahora));
     }
 
+    //-----------------------------------------------------------------------
+    // El compromiso de cierre de varios temas, como estaba antes de $hasta (AAAA-MM-DD, sin
+    // incluirlo; null = hasta hoy): [idTema => {responsable, fecha, motivo, veces, anteriores}]
+    //   fecha       la fecha comprometida vigente (AAAA-MM-DD) o null
+    //   veces       cuántas veces se cambió una fecha que ya estaba puesta
+    //   anteriores  esas fechas, de la más vieja a la más nueva
+    //   motivo      por qué se cambió la última vez
+    //-----------------------------------------------------------------------
+    public static function compromisos($ids, $hasta = null)
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!count($ids)) { return array(); }
+        $marcas = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "SELECT ID_REGISTRO, TIPO, TEXTO FROM historial WHERE MODULO = '" . self::TIPO . "' AND TIPO IN ('RESPONSABLE', 'COMPROMISO') AND ID_REGISTRO IN ($marcas)";
+        $tipos = str_repeat('i', count($ids)); $params = $ids;
+        if ($hasta !== null) { $sql .= " AND FECHA < ?"; $tipos .= 's'; $params[] = $hasta; }
+        $filas = HanaDB::q($sql . " ORDER BY FECHA, ID_HISTORIAL", $tipos, $params);
+        $lista = array();
+        foreach (is_array($filas) ? $filas : array() as $f) {
+            $id = (int)$f['ID_REGISTRO'];
+            if (!isset($lista[$id])) { $lista[$id] = self::sinCompromiso(); }
+            if ($f['TIPO'] === 'RESPONSABLE') { $lista[$id]['responsable'] = (string)$f['TEXTO']; continue; }
+            $partes = explode('|', (string)$f['TEXTO'], 2);
+            $fecha = preg_match('/^\d{4}-\d{2}-\d{2}$/', $partes[0]) ? $partes[0] : null;
+            if ($lista[$id]['fecha'] !== null && $fecha !== $lista[$id]['fecha']) {
+                $lista[$id]['veces']++;
+                $lista[$id]['anteriores'][] = $lista[$id]['fecha'];
+                $lista[$id]['motivo'] = isset($partes[1]) ? $partes[1] : '';
+            }
+            $lista[$id]['fecha'] = $fecha;
+        }
+        return $lista;
+    }
+
+    public static function sinCompromiso() { return array('responsable' => '', 'fecha' => null, 'motivo' => '', 'veces' => 0, 'anteriores' => array()); }
+
+    //Guarda quién responde y la fecha comprometida de cierre, solo lo que cambió. $motivo: por qué se
+    //cambia una fecha que ya estaba (quien llama verifica que venga cuando hace falta)
+    public static function guardarCompromiso($id, $responsable, $fecha, $motivo, $idColaborador, $ahora)
+    {
+        $actual = self::compromisos(array($id));
+        $actual = isset($actual[(int)$id]) ? $actual[(int)$id] : self::sinCompromiso();
+        $ok = true;
+        if ($responsable !== $actual['responsable']) {
+            $ok = HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES ('" . self::TIPO . "', ?, 'RESPONSABLE', ?, NULLIF(?, 0), ?)",
+                            'isis', array((int)$id, $responsable, (int)$idColaborador, $ahora)) && $ok;
+        }
+        if ($fecha !== $actual['fecha']) {
+            $ok = HanaDB::q("INSERT INTO historial (MODULO, ID_REGISTRO, TIPO, TEXTO, ID_COLABORADOR, FECHA) VALUES ('" . self::TIPO . "', ?, 'COMPROMISO', ?, NULLIF(?, 0), ?)",
+                            'isis', array((int)$id, ($fecha !== null ? $fecha : '') . '|' . $motivo, (int)$idColaborador, $ahora)) && $ok;
+        }
+        return $ok;
+    }
+
     //Cierra el tema en la fecha indicada (ya no queda pendiente de nadie)
     public static function cerrar($id, $fecha, $ahora)
     {
@@ -167,31 +235,56 @@ class TemaCliente
                            WHERE ID_COMUNICACION = ? AND TIPO = '" . self::TIPO . "' AND ESTADO = 1", 'ssi', array($motivo, $ahora, (int)$id));
     }
 
-    //Para el reporte a la Gerencia: por proyecto, los temas que se movieron ese día
-    //(se abrieron, tuvieron seguimiento, se cerraron o se reabrieron), con lo que se escribió
-    //Con $desde (reporte a la Gerencia por rango de días): los que se movieron en cualquier día del periodo
-    public static function movimientosDelDia($idsProyectos, $fecha, $desde = null)
+    //-----------------------------------------------------------------------
+    // Para el Reporte a la Gerencia: todos los temas que estaban abiertos al final del
+    // periodo ($desde – $fecha) y los que se cerraron en él, con todo lo que se llenó:
+    // proyecto y peaje, con quién (cliente o Regency), el tema, con quién se trata, de
+    // qué se trata, pendiente de quién, apertura, cierre, quién lo registró y lo último
+    // que se escribió hasta $fecha (ULTIMO_TEXTO, ULTIMO_FECHA, ULTIMO_QUIEN).
+    // Cada tema trae además 'actualizaciones': lo que se escribió en el periodo, en orden
+    // (FECHA, TEXTO, QUIEN, TIPO), para mostrarlo como el seguimiento de la pantalla, y
+    // 'compromiso': quién responde y la fecha comprometida de cierre (ver compromisos()).
+    // Devuelve [idProyecto => [tema, ...]]
+    //-----------------------------------------------------------------------
+    public static function paraInforme($idsProyectos, $fecha, $desde = null)
     {
         if (!count($idsProyectos)) { return array(); }
         $desde = ($desde !== null && $desde < $fecha) ? $desde : $fecha;
         $marcas = implode(',', array_fill(0, count($idsProyectos), '?'));
         $manana = date('Y-m-d', strtotime("$fecha +1 day"));
-        $filas = HanaDB::q("SELECT m.ID_COMUNICACION, m.ID_PROYECTO, m.ASUNTO, m.REMITENTE, m.FECHA_RECEPCION, m.FECHA_ATENCION, c.NOM_CENTRO_OP, m.MEDIO AS CLASE,
-                                   IF(m.RADICADO = 'REGENCY', 'REGENCY', 'CLIENTE') AS CON,
-                                   (SELECT h.TEXTO FROM historial h
-                                     WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.FECHA >= ? AND h.FECHA < ?
-                                       AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
-                                     ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1) AS TEXTO_DIA
-                              FROM comunicacion m LEFT JOIN centros_operacion c ON c.ID_CENTRO_OP = m.ID_CENTRO_OP
+        $ultimo = "FROM historial h LEFT JOIN colaboradores q ON q.ID_COLABORADOR = h.ID_COLABORADOR
+                    WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO = m.ID_COMUNICACION AND h.FECHA < ? AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
+                    ORDER BY h.FECHA DESC, h.ID_HISTORIAL DESC LIMIT 1";
+        $filas = HanaDB::q("SELECT m.ID_COMUNICACION, m.ID_PROYECTO, m.ASUNTO, m.REMITENTE, m.MEDIO AS CLASE, m.PENDIENTE_DE, m.FECHA_RECEPCION, m.FECHA_ATENCION,
+                                   IF(m.RADICADO = 'REGENCY', 'REGENCY', 'CLIENTE') AS CON, c.NOM_CENTRO_OP, reg.NOM_COLABORADOR AS REGISTRO,
+                                   (SELECT h.TEXTO $ultimo) AS ULTIMO_TEXTO,
+                                   (SELECT h.FECHA $ultimo) AS ULTIMO_FECHA,
+                                   (SELECT q.NOM_COLABORADOR $ultimo) AS ULTIMO_QUIEN
+                              FROM comunicacion m
+                              LEFT JOIN centros_operacion c ON c.ID_CENTRO_OP = m.ID_CENTRO_OP
+                              LEFT JOIN colaboradores reg ON reg.ID_COLABORADOR = m.ID_COLABORADOR_REGISTRA
                              WHERE m.TIPO = '" . self::TIPO . "' AND m.ESTADO = 1 AND m.ID_PROYECTO IN ($marcas)
-                               AND (m.FECHA_RECEPCION BETWEEN ? AND ? OR m.FECHA_ATENCION BETWEEN ? AND ?
-                                    OR EXISTS (SELECT 1 FROM historial h2 WHERE h2.MODULO = 'COMUNICACION' AND h2.ID_REGISTRO = m.ID_COMUNICACION
-                                                  AND h2.FECHA >= ? AND h2.FECHA < ?))
+                               AND m.FECHA_RECEPCION <= ? AND (m.FECHA_ATENCION IS NULL OR m.FECHA_ATENCION >= ?)
                              ORDER BY m.FECHA_RECEPCION, m.ID_COMUNICACION",
-                           'ss' . str_repeat('i', count($idsProyectos)) . 'ssssss',
-                           array_merge(array($desde, $manana), array_map('intval', $idsProyectos), array($desde, $fecha, $desde, $fecha, $desde, $manana)));
+                           'sss' . str_repeat('i', count($idsProyectos)) . 'ss',
+                           array_merge(array($manana, $manana, $manana), array_map('intval', $idsProyectos), array($fecha, $desde)));
+        $temas = array();
+        foreach (is_array($filas) ? $filas : array() as $fila) { $fila['actualizaciones'] = array(); $temas[(int)$fila['ID_COMUNICACION']] = $fila; }
+        if (count($temas)) {
+            $marcasTemas = implode(',', array_fill(0, count($temas), '?'));
+            $movimientos = HanaDB::q("SELECT h.ID_REGISTRO, h.FECHA, h.TEXTO, h.TIPO, q.NOM_COLABORADOR AS QUIEN
+                                        FROM historial h LEFT JOIN colaboradores q ON q.ID_COLABORADOR = h.ID_COLABORADOR
+                                       WHERE h.MODULO = 'COMUNICACION' AND h.ID_REGISTRO IN ($marcasTemas) AND h.FECHA >= ? AND h.FECHA < ?
+                                         AND h.TEXTO IS NOT NULL AND h.TEXTO <> ''
+                                       ORDER BY h.FECHA, h.ID_HISTORIAL",
+                                     str_repeat('i', count($temas)) . 'ss', array_merge(array_keys($temas), array($desde, $manana)));
+            foreach (is_array($movimientos) ? $movimientos : array() as $m) { $temas[(int)$m['ID_REGISTRO']]['actualizaciones'][] = $m; }
+            //Quién responde y para cuándo, como estaba ese día
+            $compromisos = self::compromisos(array_keys($temas), $manana);
+            foreach ($temas as $id => $tema) { $temas[$id]['compromiso'] = isset($compromisos[$id]) ? $compromisos[$id] : self::sinCompromiso(); }
+        }
         $porProyecto = array();
-        foreach (is_array($filas) ? $filas : array() as $fila) { $porProyecto[(int)$fila['ID_PROYECTO']][] = $fila; }
+        foreach ($temas as $tema) { $porProyecto[(int)$tema['ID_PROYECTO']][] = $tema; }
         return $porProyecto;
     }
 }

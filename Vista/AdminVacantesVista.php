@@ -41,7 +41,7 @@ if (isset($_SESSION['IdUsuarios'])) {
           </div>
           <div class="adm-resumen" id="admResumen"></div>
           <div class="table-responsive" id="admResultado"><table class="table table-bordered rd-tabla rd-tabla-compacta">
-            <thead><tr><th class="rd-num-col">RQ</th><th>Proyecto</th><th>Centro</th><th>Cargo</th><th>Fecha vacante</th><th>Acuerdo hasta</th><th>Cierre</th><th class="rd-num-col">Días</th><th>Motivo</th><th>Estado</th><th>Resultado</th><th>Nombre</th><th>Compromiso GH</th></tr></thead><tbody id="admFilas"><tr><td colspan="13" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
+            <thead><tr><th class="rd-num-col">RQ</th><th>Proyecto</th><th>Centro</th><th>Cargo</th><th>Fecha vacante</th><th>Acuerdo hasta</th><th>Cierre</th><th class="rd-num-col">Días</th><th>Motivo</th><th>Estado</th><th>Resultado</th><th>Nombre</th><th title="Estado del proceso en Gestión Humana, su fecha comprometida (si es distinta del acuerdo) y lo último que respondió">Gestión Humana</th></tr></thead><tbody id="admFilas"><tr><td colspan="13" class="rd-vacio">Cargando...</td></tr></tbody></table></div>
         </div>
       </div>
     </div>
@@ -61,8 +61,8 @@ if (isset($_SESSION['IdUsuarios'])) {
 </div>
 
 <?php include('footer.php'); ?>
-<script type="text/javascript" src="../Ajax/ReporteComun.js?v=12"></script>
-<script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=8"></script>
+<script type="text/javascript" src="../Ajax/ReporteComun.js?v=15"></script>
+<script type="text/javascript" src="../Ajax/AdminReporteAjax.js?v=9"></script>
 <?php
     } else { echo "<script>window.location.replace('InicioVista.php');</script>"; }
 } else { echo "<script>window.location.replace('login.php');</script>"; }
